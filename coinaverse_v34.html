@@ -9481,19 +9481,21 @@ window.frFinish = function(){ if(_ficoracer){ _ficoracer.finished = true; goTo('
 // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 
 window.playDistrictGame = function(token, i) {
+  console.log('🎮 Kabria game override called:', token, i);
   if(window.state){state.gamesDone=state.gamesDone||{};state.gamesDone[token+':'+i]=1;if(window.cvSave)cvSave();}
 
   const gameMap = {
-    strategist: function(){ gqInit(); goTo('game_goalquest'); },
-    investor: function(){ ssInit(); goTo('game_stocksurge'); },
-    builder: function(){ boInit(); goTo('game_bizop'); },
-    risktaker: function(){ bbInit(); goTo('game_blockbuilder'); },
-    guardian: function(){ mcInit(); goTo('game_moneycatcher'); },
-    rebuilder: function(){ dsInit(); goTo('game_debtsurv'); },
-    credtech: function(){ frInit(); goTo('game_ficoracer'); }
+    strategist: function(){ console.log('Loading Goal Quest'); gqInit(); goTo('game_goalquest'); },
+    investor: function(){ console.log('Loading Stock Surge'); ssInit(); goTo('game_stocksurge'); },
+    builder: function(){ console.log('Loading Biz Op'); boInit(); goTo('game_bizop'); },
+    risktaker: function(){ console.log('Loading Block Builder'); bbInit(); goTo('game_blockbuilder'); },
+    guardian: function(){ console.log('Loading Money Catcher'); mcInit(); goTo('game_moneycatcher'); },
+    rebuilder: function(){ console.log('Loading Debt Survival'); dsInit(); goTo('game_debtsurv'); },
+    credtech: function(){ console.log('Loading FICO Racer'); frInit(); goTo('game_ficoracer'); }
   };
 
   if(gameMap[token]){ gameMap[token](); } else {
+    console.log('Unknown token, returning to hub');
     goTo('hub');
   }
 };
