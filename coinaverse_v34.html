@@ -8882,6 +8882,7 @@ video::-webkit-media-controls-play-button {
   window.cvOpenEpisode=function(i){
     i=((i%CINE.length)+CINE.length)%CINE.length;
     window._cvEp={i:i,answered:false,picked:-1,earned:false};
+    window._cvSeen=window._cvSeen||new Set(); window._cvSeen.add(i);
     if(window.stopVoice) stopVoice();
     if(window.duckBgmForVideo) duckBgmForVideo(true);
     let o=document.getElementById('cvVideo');
@@ -8951,6 +8952,7 @@ video::-webkit-media-controls-play-button {
     st.answered=true; st.picked=k;
     if(k===q.ans && !st.earned){ st.earned=true;
       if(window.state){ state.coins=(state.coins||0)+100; if(window.cvAddXP) cvAddXP(50,0); if(window.cvSave) cvSave(); }
+      window._cvBadges=window._cvBadges||new Set(); if(q.badge) window._cvBadges.add(q.badge);
     }
     cvRenderEpisode();
   };
@@ -9039,19 +9041,70 @@ video::-webkit-media-controls-play-button {
       ['⚔️ COINCEPT SQUAD',CINE.filter(e=>e.cat==='CoinCept Squad')],
     ];
 
+    window.cineTab=function(t){ window._cineTab=t; goTo('cinema'); };
+    window.cineToast=function(m){ if(window.cvToast)cvToast(m); else if(window.toast)toast(m); else alert(m); };
+    const tab=window._cineTab||'home';
+    const coins=(window.state||{}).coins||0;
+    const seen=(window._cvSeen&&window._cvSeen.size)||0;
+    const earnedBadges=window._cvBadges?Array.from(window._cvBadges):[];
+    const gd=(window.state&&state.gamesDone)||{};
     const ft=feat.poster||'';
-    return `<div class="nf-wrap">
-      <style>${NF_CSS}</style>
-      <div class="nf-topbar">
-        <button class="nf-back" onclick="goTo('home')">← HOME</button>
-        <div class="nf-logo">COINAVERSE CINEMA</div>
-        <div class="nf-coins">🪙 ${(window.state||{}).coins||0}</div>
-      </div>
-      <div class="nf-hero">
+    const TABS=[['home','Home'],['episodes','Episodes'],['collections','Collections'],['premieres','Premieres'],['news','News'],['rewards','My Rewards']];
+    const rail=(list)=>`<div class="nf-row">${list.map(e=>nfCard(e,CINE.indexOf(e))).join('')}</div>`;
+    const COLLECTIONS=[
+      {name:'Money Basics',e:'🎓',cats:['Money Basics'],c:'#14b8a6'},
+      {name:'Earning Saga',e:'💼',cats:['Earning'],c:'#3b82f6'},
+      {name:'Saving Saga',e:'💰',cats:['Saving','Counting'],c:'#10b981'},
+      {name:'CoinCept Squad',e:'⚔️',cats:['CoinCept Squad'],c:'#a855f7'},
+    ];
+    const PREMIERES=[
+      {t:'Debt Phantom Unleashed',d:'A new villain threatens the Coinaverse. Heroes assemble.',w:'5 days',e:'🦹'},
+      {t:'Coin City Rises',d:'The squad rebuilds Coin City after the crash.',w:'12 days',e:'🏙️'},
+      {t:'Season 02 Finale',d:'The ultimate money-smart showdown for the galaxy.',w:'23 days',e:'🏆'},
+    ];
+    const NEWS=[
+      {tag:'NEW EPISODE',t:'“Spending Wisely” is live',d:'Mr. JQ teaches smart spending — watch & earn coins now.'},
+      {tag:'EVENT',t:'Champions Nexus opens this weekend',d:'Compete in the Event Arena for trophies & legacy titles.'},
+      {tag:'UPDATE',t:'Every episode now links to a real hub game',d:'Finish a lesson, then jump straight into the matching game.'},
+    ];
+    const PLANS=[
+      {n:'Free',p:'$0',per:'forever',f:['First episode of every series','Browse all lessons','Earn from quizzes'],cta:'CURRENT PLAN',hot:false},
+      {n:'Premium',p:'$2.99',per:'/month',f:['Full seasons','Interactive episodes','Behind the scenes','Bonus rewards'],cta:'GO PREMIUM',hot:true},
+      {n:'Annual',p:'$35.99',per:'/year',f:['Everything in Premium','Exclusive avatar item yearly','Monthly bonus coins'],cta:'BEST VALUE',hot:false},
+    ];
+    const LEARN=[['Saving','guardian','#5eead4'],['Investing','investor','#34d399'],['Budgeting','strategist','#60a5fa'],['Credit','credtech','#7dd3fc'],['Earning','builder','#c084fc']];
+    const lpct=(tok)=>Math.min(100,35+(gd[tok+':0']?50:0)+Math.min(15,seen*3));
+    const CN_CSS=`
+      .cn-nav{display:flex;gap:6px;overflow-x:auto;padding:10px 16px;background:#141414;position:sticky;top:56px;z-index:20;border-bottom:1px solid rgba(255,255,255,.06);scrollbar-width:none}
+      .cn-nav::-webkit-scrollbar{display:none}
+      .cn-tab{flex:0 0 auto;padding:8px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:rgba(255,255,255,.7);font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer;transition:.15s}
+      .cn-tab:hover{color:#fff;border-color:rgba(229,9,20,.5)}
+      .cn-tab.on{background:#e50914;border-color:#e50914;color:#fff;font-weight:700}
+      .cn-promo{margin:18px 12px 4px;padding:12px 16px;border-radius:12px;border:1px solid rgba(229,9,20,.3);background:linear-gradient(135deg,rgba(229,9,20,.12),rgba(251,191,36,.06));font-size:.85rem;color:rgba(255,255,255,.85)}
+      .cn-promo span{display:block;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.16em;color:#fbbf24;margin-top:5px}
+      .cn-grid{display:flex;flex-wrap:wrap;gap:12px;padding:6px 4px}
+      .cn-sect{padding:18px 16px 4px;font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.2em;color:#e5e5e5}
+      .cn-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;padding:6px 16px 22px}
+      .cn-coll{position:relative;border-radius:16px;padding:22px 18px;cursor:pointer;overflow:hidden;border:1px solid rgba(255,255,255,.08);min-height:120px;display:flex;flex-direction:column;justify-content:flex-end;transition:transform .18s}
+      .cn-coll:hover{transform:translateY(-3px)}
+      .cn-tile{border-radius:14px;padding:16px;border:1px solid rgba(255,255,255,.08);background:#1a1a2e}
+      .cn-tag{display:inline-block;font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.14em;color:#e50914;background:rgba(229,9,20,.12);border:1px solid rgba(229,9,20,.3);padding:3px 9px;border-radius:5px;margin-bottom:8px}
+      .cn-btn{padding:9px 16px;border:none;border-radius:9px;background:rgba(255,255,255,.1);color:#fff;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.1em;cursor:pointer;border:1px solid rgba(255,255,255,.15)}
+      .cn-btn.red{background:#e50914;border-color:#e50914;font-weight:700}
+      .cn-stat{flex:1;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px}
+      .cn-bar{height:8px;border-radius:5px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:5px}
+      .cn-plan{border-radius:16px;padding:20px;border:1px solid rgba(255,255,255,.1);background:#1a1a2e;text-align:center}
+      .cn-plan.hot{border-color:#fbbf24;background:linear-gradient(160deg,rgba(251,191,36,.1),#1a1a2e);transform:scale(1.02)}
+      .cn-chip{display:inline-block;margin:3px;padding:6px 11px;border-radius:999px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3);color:#fde68a;font-size:.72rem}
+    `;
+    let body='';
+    if(tab==='home'){
+      window._nfIdx=0; setTimeout(window.startNfRot,200);
+      body=`<div class="nf-hero">
         ${ft?`<img id="nfHeroImg" class="nf-hero-img" src="${ft}" onerror="this.style.display='none'">`:''}
         <div class="nf-hero-grad"></div>
         <div class="nf-hero-content">
-          <div class="nf-hero-badge">▶ FEATURED LESSON</div>
+          <div class="nf-hero-badge">▶ TRENDING NOW</div>
           <h1 id="nfHeroTitle" class="nf-hero-title">${feat.t}</h1>
           <p id="nfHeroDesc" class="nf-hero-desc">${feat.d}</p>
           <div class="nf-hero-btns">
@@ -9061,14 +9114,43 @@ video::-webkit-media-controls-play-button {
         </div>
       </div>
       <div class="nf-body">
-        ${ROWS.map(([lbl,list])=>`
-          <div class="nf-row-lbl">${lbl}</div>
-          <div class="nf-row">${list.map(e=>nfCard(e,CINE.indexOf(e))).join('')}</div>
-        `).join('')}
+        <div class="cn-promo">⚡ <b>Earn by watching</b> — answer a fun quiz after each episode for coins, badges & a game.<span>WATCH → QUIZ → EARN → PLAY</span></div>
+        <div class="nf-row-lbl">🔥 New This Week</div>${rail(CINE.slice(0,4))}
+        ${ROWS.map(([lbl,list])=>`<div class="nf-row-lbl">${lbl}</div>${rail(list)}`).join('')}
         <div style="text-align:center;padding:16px 0;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.18em;color:rgba(255,255,255,.2)">🎬 ${CINE.length} LESSONS BY KABRIA · TAP ANY TO WATCH</div>
+      </div>`;
+    } else if(tab==='episodes'){
+      body=`<div class="nf-body" style="padding-top:14px"><div class="cn-sect">🎬 ALL EPISODES · ${CINE.length}</div><div class="cn-grid" style="padding:6px 16px 30px">${CINE.map(e=>nfCard(e,CINE.indexOf(e))).join('')}</div></div>`;
+    } else if(tab==='collections'){
+      body=`<div class="nf-body" style="padding-top:14px"><div class="cn-sect">📚 COLLECTIONS</div><div class="cn-cards">${COLLECTIONS.map(co=>{const list=CINE.filter(e=>co.cats.includes(e.cat));const idx=CINE.indexOf(list[0]);return `<div class="cn-coll" style="background:linear-gradient(150deg,${co.c}33,#0e0a26)" onclick="${idx>=0?`playEp(${idx})`:`cineTab('episodes')`}"><div style="font-size:2.2rem">${co.e}</div><div style="font-family:'Anton',sans-serif;font-size:1.2rem;margin-top:6px">${co.name}</div><div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.12em;color:${co.c}">${list.length} EPISODE${list.length!==1?'S':''}</div></div>`;}).join('')}</div></div>`;
+    } else if(tab==='premieres'){
+      body=`<div class="nf-body" style="padding-top:14px"><div class="cn-sect">📅 UPCOMING PREMIERES</div><div class="cn-cards">${PREMIERES.map(p=>`<div class="cn-tile"><div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><div style="font-size:2rem">${p.e}</div><div><div style="font-family:'Anton',sans-serif;font-size:1.1rem">${p.t}</div><div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.12em;color:#fbbf24">PREMIERES IN ${p.w.toUpperCase()}</div></div></div><p style="font-size:.82rem;color:rgba(255,255,255,.6);margin:0 0 12px">${p.d}</p><button class="cn-btn red" onclick="cineToast('🔔 Reminder set for ${p.t}!')">🔔 Set Reminder</button></div>`).join('')}</div></div>`;
+    } else if(tab==='news'){
+      body=`<div class="nf-body" style="padding-top:14px"><div class="cn-sect">📰 NEWS & UPDATES</div><div class="cn-cards">${NEWS.map(n=>`<div class="cn-tile"><div class="cn-tag">${n.tag}</div><div style="font-size:1rem;font-weight:700;margin-bottom:6px">${n.t}</div><p style="font-size:.82rem;color:rgba(255,255,255,.6);margin:0">${n.d}</p></div>`).join('')}</div></div>`;
+    } else { // rewards / parent mode
+      body=`<div class="nf-body" style="padding-top:16px">
+        <div class="cn-sect" style="padding-top:4px">🏆 MY REWARDS</div>
+        <div style="display:flex;gap:10px;padding:6px 16px">
+          <div class="cn-stat"><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.45)">WATCHED</div><div style="font-family:'Anton',sans-serif;font-size:1.4rem;color:#e50914">${seen}/${CINE.length}</div></div>
+          <div class="cn-stat"><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.45)">COINS</div><div style="font-family:'Anton',sans-serif;font-size:1.4rem;color:#fbbf24">${coins}</div></div>
+          <div class="cn-stat"><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.45)">BADGES</div><div style="font-family:'Anton',sans-serif;font-size:1.4rem;color:#34d399">${earnedBadges.length}</div></div>
+        </div>
+        ${earnedBadges.length?`<div style="padding:8px 16px">${earnedBadges.map(b=>`<span class="cn-chip">🎖️ ${b}</span>`).join('')}</div>`:`<div style="padding:8px 16px;color:rgba(255,255,255,.4);font-size:.82rem">Watch episodes & answer quizzes to earn badges →</div>`}
+        <div class="cn-sect">👨‍👩‍👧 PARENT MODE · LEARNING PROGRESS</div>
+        <div style="padding:6px 16px 4px">${LEARN.map(([n,tok,c])=>{const p=lpct(tok);return `<div style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:2px"><span>${n}</span><span style="color:${c}">${p}%</span></div><div class="cn-bar"><div style="height:100%;width:${p}%;background:${c};transition:width .4s"></div></div></div>`;}).join('')}</div>
+        <div class="cn-sect">⭐ CHOOSE YOUR PLAN</div>
+        <div class="cn-cards">${PLANS.map(pl=>`<div class="cn-plan ${pl.hot?'hot':''}">${pl.hot?'<div style="font-family:Orbitron,sans-serif;font-size:.45rem;letter-spacing:.14em;color:#fbbf24;margin-bottom:6px">⭐ MOST POPULAR</div>':''}<div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.14em;color:rgba(255,255,255,.7)">${pl.n}</div><div style="font-family:'Anton',sans-serif;font-size:1.8rem;margin:4px 0">${pl.p}<span style="font-size:.7rem;color:rgba(255,255,255,.5)">${pl.per}</span></div><div style="text-align:left;margin:10px 0">${pl.f.map(x=>`<div style="font-size:.78rem;color:rgba(255,255,255,.7);margin:5px 0">✓ ${x}</div>`).join('')}</div><button class="cn-btn ${pl.hot?'red':''}" style="width:100%" onclick="cineToast('${pl.n==='Free'?'You are on the Free plan 🎬':'Subscriptions handled by a parent — ask them to upgrade! 💛'}')">${pl.cta}</button></div>`).join('')}</div>
+      </div>`;
+    }
+    return `<div class="nf-wrap"><style>${NF_CSS}${CN_CSS}</style>
+      <div class="nf-topbar">
+        <button class="nf-back" onclick="goTo('home')">← HOME</button>
+        <div class="nf-logo">COINAVERSE CINEMA</div>
+        <div class="nf-coins">🪙 ${coins}</div>
       </div>
+      <div class="cn-nav">${TABS.map(([k,l])=>`<button class="cn-tab ${tab===k?'on':''}" onclick="cineTab('${k}')">${l}</button>`).join('')}</div>
+      ${body}
     </div>`;
-    window._nfIdx=0; setTimeout(window.startNfRot, 200);
   };
 
   window.showEpDetail=function(i){
