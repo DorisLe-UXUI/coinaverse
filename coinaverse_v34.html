@@ -6836,16 +6836,10 @@ video::-webkit-media-controls-play-button {
   window.HUBX = HUBX;  // expose for v24 module
   // District detail overlay — Learn keyframe + concept + mini-game + host voice
   window.openDistrict = function(token, i){
-    const _DG = {
-      guardian:  {0:'vault_game',1:'emergency_game',2:'satellite_game',3:'security_game',4:'compound_game',5:'dreams_game',6:'resilience_game'},
-      strategist:{0:'budget_game',1:'tax_game',2:'budget_game',3:'market_game',4:'tax_game',5:'budget_game',6:'market_game'},
-      builder:   {0:'startup_game',1:'pitch_game',2:'startup_game',3:'pitch_game',4:'startup_game',5:'pitch_game',6:'startup_game'},
-      investor:  {0:'stock_game',1:'dividend_game',2:'stock_game',3:'dividend_game',4:'stock_game',5:'dividend_game',6:'stock_game'},
-      risktaker: {0:'risk_game',1:'volatility_game',2:'risk_game',3:'volatility_game',4:'risk_game',5:'volatility_game',6:'risk_game'},
-      rebuilder: {0:'snowball_game',1:'credit_game',2:'snowball_game',3:'credit_game',4:'snowball_game',5:'credit_game',6:'snowball_game'},
-      credtech:  {0:'cred_game',1:'loan_game',2:'cred_game',3:'loan_game',4:'cred_game',5:'loan_game',6:'cred_game'},
-    };
-    if (_DG[token] && _DG[token][i] != null) { state.viewingWorld=token; _pendingGame=_DG[token][i]; goTo('lesson'); return; }
+    // NOTE: old _DG mapping (routed every district to legacy flagship games via the
+    // lesson screen) removed — it intercepted before the "▶ PLAY GAME" button and made
+    // playDistrictGame (the 7 Kabria games) unreachable. Now every district shows the
+    // teaching-video modal whose PLAY GAME button calls playDistrictGame → new games.
     const w = WORLDS[token] || WORLDS.credtech;
     const h = HUBX[token] || HUBX.credtech;
     if (!h || !h.districts || !h.districts[i]) return;
@@ -9481,21 +9475,19 @@ window.frFinish = function(){ if(_ficoracer){ _ficoracer.finished = true; goTo('
 // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 
 window.playDistrictGame = function(token, i) {
-  console.log('🎮 Kabria game override called:', token, i);
   if(window.state){state.gamesDone=state.gamesDone||{};state.gamesDone[token+':'+i]=1;if(window.cvSave)cvSave();}
 
   const gameMap = {
-    strategist: function(){ console.log('Loading Goal Quest'); gqInit(); goTo('game_goalquest'); },
-    investor: function(){ console.log('Loading Stock Surge'); ssInit(); goTo('game_stocksurge'); },
-    builder: function(){ console.log('Loading Biz Op'); boInit(); goTo('game_bizop'); },
-    risktaker: function(){ console.log('Loading Block Builder'); bbInit(); goTo('game_blockbuilder'); },
-    guardian: function(){ console.log('Loading Money Catcher'); mcInit(); goTo('game_moneycatcher'); },
-    rebuilder: function(){ console.log('Loading Debt Survival'); dsInit(); goTo('game_debtsurv'); },
-    credtech: function(){ console.log('Loading FICO Racer'); frInit(); goTo('game_ficoracer'); }
+    strategist: function(){ gqInit(); goTo('game_goalquest'); },
+    investor: function(){ ssInit(); goTo('game_stocksurge'); },
+    builder: function(){ boInit(); goTo('game_bizop'); },
+    risktaker: function(){ bbInit(); goTo('game_blockbuilder'); },
+    guardian: function(){ mcInit(); goTo('game_moneycatcher'); },
+    rebuilder: function(){ dsInit(); goTo('game_debtsurv'); },
+    credtech: function(){ frInit(); goTo('game_ficoracer'); }
   };
 
   if(gameMap[token]){ gameMap[token](); } else {
-    console.log('Unknown token, returning to hub');
     goTo('hub');
   }
 };
