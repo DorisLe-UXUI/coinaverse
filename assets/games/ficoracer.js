@@ -1,391 +1,197 @@
 /* ════════════════════════════════════════════════════════════════
-   FICO RACER — real canvas neon highway racer (CredTech Galaxy)
-   Endless 3-lane runner. Your FICO SCORE (300–850) is your engine:
-   grab 💳✅🪙🛡️ to raise it & go FASTER, dodge 🟥💸🚧🦹 or it drops.
-   Higher FICO = more speed = more distance = more coins. Survive 75s.
-   ← → / swipe to switch lanes. Loads after the main script;
-   overrides the stub window.SCREENS.game_ficoracer.
+   FICO RACER — TRUE 3D (three.js) — CredTech Galaxy
+   Real 3D perspective road, a rotating/banking car model, and 3D
+   spinning pickups flying toward the camera. Grab good credit (blue
+   cards / coins / ✅), dodge bad (red cards / barriers). FICO = speed.
+   Self-contained: lazy-loads three.js from CDN on first play.
+   Overrides the stub window.SCREENS.game_ficoracer.
    ════════════════════════════════════════════════════════════════ */
 (function(){
-  const TOKEN='credtech', ROUND=75, GOAL_DIST=6000;
-  const FICO_MIN=300, FICO_MAX=850, FICO_START=580;
+  const LANES=[-2.4,0,2.4], CARZ=3.2, SPAWNZ=-120, KILLZ=10, DUR=80, GOAL=4000;
   let G=null, raf=null;
 
-  window.frInit=function(){ G=null; };  // playDistrictGame calls this before goTo
+  window.frInit=function(){ G=null; };
 
-  function reset(){
-    G={ phase:'play', score:0, dist:0, coins:0, time:ROUND,
-        fico:FICO_START, ficoShow:FICO_START,
-        lane:1, laneX:1, // current lane index 0/1/2, laneX = tweened position
-        items:[], parts:[], floats:[], stars:[], dashes:[],
-        spawnT:0.6, last:0, started:performance.now(),
-        shake:0, flash:0, flashC:'#38bdf8', slow:0, boost:0, shield:0,
-        bestFico:FICO_START, picked:0, dodged:0, hits:0, roadScroll:0 };
-    // parallax stars
-    for(let i=0;i<70;i++) G.stars.push({x:Math.random(),y:Math.random(),z:Math.random()*0.7+0.3,s:Math.random()*2+1});
-    // road dash markers (each travels from horizon -> bottom in t 0..1)
-    for(let i=0;i<10;i++) G.dashes.push(i/10);
+  function ensureThree(cb){
+    if(window.THREE) return cb();
+    if(window._three3dQ){ window._three3dQ.push(cb); return; }
+    window._three3dQ=[cb];
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+    s.onload=()=>{ const q=window._three3dQ; window._three3dQ=null; q.forEach(f=>f()); };
+    s.onerror=()=>{ const w=document.getElementById('fr3dWrap'); if(w) w.innerHTML='<div style="color:#fff;text-align:center;padding-top:40vh;font-family:Orbitron">3D engine failed to load — check connection.</div>'; };
+    document.head.appendChild(s);
   }
 
-  // pickup kinds — GOOD raise FICO / score, BAD lower FICO + slow you
-  const GOOD=[
-    {e:'💳',kind:'good',fico:18,score:0,c:'#38bdf8',t:'+CREDIT'},   // blue credit card
-    {e:'✅',kind:'good',fico:14,score:40,c:'#34d399',t:'ON-TIME!',boost:1}, // on-time payment = boost
-    {e:'🪙',kind:'good',fico:4,score:60,c:'#fbbf24',t:'+COIN'},     // coin
-    {e:'🛡️',kind:'good',fico:8,score:0,c:'#a78bfa',t:'PROTECTED',shield:1} // shield
-  ];
-  const BAD=[
-    {e:'🟥',kind:'bad',fico:-26,c:'#ef4444',t:'MAXED OUT'},   // maxed card
-    {e:'💸',kind:'bad',fico:-20,c:'#fb7185',t:'BNPL TRAP'},   // buy-now-pay-later
-    {e:'🚧',kind:'bad',fico:-16,c:'#f59e0b',t:'HAZARD'},      // hazard
-    {e:'🦹',kind:'bad',fico:-30,c:'#a855f7',t:'FRAUD!'}       // fraud
-  ];
-
   window.SCREENS.game_ficoracer=function(){
-    if(!G) reset();
-    setTimeout(frBoot,30);
-    return `<div style="position:absolute;inset:0;background:linear-gradient(180deg,#0a0e27 0%,#10153a 55%,#1a1a3e 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
-      <div style="position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(180deg,rgba(5,8,24,.9),transparent)">
-        <button onclick="frExit()" style="padding:7px 14px;border:1px solid rgba(56,189,248,.45);border-radius:9px;background:rgba(56,189,248,.1);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← CREDTECH</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.22em;color:#38bdf8;flex:1;text-align:center;text-shadow:0 0 18px rgba(56,189,248,.6)">🏎️ FICO RACER</div>
-        <div id="frTime" style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fbbf24;min-width:46px;text-align:right">${ROUND}s</div>
-      </div>
-
-      <!-- FICO gauge (the hero stat) -->
-      <div style="position:absolute;top:50px;left:18px;right:18px;z-index:6">
-        <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:4px">
-          <span style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.18em;color:rgba(255,255,255,.6)">FICO SCORE</span>
-          <span id="frFicoNum" style="font-family:'Anton',sans-serif;font-size:2rem;line-height:1;color:#fbbf24;text-shadow:0 0 22px rgba(251,191,36,.55)">${FICO_START}</span>
+    setTimeout(()=>ensureThree(boot),30);
+    return `<div style="position:absolute;inset:0;background:#05060f;overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
+      <div id="fr3dWrap" style="position:absolute;inset:0">
+        <div id="fr3dLoad" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.7rem;letter-spacing:.2em">
+          <div style="font-size:2rem">🏎️</div>LOADING 3D ENGINE…
         </div>
-        <div style="height:12px;border-radius:7px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid rgba(56,189,248,.28);position:relative">
-          <div id="frFicoBar" style="height:100%;width:0%;background:linear-gradient(90deg,#ef4444,#f59e0b 38%,#fbbf24 60%,#34d399 100%);transition:width .25s,filter .25s"></div>
+      </div>
+      <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(180deg,rgba(5,6,15,.85),transparent);pointer-events:none">
+        <button onclick="frExit()" style="pointer-events:auto;padding:7px 14px;border:1px solid rgba(56,189,248,.4);border-radius:9px;background:rgba(56,189,248,.1);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← CREDTECH</button>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.2em;color:#38bdf8;flex:1;text-align:center">🏎️ FICO RACER · 3D</div>
+        <div id="frTime" style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fbbf24;min-width:46px;text-align:right">${DUR}s</div>
+      </div>
+      <div style="position:absolute;top:52px;left:18px;right:18px;z-index:5;pointer-events:none">
+        <div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.6);margin-bottom:3px"><span>FICO SCORE</span><span id="frFicoTxt">650</span></div>
+        <div style="height:9px;border-radius:5px;background:rgba(255,255,255,.12);overflow:hidden;border:1px solid rgba(56,189,248,.25)"><div id="frFicoBar" style="height:100%;width:64%;background:linear-gradient(90deg,#ef4444,#f59e0b,#fbbf24,#34d399);transition:width .25s"></div></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          ${stat('DISTANCE','frDist','#7dd3fc')}${stat('SCORE','frScore','#fbbf24')}${stat('COINS','frCoins','#fff')}
         </div>
-        <div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.3);margin-top:2px"><span>300 POOR</span><span id="frTier" style="color:#7dd3fc">FAIR</span><span>850 EXCELLENT</span></div>
       </div>
-
-      <!-- stat chips -->
-      <div style="position:absolute;top:118px;left:0;right:0;z-index:6;display:flex;gap:8px;padding:0 18px;justify-content:center">
-        ${hud('DISTANCE','frDist','#7dd3fc','m')}${hud('SCORE','frScore','#fbbf24','')}${hud('COINS','frCoins','#fcd34d','🪙')}
-      </div>
-
-      <canvas id="frCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:pointer"></canvas>
-
-      <div id="frHint" style="position:absolute;left:0;right:0;bottom:18px;text-align:center;z-index:4;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.13em;color:rgba(255,255,255,.5);pointer-events:none;text-shadow:0 0 10px rgba(0,0,0,.8)">← → / swipe to change lanes · grab 💳✅🪙🛡️ · dodge 🟥💸🚧🦹</div>
-      <div id="frOver" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(5,8,20,.84);backdrop-filter:blur(5px)"></div>
+      <div style="position:absolute;left:0;right:0;bottom:16px;text-align:center;z-index:4;font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.14em;color:rgba(255,255,255,.45);pointer-events:none">← → / swipe / tap sides to STEER · grab 💳✅🪙 · dodge 🟥🚧</div>
+      <div id="frOver" style="position:absolute;inset:0;z-index:8;display:none;align-items:center;justify-content:center;background:rgba(5,6,15,.82);backdrop-filter:blur(4px)"></div>
     </div>`;
   };
+  function stat(l,id,c){ return `<div style="flex:1;text-align:center;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.18);border-radius:9px;padding:5px"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">${l}</div><div id="${id}" style="font-family:'Anton',sans-serif;font-size:1rem;color:${c}">0</div></div>`; }
 
-  function hud(label,id,c,suf){ return `<div style="flex:1;max-width:140px;text-align:center;background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.2);border-radius:10px;padding:6px"><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.5)">${label}</div><div style="font-family:'Anton',sans-serif;font-size:1.1rem;color:${c}"><span id="${id}">0</span><span style="font-size:.6rem;opacity:.7">${suf}</span></div></div>`; }
+  function boot(){
+    const wrap=document.getElementById('fr3dWrap'); if(!wrap||!window.THREE) return;
+    const ld=document.getElementById('fr3dLoad'); if(ld) ld.remove();
+    const T=window.THREE;
+    const W=wrap.clientWidth, H=wrap.clientHeight;
+    const scene=new T.Scene(); scene.background=new T.Color(0x05060f); scene.fog=new T.Fog(0x05060f,45,115);
+    const cam=new T.PerspectiveCamera(70,W/H,0.1,300); cam.position.set(0,3.6,8); cam.lookAt(0,1,-14);
+    const rndr=new T.WebGLRenderer({antialias:true}); rndr.setPixelRatio(Math.min(2,devicePixelRatio)); rndr.setSize(W,H); wrap.appendChild(rndr.domElement);
 
-  function frBoot(){
-    const cv=document.getElementById('frCanvas'); if(!cv){ return; }
-    const ctx=cv.getContext('2d');
-    function size(){ cv.width=cv.clientWidth*devicePixelRatio; cv.height=cv.clientHeight*devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); }
-    size(); window.addEventListener('resize',size);
+    scene.add(new T.AmbientLight(0x6688cc,0.7));
+    const dir=new T.DirectionalLight(0xffffff,0.9); dir.position.set(4,10,6); scene.add(dir);
+    const pt=new T.PointLight(0x38bdf8,1.4,40); pt.position.set(0,5,6); scene.add(pt);
 
-    // ---- input: lane switching ----
-    function moveLane(dir){ if(G&&G.phase==='play'){ G.lane=Math.max(0,Math.min(2,G.lane+dir)); } }
-    const kd=e=>{ if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A') moveLane(-1); else if(e.key==='ArrowRight'||e.key==='d'||e.key==='D') moveLane(1); };
-    window.addEventListener('keydown',kd);
+    const road=new T.Mesh(new T.PlaneGeometry(9,400), new T.MeshStandardMaterial({color:0x0a1230,roughness:.9,metalness:.1}));
+    road.rotation.x=-Math.PI/2; road.position.z=-160; scene.add(road);
+    const railMat=new T.MeshBasicMaterial({color:0x38bdf8});
+    [-4.5,4.5].forEach(x=>{ const r=new T.Mesh(new T.BoxGeometry(0.16,0.5,400),railMat); r.position.set(x,0.25,-160); scene.add(r); });
+    const dashMat=new T.MeshBasicMaterial({color:0xbcd4ff,transparent:true,opacity:.55});
+    const dashes=[]; const DASH_N=28, DASH_GAP=6;
+    for(let i=0;i<DASH_N;i++){ for(const lx of [-1.2,1.2]){ const d=new T.Mesh(new T.BoxGeometry(0.14,0.02,2.4),dashMat); d.position.set(lx,0.02,-i*DASH_GAP); scene.add(d); dashes.push(d); } }
+    const rungMat=new T.MeshBasicMaterial({color:0x14315e});
+    const rungs=[]; const RUNG_N=44, RUNG_GAP=5;
+    for(let i=0;i<RUNG_N;i++){ const r=new T.Mesh(new T.BoxGeometry(9,0.02,0.1),rungMat); r.position.set(0,0.011,-i*RUNG_GAP); scene.add(r); rungs.push(r); }
+    const starGeo=new T.BufferGeometry(); const sv=[];
+    for(let i=0;i<400;i++){ sv.push((Math.random()-.5)*200,Math.random()*80+5,-Math.random()*200); }
+    starGeo.setAttribute('position',new T.Float32BufferAttribute(sv,3));
+    scene.add(new T.Points(starGeo,new T.PointsMaterial({color:0x9fd8ff,size:.5})));
 
-    // tap left/right half (desktop click + mobile tap)
-    const tap=(clientX)=>{ const r=cv.getBoundingClientRect(); const rel=(clientX-r.left)/r.width; if(rel<0.4) moveLane(-1); else if(rel>0.6) moveLane(1); else moveLane(G.lane===0?1:(G.lane===2?-1:1)); };
-    cv.addEventListener('click',e=>tap(e.clientX));
+    // car
+    const car=new T.Group();
+    const bodyMat=new T.MeshStandardMaterial({color:0xe11d48,metalness:.6,roughness:.3,emissive:0x3a0010});
+    const body=new T.Mesh(new T.BoxGeometry(1.5,0.45,2.8),bodyMat); body.position.y=0.45; car.add(body);
+    const cabin=new T.Mesh(new T.BoxGeometry(1.1,0.5,1.3),new T.MeshStandardMaterial({color:0x0b1022,metalness:.4,roughness:.2,emissive:0x0a1830})); cabin.position.set(0,0.85,-0.1); car.add(cabin);
+    const nose=new T.Mesh(new T.BoxGeometry(1.2,0.2,0.7),bodyMat); nose.position.set(0,0.4,-1.5); car.add(nose);
+    const wing=new T.Mesh(new T.BoxGeometry(1.7,0.08,0.5),new T.MeshStandardMaterial({color:0x111111,emissive:0x38bdf8,emissiveIntensity:.5})); wing.position.set(0,0.7,1.4); car.add(wing);
+    [-0.7,0.7].forEach(x=>{ const tl=new T.Mesh(new T.BoxGeometry(0.3,0.12,0.08),new T.MeshBasicMaterial({color:0xff3b3b})); tl.position.set(x,0.5,1.45); car.add(tl); });
+    const wheelGeo=new T.CylinderGeometry(0.34,0.34,0.3,16); const wheelMat=new T.MeshStandardMaterial({color:0x0a0a12,roughness:.8});
+    const wheels=[];
+    [[-0.8,-0.95],[0.8,-0.95],[-0.8,1.0],[0.8,1.0]].forEach(([x,z])=>{ const w=new T.Mesh(wheelGeo,wheelMat); w.rotation.z=Math.PI/2; w.position.set(x,0.34,z); car.add(w); wheels.push(w); });
+    car.position.set(0,0,CARZ); scene.add(car);
+    const underglow=new T.PointLight(0xff2d55,1.2,6); underglow.position.set(0,0.2,CARZ); scene.add(underglow);
 
-    // swipe (touch)
-    let tsx=null,tsy=null,tmoved=false;
-    cv.addEventListener('touchstart',e=>{ if(e.touches[0]){ tsx=e.touches[0].clientX; tsy=e.touches[0].clientY; tmoved=false; } },{passive:true});
-    cv.addEventListener('touchmove',e=>{ if(tsx==null||!e.touches[0])return; const dx=e.touches[0].clientX-tsx, dy=e.touches[0].clientY-tsy; if(!tmoved && Math.abs(dx)>28 && Math.abs(dx)>Math.abs(dy)){ moveLane(dx>0?1:-1); tmoved=true; } e.preventDefault(); },{passive:false});
-    cv.addEventListener('touchend',e=>{ if(!tmoved && tsx!=null){ const r=cv.getBoundingClientRect(); tap(tsx); } tsx=null; },{passive:true});
+    G={ T,scene,cam,rndr,wrap, car,wheels,dashes,rungs, dead:false,phase:'play',
+        lane:1, carX:0, fico:650, score:0, dist:0, coins:0, time:DUR,
+        items:[], spawnT:0, speed:34, shake:0, last:performance.now(),
+        DASH_SPAN:DASH_N*DASH_GAP, RUNG_SPAN:RUNG_N*RUNG_GAP };
 
-    G._cleanup=()=>{ window.removeEventListener('resize',size); window.removeEventListener('keydown',kd); };
-    G.last=performance.now();
-    cancelAnimationFrame(raf); raf=requestAnimationFrame(loop);
+    const lane=(d)=>{ if(!G||G.phase!=='play')return; G.lane=Math.max(0,Math.min(2,G.lane+d)); };
+    G.kd=e=>{ if(e.key==='ArrowLeft')lane(-1); else if(e.key==='ArrowRight')lane(1); };
+    window.addEventListener('keydown',G.kd);
+    const cv=rndr.domElement; G.tsx=null;
+    cv.addEventListener('touchstart',e=>{ G.tsx=e.touches[0].clientX; },{passive:true});
+    cv.addEventListener('touchend',e=>{ if(G.tsx==null)return; const dx=e.changedTouches[0].clientX-G.tsx; if(Math.abs(dx)>24) lane(dx>0?1:-1); else { const r=cv.getBoundingClientRect(); lane(e.changedTouches[0].clientX<r.left+r.width/2?-1:1); } G.tsx=null; },{passive:true});
+    cv.addEventListener('mousedown',e=>{ const r=cv.getBoundingClientRect(); lane(e.clientX<r.left+r.width/2?-1:1); });
+    G.onResize=()=>{ if(!G||G.dead)return; const w=wrap.clientWidth,h=wrap.clientHeight; G.cam.aspect=w/h; G.cam.updateProjectionMatrix(); G.rndr.setSize(w,h); };
+    window.addEventListener('resize',G.onResize);
+
+    G.last=performance.now(); cancelAnimationFrame(raf); raf=requestAnimationFrame(loop);
+  }
+
+  const ITEMS={
+    good:[{e:'card',c:0x2563eb,fico:14,sc:120,coin:0},{e:'coin',c:0xfbbf24,fico:4,sc:80,coin:1},{e:'token',c:0x22c55e,fico:18,sc:150,coin:0}],
+    bad:[{e:'card',c:0xef4444,fico:-22,sc:-60,coin:0},{e:'barrier',c:0xf97316,fico:-16,sc:-40,coin:0}]
+  };
+  function spawn(){
+    const T=G.T; const lane=Math.floor(Math.random()*3);
+    const bad=Math.random()<(0.32+Math.min(0.2,G.dist/12000));
+    const def=bad?ITEMS.bad[Math.floor(Math.random()*ITEMS.bad.length)]:ITEMS.good[Math.floor(Math.random()*ITEMS.good.length)];
+    let mesh;
+    if(def.e==='coin'){ mesh=new T.Mesh(new T.CylinderGeometry(0.6,0.6,0.14,24),new T.MeshStandardMaterial({color:def.c,metalness:.8,roughness:.25,emissive:0x553300,emissiveIntensity:.4})); mesh.rotation.x=Math.PI/2; mesh.position.y=0.9; }
+    else if(def.e==='barrier'){ mesh=new T.Mesh(new T.BoxGeometry(1.8,0.9,0.4),new T.MeshStandardMaterial({color:def.c,emissive:0x401500,emissiveIntensity:.6,metalness:.3,roughness:.5})); mesh.position.y=0.45; }
+    else { mesh=new T.Mesh(new T.BoxGeometry(1.0,1.4,0.12),new T.MeshStandardMaterial({color:def.c,emissive:def.c,emissiveIntensity:.45,metalness:.4,roughness:.3})); mesh.position.y=0.9; }
+    mesh.position.x=LANES[lane]; mesh.position.z=SPAWNZ;
+    G.scene.add(mesh);
+    G.items.push({mesh,lane,def,bad,spin:(Math.random()*0.6+0.4)*(Math.random()<.5?-1:1),dead:0,hit:false});
   }
 
   function loop(now){
-    const cv=document.getElementById('frCanvas');
-    if(!cv || !G){ cancelAnimationFrame(raf); return; }   // left screen → stop
-    const ctx=cv.getContext('2d'); const W=cv.clientWidth, H=cv.clientHeight;
+    const wrap=document.getElementById('fr3dWrap');
+    if(!G||G.dead||!wrap){ cancelAnimationFrame(raf); return; }
     let dt=Math.min(40,now-G.last)/1000; G.last=now;
-    if(G.phase==='play'){ update(dt,W,H); }
-    render(ctx,W,H,now);
+    if(G.phase==='play'){
+      G.time-=dt; if(G.time<=0){ G.time=0; return end(); }
+      const tEl=document.getElementById('frTime'); if(tEl) tEl.textContent=Math.ceil(G.time)+'s';
+      G.speed=22+(G.fico-300)/550*42;
+      G.dist+=G.speed*dt;
+      const tx=LANES[G.lane];
+      const prevX=G.carX; G.carX+=(tx-G.carX)*Math.min(1,dt*9);
+      const dx=G.carX-prevX;
+      G.car.position.x=G.carX;
+      G.car.rotation.y=lerp(G.car.rotation.y,(tx-G.carX)*-0.5+dx*-4.5,0.18);
+      G.car.rotation.z=lerp(G.car.rotation.z,Math.max(-0.5,Math.min(0.5,dx*-6)),0.18);
+      G.car.position.y=Math.sin(now*0.006)*0.03;
+      G.wheels.forEach(w=>w.rotation.x-=G.speed*dt*0.5);
+      const mv=G.speed*dt;
+      G.dashes.forEach(d=>{ d.position.z+=mv; if(d.position.z>CARZ+6) d.position.z-=G.DASH_SPAN; });
+      G.rungs.forEach(r=>{ r.position.z+=mv; if(r.position.z>CARZ+6) r.position.z-=G.RUNG_SPAN; });
+      G.spawnT-=dt; if(G.spawnT<=0){ G.spawnT=Math.max(0.42,0.95-G.dist/9000); spawn(); }
+      for(const it of G.items){
+        it.mesh.position.z+=mv;
+        if(it.def.e==='coin') it.mesh.rotation.z+=dt*4; else it.mesh.rotation.y+=it.spin*dt*2.2;
+        if(!it.hit && Math.abs(it.mesh.position.z-CARZ)<1.4 && it.lane===G.lane){
+          it.hit=true; it.dead=1;
+          if(it.bad){ G.fico=Math.max(300,G.fico+it.def.fico); G.score=Math.max(0,G.score+it.def.sc); G.speed*=0.55; G.shake=0.5; flash('#ef4444'); float(it.def.fico+' FICO','#fca5a5'); }
+          else { G.fico=Math.min(850,G.fico+it.def.fico); G.score+=it.def.sc; if(it.def.coin) G.coins+=10; flash('#34d399'); float('+'+it.def.sc,'#fde68a'); }
+        } else if(it.mesh.position.z>KILLZ){ it.dead=1; }
+      }
+      G.items=G.items.filter(it=>{ if(it.dead){ G.scene.remove(it.mesh); it.mesh.geometry.dispose(); it.mesh.material.dispose(); return false; } return true; });
+      if(G.shake>0){ G.shake-=dt; G.cam.position.x=(Math.random()-.5)*G.shake*1.2; G.cam.position.y=3.6+(Math.random()-.5)*G.shake; } else { G.cam.position.x*=0.8; G.cam.position.y=3.6; }
+      setT('frFicoTxt',Math.round(G.fico)); const fb=document.getElementById('frFicoBar'); if(fb) fb.style.width=((G.fico-300)/550*100)+'%';
+      setT('frDist',Math.round(G.dist)+'m'); setT('frScore',G.score); setT('frCoins',G.coins);
+      if(G.score>=GOAL) return end(true);
+    }
+    G.rndr.render(G.scene,G.cam);
     raf=requestAnimationFrame(loop);
   }
-
-  // speed factor derived from FICO (0.45 .. 1.6), minus active slowdown, plus boost
-  function speedFactor(){
-    const norm=(G.fico-FICO_MIN)/(FICO_MAX-FICO_MIN); // 0..1
-    let s=0.45+norm*1.05;
-    if(G.boost>0) s*=1.5;
-    if(G.slow>0) s*=0.45;
-    return s;
-  }
-  function ficoTier(){ const f=G.fico; if(f>=800)return['EXCELLENT','#34d399']; if(f>=740)return['VERY GOOD','#86efac']; if(f>=670)return['GOOD','#a3e635']; if(f>=580)return['FAIR','#fbbf24']; return['POOR','#f87171']; }
-
-  function update(dt,W,H){
-    // timer
-    G.time-=dt; if(G.time<=0){ G.time=0; return end(); }
-    const tEl=document.getElementById('frTime'); if(tEl) tEl.textContent=Math.ceil(G.time)+'s';
-
-    const prog=1-(G.time/ROUND);       // 0..1 over the round
-    const spd=speedFactor();
-    const worldSpeed=(0.55+prog*0.35)*spd; // how fast objects rush at us (per sec, in t-space)
-
-    // distance + score accrue with speed
-    const dgain=worldSpeed*dt*150;
-    G.dist+=dgain; G.score+=dgain*0.25;
-    G.roadScroll=(G.roadScroll+worldSpeed*dt)%1;
-
-    // smooth lane tween
-    G.laneX+=(G.lane-G.laneX)*Math.min(1,dt*11);
-
-    // animate road dashes (move toward player = increase t, wrap)
-    for(let i=0;i<G.dashes.length;i++){ G.dashes[i]+=worldSpeed*dt; if(G.dashes[i]>1) G.dashes[i]-=1; }
-    // parallax stars drift down slowly
-    for(const st of G.stars){ st.y+=(0.02+st.z*0.05)*dt; if(st.y>1){ st.y=0; st.x=Math.random(); } }
-
-    // ---- spawn pickups in lanes ----
-    G.spawnT-=dt;
-    if(G.spawnT<=0){
-      G.spawnT=Math.max(0.42,0.95-prog*0.5);
-      const badChance=0.34+prog*0.18;
-      const isBad=Math.random()<badChance;
-      const pool=isBad?BAD:GOOD;
-      // weight coins/cards a bit
-      let def;
-      if(isBad){ def=pool[Math.floor(Math.random()*pool.length)]; }
-      else { const r=Math.random(); def= r<0.34?GOOD[0]: r<0.55?GOOD[1]: r<0.85?GOOD[2]:GOOD[3]; }
-      const lane=Math.floor(Math.random()*3);
-      G.items.push({lane,t:-0.02,def,r:1});
-      // occasionally a second item in a different lane (forces choice)
-      if(prog>0.35 && Math.random()<0.4){
-        let l2=(lane+1+Math.floor(Math.random()*2))%3;
-        const bad2=Math.random()<badChance;
-        const p2=bad2?BAD:GOOD; let d2= bad2? p2[Math.floor(Math.random()*p2.length)] : (Math.random()<0.5?GOOD[2]:GOOD[0]);
-        G.items.push({lane:l2,t:-0.02-Math.random()*0.06,def:d2,r:1});
-      }
-    }
-
-    // car position (player) — t≈0.86 near bottom
-    const carT=0.86;
-    for(const it of G.items){
-      it.t+=worldSpeed*dt;
-      // collision: same lane & in the car's t-band
-      if(!it.dead && it.t>=carT-0.05 && it.t<=carT+0.06 && it.lane===Math.round(G.laneX)){
-        const d=it.def; const fx=laneNorm(it.lane,carT);
-        if(d.kind==='good'){
-          applyFico(d.fico); G.score+=d.score||0; G.picked++;
-          if(d.score) addCoins(Math.round(d.score/10));
-          if(d.boost){ G.boost=1.4; G.flash=0.4; G.flashC='#34d399'; floatTxt(fx,carT-0.06,'BOOST!','#34d399',1); }
-          if(d.shield){ G.shield=Math.max(G.shield,1); }
-          if(d.e==='🪙'){ G.coins+=1; }
-          burst(it.lane,carT,d.c,12);
-          floatTxt(fx,carT-0.02,(d.fico>0?'+'+d.fico+' FICO':d.t),d.c);
-        } else {
-          if(G.shield>0){ // shield absorbs one bad hit
-            G.shield=0; burst(it.lane,carT,'#a78bfa',14); floatTxt(fx,carT-0.02,'BLOCKED!','#a78bfa',1); G.flash=0.3; G.flashC='#a78bfa';
-          } else {
-            applyFico(d.fico); G.hits++; G.slow=0.9; G.shake=0.5; G.flash=0.4; G.flashC='#ef4444';
-            burst(it.lane,carT,d.c,16);
-            floatTxt(fx,carT-0.02,d.t+' '+d.fico,d.c,1);
-          }
-        }
-        it.dead=1;
-      } else if(it.t>1.08){
-        if(it.def.kind==='good' && it.def.e!=='🛡️') G.dodged++; // missed a good (no penalty, just stat)
-        it.dead=1;
-      }
-    }
-    G.items=G.items.filter(i=>!i.dead);
-
-    // timers decay
-    if(G.boost>0) G.boost-=dt;
-    if(G.slow>0) G.slow-=dt;
-    if(G.shake>0) G.shake-=dt;
-    if(G.flash>0) G.flash-=dt;
-    // shield persists until used or slowly fades after 8s
-    if(G.shield>0){ G.shield-=dt*0.06; if(G.shield<0)G.shield=0; }
-
-    // particles + floats (normalized space)
-    for(const p of G.parts){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=0.9*dt; p.life-=dt; }
-    G.parts=G.parts.filter(p=>p.life>0);
-    for(const f of G.floats){ f.y-=dt*0.14; f.life-=dt; }
-    G.floats=G.floats.filter(f=>f.life>0);
-
-    // animate displayed fico toward real (smooth gauge)
-    G.ficoShow+=(G.fico-G.ficoShow)*Math.min(1,dt*6);
-
-    // sync HUD
-    setTxt('frDist',Math.floor(G.dist));
-    setTxt('frScore',Math.floor(G.score));
-    setTxt('frCoins',G.coins);
-    setTxt('frFicoNum',Math.round(G.ficoShow));
-    const bar=document.getElementById('frFicoBar');
-    if(bar){ const pct=((G.fico-FICO_MIN)/(FICO_MAX-FICO_MIN))*100; bar.style.width=pct+'%'; bar.style.filter=(G.boost>0?'brightness(1.4) drop-shadow(0 0 8px #34d399)':'none'); }
-    const tier=ficoTier(); const tEl2=document.getElementById('frTier'); if(tEl2){ tEl2.textContent=tier[0]; tEl2.style.color=tier[1]; }
-    const fn=document.getElementById('frFicoNum'); if(fn) fn.style.color=tier[1];
-
-    // win condition: hit distance goal
-    if(G.dist>=GOAL_DIST) return end(true);
-  }
-
-  function applyFico(d){ G.fico=Math.max(FICO_MIN,Math.min(FICO_MAX,G.fico+d)); G.bestFico=Math.max(G.bestFico,G.fico); }
-  function addCoins(n){ G.coins+=n; }
-
-  // lane center -> NORMALIZED x (0..1) at perspective depth t.
-  // matches the road geometry in render(): cx=0.5, far/near half in W-fractions.
-  function laneNorm(lane,t){
-    const farHalf=0.045, nearHalf=0.34;
-    const h=farHalf+(nearHalf-farHalf)*t;
-    return 0.5+(lane-1)*h;
-  }
-  // car's normalized x for the current (tweened) lane
-  function carNorm(){ return laneNorm(G.laneX,0.86); }
-
-  // ─────────── RENDER ───────────
-  function render(ctx,W,H,now){
-    ctx.clearRect(0,0,W,H);
-    let ox=0,oy=0; if(G.shake>0){ ox=(Math.random()-.5)*G.shake*24; oy=(Math.random()-.5)*G.shake*20; }
-    ctx.save(); ctx.translate(ox,oy);
-
-    const horizonY=H*0.34;
-    // ---- sky glow + parallax stars ----
-    const sky=ctx.createLinearGradient(0,0,0,horizonY);
-    sky.addColorStop(0,'rgba(10,14,39,0)'); sky.addColorStop(1,'rgba(56,189,248,0.10)');
-    ctx.fillStyle=sky; ctx.fillRect(0,0,W,horizonY);
-    for(const st of G.stars){
-      const sy=st.y*horizonY;
-      ctx.globalAlpha=0.3+st.z*0.6; ctx.fillStyle= st.z>0.7?'#7dd3fc':'#cbd5e1';
-      ctx.fillRect(st.x*W, sy, st.s, st.s);
-    }
-    ctx.globalAlpha=1;
-    // horizon sun/grid glow
-    const sun=ctx.createRadialGradient(W/2,horizonY,4,W/2,horizonY,W*0.5);
-    sun.addColorStop(0,'rgba(56,189,248,0.35)'); sun.addColorStop(0.5,'rgba(129,140,248,0.12)'); sun.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=sun; ctx.fillRect(0,horizonY-H*0.2,W,H*0.4);
-
-    // ---- pseudo-3D road ----
-    const cx=W/2;
-    const nearHalf=W*0.34, farHalf=W*0.045;
-    const roadTop=horizonY, roadBot=H;
-    // perspective helper: t 0(horizon)..1(bottom) -> y and halfWidth
-    const yAt=t=> roadTop + (roadBot-roadTop)*t;
-    const halfAt=t=> farHalf + (nearHalf-farHalf)*t;
-
-    // road surface
-    ctx.beginPath();
-    ctx.moveTo(cx-farHalf,roadTop); ctx.lineTo(cx+farHalf,roadTop);
-    ctx.lineTo(cx+nearHalf,roadBot); ctx.lineTo(cx-nearHalf,roadBot); ctx.closePath();
-    const rg=ctx.createLinearGradient(0,roadTop,0,roadBot);
-    rg.addColorStop(0,'#0c1230'); rg.addColorStop(1,'#161a3a');
-    ctx.fillStyle=rg; ctx.fill();
-
-    // glowing road edges
-    ctx.lineWidth=3; ctx.strokeStyle='#38bdf8'; ctx.shadowColor='#38bdf8'; ctx.shadowBlur=16;
-    ctx.beginPath(); ctx.moveTo(cx-farHalf,roadTop); ctx.lineTo(cx-nearHalf,roadBot); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx+farHalf,roadTop); ctx.lineTo(cx+nearHalf,roadBot); ctx.stroke();
-    ctx.shadowBlur=0;
-
-    // lane divider dashes (animated, 2 dividers between 3 lanes)
-    for(const dl of [-1/3,1/3]){
-      for(const dt0 of G.dashes){
-        const t=dt0; if(t<0.02) continue;
-        const segLen=0.05+ t*0.05;
-        const t2=Math.min(1,t+segLen);
-        const h1=halfAt(t), h2=halfAt(t2);
-        const x1=cx+dl*2*h1, x2=cx+dl*2*h2;
-        const y1=yAt(t), y2=yAt(t2);
-        ctx.lineWidth=1+t*4; ctx.strokeStyle='rgba(125,211,252,'+(0.25+t*0.55)+')';
-        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-      }
-    }
-    // faint horizontal scan lines for speed
-    ctx.strokeStyle='rgba(56,189,248,0.07)'; ctx.lineWidth=1;
-    for(let i=0;i<14;i++){ let t=((i/14)+G.roadScroll)%1; const h=halfAt(t),y=yAt(t); ctx.beginPath(); ctx.moveTo(cx-h,y); ctx.lineTo(cx+h,y); ctx.stroke(); }
-
-    // ---- items in lanes ----
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    // draw far->near so near overlaps
-    const sorted=G.items.slice().sort((a,b)=>a.t-b.t);
-    for(const it of sorted){
-      const t=Math.max(0,it.t);
-      const h=halfAt(t);
-      const lx=cx+(it.lane-1)*h; // lane center, scaled by perspective half-width
-      const y=yAt(t);
-      const sz=(10+t*52);
-      const d=it.def;
-      ctx.shadowColor=d.c; ctx.shadowBlur=10+t*14;
-      ctx.globalAlpha=Math.min(1,0.25+t*1.2);
-      ctx.font=sz+'px serif';
-      ctx.fillText(d.e,lx,y);
-      ctx.globalAlpha=1; ctx.shadowBlur=0;
-    }
-
-    // ---- particles (behind/around car) ----
-    for(const p of G.parts){ ctx.globalAlpha=Math.max(0,p.life/p.max); ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x*W,p.y*H,p.s,0,7); ctx.fill(); }
-    ctx.globalAlpha=1;
-
-    // ---- the car ----
-    const carT=0.86;
-    const carH=halfAt(carT);
-    const carX=cx+(G.laneX-1)*carH;
-    const carY=yAt(carT);
-    // motion lines streaking up behind car (faster = more)
-    const spd=speedFactor();
-    ctx.strokeStyle='rgba(125,211,252,'+(0.2+Math.min(0.5,spd*0.25))+')'; ctx.lineWidth=2;
-    for(let i=0;i<6;i++){ const lxx=carX+(Math.random()-0.5)*50; const ly=carY-10-(Math.random()*60); ctx.beginPath(); ctx.moveTo(lxx,ly); ctx.lineTo(lxx,ly-12-spd*16); ctx.stroke(); }
-    // shield ring
-    if(G.shield>0){ ctx.strokeStyle='rgba(167,139,250,'+(0.4+0.3*Math.sin(now*0.01))+')'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(carX,carY-6,44,0,7); ctx.stroke(); }
-    // boost flames glow
-    if(G.boost>0){ ctx.shadowColor='#34d399'; ctx.shadowBlur=30; }
-    else { ctx.shadowColor='#38bdf8'; ctx.shadowBlur=22; }
-    ctx.font='62px serif'; ctx.fillText('🏎️',carX,carY); ctx.shadowBlur=0;
-    if(G.boost>0){ ctx.font='28px serif'; ctx.globalAlpha=0.7+0.3*Math.sin(now*0.03); ctx.fillText('🔥',carX,carY+34); ctx.globalAlpha=1; }
-
-    // ---- float texts ----
-    for(const f of G.floats){ ctx.globalAlpha=Math.max(0,f.life/0.9); ctx.fillStyle=f.c; ctx.font='800 '+(f.big?22:15)+"px 'Inter',sans-serif"; ctx.shadowColor=f.c; ctx.shadowBlur=8; ctx.fillText(f.t,f.x*W,f.y*H); ctx.shadowBlur=0; }
-    ctx.globalAlpha=1;
-
-    // ---- screen flash on event ----
-    if(G.flash>0){ ctx.fillStyle=hexA(G.flashC,G.flash*0.3); ctx.fillRect(-30,-30,W+60,H+60); }
-
-    ctx.restore();
-  }
-
-  // ─────────── helpers ───────────
-  // particles live in normalized 0..1 space (rendered at p.x*W, p.y*H) so they
-  // stay aligned with the road regardless of canvas size.
-  function burst(lane,t,c,n){
-    const x=laneNorm(lane,t), y=t;
-    for(let i=0;i<n;i++){ const a=Math.random()*7,s=0.12+Math.random()*0.4; G.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-0.18,s:2+Math.random()*3,c,life:0.5+Math.random()*0.35,max:0.85}); } }
-  function floatTxt(x,y,t,c,big){ G.floats.push({x,y,t,c,life:0.95,big:!!big}); }
-  function setTxt(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
-  function hexA(hex,a){ const h=hex.replace('#',''); const r=parseInt(h.substring(0,2),16),g=parseInt(h.substring(2,4),16),b=parseInt(h.substring(4,6),16); return 'rgba('+r+','+g+','+b+','+a+')'; }
+  function lerp(a,b,t){ return a+(b-a)*t; }
+  function setT(id,v){ const e=document.getElementById(id); if(e)e.textContent=v; }
+  function flash(c){ const w=document.getElementById('fr3dWrap'); if(!w)return; const f=document.createElement('div'); f.style.cssText='position:absolute;inset:0;pointer-events:none;background:'+c+';opacity:.22;transition:opacity .4s'; w.appendChild(f); requestAnimationFrame(()=>f.style.opacity='0'); setTimeout(()=>f.remove(),420); }
+  function float(t,c){ const w=document.getElementById('fr3dWrap'); if(!w)return; const el=document.createElement('div'); el.textContent=t; el.style.cssText='position:absolute;left:50%;top:60%;transform:translateX(-50%);pointer-events:none;font-family:Inter,sans-serif;font-weight:800;font-size:1.1rem;color:'+c+';text-shadow:0 2px 8px #000;transition:all .8s'; w.appendChild(el); requestAnimationFrame(()=>{ el.style.top='48%'; el.style.opacity='0'; }); setTimeout(()=>el.remove(),820); }
 
   function end(win){
-    if(G.phase==='over') return; G.phase='over';
-    const score=Math.floor(G.score);
-    if(window.state){
-      state.coins=(state.coins||0)+score;
-      if(window.cvAddXP) cvAddXP(Math.round(score/4),0); else if(window.cvSave) cvSave();
-      state.gamesDone=state.gamesDone||{}; state.gamesDone['credtech:0']=1;
-    }
-    const won=win||G.dist>=GOAL_DIST;
-    const tier=ficoTier();
-    const o=document.getElementById('frOver'); if(!o) return; o.style.display='flex';
-    o.innerHTML=`<div style="max-width:430px;text-align:center;padding:34px 28px;border:1px solid ${won?'#34d399':'#38bdf8'};border-radius:22px;background:linear-gradient(160deg,rgba(12,20,52,.97),rgba(8,12,30,.97));box-shadow:0 0 64px rgba(56,189,248,.4)">
+    if(!G||G.phase==='over') return; G.phase='over';
+    const won=win||G.score>=GOAL;
+    if(window.state){ const rw=G.score+G.coins; state.coins=(state.coins||0)+rw; if(window.cvAddXP)cvAddXP(Math.round(rw/4),0); else if(window.cvSave)cvSave(); state.gamesDone=state.gamesDone||{}; state.gamesDone['credtech:0']=1; }
+    const tier=G.fico>=800?'Platinum':G.fico>=750?'Elite':G.fico>=700?'Prime':G.fico>=600?'Builder':'Recovery';
+    const o=document.getElementById('frOver'); if(!o)return; o.style.display='flex';
+    o.innerHTML=`<div style="max-width:420px;text-align:center;padding:32px 26px;border:1px solid ${won?'#fbbf24':'#38bdf8'};border-radius:22px;background:linear-gradient(160deg,rgba(10,16,40,.97),rgba(5,6,15,.97));box-shadow:0 0 60px rgba(56,189,248,.4)">
       <div style="font-size:3rem;margin-bottom:6px">${won?'🏁':'🏎️'}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#34d399':'#38bdf8'};margin-bottom:6px">${won?'GOAL DISTANCE REACHED!':"TIME'S UP — GREAT RUN"}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.5);margin-bottom:2px">FINAL FICO</div>
-      <h1 style="font-family:'Anton',sans-serif;font-size:3rem;margin:0 0 2px;color:${tier[1]};text-shadow:0 0 26px ${tier[1]}66">${Math.round(G.fico)}</h1>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.18em;color:${tier[1]};margin-bottom:14px">${tier[0]}</div>
-      <p style="color:rgba(255,255,255,.7);margin:0 0 18px;font-size:.9rem;line-height:1.5">🏁 ${Math.floor(G.dist)}m · ⭐ ${score} pts · 🪙 ${G.coins} coins<br><span style="color:rgba(255,255,255,.45);font-size:.8rem">${G.picked} good grabbed · ${G.hits} crashes · +${score} 🪙 banked</span></p>
-      <button onclick="frRestart()" style="padding:13px 26px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);color:#04121e;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;font-weight:900;cursor:pointer;box-shadow:0 0 24px rgba(56,189,248,.5)">▶ RACE AGAIN</button>
-      <button onclick="frExit()" style="padding:13px 26px;margin:4px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer">← CREDTECH</button>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#fbbf24':'#38bdf8'};margin-bottom:8px">${won?'RACE WON!':'FINISH LINE'}</div>
+      <h1 style="font-family:'Anton',sans-serif;font-size:2rem;margin:0 0 4px">${G.score} pts</h1>
+      <p style="color:rgba(255,255,255,.7);margin:0 0 16px;font-size:.9rem">FICO ${Math.round(G.fico)} · ${tier} tier · ${Math.round(G.dist)}m · +${G.score+G.coins} 🪙</p>
+      <button onclick="frRestart()" style="padding:13px 26px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,#38bdf8,#0284c7);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;font-weight:900;cursor:pointer">▶ RACE AGAIN</button>
+      <button onclick="frExit()" style="padding:13px 26px;margin:4px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
     </div>`;
   }
 
-  window.frRestart=function(){ reset(); const o=document.getElementById('frOver'); if(o){o.style.display='none';o.innerHTML='';} frBoot(); };
-  window.frExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); G=null; if(window.state)state.viewingWorld='credtech'; goTo('hub'); };
+  function teardown(){
+    if(!G) return; G.dead=true; cancelAnimationFrame(raf);
+    if(G.kd) window.removeEventListener('keydown',G.kd);
+    if(G.onResize) window.removeEventListener('resize',G.onResize);
+    try{ G.scene.traverse(o=>{ if(o.geometry)o.geometry.dispose(); if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose()); } }); G.rndr.dispose(); if(G.rndr.domElement&&G.rndr.domElement.parentNode) G.rndr.domElement.parentNode.removeChild(G.rndr.domElement); }catch(e){}
+  }
+  window.frRestart=function(){ teardown(); G=null; const o=document.getElementById('frOver'); if(o){o.style.display='none';o.innerHTML='';} ensureThree(boot); };
+  window.frExit=function(){ teardown(); G=null; if(window.state)state.viewingWorld='credtech'; goTo('hub'); };
 })();
