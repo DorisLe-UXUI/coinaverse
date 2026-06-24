@@ -4533,7 +4533,8 @@ video::-webkit-media-controls-play-button {
           <button class="home-sb-btn" onclick="goTo('party')"><span class="ic">👥</span>PARTY &amp; FRIENDS</button>
           <button class="home-sb-btn" onclick="goTo('reward_center')"><span class="ic">📋</span>DAILY MISSIONS</button>
           <button class="home-sb-btn" onclick="goTo('leaderboards')"><span class="ic">🏆</span>LEADERBOARDS</button>
-          <button class="home-sb-btn" onclick="goTo('cinema')"><span class="ic">🎬</span>EVENT ARENA</button>
+          <button class="home-sb-btn" onclick="goTo('cinema')"><span class="ic">🎬</span>CINEMA</button>
+          <button class="home-sb-btn" onclick="goTo('event_arena')"><span class="ic">⚡</span>EVENT ARENA</button>
           <button class="home-sb-btn" onclick="goTo('shop')"><span class="ic">🛒</span>MARKETPLACE</button>
           <button class="home-sb-btn" onclick="goTo('party')"><span class="ic">🎮</span>MULTIPLAYER<br>LOBBY</button>
         </aside>
@@ -9469,6 +9470,125 @@ window.frExit = function(){ _ficoracer = null; state.viewingWorld='credtech'; go
 window.frAccelerate = function(){ if(_ficoracer){ _ficoracer.lapTime += 10; _ficoracer.position = Math.max(1, _ficoracer.position - (Math.random()<.4?1:0)); goTo('game_ficoracer'); } };
 window.frBoost = function(){ if(_ficoracer){ _ficoracer.lapTime += 25; _ficoracer.fico += 50; _ficoracer.position = Math.max(1, _ficoracer.position - 2); goTo('game_ficoracer'); } };
 window.frFinish = function(){ if(_ficoracer){ _ficoracer.finished = true; goTo('game_ficoracer'); } };
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+// EVENT ARENA · CHAMPIONS NEXUS  (from Kabria's "Coincept Financial Olympics" design)
+// ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+let _ea_timer = null;
+const EA_EVENTS = [
+  {key:'clash', tag:'MONTHLY · LIVE', name:'Coin Clash Live', desc:'Live head-to-head challenges across every hub.', cta:'VIEW SCHEDULE', days:5, hrs:14, mins:32, hot:true},
+  {key:'cup',   tag:'QUARTERLY',      name:'Nexus Cup',        desc:'Top players from every hub compete for the Cup.', cta:'STARTS IN 23 DAYS', days:23, hrs:0, mins:0, hot:false},
+  {key:'grand', tag:'ANNUAL',         name:'Grand Championship', desc:'The ultimate battle for glory in the Coinaverse.', cta:'QUALIFY NOW', days:0, hrs:0, mins:0, hot:false},
+];
+const EA_LEADERS = [
+  {rank:1, name:'FinanceStar', hub:'Investopia',   score:12450, c:'#10b981'},
+  {rank:2, name:'SmartSaver',  hub:'SaveScape',    score:11230, c:'#14b8a6'},
+  {rank:3, name:'WealthWizard',hub:'Investopia',   score:9870,  c:'#10b981'},
+  {rank:4, name:'BudgetBoss',  hub:'Budgetron',    score:8420,  c:'#3b82f6'},
+  {rank:5, name:'FutureFocused',hub:'CredTech',    score:7650,  c:'#38bdf8'},
+];
+const EA_MODES = [
+  {ico:'🪙', name:'Money Match',  desc:'Fast-match smart money choices'},
+  {ico:'📊', name:'Budget Boss',  desc:'Allocate under pressure, beat the clock'},
+  {ico:'📈', name:'Invest IQ',    desc:'Read the market, grow the biggest portfolio'},
+  {ico:'🎲', name:'Risk or Reward',desc:'High-stakes calls for max payout'},
+];
+const EA_PRIZES = [
+  {ico:'🏆', name:'Trophies'},{ico:'🪙', name:'Coins'},{ico:'🎖️', name:'Badges'},{ico:'👑', name:'Legacy Titles'},
+];
+
+SCREENS.event_arena = function(){
+  const coins = (window.state||{}).coins || 0;
+  return `<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,#1a1438 0%,#0a0a1e 55%,#05050f 100%);overflow-y:auto;font-family:'Inter',sans-serif;color:#fff">
+    <style>
+      @keyframes eaGlow{0%,100%{opacity:.55}50%{opacity:1}}
+      @keyframes eaRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+      @keyframes eaShine{0%{background-position:-200% 0}100%{background-position:200% 0}}
+      .ea-card{animation:eaRise .45s ease both}
+      .ea-evt:hover{transform:translateY(-3px);box-shadow:0 14px 40px rgba(251,191,36,.18)}
+      .ea-evt{transition:transform .18s,box-shadow .18s}
+      .ea-mode:hover{border-color:rgba(251,191,36,.55);background:rgba(251,191,36,.08)}
+      .ea-mode{transition:all .18s;cursor:pointer}
+      .ea-title-gold{background:linear-gradient(90deg,#fbbf24,#fff7e0,#fbbf24);background-size:200% auto;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:eaShine 4s linear infinite}
+    </style>
+
+    <!-- TOPBAR -->
+    <div style="position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;padding:16px 22px;background:linear-gradient(180deg,rgba(10,10,30,.96),rgba(10,10,30,.55) 70%,transparent)">
+      <button onclick="goTo('home')" style="padding:8px 16px;border:1px solid rgba(251,191,36,.35);border-radius:9px;background:rgba(251,191,36,.08);color:#fde68a;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.14em;cursor:pointer">← HOME</button>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.28em;flex:1;text-align:center" class="ea-title-gold">⚡ EVENT ARENA</div>
+      <div style="display:flex;align-items:center;gap:6px;padding:7px 13px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);border-radius:9px;font-family:'Orbitron',sans-serif;font-size:.68rem;color:#fbbf24">🪙 ${coins}</div>
+    </div>
+
+    <!-- HERO -->
+    <div class="ea-card" style="position:relative;margin:6px 20px 0;border-radius:22px;overflow:hidden;border:1px solid rgba(251,191,36,.22);background:linear-gradient(135deg,rgba(251,191,36,.12),rgba(168,85,247,.1) 60%,rgba(56,189,248,.08));padding:40px 28px;text-align:center">
+      <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,rgba(251,191,36,.22),transparent 60%);animation:eaGlow 3.5s ease-in-out infinite"></div>
+      <div style="position:relative">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.3em;color:#fde68a;margin-bottom:10px">COINAVERSE · CHAMPIONS NEXUS</div>
+        <h1 style="font-family:'Anton',sans-serif;font-size:clamp(1.8rem,5vw,3rem);line-height:1.05;margin:0 0 12px" class="ea-title-gold">WHERE FINANCIAL<br>LEGENDS COMPETE</h1>
+        <p style="max-width:540px;margin:0 auto 20px;font-size:.92rem;line-height:1.6;color:rgba(255,255,255,.72)">The ultimate financial-literacy competition. Top kids from every hub. Epic challenges. Real skills. Real rewards. <b style="color:#fbbf24">One champion.</b></p>
+        <button onclick="eaJoinLive()" style="padding:14px 34px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;border-radius:12px;color:#1a0a00;font-family:'Orbitron',sans-serif;font-size:.74rem;letter-spacing:.12em;font-weight:900;cursor:pointer;box-shadow:0 12px 30px rgba(251,191,36,.4)">⚡ JOIN LIVE EVENT</button>
+      </div>
+    </div>
+
+    <!-- UPCOMING EVENTS -->
+    <div style="padding:26px 20px 6px">
+      <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.2em;color:#fde68a;margin-bottom:14px">📅 UPCOMING EVENTS</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
+        ${EA_EVENTS.map((e,idx)=>`
+          <div class="ea-card ea-evt" style="animation-delay:${(idx*.07).toFixed(2)}s;position:relative;border-radius:16px;padding:18px;border:1px solid ${e.hot?'rgba(251,191,36,.4)':'rgba(255,255,255,.1)'};background:${e.hot?'linear-gradient(160deg,rgba(251,191,36,.12),rgba(255,255,255,.02))':'rgba(255,255,255,.03)'}">
+            ${e.hot?'<div style="position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:5px;font-family:Orbitron,sans-serif;font-size:.45rem;letter-spacing:.12em;color:#f87171"><span style="width:7px;height:7px;border-radius:50%;background:#ef4444;animation:eaGlow 1.2s infinite"></span>LIVE</div>':''}
+            <div style="font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.16em;color:#fbbf24;margin-bottom:6px">${e.tag}</div>
+            <div style="font-family:'Anton',sans-serif;font-size:1.3rem;margin-bottom:6px">${e.name}</div>
+            <p style="font-size:.78rem;color:rgba(255,255,255,.6);line-height:1.5;margin:0 0 14px;min-height:34px">${e.desc}</p>
+            ${(e.days||e.hrs||e.mins)?`<div id="ea-cd-${e.key}" style="display:flex;gap:8px;margin-bottom:14px">
+              ${[['D',e.days],['H',e.hrs],['M',e.mins]].map(([u,v])=>`<div style="flex:1;text-align:center;background:rgba(0,0,0,.35);border:1px solid rgba(251,191,36,.18);border-radius:10px;padding:8px 4px"><div data-u="${u}" style="font-family:'Anton',sans-serif;font-size:1.3rem;color:#fbbf24">${String(v).padStart(2,'0')}</div><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;color:rgba(255,255,255,.4)">${u==='D'?'DAYS':u==='H'?'HRS':'MIN'}</div></div>`).join('')}
+            </div>`:''}
+            <button onclick="eaJoinLive()" style="width:100%;padding:11px;background:${e.hot?'linear-gradient(135deg,#fbbf24,#f59e0b)':'rgba(255,255,255,.06)'};border:${e.hot?'none':'1px solid rgba(255,255,255,.15)'};border-radius:10px;color:${e.hot?'#1a0a00':'#fde68a'};font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.1em;font-weight:900;cursor:pointer">${e.cta}</button>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- GLOBAL LEADERBOARD -->
+    <div style="padding:22px 20px 6px">
+      <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.2em;color:#fde68a;margin-bottom:14px">🌍 GLOBAL LEADERBOARD</div>
+      <div class="ea-card" style="border-radius:16px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);overflow:hidden">
+        ${EA_LEADERS.map((p,idx)=>{const medal=p.rank===1?'🥇':p.rank===2?'🥈':p.rank===3?'🥉':'';return `
+          <div style="display:flex;align-items:center;gap:14px;padding:13px 18px;border-bottom:${idx<EA_LEADERS.length-1?'1px solid rgba(255,255,255,.05)':'none'};background:${p.rank===1?'linear-gradient(90deg,rgba(251,191,36,.1),transparent)':'transparent'}">
+            <div style="width:30px;text-align:center;font-family:'Anton',sans-serif;font-size:1.1rem;color:${p.rank<=3?'#fbbf24':'rgba(255,255,255,.4)'}">${medal||p.rank}</div>
+            <div style="width:36px;height:36px;border-radius:50%;background:${p.c}22;border:2px solid ${p.c};display:flex;align-items:center;justify-content:center;font-size:1rem">${p.name[0]}</div>
+            <div style="flex:1"><div style="font-weight:700;font-size:.9rem">${p.name}</div><div style="font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.1em;color:${p.c}">${p.hub.toUpperCase()} HUB</div></div>
+            <div style="font-family:'Anton',sans-serif;font-size:1.1rem;color:#fbbf24">${p.score.toLocaleString()}</div>
+          </div>`;}).join('')}
+      </div>
+    </div>
+
+    <!-- GAME MODES -->
+    <div style="padding:22px 20px 6px">
+      <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.2em;color:#fde68a;margin-bottom:14px">🎮 GAME MODES</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+        ${EA_MODES.map((m,idx)=>`<div class="ea-card ea-mode" onclick="eaJoinLive()" style="animation-delay:${(idx*.06).toFixed(2)}s;border-radius:14px;padding:18px 14px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);text-align:center">
+          <div style="font-size:2rem;margin-bottom:8px">${m.ico}</div>
+          <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.06em;color:#fff;margin-bottom:5px">${m.name}</div>
+          <div style="font-size:.7rem;color:rgba(255,255,255,.5);line-height:1.4">${m.desc}</div>
+        </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- PRIZE VAULT -->
+    <div style="padding:22px 20px 50px">
+      <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.2em;color:#fde68a;margin-bottom:14px">💎 PRIZE VAULT</div>
+      <div class="ea-card" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;border-radius:16px;border:1px solid rgba(251,191,36,.2);background:linear-gradient(135deg,rgba(251,191,36,.08),rgba(168,85,247,.05));padding:20px 14px">
+        ${EA_PRIZES.map(p=>`<div style="text-align:center"><div style="font-size:1.8rem;margin-bottom:6px">${p.ico}</div><div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.08em;color:rgba(255,255,255,.7)">${p.name}</div></div>`).join('')}
+      </div>
+      <div style="text-align:center;margin-top:20px;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.18em;color:rgba(255,255,255,.3)">WIN YOUR HUB → ADVANCE → CHAMPIONS NEXUS → GRAND CHAMPIONSHIP → BECOME A LEGEND</div>
+    </div>
+  </div>`;
+};
+
+window.eaJoinLive = function(){
+  if(window.cvToast) cvToast('⚡ Live event starting soon — qualify by winning your hub games!');
+  else if(window.toast) toast('⚡ Live event starting soon!');
+};
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 // OVERRIDE playDistrictGame TO ROUTE TOKENS → GAMES
