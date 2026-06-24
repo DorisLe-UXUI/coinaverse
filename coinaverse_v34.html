@@ -3214,8 +3214,9 @@ h1, h2, h3, .anton { font-family: 'Anton', 'Orbitron', sans-serif; letter-spacin
    ════════════════════════════════════════════════════════ */
 .v14-identity {
   position: absolute; inset: 0;
-  overflow-y: auto;
-  padding: 28px 20px 72px;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column;
+  padding: 22px 16px 26px;
   background:
     linear-gradient(180deg, rgba(10, 4, 41, 0.85), rgba(10, 4, 41, 0.95)),
     url('assets/bg/cosmic_frontier.jpeg');
@@ -3237,18 +3238,15 @@ h1, h2, h3, .anton { font-family: 'Anton', 'Orbitron', sans-serif; letter-spacin
 /* Responsive grid: 3 cols mobile → 6 cols desktop */
 .v14-identity-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  width: 100%;
   max-width: 1500px;
   margin: 0 auto;
-  padding: 0 14px;
-  flex: 1;
-  min-height: 0;
+  padding: 0 4px;
 }
-@media (min-width: 900px) {
-  .v14-identity-grid { grid-template-columns: repeat(6, 1fr); grid-template-rows: auto; }
-}
+@media (min-width: 560px) { .v14-identity-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 980px) { .v14-identity-grid { grid-template-columns: repeat(6, 1fr); } }
 .v14-id-card {
   background: rgba(10, 4, 41, 0.75);
   border: 2px solid var(--id-c);
@@ -3272,8 +3270,7 @@ h1, h2, h3, .anton { font-family: 'Anton', 'Orbitron', sans-serif; letter-spacin
 }
 .v14-id-portrait {
   position: relative;
-  flex: 1;
-  min-height: 130px;
+  height: clamp(120px, 19vh, 200px);
   overflow: hidden;
   background-color: color-mix(in srgb, var(--id-c) 10%, var(--bg-deep, #04101a));
   border-bottom: 1px solid color-mix(in srgb, var(--id-c) 25%, transparent);
@@ -3315,23 +3312,25 @@ h1, h2, h3, .anton { font-family: 'Anton', 'Orbitron', sans-serif; letter-spacin
   z-index: 25; pointer-events: none;
 }
 .v14-identity-confirm {
-  position: fixed; left: 50%; bottom: 20px;
-  transform: translateX(-50%);
+  position: sticky; bottom: 14px;
+  align-self: center;
+  margin: 22px auto 4px;
+  width: min(440px, 92%);
   z-index: 30;
-  padding: 15px 56px;
+  padding: 16px 28px;
   background: linear-gradient(135deg, var(--gold), var(--gold-glow));
   border: none; border-radius: 999px;
   color: var(--bg-deep);
   font-family: 'Orbitron', sans-serif;
-  font-size: 0.9rem; letter-spacing: 0.2em; font-weight: 900;
+  font-size: clamp(0.72rem, 2.6vw, 0.9rem); letter-spacing: 0.18em; font-weight: 900;
   cursor: pointer;
-  box-shadow: 0 16px 40px rgba(251, 191, 36, 0.65), 0 0 0 3px rgba(251,191,36,0.2);
-  opacity: 0; pointer-events: none;
+  box-shadow: 0 16px 40px rgba(251, 191, 36, 0.55), 0 0 0 3px rgba(251,191,36,0.2);
+  opacity: 0; transform: translateY(10px); pointer-events: none;
   transition: all 0.3s var(--ease-bounce);
   white-space: nowrap;
 }
-.v14-identity-confirm.show { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(-4px); }
-.v14-identity-confirm:hover { transform: translateX(-50%) translateY(-8px) scale(1.04); filter: brightness(1.08); }
+.v14-identity-confirm.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.v14-identity-confirm:hover { transform: translateY(-3px) scale(1.02); filter: brightness(1.08); }
 
 .id--strategist { --id-c: var(--c-strategist); }
 .id--builder    { --id-c: var(--c-builder); }
@@ -3645,16 +3644,11 @@ h1, h2, h3, .anton { font-family: 'Anton', 'Orbitron', sans-serif; letter-spacin
 
 /* Responsive */
 @media (max-width: 1280px) {
-  .v14-identity-grid { grid-template-columns: repeat(3, 1fr); }
-  .v14-id-card { min-height: 480px; }
   .party-slots { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 768px) {
   .v14-signin, .v14-welcome { grid-template-columns: 1fr; }
   .v14-signin-left, .v14-welcome-character { display: none; }
-  .v14-identity-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0 10px; }
-  .v14-id-card { min-height: 0; }
-  .v14-id-portrait { min-height: 160px; }
   .home-sidebar { display: none; }
   .home-hubcard, .home-misscard { width: calc(50% - 24px); }
   .home-hotspot { width: 80px; height: 80px; }
@@ -4001,6 +3995,8 @@ video::-webkit-media-controls-play-button {
 
 /* ════ v25d: bg video full cover + scroll + product detail ════ */
 .has-vid{ position:relative; min-height:100vh; }
+/* identity must stay a viewport-locked scroll container so the hero grid + confirm are always reachable (laptop + mobile) */
+.v14-identity.has-vid{ position:absolute; inset:0; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
 .v14-screen{ -webkit-overflow-scrolling:touch; }
 /* product detail modal */
 .prod-card{width:min(840px,96vw);padding:0;overflow:hidden}
