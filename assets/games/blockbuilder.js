@@ -8,7 +8,19 @@
    ════════════════════════════════════════════════════════════════ */
 (function(){
   const TOKEN='risktaker', GOAL_SCORE=900, GOAL_BLOCKS=6, ROUND=75, TXN_PER_BLOCK=4;
+  const GATE_EVERY=18;   // seconds between Knowledge Gates
   let G=null, raf=null;
+
+  // LEARN WHILE PLAYING — blockchain / risk lessons
+  const FACTS=[
+    ['⛓️','A blockchain records every transaction permanently.'],
+    ['✅','Validation checks each transaction is real before it\'s added.'],
+    ['🔒','Immutability: once written, a block can\'t be changed.'],
+    ['⚠️','Watch for fraud — fake or double-spend transactions.'],
+    ['📊','Crypto is volatile — prices swing fast; risk what you can lose.'],
+    ['🌐','Decentralized = no single point of control.'],
+    ['🧮','Miners/validators keep the network honest.']
+  ];
 
   window.bbInit=function(){ G=null; };  // playDistrictGame calls this before goTo
 
@@ -18,7 +30,8 @@
         tiles:[], parts:[], floats:[], links:[], code:[],
         spawnT:0.6, last:0, started:performance.now(),
         shake:0, flash:0, flashColor:'#38bdf8', mineGlow:0,
-        shield:0, validator:0, lanes:4 };
+        shield:0, validator:0, lanes:4,
+        gateT:GATE_EVERY, gateIdx:0 };
     // matrix code columns (subtle background)
     for(let i=0;i<26;i++){ G.code.push({x:Math.random(),y:Math.random(),sp:0.05+Math.random()*0.18,ch:rch(),al:0.04+Math.random()*0.1}); }
   }
@@ -54,7 +67,9 @@
       </div>
       <canvas id="bbCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none"></canvas>
       <div id="bbHint" style="position:absolute;left:0;right:0;bottom:18px;text-align:center;z-index:4;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.13em;color:rgba(255,255,255,.5);pointer-events:none">TAP ✅ VALID to build the block · MINE at ${TXN_PER_BLOCK}/block · NEVER tap ⚠️ FRAUD · let fraud scroll off</div>
-      <div id="bbOver" style="position:absolute;inset:0;z-index:8;display:none;align-items:center;justify-content:center;background:rgba(2,12,22,.84);backdrop-filter:blur(4px)"></div>
+      <div id="bbFact" style="position:absolute;left:50%;top:150px;transform:translateX(-50%);z-index:6;max-width:80%;display:none;pointer-events:none"></div>
+      <div id="bbGate" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(2,12,22,.86);backdrop-filter:blur(5px);padding:22px"></div>
+      <div id="bbOver" style="position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:rgba(2,12,22,.84);backdrop-filter:blur(4px)"></div>
     </div>`;
   };
   function hud(label,id,c){ return `<div style="flex:1;max-width:150px;text-align:center;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.18);border-radius:10px;padding:6px"><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.45)">${label}</div><div id="${id}" style="font-family:'Anton',sans-serif;font-size:1.1rem;color:${c}">0</div></div>`; }
@@ -124,7 +139,9 @@
     // add a chain link visual + celebratory burst at the stack
     G.links.push({born:performance.now()});
     for(let i=0;i<22;i++){ const a=Math.random()*7,s=0.2+Math.random()*0.6; G.parts.push({x:0.5,y:0.82,vx:Math.cos(a)*s,vy:Math.sin(a)*s-0.4,s:2+Math.random()*4,c:i%2?'#38bdf8':'#a5f3fc',life:0.7+Math.random()*0.4,max:1.1}); }
-    if(G.blocks>=GOAL_BLOCKS || G.score>=GOAL_SCORE) end(true);
+    if(G.blocks>=GOAL_BLOCKS || G.score>=GOAL_SCORE){ end(true); return; }
+    // every block mined → Knowledge Gate (also resets the periodic timer)
+    openGate();
   }
 
   function loop(now){
@@ -141,6 +158,9 @@
     G.time-=dt; if(G.time<=0){ G.time=0; return end(); }
     const tEl=document.getElementById('bbTime'); if(tEl) tEl.textContent=Math.ceil(G.time)+'s';
     const prog=1-(G.time/ROUND);
+
+    // Knowledge Gate every ~GATE_EVERY seconds — pauses everything until GOT IT
+    G.gateT-=dt; if(G.gateT<=0){ openGate(); return; }
 
     // spawn scrolling transaction tiles across lanes (left → right)
     G.spawnT-=dt;
@@ -163,10 +183,14 @@
       }
     }
 
-    // move tiles; valid escaping = small miss + combo reset
+    // move tiles; valid escaping = small miss + combo reset; fraud dodged = good
     for(const it of G.tiles){
       it.x+=it.vx*dt;
-      if(it.x>1.16){ if(it.kind==='valid'){ G.combo=0; G.missed++; } it.dead=1; }
+      if(it.x>1.16){
+        if(it.kind==='valid'){ G.combo=0; G.missed++; }
+        else if(it.kind==='fraud'){ if(Math.random()<0.5) showFact('⚠️ Fraud dodged — let bad txns scroll off!'); }
+        it.dead=1;
+      }
     }
     G.tiles=G.tiles.filter(t=>!t.dead);
 
@@ -316,6 +340,35 @@
   function floatTxt(x,y,t,c){ G.floats.push({x,y,t,c,life:0.9,big:t.indexOf('STREAK')>=0||t.indexOf('MINED')>=0}); }
   function setTxt(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
 
+  // ── LEARN WHILE PLAYING ──
+  // brief fact toast (doesn't pause the game)
+  function showFact(txt){ const el=document.getElementById('bbFact'); if(!el||!txt) return;
+    el.style.display='block';
+    el.innerHTML=`<div style="background:rgba(2,12,22,.82);border:1px solid rgba(56,189,248,.6);border-radius:12px;padding:9px 16px;font-size:.82rem;color:#fff;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.5)">${txt}</div>`;
+    clearTimeout(window._bbFactT); window._bbFactT=setTimeout(()=>{ const e=document.getElementById('bbFact'); if(e) e.style.display='none'; },2200);
+  }
+
+  // full-screen Knowledge Gate — PAUSES the game (phase!=='play' freezes update())
+  function openGate(){
+    if(!G||G.phase!=='play') return; G.phase='gate';
+    const f=FACTS[G.gateIdx%FACTS.length]; G.gateIdx++;
+    const o=document.getElementById('bbGate'); if(!o){ G.phase='play'; G.gateT=GATE_EVERY; return; }
+    o.style.display='flex';
+    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #38bdf8;border-radius:22px;background:linear-gradient(160deg,rgba(5,30,48,.97),rgba(3,16,25,.97));box-shadow:0 0 50px rgba(56,189,248,.4);animation:bbGateIn .35s ease">
+      <style>@keyframes bbGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}</style>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#7dd3fc;margin-bottom:10px">⛩️ KNOWLEDGE GATE · BLOCKCHAIN</div>
+      <div style="font-size:2.4rem;margin-bottom:8px">${f[0]}</div>
+      <p style="font-size:1.02rem;line-height:1.5;color:#fff;margin:0 0 18px">${f[1]}</p>
+      <button onclick="bbGateGo()" style="padding:13px 30px;border:none;border-radius:12px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);color:#031019;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.12em;font-weight:900;cursor:pointer">GOT IT → +40</button>
+    </div>`;
+  }
+  // resume cleanly + small reward (mirrors frGateGo)
+  window.bbGateGo=function(){ if(!G) return; G.score+=40; G.integrity=Math.min(100,G.integrity+4); G.gateT=GATE_EVERY; G.phase='play';
+    const o=document.getElementById('bbGate'); if(o){ o.style.display='none'; o.innerHTML=''; }
+    G.flash=0.3; G.flashColor='#38bdf8'; floatTxt(0.5,0.42,'+40 LEARNED','#7dd3fc');
+    if(G.last!=null) G.last=performance.now();   // avoid a dt spike on resume
+  };
+
   function end(win){
     if(G.phase==='over') return; G.phase='over';
     const score=G.score;
@@ -334,6 +387,6 @@
     </div>`;
   }
 
-  window.bbRestart=function(){ reset(); const o=document.getElementById('bbOver'); if(o){o.style.display='none';o.innerHTML='';} bbBoot(); };
+  window.bbRestart=function(){ reset(); ['bbOver','bbGate'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); const ft=document.getElementById('bbFact'); if(ft)ft.style.display='none'; bbBoot(); };
   window.bbExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); G=null; if(window.state)state.viewingWorld='risktaker'; goTo('hub'); };
 })();

@@ -7,8 +7,19 @@
    Loads after the main script; overrides the stub window.SCREENS.game_goalquest.
    ════════════════════════════════════════════════════════════════ */
 (function(){
-  const TOKEN='strategist', GOAL=300, ROUND=70;
+  const TOKEN='strategist', GOAL=300, ROUND=70, GATE_EVERY=18;
   let G=null, raf=null;
+
+  // ── LEARN WHILE PLAYING: budgeting lessons (one card at a time) ──────
+  const FACTS=[
+    ['🧠','A budget gives every dollar a job before you spend it.'],
+    ['🍞','Needs (food, rent, transport) come before wants.'],
+    ['📊','Try 50/30/20: needs / wants / savings.'],
+    ['✂️','Cut one small want and send it to savings.'],
+    ['🎯','Plan to a goal — vague goals rarely get funded.'],
+    ['💧','Track spending; small leaks sink the budget.'],
+    ['🛟','Budget in an emergency buffer for surprises.']
+  ];
 
   window.gqInit=function(){ G=null; };   // playDistrictGame calls this before goTo
 
@@ -16,7 +27,7 @@
     G={ phase:'play', score:0, goal:0, health:100, combo:0, best:0, sorted:0, perfect:0,
         time:ROUND, items:[], parts:[], floats:[], rings:[],
         spawnT:0.6, last:0, started:performance.now(), shake:0, flash:0, flashC:'#60a5fa',
-        x2:0, slow:0, lastBin:-1, bins:[0.18,0.5,0.82] };
+        x2:0, slow:0, lastBin:-1, bins:[0.18,0.5,0.82], gateT:GATE_EVERY, gateIdx:0 };
   }
 
   // ── item catalogue ────────────────────────────────────────────────
@@ -54,6 +65,7 @@
       </div>
       <canvas id="gqCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none"></canvas>
       <div id="gqHint" style="position:absolute;left:0;right:0;bottom:16px;text-align:center;z-index:4;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.13em;color:rgba(255,255,255,.5);pointer-events:none">←/tap NEED · ↓/tap WANT · →/tap SAVE  ·  drag items too  ·  sort 💰 to SAVE</div>
+      <div id="gqGate" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(7,13,24,.86);backdrop-filter:blur(5px);padding:22px"></div>
       <div id="gqOver" style="position:absolute;inset:0;z-index:8;display:none;align-items:center;justify-content:center;background:rgba(7,13,24,.84);backdrop-filter:blur(4px)"></div>
     </div>`;
   };
@@ -140,6 +152,9 @@
       G.combo=0; G.health=Math.max(0,G.health-14); G.shake=0.42;
       burst(it.x,it.y,'#f87171',13);
       floatTxt(it.x,it.y, it.bin===0?'That\'s a NEED!':it.bin===1?'That\'s a WANT!':'SAVE that!','#fca5a5');
+      // brief teachable nudge reinforcing the budgeting rule
+      const TIP=it.bin===0?'Needs come first':it.bin===1?'Wants after needs':'Pay your future self';
+      floatTxt(it.x, Math.min(0.92,it.y+0.07), TIP, '#93c5fd');
     }
   }
 
@@ -157,6 +172,8 @@
     // timer
     G.time-=dt; if(G.time<=0){ G.time=0; return end(); }
     const tEl=document.getElementById('gqTime'); if(tEl) tEl.textContent=Math.ceil(G.time)+'s';
+    // knowledge gate every ~18s — pauses play, shows one lesson card
+    G.gateT-=dt; if(G.gateT<=0){ openGate(); return; }
     const prog=1-(G.time/ROUND);
     const slowF = G.slow>0?0.45:1;
 
@@ -344,6 +361,29 @@
     </div>`;
   }
 
-  window.gqRestart=function(){ reset(); const o=document.getElementById('gqOver'); if(o){o.style.display='none';o.innerHTML='';} gqBoot(); };
+  // ── KNOWLEDGE GATE — pauses play, shows one budgeting lesson ─────────
+  function openGate(){
+    if(!G || G.phase!=='play') return; G.phase='gate';
+    const f=FACTS[G.gateIdx%FACTS.length]; G.gateIdx++;
+    const o=document.getElementById('gqGate'); if(!o){ G.phase='play'; G.gateT=GATE_EVERY; return; }
+    o.style.display='flex';
+    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #3b82f6;border-radius:22px;background:linear-gradient(160deg,rgba(30,41,59,.97),rgba(7,13,24,.97));box-shadow:0 0 50px rgba(59,130,246,.4);animation:gqGateIn .35s ease">
+      <style>@keyframes gqGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}</style>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#93c5fd;margin-bottom:10px">⛩️ KNOWLEDGE GATE · BUDGET TIP</div>
+      <div style="font-size:2.4rem;margin-bottom:8px">${f[0]}</div>
+      <p style="font-size:1.02rem;line-height:1.5;color:#fff;margin:0 0 18px">${f[1]}</p>
+      <button onclick="gqGateGo()" style="padding:13px 30px;border:none;border-radius:12px;background:linear-gradient(135deg,#60a5fa,#2563eb);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.12em;font-weight:900;cursor:pointer">GOT IT → +10 HEALTH</button>
+    </div>`;
+  }
+  window.gqGateGo=function(){
+    if(!G) return;
+    G.health=Math.min(100,G.health+10); G.score+=40;
+    G.gateT=GATE_EVERY; G.phase='play';
+    const o=document.getElementById('gqGate'); if(o){ o.style.display='none'; o.innerHTML=''; }
+    G.last=performance.now();   // avoid a dt jump on resume
+    G.flash=0.25; G.flashC='#60a5fa';
+  };
+
+  window.gqRestart=function(){ reset(); ['gqGate','gqOver'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); gqBoot(); };
   window.gqExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); G=null; if(window.state)state.viewingWorld='strategist'; goTo('hub'); };
 })();

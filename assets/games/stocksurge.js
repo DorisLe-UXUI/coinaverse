@@ -8,9 +8,21 @@
 (function(){
   const TOKEN='investor', START_CASH=1000, TARGET=1500, ROUND=75;
   const MAXPTS=70;                         // points held on the scrolling chart
+  const GATE_EVERY=18;                     // knowledge gate every ~18s
   let S=null, raf=null;
 
   window.ssInit=function(){ S=null; };     // playDistrictGame calls this before goTo
+
+  // LEARN WHILE PLAYING — investing lessons, one per Knowledge Gate
+  const FACTS=[
+    ['📈','Buy value and let it grow — patience pays.'],
+    ['🌱','Compounding: small amounts invested early grow big.'],
+    ['⚖️','Higher reward usually means higher risk.'],
+    ['🧺','Diversify — don\'t put all your money in one stock.'],
+    ['📰','News moves prices; don\'t panic-sell on a dip.'],
+    ['💸','Buy low, sell high — emotions are the enemy.'],
+    ['⏳','Time in the market beats timing the market.'],
+  ];
 
   // news event templates → bias the next several ticks
   const NEWS=[
@@ -31,6 +43,7 @@
         startNW:START_CASH, peakNW:START_CASH, costBasis:0,
         prices:[], drift:0.0, vol:1.0, newsTicks:0, news:null,
         tickT:0, newsT:8, banner:null,        // banner = {n, life} animation timer
+        gateT:GATE_EVERY, gateIdx:0,          // knowledge-gate countdown + lesson cursor
         parts:[], floats:[], flash:0, flashC:'#34d399', shake:0,
         trades:0, lastAction:'—', actionFlash:0 };
     for(let i=0;i<MAXPTS;i++) S.prices.push(p0);
@@ -77,6 +90,9 @@
         ${btn('ssHold','HOLD','H','#6ee7b7','#fff','rgba(16,185,129,.12)')}
       </div>
 
+      <!-- KNOWLEDGE GATE overlay (pauses the market) -->
+      <div id="ssGate" style="position:absolute;inset:0;z-index:8;display:none;align-items:center;justify-content:center;background:rgba(2,10,5,.86);backdrop-filter:blur(5px);padding:22px"></div>
+
       <div id="ssOver" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(2,10,5,.84);backdrop-filter:blur(4px)"></div>
     </div>`;
   };
@@ -114,6 +130,10 @@
     // timer
     S.time-=dt; if(S.time<=0){ S.time=0; return end(); }
     const tEl=document.getElementById('ssTime'); if(tEl) tEl.textContent=Math.ceil(S.time)+'s';
+
+    // knowledge gate every ~18s — pauses the market for one lesson
+    S.gateT-=dt;
+    if(S.gateT<=0){ openGate(); return; }
 
     // schedule next news every 12–18s
     S.newsT-=dt;
@@ -163,6 +183,29 @@
     S.flash=0.35; S.flashC = n.type==='pos'?'#10b981':(n.type==='neg'?'#ef4444':'#fbbf24');
   }
 
+  // ── knowledge gate (pause + one lesson card) ─────────────────────
+  function openGate(){
+    if(!S || S.phase!=='play') return; S.phase='gate';
+    const f=FACTS[S.gateIdx%FACTS.length]; S.gateIdx++;
+    const o=document.getElementById('ssGate'); if(!o){ S.phase='play'; return; }
+    o.style.display='flex';
+    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #34d399;border-radius:22px;background:linear-gradient(160deg,rgba(7,31,13,.97),rgba(3,16,8,.97));box-shadow:0 0 50px rgba(16,185,129,.4);animation:ssGateIn .35s ease">
+      <style>@keyframes ssGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}</style>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#6ee7b7;margin-bottom:10px">⛩️ KNOWLEDGE GATE · INVESTING TIP</div>
+      <div style="font-size:2.4rem;margin-bottom:8px">${f[0]}</div>
+      <p style="font-size:1.02rem;line-height:1.5;color:#fff;margin:0 0 18px">${f[1]}</p>
+      <button onclick="ssGateGo()" style="padding:13px 30px;border:none;border-radius:12px;background:linear-gradient(135deg,#34d399,#059669);color:#04150b;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.12em;font-weight:900;cursor:pointer">GOT IT → +$50</button>
+    </div>`;
+  }
+  window.ssGateGo=function(){
+    if(!S) return;
+    S.cash+=50;                                  // small bonus for learning
+    S.gateT=GATE_EVERY; S.phase='play';
+    S.last=performance.now();                     // avoid a dt spike after the pause
+    const o=document.getElementById('ssGate'); if(o){ o.style.display='none'; o.innerHTML=''; }
+    flashFloat('+$50 bonus!','#34d399'); S.flashC='#10b981'; S.flash=0.3;
+  };
+
   // ── trading actions ──────────────────────────────────────────────
   window.ssAct=function(a){
     if(!S || S.phase!=='play') return;
@@ -195,10 +238,12 @@
       S.lastAction='Sold +'+Math.round(gain);
       flashFloat('+'+fmt(gain)+' profit!','#34d399');
       burst(0.5,0.5,'#34d399',18); S.flashC='#10b981'; S.flash=0.45;
+      factToast('💸 Bought low, sold high — that\'s the goal!');
     } else {
       S.lastAction='Sold '+Math.round(gain);
       flashFloat(fmt(gain)+' loss','#fca5a5');
       burst(0.5,0.5,'#f87171',14); S.flashC='#ef4444'; S.flash=0.4; S.shake=0.35;
+      factToast('📰 Selling on a dip locks in losses — patience pays.');
     }
     S.costBasis=0;
   }
@@ -322,6 +367,7 @@
   }
   function setTxt(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
   function flashFloat(t,c){ S.floats.push({x:0.5,y:0.58,t,c,life:1.0,big:t.indexOf('profit')>=0||t.indexOf('loss')>=0}); }
+  function factToast(t){ S.floats.push({x:0.5,y:0.46,t,c:'#6ee7b7',life:1.6,big:false}); }   // brief learn-while-playing nudge on a sell
   function burst(x,y,c,n){ for(let i=0;i<n;i++){ const a=Math.random()*7,s=0.18+Math.random()*0.55; S.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-0.25,s:2+Math.random()*3,c,life:0.5+Math.random()*0.35,max:0.85}); } }
   function pulseBtn(a){ const id=a==='B'?'ssBuy':a==='S'?'ssSell':'ssHold'; const b=document.getElementById(id); if(b){ b.style.transform='scale(.93)'; setTimeout(()=>{ if(b)b.style.transform='scale(1)'; },90); } }
   function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
@@ -354,6 +400,6 @@
     </div>`;
   }
 
-  window.ssRestart=function(){ reset(); const o=document.getElementById('ssOver'); if(o){o.style.display='none';o.innerHTML='';} ssBoot(); };
+  window.ssRestart=function(){ reset(); ['ssGate','ssOver'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); ssBoot(); };
   window.ssExit=function(){ if(S&&S._cleanup)S._cleanup(); cancelAnimationFrame(raf); S=null; if(window.state)state.viewingWorld='investor'; goTo('hub'); };
 })();

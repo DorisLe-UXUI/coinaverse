@@ -20,8 +20,20 @@
         enemies:[], shots:[], gems:[], powers:[], parts:[], floats:[],
         spawnT:0.6, last:0, started:performance.now(),
         shake:0, flash:0, dir:1, walkT:0, bossUp:false, bossDead:false,
+        gateT:18, gateIdx:0,
         keys:{}, touch:null };
   }
+
+  // LEARN WHILE PLAYING — debt payoff lessons (Knowledge Gate + toasts)
+  const FACTS=[
+    ['❄️','Snowball: pay off the smallest debt first for quick wins.'],
+    ['🏔️','Avalanche: attack the highest-interest debt to save most.'],
+    ['🗓️','Always pay at least the minimum, on time.'],
+    ['📉','High interest makes debt grow — tackle it fast.'],
+    ['🛟','Build a small emergency fund so you don\'t borrow more.'],
+    ['💪','Small steady payments rebuild financial health.'],
+    ['🚫','Avoid new debt while paying off old debt.']
+  ];
 
   // enemy archetypes — debt monsters
   const FOES={
@@ -49,6 +61,7 @@
       </div>
       <canvas id="dsCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair"></canvas>
       <div id="dsHint" style="position:absolute;left:0;right:0;bottom:18px;text-align:center;z-index:4;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.14em;color:rgba(255,255,255,.5);pointer-events:none">WASD / arrows / drag to MOVE · 💵 auto-attacks nearest debt · grab 💎 ⚡ ❤️ 🛡️ 💥</div>
+      <div id="dsGate" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(16,6,6,.86);backdrop-filter:blur(5px);padding:22px"></div>
       <div id="dsOver" style="position:absolute;inset:0;z-index:8;display:none;align-items:center;justify-content:center;background:rgba(16,6,6,.84);backdrop-filter:blur(4px)"></div>
     </div>`;
   };
@@ -101,6 +114,9 @@
     const tEl=document.getElementById('dsTime'); if(tEl) tEl.textContent=Math.ceil(G.time)+'s';
     const elapsed=SURVIVE-G.time;
     const prog=elapsed/SURVIVE;                                 // 0..1 ramp
+
+    // ---- KNOWLEDGE GATE every ~18s (pauses everything below) ----
+    G.gateT-=dt; if(G.gateT<=0){ return openGate('reward'); }
 
     // ---- player movement ----
     let mx=0,my=0;
@@ -251,6 +267,7 @@
       // titan showers gems
       for(let i=0;i<5;i++) G.gems.push({x:e.x+(Math.random()-.5)*0.1,y:e.y+(Math.random()-.5)*0.1,v:15,life:8,bob:Math.random()*6});
       maybePower(e.x,e.y,true);
+      setTimeout(()=>openGate('boss'),650);                     // arena cleared → lesson
     } else {
       if(Math.random()<e.drop) G.gems.push({x:e.x,y:e.y,v: e.type==='vamp'?12:(e.type==='drone'?8:5), life:7, bob:Math.random()*6});
       maybePower(e.x,e.y,false);
@@ -396,6 +413,27 @@
   function burst(x,y,c,n){ for(let i=0;i<n;i++){ const a=Math.random()*7,s=0.18+Math.random()*0.55; G.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,s:2+Math.random()*3,c,life:0.45+Math.random()*0.3,max:0.78}); } }
   function floatTxt(x,y,t,c,big){ G.floats.push({x,y,t,c,life:0.95,big:!!big}); }
   function setTxt(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
+
+  // ---- KNOWLEDGE GATE: pause arena, show ONE debt lesson, resume + small bonus ----
+  function openGate(src){
+    if(!G || G.phase!=='play') return; G.phase='gate';
+    const f=FACTS[G.gateIdx%FACTS.length]; G.gateIdx++;
+    const o=document.getElementById('dsGate'); if(!o){ G.phase='play'; G.gateT=18; return; }
+    o.style.display='flex';
+    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #f59e0b;border-radius:22px;background:linear-gradient(160deg,rgba(58,26,26,.97),rgba(24,12,12,.97));box-shadow:0 0 50px rgba(245,158,11,.4);animation:dsGateIn .35s ease">
+      <style>@keyframes dsGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}</style>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#fcd34d;margin-bottom:10px">⛩️ KNOWLEDGE GATE · DEBT TIP</div>
+      <div style="font-size:2.4rem;margin-bottom:8px">${f[0]}</div>
+      <p style="font-size:1.02rem;line-height:1.5;color:#fff;margin:0 0 18px">${f[1]}</p>
+      <button onclick="dsGateGo()" style="padding:13px 30px;border:none;border-radius:12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#2d1b1b;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.12em;font-weight:900;cursor:pointer">GOT IT → +20 ❤️</button>
+    </div>`;
+  }
+  window.dsGateGo=function(){ if(!G)return; G.gateT=18;
+    if(G.phase==='gate'){ G.hp=Math.min(G.maxhp,G.hp+20); G.score+=40; G.flash=0.4;
+      floatTxt(G.px,G.py-0.05,'+20 ❤️','#fca5a5'); }
+    G.phase='play'; G.last=performance.now();                   // avoid dt spike after pause
+    const o=document.getElementById('dsGate'); if(o){o.style.display='none';o.innerHTML='';}
+  };
 
   function end(win){
     if(G.phase==='over') return; G.phase='over';

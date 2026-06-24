@@ -5,15 +5,27 @@
    Loads after the main script; overrides the stub window.SCREENS.game_moneycatcher.
    ════════════════════════════════════════════════════════════════ */
 (function(){
-  const TOKEN='guardian', GOAL=300, ROUND=60;
+  const TOKEN='guardian', GOAL=300, ROUND=60, GATE_EVERY=18;
   let G=null, raf=null;
+
+  // LEARN WHILE PLAYING — saving lessons (one card at a time on a Knowledge Gate)
+  const FACTS=[
+    ['🐷','Pay yourself first — save before you spend.'],
+    ['🎯','Give savings a clear goal AND an amount.'],
+    ['🏦','Keep big savings somewhere safe, like a bank.'],
+    ['🛟','An emergency fund stops surprises from wrecking your plan.'],
+    ['📈','Save a little regularly — consistency beats luck.'],
+    ['🛍️','Skip impulse buys; wait a day before spending.'],
+    ['💎',"Watch your vault grow — that's real security."],
+  ];
 
   window.mcInit=function(){ G=null; };  // playDistrictGame calls this before goTo
 
   function reset(){
     G={ phase:'play', score:0, vault:0, caught:0, missed:0, combo:0, best:0,
         time:ROUND, piggyX:0.5, vx:0, items:[], parts:[], floats:[],
-        spawnT:0, last:0, started:performance.now(), shake:0, magnet:0, flash:0 };
+        spawnT:0, last:0, started:performance.now(), shake:0, magnet:0, flash:0,
+        gateT:GATE_EVERY, gateIdx:0 };
   }
 
   // item kinds
@@ -38,7 +50,8 @@
       </div>
       <canvas id="mcCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:none"></canvas>
       <div id="mcHint" style="position:absolute;left:0;right:0;bottom:18px;text-align:center;z-index:4;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.14em;color:rgba(255,255,255,.45);pointer-events:none">MOVE: mouse · touch · ← →  ·  CATCH 🪙💰💎  ·  DODGE 🛍️🔥💸</div>
-      <div id="mcOver" style="position:absolute;inset:0;z-index:8;display:none;align-items:center;justify-content:center;background:rgba(2,10,16,.82);backdrop-filter:blur(4px)"></div>
+      <div id="mcGate" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(2,10,16,.86);backdrop-filter:blur(5px);padding:22px"></div>
+      <div id="mcOver" style="position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:rgba(2,10,16,.82);backdrop-filter:blur(4px)"></div>
     </div>`;
   };
   function hud(label,id,c){ return `<div style="flex:1;max-width:150px;text-align:center;background:rgba(20,184,166,.08);border:1px solid rgba(20,184,166,.18);border-radius:10px;padding:6px"><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.45)">${label}</div><div id="${id}" style="font-family:'Anton',sans-serif;font-size:1.1rem;color:${c}">0</div></div>`; }
@@ -76,6 +89,8 @@
     // timer
     G.time-=dt; if(G.time<=0){ G.time=0; return end(); }
     const tEl=document.getElementById('mcTime'); if(tEl) tEl.textContent=Math.ceil(G.time)+'s';
+    // KNOWLEDGE GATE every ~18s — pauses everything (timer/spawns/falling/combo freeze)
+    G.gateT-=dt; if(G.gateT<=0){ return openGate(); }
     // piggy keyboard drift
     if(G.keyL) G.piggyX-=dt*1.3; if(G.keyR) G.piggyX+=dt*1.3;
     G.piggyX=Math.max(0,Math.min(1,G.piggyX));
@@ -99,11 +114,12 @@
           const gain=it.v*(1+Math.floor(G.combo/5));
           G.score+=gain; G.vault=Math.min(GOAL,G.vault+Math.round(gain/3));
           burst(it.x,py, '#34d399',10); floatTxt(it.x,py,'+'+gain, '#fde68a');
-          if(G.combo%5===0){ G.flash=0.4; floatTxt(0.5,0.5,'COMBO x'+(1+Math.floor(G.combo/5)),'#2dd4bf'); }
+          if(G.combo%5===0){ G.flash=0.4; floatTxt(0.5,0.5,'COMBO x'+(1+Math.floor(G.combo/5)),'#2dd4bf'); factToast('📈','Save a little regularly — consistency beats luck.'); }
           it.dead=1;
         } else {
           G.combo=0; G.missed++; G.vault=Math.max(0,G.vault-12); G.shake=0.4;
           burst(it.x,py,'#f87171',12); floatTxt(it.x,py,it.t,'#fca5a5');
+          factToast('🛍️','Skip impulse buys; wait a day before spending.');
           it.dead=1;
         }
       } else if(it.y>1.05){ if(it.kind==='coin'){ G.combo=0; } it.dead=1; }
@@ -157,6 +173,35 @@
   function floatTxt(x,y,t,c){ G.floats.push({x,y,t,c,life:0.9,big:t.indexOf('COMBO')>=0}); }
   function setTxt(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
 
+  // brief fact toast (reuses #mcHint slot) — fires on big combo / savings-killer
+  function factToast(emoji,msg){
+    const el=document.getElementById('mcHint'); if(!el) return;
+    if(el._mcOrig===undefined) el._mcOrig=el.innerHTML;
+    el.innerHTML=`<span style="color:#5eead4">${emoji} ${msg}</span>`;
+    clearTimeout(el._mcT); el._mcT=setTimeout(()=>{ const e=document.getElementById('mcHint'); if(e&&e._mcOrig!==undefined) e.innerHTML=e._mcOrig; },2600);
+  }
+
+  // KNOWLEDGE GATE — pauses play, shows ONE saving lesson; GOT IT resumes + small bonus
+  function openGate(){
+    if(!G||G.phase!=='play') return; G.phase='gate';
+    const f=FACTS[G.gateIdx%FACTS.length]; G.gateIdx++;
+    const o=document.getElementById('mcGate'); if(!o){ G.phase='play'; G.gateT=GATE_EVERY; return; }
+    o.style.display='flex';
+    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #14b8a6;border-radius:22px;background:linear-gradient(160deg,rgba(8,40,46,.97),rgba(4,20,30,.97));box-shadow:0 0 50px rgba(20,184,166,.4);animation:mcGateIn .35s ease">
+      <style>@keyframes mcGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}</style>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#5eead4;margin-bottom:10px">⛩️ KNOWLEDGE GATE · SAVING TIP</div>
+      <div style="font-size:2.4rem;margin-bottom:8px">${f[0]}</div>
+      <p style="font-size:1.02rem;line-height:1.5;color:#fff;margin:0 0 18px">${f[1]}</p>
+      <button onclick="mcGateGo()" style="padding:13px 30px;border:none;border-radius:12px;background:linear-gradient(135deg,#14b8a6,#0d9488);color:#04201e;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.12em;font-weight:900;cursor:pointer">GOT IT → +20 💎</button>
+    </div>`;
+  }
+  window.mcGateGo=function(){ if(!G) return;
+    G.vault=Math.min(GOAL,G.vault+20); G.score+=40; G.gateT=GATE_EVERY; G.phase='play';
+    const o=document.getElementById('mcGate'); if(o){ o.style.display='none'; o.innerHTML=''; }
+    G.flash=0.4; floatTxt(0.5,0.5,'+20 💎 VAULT','#2dd4bf');
+    if(G&&G.last!==undefined) G.last=performance.now(); // avoid a big dt jump after pause
+  };
+
   function end(win){
     if(G.phase==='over') return; G.phase='over';
     if(window.state){ state.coins=(state.coins||0)+G.score; if(window.cvAddXP) cvAddXP(Math.round(G.score/4),0); else if(window.cvSave) cvSave();
@@ -173,6 +218,6 @@
     </div>`;
   }
 
-  window.mcRestart=function(){ reset(); const o=document.getElementById('mcOver'); if(o){o.style.display='none';o.innerHTML='';} mcBoot(); };
+  window.mcRestart=function(){ reset(); ['mcGate','mcOver'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); mcBoot(); };
   window.mcExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); G=null; if(window.state)state.viewingWorld='guardian'; goTo('hub'); };
 })();

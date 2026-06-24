@@ -8,8 +8,19 @@
    Loads after the main script; overrides the stub window.SCREENS.game_bizop.
    ════════════════════════════════════════════════════════════════ */
 (function(){
-  const GOAL=2000, ROUND=80, MAXQ=5, START_STOCK=8, STOCK_CAP=12, RESTOCK_COST=40, RESTOCK_QTY=6;
+  const GOAL=2000, ROUND=80, MAXQ=5, START_STOCK=8, STOCK_CAP=12, RESTOCK_COST=40, RESTOCK_QTY=6, GATE_EVERY=18;
   let G=null, raf=null;
+
+  // LEARN WHILE PLAYING — entrepreneurship lessons (one card at a time on a Knowledge Gate)
+  const FACTS=[
+    ['💡','Start with a real problem people will pay to solve.'],
+    ['😀','Happy customers come back — service matters.'],
+    ['📦','Keep stock ready, but don\'t over-order and waste cash.'],
+    ['🏷️','Price to cover costs AND make a profit.'],
+    ['⚡','Fast service = more customers served = more revenue.'],
+    ['💰','Revenue minus costs = profit. Watch both.'],
+    ['📣','Marketing brings customers — but spend wisely.'],
+  ];
 
   window.boInit=function(){ G=null; };  // playDistrictGame calls this before goTo
 
@@ -29,7 +40,8 @@
         served:0, lost:0, combo:0, bestCombo:0, tips:0,
         queue:[], parts:[], floats:[], coins:[],
         spawnT:0.6, last:0, started:performance.now(),
-        shake:0, flash:0, turbo:0, mkt:0, restockPulse:0, lowWarn:0 };
+        shake:0, flash:0, turbo:0, mkt:0, restockPulse:0, lowWarn:0,
+        gateT:GATE_EVERY, gateIdx:0 };
   }
 
   window.SCREENS.game_bizop=function(){
@@ -70,6 +82,8 @@
 
       <!-- Shop picker overlay -->
       <div id="boPick" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(26,16,48,.92);backdrop-filter:blur(5px)"></div>
+      <!-- Knowledge gate overlay -->
+      <div id="boGate" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(26,16,48,.88);backdrop-filter:blur(5px);padding:22px"></div>
       <!-- End overlay -->
       <div id="boOver" style="position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:rgba(26,16,48,.86);backdrop-filter:blur(5px)"></div>
     </div>`;
@@ -191,6 +205,8 @@
   function update(dt,W,H){
     G.time-=dt; if(G.time<=0){ G.time=0; return end(); }
     const tEl=document.getElementById('boTime'); if(tEl){ tEl.textContent=Math.ceil(G.time)+'s'; tEl.style.color=G.time<15?'#f87171':'#fbbf24'; }
+    // KNOWLEDGE GATE every ~18s — pauses everything (customers/patience/timer freeze)
+    G.gateT-=dt; if(G.gateT<=0){ return openGate(); }
     const prog=1-(G.time/ROUND);
 
     // spawn customers (marketing power-up speeds spawns)
@@ -363,6 +379,21 @@
     </div>`;
   }
 
-  window.boRestart=function(){ const keep=G&&G.shopKey; reset(keep); const o=document.getElementById('boOver'); if(o){o.style.display='none';o.innerHTML='';} boBoot(); };
+  function openGate(){
+    if(!G||G.phase!=='play') return; G.phase='gate';
+    const f=FACTS[G.gateIdx%FACTS.length]; G.gateIdx++;
+    const o=document.getElementById('boGate'); if(!o){ G.phase='play'; return; }
+    o.style.display='flex';
+    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #a855f7;border-radius:22px;background:linear-gradient(160deg,rgba(61,37,96,.97),rgba(26,16,48,.97));box-shadow:0 0 50px rgba(168,85,247,.4);animation:boGateIn .35s ease">
+      <style>@keyframes boGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}</style>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#c084fc;margin-bottom:10px">⛩️ KNOWLEDGE GATE · BIZ TIP</div>
+      <div style="font-size:2.4rem;margin-bottom:8px">${f[0]}</div>
+      <p style="font-size:1.02rem;line-height:1.5;color:#fff;margin:0 0 18px">${f[1]}</p>
+      <button onclick="boGateGo()" style="padding:13px 30px;border:none;border-radius:12px;background:linear-gradient(135deg,#a855f7,#7e22ce);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.12em;font-weight:900;cursor:pointer">GOT IT → +$120</button>
+    </div>`;
+  }
+  window.boGateGo=function(){ if(!G)return; G.revenue+=120; G.gateT=GATE_EVERY; G.phase='play'; G.last=performance.now(); const o=document.getElementById('boGate'); if(o){o.style.display='none';o.innerHTML='';} };
+
+  window.boRestart=function(){ const keep=G&&G.shopKey; reset(keep); ['boOver','boGate'].forEach(id=>{const o=document.getElementById(id); if(o){o.style.display='none';o.innerHTML='';}}); boBoot(); };
   window.boExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); G=null; if(window.state)state.viewingWorld='builder'; goTo('hub'); };
 })();
