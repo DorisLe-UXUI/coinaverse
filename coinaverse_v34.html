@@ -3804,8 +3804,12 @@ video::-webkit-media-controls-play-button {
 .dist-lrow .ico { font-size:1.05rem; flex:0 0 auto; line-height:1.3; }
 .dist-actions { display:flex; flex-direction:column; gap:10px; margin-top:auto; padding-top:8px; }
 .dist-play { padding:16px; border:none; border-radius:12px; cursor:pointer; font:700 13px/1 'Orbitron',sans-serif; letter-spacing:.06em; color:#08041e; background:linear-gradient(135deg,#F6B523,#FFE562); }
+.dist-next { padding:15px; border:1px solid rgba(0,229,255,.5); border-radius:12px; cursor:pointer; font:700 13px/1 'Orbitron',sans-serif; letter-spacing:.06em; color:#9fefff; background:linear-gradient(135deg,rgba(0,229,255,.18),rgba(139,92,246,.12)); transition:.15s; }
+.dist-next:hover { background:linear-gradient(135deg,rgba(0,229,255,.3),rgba(139,92,246,.2)); transform:translateY(-1px); }
 .dist-back { padding:13px; border:1px solid rgba(255,255,255,.2); border-radius:12px; cursor:pointer; background:transparent; color:#C9C2EC; font:700 12px/1 'Orbitron',sans-serif; }
 .dist-x { position:absolute; top:12px; right:14px; z-index:4; width:34px; height:34px; border-radius:50%; border:none; cursor:pointer; background:rgba(8,4,30,.75); color:#fff; font-size:15px; }
+.dist-vidtag { position:absolute; left:12px; top:12px; z-index:3; font:700 9px/1 'Orbitron',sans-serif; letter-spacing:.14em; color:#9fefff; background:rgba(8,4,30,.6); border:1px solid rgba(0,229,255,.3); padding:6px 10px; border-radius:999px; }
+@keyframes distRowIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
 @media (max-width:760px){ .dist-card{grid-template-columns:1fr; max-height:94vh; overflow-y:auto} .dist-vidwrap{aspect-ratio:16/9;height:auto;min-height:0} .dist-body{max-height:none;overflow:visible} .dist-title{font-size:1.6rem} }
 
 /* ════════ v24 components ════════ */
@@ -6855,6 +6859,8 @@ video::-webkit-media-controls-play-button {
       credtech:{intro:'Your credit score is your financial reputation.',points:[['💳','Pay on time — payment history is the biggest factor (35%).'],['📉','Keep balances low compared to your limit (utilization).'],['⏳','A longer credit history helps your score grow.'],['🚫','Avoid debt traps like Buy-Now-Pay-Later you can\'t repay.']]},
     };
     const lesson = DLESSON[token] || DLESSON.credtech;
+    const GAL=['🪐','⭐','🚀','🌌','✨','🛰️','🌠','💫'];   // galaxy-themed bullet icons (match the cosmic map)
+    const N=lesson.points.length;
     const ov = document.createElement('div'); ov.id='distOv'; ov.className='dist-ov';
     ov.innerHTML =
       `<div class="dist-card hub--${w.color}">`+
@@ -6862,17 +6868,19 @@ video::-webkit-media-controls-play-button {
         `<div class="dist-vidwrap">`+
           `<video class="dist-vid" id="distHostVid" autoplay loop playsinline poster="assets/learn/${token}_d${nn}.jpg"><source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/${token}_d${nn}_host.mp4" type="video/mp4"></video>`+
           `<button class="dist-mute" id="distMute" onclick="toggleDistMute()" title="Mute / unmute">🔊</button>`+
+          `<div class="dist-vidtag">▶ WATCH THE LESSON</div>`+
         `</div>`+
         `<div class="dist-body">`+
           `<div class="dist-kick">${w.name} · DISTRICT ${nn}</div>`+
           `<h2 class="dist-title">${d[0]}</h2>`+
           `<p class="dist-con">${d[1]}</p>`+
-          `<div class="dist-lintro">📚 ${lesson.intro}</div>`+
-          `<div class="dist-lesson">`+
-            lesson.points.map(p=>`<div class="dist-lrow"><span class="ico">${p[0]}</span><span>${p[1]}</span></div>`).join('')+
+          `<div class="dist-lintro">🌠 ${lesson.intro}</div>`+
+          `<div class="dist-lesson" id="distLessonRows">`+
+            lesson.points.map((p,k)=>`<div class="dist-lrow" data-k="${k}" style="display:none"><span class="ico">${GAL[k%GAL.length]}</span><span>${p[1]}</span></div>`).join('')+
           `</div>`+
           `<div class="dist-actions">`+
-            `<button class="dist-play" onclick="closeDistrict();playDistrictGame('${token}',${i})">▶ PLAY GAME</button>`+
+            `<button class="dist-next" id="distNextBtn" onclick="distNextTip()">🌟 NEXT TIP <span id="distTipCount" style="opacity:.7;font-size:.85em">(0/${N})</span></button>`+
+            `<button class="dist-play" id="distPlayBtn" style="display:none" onclick="closeDistrict();playDistrictGame('${token}',${i})">▶ PLAY GAME</button>`+
             `<button class="dist-back" onclick="closeDistrict()">← BACK</button>`+
           `</div>`+
         `</div>`+
@@ -6888,6 +6896,16 @@ video::-webkit-media-controls-play-button {
   };
   window.toggleDistMute = function(){ const v=document.getElementById('distHostVid'); if(!v) return; v.muted=!v.muted; if(!v.muted) v.play().catch(()=>{}); updateDistMuteIcon(); };
   window.updateDistMuteIcon = function(){ const v=document.getElementById('distHostVid'), b=document.getElementById('distMute'); if(v&&b) b.textContent = v.muted?'🔇':'🔊'; };
+  window.distNextTip = function(){
+    const rows=document.querySelectorAll('#distLessonRows .dist-lrow'); if(!rows.length) return;
+    let shown=0, revealed=false;
+    for(const r of rows){
+      if(r.style.display!=='none'){ shown++; continue; }
+      if(!revealed){ r.style.display='flex'; r.style.animation='distRowIn .32s ease both'; shown++; revealed=true; }
+    }
+    const cnt=document.getElementById('distTipCount'); if(cnt) cnt.textContent='('+shown+'/'+rows.length+')';
+    if(shown>=rows.length){ const nb=document.getElementById('distNextBtn'); if(nb)nb.style.display='none'; const pb=document.getElementById('distPlayBtn'); if(pb)pb.style.display='block'; }
+  };
   window.closeDistrict = function(){ const o=document.getElementById('distOv'); if(o){ const v=o.querySelector('video'); if(v) v.pause(); o.remove(); } if(window.duckBgmForVideo) duckBgmForVideo(false); };
 
   SCREENS.hub = function(){

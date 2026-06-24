@@ -37,11 +37,12 @@
   window.SCREENS.game_ficoracer=function(){
     setTimeout(()=>ensureThree(boot),30);
     return `<div style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
-      <video id="frBgVid" autoplay loop muted playsinline poster="assets/bg/cosmic_main.jpeg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.6;z-index:0"><source src="${COSMIC}" type="video/mp4"></video>
-      <div style="position:absolute;inset:0;z-index:0;background:radial-gradient(ellipse at 50% 42%,transparent 30%,rgba(3,4,12,.55) 80%)"></div>
+      <video id="frBgVid" autoplay loop muted playsinline poster="assets/bg/cosmic_main.jpeg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.95;z-index:0"><source src="${COSMIC}" type="video/mp4"></video>
+      <div style="position:absolute;inset:0;z-index:0;background:radial-gradient(ellipse at 50% 45%,transparent 45%,rgba(3,4,12,.45) 85%)"></div>
       <div id="fr3dWrap" style="position:absolute;inset:0;z-index:1">
         <div id="fr3dLoad" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.7rem;letter-spacing:.2em"><div style="font-size:2rem">🏎️</div>LOADING 3D ENGINE…</div>
       </div>
+      <img id="frCar" src="assets/games/car.png" style="position:absolute;left:50%;bottom:0;width:min(34vw,420px);z-index:3;transform:translateX(-50%);transition:transform .18s cubic-bezier(.34,1.2,.64,1);pointer-events:none;filter:drop-shadow(0 14px 34px rgba(0,0,0,.7))">
       <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(180deg,rgba(3,4,12,.8),transparent);pointer-events:none">
         <button onclick="frExit()" style="pointer-events:auto;padding:7px 14px;border:1px solid rgba(56,189,248,.4);border-radius:9px;background:rgba(56,189,248,.12);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← CREDTECH</button>
         <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.2em;color:#38bdf8;flex:1;text-align:center;text-shadow:0 0 12px rgba(56,189,248,.6)">🏎️ FICO RACER · 3D</div>
@@ -121,15 +122,16 @@
     const rungs=[]; const RUNG_N=44, RUNG_GAP=5;
     for(let i=0;i<RUNG_N;i++){ const r=new T.Mesh(new T.BoxGeometry(9,0.02,0.1),rungMat); r.position.set(0,0.011,-i*RUNG_GAP); scene.add(r); rungs.push(r); }
 
-    const {car,wheels}=buildCar(T); car.position.set(0,0,CARZ); scene.add(car);
-    const underglow=new T.PointLight(0xff2d55,1.3,7); underglow.position.set(0,0.2,CARZ); scene.add(underglow);
+    const underglow=new T.PointLight(0xff2d55,1.1,9); underglow.position.set(0,0.4,CARZ+1); scene.add(underglow);
+    const bv=document.getElementById('frBgVid'); if(bv&&bv.play){ bv.play().catch(()=>{}); }   // ensure cosmic video runs
 
-    G={ T,scene,cam,rndr,wrap, car,wheels,dashes,rungs, dead:false,phase:'play',
-        lane:1, carX:0, fico:650, score:0, dist:0, coins:0, time:DUR,
+    G={ T,scene,cam,rndr,wrap, dashes,rungs, dead:false,phase:'play',
+        lane:1, fico:650, score:0, dist:0, coins:0, time:DUR,
         items:[], spawnT:0, speed:34, shake:0, last:performance.now(),
         DASH_SPAN:DASH_N*DASH_GAP, RUNG_SPAN:RUNG_N*RUNG_GAP, gateT:16, gateIdx:0 };
+    updateCar(0);
 
-    const lane=(d)=>{ if(!G||G.phase!=='play')return; G.lane=Math.max(0,Math.min(2,G.lane+d)); };
+    const lane=(d)=>{ if(!G||G.phase!=='play')return; const p=G.lane; G.lane=Math.max(0,Math.min(2,G.lane+d)); if(G.lane!==p) updateCar(G.lane>p?1:-1); };
     G.lane2=lane;
     G.kd=e=>{ if(e.key==='ArrowLeft')lane(-1); else if(e.key==='ArrowRight')lane(1); };
     window.addEventListener('keydown',G.kd);
@@ -171,14 +173,6 @@
       G.gateT-=dt; if(G.gateT<=0){ openGate(); }
       G.speed=22+(G.fico-300)/550*42;
       G.dist+=G.speed*dt;
-      const tx=LANES[G.lane];
-      const prevX=G.carX; G.carX+=(tx-G.carX)*Math.min(1,dt*9);
-      const dx=G.carX-prevX;
-      G.car.position.x=G.carX;
-      G.car.rotation.y=lerp(G.car.rotation.y,(tx-G.carX)*-0.5+dx*-4.5,0.18);
-      G.car.rotation.z=lerp(G.car.rotation.z,Math.max(-0.5,Math.min(0.5,dx*-6)),0.18);
-      G.car.position.y=Math.sin(now*0.006)*0.03;
-      G.wheels.forEach(w=>w.rotation.x-=G.speed*dt*0.5);
       const mv=G.speed*dt;
       G.dashes.forEach(d=>{ d.position.z+=mv; if(d.position.z>CARZ+6) d.position.z-=G.DASH_SPAN; });
       G.rungs.forEach(r=>{ r.position.z+=mv; if(r.position.z>CARZ+6) r.position.z-=G.RUNG_SPAN; });
@@ -203,6 +197,9 @@
     raf=requestAnimationFrame(loop);
   }
   function lerp(a,b,t){ return a+(b-a)*t; }
+  function updateCar(dir){ const c=document.getElementById('frCar'); if(!c||!G)return; const off=(G.lane-1)*23;
+    c.style.transform='translateX(calc(-50% + '+off+'vw)) rotate('+(dir*10)+'deg)';
+    clearTimeout(G._carT); G._carT=setTimeout(()=>{ const c2=document.getElementById('frCar'); if(c2&&G) c2.style.transform='translateX(calc(-50% + '+off+'vw)) rotate(0deg)'; },180); }
   function setT(id,v){ const e=document.getElementById(id); if(e)e.textContent=v; }
   function flash(c){ const w=document.getElementById('fr3dWrap'); if(!w)return; const f=document.createElement('div'); f.style.cssText='position:absolute;inset:0;pointer-events:none;background:'+c+';opacity:.2;transition:opacity .4s'; w.appendChild(f); requestAnimationFrame(()=>f.style.opacity='0'); setTimeout(()=>f.remove(),420); }
   function showFact(txt,bad){ const el=document.getElementById('frFact'); if(!el||!txt)return;
