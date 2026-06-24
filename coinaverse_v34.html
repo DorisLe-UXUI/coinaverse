@@ -8816,31 +8816,30 @@ video::-webkit-media-controls-play-button {
 (function(){
   // 9 distinct Coincept lessons (titles from Drive · "Video Ver 3"; the 2 Money-Goal takes merged).
   // drive: paste each file's ID (from its share link .../file/d/<ID>/view) to enable in-app playback.
+  // Kabria's 8 real Mr JQ episodes (Drive · Coincept Cinema). Each: title, category, description.
   const CINE=[
     {t:'Wants vs Needs',sub:'Mini 1 · Money Basics',cat:'Money Basics',drive:'',d:'Mr. JQ helps kids tell the difference between what they WANT and what they truly NEED — the first step to smart money choices.'},
     {t:'What is Financial Literacy',sub:'Mini 2 · Money Basics',cat:'Money Basics',drive:'',d:'A kid-friendly intro to money smarts: what financial literacy means and why it matters for your future.'},
     {t:'How Kids Can Earn Money',sub:'Mini 3 · Earning',cat:'Earning',drive:'',d:'Fun, real ways kids can earn their own money and build great habits early.'},
-    {t:'Setting a Money Goal',sub:'Power Lesson · Saving',cat:'Saving',drive:'',d:'Mr. JQ shows how to set a savings goal and work toward something big — step by step, dollar by dollar.'},
+    {t:'Earn Money',sub:'Power Lesson · Earning',cat:'Earning',drive:'',d:'The full earning playbook — turn skills, services and effort into real money you earned yourself.'},
+    {t:'Saving Money',sub:'Power Lesson · Saving',cat:'Saving',drive:'',d:'Mr. JQ shows how to save toward something big — step by step, dollar by dollar.'},
     {t:'Different Places to Keep Your Money',sub:'Power Lesson · Saving',cat:'Saving',drive:'',d:'Pocket, piggy bank, or the bank? Mr. JQ explores the safest places to keep your money.'},
-    {t:'Dollars and Cents Power Lessons',sub:'Power Lesson · Counting',cat:'Counting',drive:'',d:'Power lessons on dollars and cents — counting money, understanding value, and spending smart.'},
-    {t:'Madam x Pluto',sub:'CoinCept · Showdown',cat:'CoinCept Squad',drive:'',d:'Madam Moneyspinner and Pluto face off in a money-smart showdown.'},
-    {t:'Madam x Bahati',sub:'CoinCept · Investing',cat:'CoinCept Squad',drive:'',d:'Bahati’s investing instincts meet Madam Moneyspinner’s challenge.'},
-    {t:'Dr x Zuna',sub:'CoinCept · Building',cat:'CoinCept Squad',drive:'',d:'Dr. Dollarvex and Zuna team up for a building-and-business adventure.'},
+    {t:'Spending Wisely',sub:'Power Lesson · Spending',cat:'Counting',drive:'',d:'Spend smart, not fast — compare value, avoid impulse buys, and make every dollar count.'},
+    {t:'CoinCept Squad · Hero Episode',sub:'CoinCept · Story',cat:'CoinCept Squad',drive:'',d:'The CoinCept heroes take on a money-smart adventure across the Coinaverse.'},
   ];
   window.CINE=CINE;
-  // Real Kabria episode videos (Drive · "Coincept Cinema / Mr JQ Final Videos") + per-episode quiz + related hub game
-  const CINE_VID=['1ytYZGTQrUVKiWPAkb2xKgDLtOQHCAtqP','1G9Ug9gd5YL5B6BixFCCOz9u-qt6I8Sf7','1xGT--fLczRLHw7hQCiFQopcBTCaVhNGF','13WRnM-IQv-UvtinJOdZp7PCBDanVTJEi','13moYFtpFG4dXQ4R6IrUvNweRlQ57YUaB','1x_lGksVCW4ViR8-3yrY71rqCnKeiS7uD','1PNgvOt8swwAYd6IcxltCfTLWo-Q-2ZsP','',''];
-  const CINE_HUB=['guardian','credtech','builder','guardian','guardian','strategist','rebuilder','investor','builder'];
+  // Real Kabria episode videos (Drive · "Coincept Cinema / Mr JQ Final Videos" + Hero Episodes) + per-episode quiz + related hub game
+  const CINE_VID=['1ytYZGTQrUVKiWPAkb2xKgDLtOQHCAtqP','1G9Ug9gd5YL5B6BixFCCOz9u-qt6I8Sf7','1xGT--fLczRLHw7hQCiFQopcBTCaVhNGF','1or-7zl1vK7LMz0ZLGkqoA7LunkkhVB5k','13WRnM-IQv-UvtinJOdZp7PCBDanVTJEi','13moYFtpFG4dXQ4R6IrUvNweRlQ57YUaB','1x_lGksVCW4ViR8-3yrY71rqCnKeiS7uD','1PNgvOt8swwAYd6IcxltCfTLWo-Q-2ZsP'];
+  const CINE_HUB=['guardian','credtech','builder','builder','guardian','guardian','strategist','investor'];
   const CINE_QUIZ=[
     {q:'Which one is a NEED?',opts:['A new video game','Food & water','Designer shoes'],ans:1,badge:'Needs & Wants Master'},
     {q:'Financial literacy means…',opts:['Being rich','Knowing how to manage money','Spending fast'],ans:1,badge:'Money Brain'},
     {q:'A smart way for a kid to EARN money is…',opts:['Doing chores & odd jobs','Just taking it','Waiting for luck'],ans:0,badge:'Money Mover'},
-    {q:'A GOOD savings goal is…',opts:['Just "save money"','Specific — an amount & a date','No goal at all'],ans:1,badge:'Goal Getter'},
-    {q:'Safest place for big savings?',opts:['Under the bed','A bank','Your pocket'],ans:1,badge:'Smart Saver'},
-    {q:'How much do 4 quarters make?',opts:['$1.00','50¢','$4.00'],ans:0,badge:'Coin Counter'},
-    {q:'Smartest money move?',opts:['Spend it all now','Save & make a plan','Ignore it'],ans:1,badge:'Wealth Warrior'},
-    {q:'Investing means…',opts:['Your money can grow over time','You always lose money','Hiding cash'],ans:0,badge:'Investor in Training'},
-    {q:'To build a business you need…',opts:['A plan & effort','Only luck','Nothing at all'],ans:0,badge:'Growth Builder'},
+    {q:'The best way to earn your own money is to…',opts:['Offer a skill or service people need','Borrow it from a friend','Wait and hope'],ans:0,badge:'Young Entrepreneur'},
+    {q:'The smartest way to save is to…',opts:['Spend first, save what is left','Save a little every time, first','Never save'],ans:1,badge:'Smart Saver'},
+    {q:'Safest place for big savings?',opts:['Under the bed','A bank','Your pocket'],ans:1,badge:'Vault Guardian'},
+    {q:'Spending wisely means…',opts:['Buy whatever you want now','Compare value & buy what you truly need','Spend it all fast'],ans:1,badge:'Wise Spender'},
+    {q:'The smartest money move is to…',opts:['Spend it all now','Save & make a plan','Ignore it'],ans:1,badge:'Wealth Warrior'},
   ];
   CINE.forEach((e,i)=>{ e.drive=CINE_VID[i]||''; e.hub=CINE_HUB[i]||'guardian'; e.quiz=CINE_QUIZ[i]; e.src=''; e.poster=e.drive?('https://drive.google.com/thumbnail?id='+e.drive+'&sz=w640'):''; });
   // Doris: wire all at once → cvWireEpisodes(['ID1','ID2',...]) in CINE order, or per-title object.
@@ -8966,12 +8965,11 @@ video::-webkit-media-controls-play-button {
       {hub:'guardian',name:'Guardian Hub',lesson:'Saving & Spending Decisions'},
       {hub:'credtech',name:'CredTech Galaxy',lesson:'Financial Literacy Basics'},
       {hub:'builder',name:'Builder Hub',lesson:'Earning & Building'},
+      {hub:'builder',name:'Builder Hub',lesson:'Earning & Building'},
       {hub:'guardian',name:'Guardian Hub',lesson:'Goal Setting & Saving'},
       {hub:'guardian',name:'Guardian Hub',lesson:'Money Storage & Security'},
-      {hub:'strategist',name:'Strategist Hub',lesson:'Counting & Budgeting'},
-      {hub:'guardian',name:'Guardian Hub',lesson:'Crisis & Smart Choices'},
+      {hub:'strategist',name:'Strategist Hub',lesson:'Spending & Budgeting'},
       {hub:'investor',name:'Investor Hub',lesson:'Investing Instincts'},
-      {hub:'builder',name:'Builder Hub',lesson:'Building & Business'},
     ];
 
     const NF_CSS=`
@@ -9079,12 +9077,11 @@ video::-webkit-media-controls-play-button {
       {hub:'guardian',name:'Guardian Hub',lesson:'Saving & Spending Decisions'},
       {hub:'credtech',name:'CredTech Galaxy',lesson:'Financial Literacy Basics'},
       {hub:'builder',name:'Builder Hub',lesson:'Earning & Building'},
+      {hub:'builder',name:'Builder Hub',lesson:'Earning & Building'},
       {hub:'guardian',name:'Guardian Hub',lesson:'Goal Setting & Saving'},
       {hub:'guardian',name:'Guardian Hub',lesson:'Money Storage & Security'},
-      {hub:'strategist',name:'Strategist Hub',lesson:'Counting & Budgeting'},
-      {hub:'guardian',name:'Guardian Hub',lesson:'Crisis & Smart Choices'},
+      {hub:'strategist',name:'Strategist Hub',lesson:'Spending & Budgeting'},
       {hub:'investor',name:'Investor Hub',lesson:'Investing Instincts'},
-      {hub:'builder',name:'Builder Hub',lesson:'Building & Business'},
     ];
     const h=EP_HUB[i]||EP_HUB[0];
     const HUB_COL={guardian:'#14b8a6',credtech:'#38bdf8',builder:'#a855f7',investor:'#10b981',strategist:'#3b82f6',risktaker:'#ef4444',rebuilder:'#f59e0b'};
