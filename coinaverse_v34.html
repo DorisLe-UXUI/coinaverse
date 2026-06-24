@@ -8828,7 +8828,21 @@ video::-webkit-media-controls-play-button {
     {t:'Dr x Zuna',sub:'CoinCept · Building',cat:'CoinCept Squad',drive:'',d:'Dr. Dollarvex and Zuna team up for a building-and-business adventure.'},
   ];
   window.CINE=CINE;
-  CINE.forEach((e,i)=>{ e.src='https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/cinema/ep'+i+'.mp4'; e.poster='https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/cinema/ep'+i+'.jpg'; });
+  // Real Kabria episode videos (Drive · "Coincept Cinema / Mr JQ Final Videos") + per-episode quiz + related hub game
+  const CINE_VID=['1ytYZGTQrUVKiWPAkb2xKgDLtOQHCAtqP','1G9Ug9gd5YL5B6BixFCCOz9u-qt6I8Sf7','1xGT--fLczRLHw7hQCiFQopcBTCaVhNGF','13WRnM-IQv-UvtinJOdZp7PCBDanVTJEi','13moYFtpFG4dXQ4R6IrUvNweRlQ57YUaB','1x_lGksVCW4ViR8-3yrY71rqCnKeiS7uD','1PNgvOt8swwAYd6IcxltCfTLWo-Q-2ZsP','',''];
+  const CINE_HUB=['guardian','credtech','builder','guardian','guardian','strategist','rebuilder','investor','builder'];
+  const CINE_QUIZ=[
+    {q:'Which one is a NEED?',opts:['A new video game','Food & water','Designer shoes'],ans:1,badge:'Needs & Wants Master'},
+    {q:'Financial literacy means…',opts:['Being rich','Knowing how to manage money','Spending fast'],ans:1,badge:'Money Brain'},
+    {q:'A smart way for a kid to EARN money is…',opts:['Doing chores & odd jobs','Just taking it','Waiting for luck'],ans:0,badge:'Money Mover'},
+    {q:'A GOOD savings goal is…',opts:['Just "save money"','Specific — an amount & a date','No goal at all'],ans:1,badge:'Goal Getter'},
+    {q:'Safest place for big savings?',opts:['Under the bed','A bank','Your pocket'],ans:1,badge:'Smart Saver'},
+    {q:'How much do 4 quarters make?',opts:['$1.00','50¢','$4.00'],ans:0,badge:'Coin Counter'},
+    {q:'Smartest money move?',opts:['Spend it all now','Save & make a plan','Ignore it'],ans:1,badge:'Wealth Warrior'},
+    {q:'Investing means…',opts:['Your money can grow over time','You always lose money','Hiding cash'],ans:0,badge:'Investor in Training'},
+    {q:'To build a business you need…',opts:['A plan & effort','Only luck','Nothing at all'],ans:0,badge:'Growth Builder'},
+  ];
+  CINE.forEach((e,i)=>{ e.drive=CINE_VID[i]||''; e.hub=CINE_HUB[i]||'guardian'; e.quiz=CINE_QUIZ[i]; e.src=''; e.poster=e.drive?('https://drive.google.com/thumbnail?id='+e.drive+'&sz=w640'):''; });
   // Doris: wire all at once → cvWireEpisodes(['ID1','ID2',...]) in CINE order, or per-title object.
   window.cvWireEpisodes=function(arr){ if(Array.isArray(arr)){arr.forEach((id,i)=>{if(CINE[i])CINE[i].drive=id;});} else if(arr&&typeof arr==='object'){CINE.forEach(e=>{if(arr[e.t])e.drive=arr[e.t];});} cvToast('🎬 Episodes wired'); if(window.state&&state.currentScreen==='cinema')goTo('cinema'); };
   const thumb=e=> e.poster||'';
@@ -8862,11 +8876,88 @@ video::-webkit-media-controls-play-button {
       <iframe class="cvv-folder" src="https://drive.google.com/embeddedfolderview?id=${window.KABRIA_FOLDER}#grid" frameborder="0"></iframe>
       <div class="cvv-title">${title||'Kabria · Lesson Library'} — tap a video to play</div></div>`;
     o.addEventListener('click',e=>{if(e.target===o)closeVideo();}); document.body.appendChild(o); };
-  window.playEp=function(id){ const i=(typeof id==='number')?id:parseInt((''+id).replace(/\D/g,''))||0; const e=CINE[i]||CINE[0];
-    if(window.stopVoice) stopVoice();          // lesson video has its own narration
+  // ── INTERACTIVE CINEMA (Kabria's "Coinaverse Viewing Loop": Watch → Quiz → Earn → Play Related Game → Next) ──
+  window._cvEp=null;
+  const HUB_NAME={guardian:'SaveScape Orbit',strategist:'Budgetron',builder:'Launch Lab',investor:'Investopia',risktaker:'Bitstream Valley',rebuilder:'Debt Detox',credtech:'CredTech Galaxy'};
+  window.playEp=function(id){ const i=(typeof id==='number')?id:parseInt((''+id).replace(/\D/g,''))||0; cvOpenEpisode(i); };
+  window.cvOpenEpisode=function(i){
+    i=((i%CINE.length)+CINE.length)%CINE.length;
+    window._cvEp={i:i,answered:false,picked:-1,earned:false};
+    if(window.stopVoice) stopVoice();
     if(window.duckBgmForVideo) duckBgmForVideo(true);
-    openVideo(e.src, e.t);
+    let o=document.getElementById('cvVideo');
+    if(!o){ o=document.createElement('div'); o.id='cvVideo'; o.className='cv-video-ov'; document.body.appendChild(o);
+      o.addEventListener('click',ev=>{ if(ev.target===o) closeVideo(); }); }
+    cvRenderEpisode();
   };
+  function cvRenderEpisode(){
+    const o=document.getElementById('cvVideo'); if(!o) return;
+    const st=window._cvEp; const e=CINE[st.i]; const q=e.quiz||{q:'',opts:[],ans:0};
+    const video = e.drive
+      ? `<iframe class="cvep-vid" src="https://drive.google.com/file/d/${e.drive}/preview" allow="autoplay" allowfullscreen frameborder="0"></iframe>`
+      : `<div class="cvep-vid cvep-soon">🎬 New episode dropping soon</div>`;
+    const opts = q.opts.map((opt,k)=>{
+      let cls='cvep-opt';
+      if(st.answered){ if(k===q.ans) cls+=' ok'; else if(k===st.picked) cls+=' bad'; }
+      return `<button class="${cls}" ${st.answered?'disabled':''} onclick="cvEpAnswer(${k})">${String.fromCharCode(65+k)}. ${opt}</button>`;
+    }).join('');
+    const reward = st.answered && st.picked===q.ans
+      ? `<div class="cvep-reward">
+           <div class="cvep-reward-h">🎉 YOU EARNED!</div>
+           <div class="cvep-reward-row"><span>🪙 +100 Coins</span><span>⭐ +50 XP</span><span>🎖️ ${q.badge}</span></div>
+           <div class="cvep-actions">
+             <button class="cvep-play" onclick="cvEpPlayGame()">🎮 Play ${HUB_NAME[e.hub]||'Hub'} Game</button>
+             <button class="cvep-next" onclick="cvEpNext()">Next Episode →</button>
+           </div>
+         </div>`
+      : (st.answered ? `<div class="cvep-retry">Not quite — watch again, then tap the right answer! <button class="cvep-tryagain" onclick="cvEpRetry()">Try again</button></div>` : '');
+    o.innerHTML=`<div class="cvep-card">
+      <style>
+        .cvep-card{position:relative;width:min(880px,94vw);max-height:92vh;overflow-y:auto;background:#141414;border-radius:18px;border:1px solid rgba(229,9,20,.25);box-shadow:0 30px 80px rgba(0,0,0,.6)}
+        .cvep-top{display:flex;align-items:center;gap:12px;padding:14px 18px;position:sticky;top:0;background:linear-gradient(180deg,#141414,rgba(20,20,20,.8));z-index:3}
+        .cvep-x{margin-left:auto;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:1rem;cursor:pointer}
+        .cvep-kick{font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.18em;color:#e50914}
+        .cvep-ttl{font-family:'Anton',sans-serif;font-size:1.05rem;color:#fff}
+        .cvep-vid{display:block;width:100%;aspect-ratio:16/9;border:0;background:#000}
+        .cvep-soon{display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.5);font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:.1em}
+        .cvep-body{padding:18px 20px 24px}
+        .cvep-qbadge{display:inline-block;font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.16em;color:#e50914;background:rgba(229,9,20,.12);border:1px solid rgba(229,9,20,.3);padding:4px 11px;border-radius:5px;margin-bottom:10px}
+        .cvep-q{font-size:1.1rem;font-weight:700;color:#fff;margin:0 0 14px}
+        .cvep-opt{display:block;width:100%;text-align:left;margin-bottom:9px;padding:13px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#fff;font-size:.92rem;cursor:pointer;transition:.15s}
+        .cvep-opt:hover:not(:disabled){border-color:#e50914;background:rgba(229,9,20,.1)}
+        .cvep-opt.ok{border-color:#22c55e;background:rgba(34,197,94,.16);color:#bbf7d0}
+        .cvep-opt.bad{border-color:#ef4444;background:rgba(239,68,68,.14);color:#fecaca}
+        .cvep-reward{margin-top:14px;padding:18px;border-radius:14px;border:1px solid rgba(251,191,36,.4);background:linear-gradient(135deg,rgba(251,191,36,.14),rgba(229,9,20,.06));text-align:center;animation:cvepPop .4s ease}
+        @keyframes cvepPop{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}
+        .cvep-reward-h{font-family:'Anton',sans-serif;font-size:1.3rem;color:#fbbf24;margin-bottom:8px}
+        .cvep-reward-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;font-family:'Orbitron',sans-serif;font-size:.6rem;color:#fde68a;margin-bottom:14px}
+        .cvep-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+        .cvep-play{padding:12px 22px;border:none;border-radius:11px;background:linear-gradient(135deg,#e50914,#b00610);color:#fff;font-family:'Orbitron',sans-serif;font-size:.66rem;letter-spacing:.08em;font-weight:900;cursor:pointer}
+        .cvep-next{padding:12px 22px;border:1px solid rgba(255,255,255,.2);border-radius:11px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.66rem;letter-spacing:.08em;cursor:pointer}
+        .cvep-retry{margin-top:12px;padding:12px 14px;border-radius:10px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#fecaca;font-size:.85rem}
+        .cvep-tryagain{margin-left:8px;padding:6px 12px;border:none;border-radius:8px;background:#e50914;color:#fff;font-size:.75rem;cursor:pointer}
+      </style>
+      <div class="cvep-top"><div><div class="cvep-kick">▶ ${e.cat} · EP ${st.i+1}/${CINE.length}</div><div class="cvep-ttl">${e.t}</div></div><button class="cvep-x" onclick="closeVideo()">✕</button></div>
+      ${video}
+      <div class="cvep-body">
+        <div class="cvep-qbadge">⚡ INTERACTIVE · ANSWER & EARN</div>
+        <p class="cvep-q">${q.q}</p>
+        ${opts}
+        ${reward}
+      </div>
+    </div>`;
+  }
+  window.cvEpAnswer=function(k){
+    const st=window._cvEp; if(!st||st.answered) return; const e=CINE[st.i]; const q=e.quiz;
+    st.answered=true; st.picked=k;
+    if(k===q.ans && !st.earned){ st.earned=true;
+      if(window.state){ state.coins=(state.coins||0)+100; if(window.cvAddXP) cvAddXP(50,0); if(window.cvSave) cvSave(); }
+    }
+    cvRenderEpisode();
+  };
+  window.cvEpRetry=function(){ const st=window._cvEp; if(st){ st.answered=false; st.picked=-1; cvRenderEpisode(); } };
+  window.cvEpPlayGame=function(){ const e=CINE[window._cvEp.i]; const hub=e.hub||'guardian'; closeVideo(); if(window.playDistrictGame) playDistrictGame(hub,0); };
+  window.cvEpNext=function(){ cvOpenEpisode(window._cvEp.i+1); };
 
   window.SCREENS.cinema=function(){
     const feat=CINE[0];
