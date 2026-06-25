@@ -9001,8 +9001,8 @@ video::-webkit-media-controls-play-button {
     ];
 
     const NF_CSS=`
-      .nf-wrap{position:absolute;inset:0;background:#141414;overflow:hidden;display:flex;flex-direction:column;font-family:'Inter',sans-serif}
-      .nf-head{flex:0 0 auto;background:#141414;z-index:30;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+      .nf-wrap{position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,10,34,.80),rgba(8,5,20,.92)),url('assets/bg/cosmic_main.jpeg');background-size:cover;background-position:center;overflow:hidden;display:flex;flex-direction:column;font-family:'Inter',sans-serif}
+      .nf-head{flex:0 0 auto;background:linear-gradient(180deg,rgba(10,7,24,.94),rgba(10,7,24,.74));backdrop-filter:blur(8px);z-index:30;box-shadow:0 6px 20px rgba(0,0,0,.45)}
       .nf-scroll{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
       .nf-topbar{display:flex;align-items:center;gap:16px;padding:12px 20px}
       .nf-back{padding:7px 16px;border:1px solid rgba(255,255,255,.2);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.14em;cursor:pointer}
@@ -9103,7 +9103,7 @@ video::-webkit-media-controls-play-button {
     const LEARN=[['Saving','guardian','#5eead4'],['Investing','investor','#34d399'],['Budgeting','strategist','#60a5fa'],['Credit','credtech','#7dd3fc'],['Earning','builder','#c084fc']];
     const lpct=(tok)=>Math.min(100,35+(gd[tok+':0']?50:0)+Math.min(15,seen*3));
     const CN_CSS=`
-      .cn-nav{display:flex;gap:6px;overflow-x:auto;padding:6px 16px 12px;background:#141414;z-index:20;border-bottom:1px solid rgba(255,255,255,.06);scrollbar-width:none}
+      .cn-nav{display:flex;gap:6px;overflow-x:auto;padding:6px 16px 12px;background:transparent;z-index:20;border-bottom:1px solid rgba(255,255,255,.08);scrollbar-width:none}
       .cn-nav::-webkit-scrollbar{display:none}
       .cn-tab{flex:0 0 auto;padding:8px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:rgba(255,255,255,.7);font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer;transition:.15s}
       .cn-tab:hover{color:#fff;border-color:rgba(229,9,20,.5)}
