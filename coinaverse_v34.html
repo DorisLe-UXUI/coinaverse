@@ -4167,6 +4167,12 @@ video::-webkit-media-controls-play-button {
     {id:'m10', cat:'Apparel', name:'Victory Star Cape', desc:'Golden star cape — show off your wins.', price:450, tag:'', tagClass:'', img:'assets/shop/merch_star.jpeg'},
     {id:'m11', cat:'Apparel', name:'Squad Sticker Pack', desc:'12 signature character stickers.', price:150, tag:'', tagClass:'', img:'assets/shop/merch_stickers.jpeg'},
     {id:'m12', cat:'Decor', name:'Squad TV Screen', desc:'Decor — hangs in your profile background.', price:380, tag:'NEW', tagClass:'', img:'assets/shop/merch_tv.jpeg'},
+    {id:'m13', cat:'Emotes', name:'Victory Dance', desc:'Celebrate a win with a victory dance emote.', price:180, tag:'', tagClass:'', img:'assets/shop/merch_star.jpeg'},
+    {id:'m14', cat:'Emotes', name:'Coin Flip Emote', desc:'Flip a golden coin to taunt your rivals.', price:160, tag:'NEW', tagClass:'', img:'assets/shop/merch_coin_cosmic.jpeg'},
+    {id:'m15', cat:'Emotes', name:'Mind-Blown Emote', desc:'React with a money-mind-blown animation.', price:160, tag:'', tagClass:'', img:'assets/shop/merch_stickers.jpeg'},
+    {id:'m16', cat:'Pets', name:'Mini Vault Bot', desc:'A loyal vault-bot pet that follows your avatar.', price:520, tag:'RARE', tagClass:'purple', img:'assets/shop/merch_crystal_blue.jpeg'},
+    {id:'m17', cat:'Pets', name:'Coin Pup', desc:'A playful pup that sniffs out bonus coins.', price:600, tag:'HOT', tagClass:'gold', img:'assets/shop/merch_jar_gold.jpeg'},
+    {id:'m18', cat:'Pets', name:'Star Sprite', desc:'A glowing star companion for your hero.', price:700, tag:'', tagClass:'', img:'assets/shop/merch_crystal_purple.jpeg'},
   ];
 
   // FRIENDS DATA
@@ -4449,7 +4455,8 @@ video::-webkit-media-controls-play-button {
   window.confirmArchetype = function() {
     if (!state.selectedArchetype) return;
     state.archetype = state.selectedArchetype;
-    goTo('welcome');
+    state._onboard = 1;          // customize avatar first, then Welcome
+    goTo('avatar');
   };
 
   // ───────── SCREEN: WELCOME ─────────
@@ -4535,13 +4542,13 @@ video::-webkit-media-controls-play-button {
 
         <!-- LEFT SIDEBAR -->
         <aside class="home-sidebar">
-          <button class="home-sb-btn" onclick="goTo('party')"><span class="ic">👥</span>PARTY &amp; FRIENDS</button>
+          <button class="home-sb-btn" onclick="goTo('party')"><span class="ic">👥</span>MULTIPLAYER &amp; FRIENDS</button>
           <button class="home-sb-btn" onclick="goTo('reward_center')"><span class="ic">📋</span>DAILY MISSIONS</button>
           <button class="home-sb-btn" onclick="goTo('leaderboards')"><span class="ic">🏆</span>LEADERBOARDS</button>
           <button class="home-sb-btn" onclick="goTo('cinema')"><span class="ic">🎬</span>CINEMA</button>
           <button class="home-sb-btn" onclick="goTo('event_arena')"><span class="ic">⚡</span>EVENT ARENA</button>
           <button class="home-sb-btn" onclick="goTo('shop')"><span class="ic">🛒</span>MARKETPLACE</button>
-          <button class="home-sb-btn" onclick="goTo('party')"><span class="ic">🎮</span>MULTIPLAYER<br>LOBBY</button>
+          <button class="home-sb-btn" onclick="goTo('reward_center')"><span class="ic">🎁</span>REWARD CENTER</button>
         </aside>
 
         <!-- YOUR HUB -->
@@ -5187,9 +5194,9 @@ video::-webkit-media-controls-play-button {
         </div>
         <div class="shop-wrap">
           <div class="shop-header">
-            <div class="shop-header-eyebrow">COINAVERSE MERCH STORE</div>
-            <h1>SQUAD GEAR &amp; POWER-UPS</h1>
-            <p>Unlock boosts, equip cosmetics, and collect signature gear from the Coinaverse heroes.</p>
+            <div class="shop-header-eyebrow">COINAVERSE MARKETPLACE</div>
+            <h1>GEAR, BOOSTS &amp; COSMETICS</h1>
+            <p>Spend the coins you earn — unlock boosts, equip cosmetics, adopt pets, and collect signature gear from the Coinaverse heroes.</p>
           </div>
           <div class="shop-tabs">
             ${cats.map(c => `<button class="shop-tab ${c === _activeCat ? 'active' : ''}" onclick="shopCat('${c}')">${c.toUpperCase()}</button>`).join('')}
@@ -6761,7 +6768,8 @@ video::-webkit-media-controls-play-button {
     const ramp = colorRamp(state.archetype || 'guardian');
     state.avatarColor = ramp[state.avatarColorIdx] || (SIG[state.archetype]||SIG.guardian).hex;
     document.documentElement.style.setProperty('--player-c', state.avatarColor);
-    goTo('home');
+    if (state._onboard){ state._onboard = 0; if(window.cvSave)cvSave(); goTo('welcome'); }
+    else goTo('home');
   };
 
   // ───────── HUB EXPERIENCE-FLOW CONTENT (Kabria doc, May 29 2026) ─────────
@@ -8665,7 +8673,7 @@ video::-webkit-media-controls-play-button {
   /* ─────────── SHOP SCREEN (override) ─────────── */
   let _mcat='All';
   window.shopCat=c=>{ _mcat=c; goTo('shop'); };
-  window.SCREENS.shop=function(){
+  window.SCREENS.shop_merch=function(){   /* reverted to original in-game Marketplace per Kabria; merch store kept here unused */
     const cats=['All','Flash Cards','Activity Books','Coming Soon'];
     const list=_mcat==='All'?MERCH:MERCH.filter(m=>m.cat===_mcat);
     const SHOP_CSS=`
@@ -9161,14 +9169,34 @@ video::-webkit-media-controls-play-button {
     } else if(tab==='news'){
       body=`<div class="nf-body" style="padding-top:14px"><div class="cn-sect">📰 NEWS & UPDATES</div><div class="cn-cards">${NEWS.map(n=>`<div class="cn-tile"><div class="cn-tag">${n.tag}</div><div style="font-size:1rem;font-weight:700;margin-bottom:6px">${n.t}</div><p style="font-size:.82rem;color:rgba(255,255,255,.6);margin:0">${n.d}</p></div>`).join('')}</div></div>`;
     } else { // rewards / parent mode
+      const arch=(window.state&&state.archetype)||'guardian';
+      const pName=(window.state&&state.playerName&&state.playerName!=='Hero')?state.playerName:'Hero';
+      const aw=window.WORLDS&&(WORLDS[arch]||WORLDS.guardian)||{};
+      const pPortrait='assets/characters/'+arch+'_portrait.png';
+      const watchMin=seen*6; const watchStr=watchMin>=60?Math.floor(watchMin/60)+'h '+(watchMin%60)+'m':watchMin+'m';
+      const avgProg=Math.round(LEARN.reduce((s,a)=>s+lpct(a[1]),0)/LEARN.length);
+      const acts=[];
+      if(window._cvSeen&&_cvSeen.size){ const last=[..._cvSeen].pop(); acts.push(['🎬','Watched “'+((CINE[last]||{}).t||'an episode')+'”']); }
+      if(earnedBadges.length) acts.push(['🎖️','Earned the “'+earnedBadges[earnedBadges.length-1]+'” badge']);
+      acts.push(['⭐','Joined Coinaverse Cinema']);
       body=`<div class="nf-body" style="padding-top:16px">
         <div class="cn-sect" style="padding-top:4px">🏆 MY REWARDS</div>
-        <div style="display:flex;gap:10px;padding:6px 16px">
-          <div class="cn-stat"><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.45)">WATCHED</div><div style="font-family:'Anton',sans-serif;font-size:1.4rem;color:#e50914">${seen}/${CINE.length}</div></div>
-          <div class="cn-stat"><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.45)">COINS</div><div style="font-family:'Anton',sans-serif;font-size:1.4rem;color:#fbbf24">${coins}</div></div>
-          <div class="cn-stat"><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.45)">BADGES</div><div style="font-family:'Anton',sans-serif;font-size:1.4rem;color:#34d399">${earnedBadges.length}</div></div>
+        <div style="display:flex;align-items:center;gap:14px;margin:6px 16px 4px;padding:14px;border-radius:16px;border:1px solid rgba(229,9,20,.25);background:linear-gradient(135deg,rgba(229,9,20,.12),rgba(168,85,247,.08))">
+          <div style="width:58px;height:58px;border-radius:50%;flex:0 0 auto;background:#1a1a2e center/cover url('${pPortrait}');border:2px solid #e50914"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:'Anton',sans-serif;font-size:1.3rem;line-height:1">Welcome back, ${pName}!</div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:#fca5a5;margin-top:3px">${(aw.archetype||'THE GUARDIAN')} · ${(aw.zone||'')}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;padding:4px 16px">
+          <div class="cn-stat"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">EPISODES</div><div style="font-family:'Anton',sans-serif;font-size:1.3rem;color:#e50914">${seen}/${CINE.length}</div></div>
+          <div class="cn-stat"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">WATCH TIME</div><div style="font-family:'Anton',sans-serif;font-size:1.3rem;color:#7dd3fc">${watchStr}</div></div>
+          <div class="cn-stat"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">PROGRESS</div><div style="font-family:'Anton',sans-serif;font-size:1.3rem;color:#34d399">${avgProg}%</div></div>
+          <div class="cn-stat"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">BADGES</div><div style="font-family:'Anton',sans-serif;font-size:1.3rem;color:#fbbf24">${earnedBadges.length}</div></div>
         </div>
         ${earnedBadges.length?`<div style="padding:8px 16px">${earnedBadges.map(b=>`<span class="cn-chip">🎖️ ${b}</span>`).join('')}</div>`:`<div style="padding:8px 16px;color:rgba(255,255,255,.4);font-size:.82rem">Watch episodes & answer quizzes to earn badges →</div>`}
+        <div class="cn-sect">📋 RECENT ACTIVITY</div>
+        <div style="padding:4px 16px">${acts.map(a=>`<div style="display:flex;gap:10px;align-items:center;padding:9px 12px;margin-bottom:7px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);font-size:.84rem"><span style="font-size:1.05rem">${a[0]}</span><span>${a[1]}</span></div>`).join('')}</div>
         <div class="cn-sect">👨‍👩‍👧 PARENT MODE · LEARNING PROGRESS</div>
         <div style="padding:6px 16px 4px">${LEARN.map(([n,tok,c])=>{const p=lpct(tok);return `<div style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:2px"><span>${n}</span><span style="color:${c}">${p}%</span></div><div class="cn-bar"><div style="height:100%;width:${p}%;background:${c};transition:width .4s"></div></div></div>`;}).join('')}</div>
         <div class="cn-sect">⭐ CHOOSE YOUR PLAN</div>
