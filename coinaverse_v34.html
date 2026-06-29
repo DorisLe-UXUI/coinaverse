@@ -4140,10 +4140,10 @@ video::-webkit-media-controls-play-button {
   });
 
   const EPISODES = [
-    {id:'ep01', title:'The Origins', subtitle:'Episode 01 · Season 01', cover:'assets/movies/ep01_origins.jpeg', duration:'24 min', tag:'NEW', desc:'Eight kids discover the Coinverse and unlock their archetype powers for the first time.'},
+    {id:'ep01', title:'The Origins', subtitle:'Episode 01 · Season 01', cover:'assets/movies/ep01_origins.jpeg', duration:'24 min', tag:'NEW', desc:'Eight kids discover the Coinaverse and unlock their archetype powers for the first time.'},
     {id:'ep02', title:'Debt Phantom', subtitle:'Episode 02 · Season 01', cover:'assets/movies/ep02_debt_phantom.jpeg', duration:'22 min', tag:'', desc:'Heroes face the Debt Phantom in the ruined district.'},
-    {id:'ep03', title:'Dimensional Run', subtitle:'Episode 03 · Season 01', cover:'assets/movies/ep03_dimensional.jpeg', duration:'25 min', tag:'HOT', desc:'A reality-warping journey across the Coinverse zones.'},
-    {id:'ep04', title:'Squad Assemble', subtitle:'Episode 04 · Season 01', cover:'assets/movies/ep04_squad.jpeg', duration:'28 min', tag:'', desc:'The eight heroes unite to form the Coinverse Squad.'},
+    {id:'ep03', title:'Dimensional Run', subtitle:'Episode 03 · Season 01', cover:'assets/movies/ep03_dimensional.jpeg', duration:'25 min', tag:'HOT', desc:'A reality-warping journey across the Coinaverse zones.'},
+    {id:'ep04', title:'Squad Assemble', subtitle:'Episode 04 · Season 01', cover:'assets/movies/ep04_squad.jpeg', duration:'28 min', tag:'', desc:'The eight heroes unite to form the Coinaverse Squad.'},
     {id:'ep05', title:'Team United', subtitle:'Episode 05 · Season 01', cover:'assets/movies/ep05_team_united.jpeg', duration:'21 min', tag:'', desc:'Five heroes lead the charge against rising villains.'},
     {id:'ep06', title:"Bahati's Leap", subtitle:'Spotlight · Investor', cover:'assets/movies/ep06_bahati.jpeg', duration:'18 min', tag:'', desc:'Bahati makes her first investment — the stakes have never been higher.'},
     {id:'ep07', title:'Pluto Saves', subtitle:'Spotlight · Guardian', cover:'assets/movies/ep07_pluto.jpeg', duration:'17 min', tag:'', desc:'Pluto guards the savings vault from the greatest heist of the year.'},
@@ -4223,6 +4223,7 @@ video::-webkit-media-controls-play-button {
     const cls = opts.cls ? ` ${opts.cls}` : '';
     const id  = opts.id ? ` id="${opts.id}"` : '';
     return `<video class="scr-vid${cls}"${id} autoplay loop muted playsinline preload="auto"${p}>
+              <source src="assets/bgvid/${name}.mp4" type="video/mp4">
               <source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/${name}.mp4" type="video/mp4">
             </video><div class="scr-veil"></div>`;
   };
@@ -4390,13 +4391,14 @@ video::-webkit-media-controls-play-button {
     return `
       <div class="v14-greet" style="position:absolute;inset:0;overflow:hidden;background:#000">
         <video id="greetVid" autoplay loop muted playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:left center;z-index:0">
+          <source src="assets/bgvid/greet.mp4" type="video/mp4">
           <source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/greet.mp4" type="video/mp4">
         </video>
         <div style="position:absolute;inset:0;background:linear-gradient(90deg,transparent 30%,rgba(8,4,30,.35) 55%,rgba(8,4,30,.55) 100%);z-index:1;pointer-events:none"></div>
         <div class="v14-greet-card" style="position:absolute;top:50%;right:3%;transform:translateY(-50%);z-index:2;padding:48px 52px;max-width:500px">
           <div class="v14-greet-eyebrow">YOUR AI GUIDE</div>
           <h1 class="v14-greet-h1">Hey Hero!<br>I'm <span class="circuit">CIRCUIT.</span></h1>
-          <p class="v14-greet-desc" style="text-shadow:0 1px 12px rgba(0,0,0,.9)">I'll be your guide across the Coinverse. First step: discover which archetype you are. Each archetype unlocks a different world and a different way to master money. Ready?</p>
+          <p class="v14-greet-desc" style="text-shadow:0 1px 12px rgba(0,0,0,.9)">I'll be your guide across the Coinaverse. First step: discover which archetype you are. Each archetype unlocks a different world and a different way to master money. Ready?</p>
           <button class="v14-greet-cta" onclick="goTo('identity')">DISCOVER MY ARCHETYPE →</button>
         </div>
       </div>`;
@@ -4431,7 +4433,7 @@ video::-webkit-media-controls-play-button {
         ${vbg('identity','assets/bg/cosmic_frontier.jpeg')}
         <div class="v14-identity-head">
           <div class="v14-identity-eyebrow">STEP 1 OF 2 · CHOOSE YOUR HERO</div>
-          <h1 class="v14-identity-h1">WHO ARE YOU IN THE COINVERSE?</h1>
+          <h1 class="v14-identity-h1">WHO ARE YOU IN THE COINAVERSE?</h1>
           <p class="v14-identity-sub">Each archetype has its own world, hero, and superpower. Pick the one that fits YOU.</p>
         </div>
         <div class="v14-identity-grid">${cards}</div>
@@ -4458,8 +4460,8 @@ video::-webkit-media-controls-play-button {
         <div class="v14-welcome-info">
           <span class="v14-welcome-badge">✨ IDENTITY CONFIRMED</span>
           <h1 class="v14-welcome-h1">Welcome,<br>${w.archetype}.</h1>
-          <p class="v14-welcome-desc">Your home world is <strong style="color:var(--c-${w.color})">${w.zone}</strong>. Your starting power: ${w.power}. Time to explore the Coinverse — seven worlds, your archetype's home highlighted.</p>
-          <button class="v14-welcome-cta" onclick="goTo('home')">ENTER THE COINVERSE →</button>
+          <p class="v14-welcome-desc">Your home world is <strong style="color:var(--c-${w.color})">${w.zone}</strong>. Your starting power: ${w.power}. Time to explore the Coinaverse — seven worlds, your archetype's home highlighted.</p>
+          <button class="v14-welcome-cta" onclick="goTo('home')">ENTER THE COINAVERSE →</button>
         </div>
       </div>`;
   };
@@ -4497,6 +4499,7 @@ video::-webkit-media-controls-play-button {
         <!-- Background = home video (animated) -->
         <div class="home-bg-image">
           <video class="home-bg-video" autoplay loop muted playsinline preload="auto" poster="assets/bg/home_galaxy_map.png">
+            <source src="assets/bgvid/home.mp4" type="video/mp4">
             <source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/home.mp4" type="video/mp4">
           </video>
         </div>
@@ -9097,7 +9100,7 @@ video::-webkit-media-controls-play-button {
     ];
     const PLANS=[
       {n:'Free',p:'$0',per:'forever',f:['First episode of every series','Browse all lessons','Earn from quizzes'],cta:'CURRENT PLAN',hot:false},
-      {n:'Premium',p:'$2.99',per:'/month',f:['Full seasons','Interactive episodes','Behind the scenes','Bonus rewards'],cta:'GO PREMIUM',hot:true},
+      {n:'Premium',p:'$3.99',per:'/month',f:['Full seasons','Interactive episodes','Behind the scenes','Bonus rewards'],cta:'GO PREMIUM',hot:true},
       {n:'Annual',p:'$35.99',per:'/year',f:['Everything in Premium','Exclusive avatar item yearly','Monthly bonus coins'],cta:'BEST VALUE',hot:false},
     ];
     const LEARN=[['Saving','guardian','#5eead4'],['Investing','investor','#34d399'],['Budgeting','strategist','#60a5fa'],['Credit','credtech','#7dd3fc'],['Earning','builder','#c084fc']];
