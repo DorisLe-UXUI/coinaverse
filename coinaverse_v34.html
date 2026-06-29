@@ -4374,6 +4374,7 @@ video::-webkit-media-controls-play-button {
           <div class="v14-signin-card">
             <h2>JUMP IN</h2>
             <p>Create your hero profile to start earning, learning, and growing.</p>
+            <input id="cvName" class="v14-signin-input" type="text" maxlength="20" placeholder="Your name (e.g. Doris)" style="margin-bottom:10px">
             <button class="v14-signin-btn" onclick="cvSocial('google')">📧  Continue with Google</button>
             <button class="v14-signin-btn" onclick="cvSocial('apple')">🍎  Continue with Apple</button>
             <div class="v14-signin-divider">OR EMAIL</div>
@@ -4459,7 +4460,7 @@ video::-webkit-media-controls-play-button {
         <video class="scr-vid wvid" id="welcomeVid" autoplay loop playsinline preload="auto" poster="assets/map/${w.id}.jpeg"><source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/${w.id}.mp4" type="video/mp4"></video><div class="scr-veil"></div>
         <div class="v14-welcome-info">
           <span class="v14-welcome-badge">✨ IDENTITY CONFIRMED</span>
-          <h1 class="v14-welcome-h1">Welcome,<br>${w.archetype}.</h1>
+          <h1 class="v14-welcome-h1">Welcome ${(state.playerName&&state.playerName!=='Hero')?state.playerName:'Hero'},<br>${w.archetype}.</h1>
           <p class="v14-welcome-desc">Your home world is <strong style="color:var(--c-${w.color})">${w.zone}</strong>. Your starting power: ${w.power}. Time to explore the Coinaverse — seven worlds, your archetype's home highlighted.</p>
           <button class="v14-welcome-cta" onclick="goTo('home')">ENTER THE COINAVERSE →</button>
         </div>
@@ -8522,14 +8523,15 @@ video::-webkit-media-controls-play-button {
   function accounts(){ try{return JSON.parse(localStorage.getItem('coinaverse_accounts')||'{}');}catch(e){return {};} }
   function saveAccounts(a){ localStorage.setItem('coinaverse_accounts',JSON.stringify(a)); }
   function setUser(email){ localStorage.setItem('coinaverse_user',email); const s=S(); s.coins=s.coins||100;s.xp=s.xp||0;s.level=s.level||1; load(); refreshHUD(); }
+  window.cvGrabName=function(){ const nm=(document.getElementById('cvName')||{}).value||''; if(nm.trim()){ try{ const s=S(); s.playerName=nm.trim().slice(0,20); if(window.cvSave)cvSave(); else if(window.save)save(); }catch(e){} } };
   window.cvSignup=function(){ const e=(document.getElementById('cvEmail')||{}).value||''; const p=(document.getElementById('cvPass')||{}).value||'';
     if(!e||!p){ toast('Enter email + password'); return; } const a=accounts();
     if(a[e]){ toast('Account exists — logging in'); } else { a[e]={pw:p,created:Date.now()}; saveAccounts(a); toast('Account created 🎉'); }
-    setUser(e); goTo('age_parental'); };
+    setUser(e); cvGrabName(); goTo('age_parental'); };
   window.cvLogin=function(){ const e=(document.getElementById('cvEmail')||{}).value||''; const p=(document.getElementById('cvPass')||{}).value||''; const a=accounts();
     if(a[e]&&a[e].pw===p){ setUser(e); toast('Welcome back'); goTo('age_parental'); } else { toast('Wrong email or password'); } };
-  window.cvSocial=function(prov){ const e=`hero@${prov}`; const a=accounts(); if(!a[e]){a[e]={pw:'',created:Date.now(),social:prov};saveAccounts(a);} setUser(e); toast(`Continuing with ${prov}`); goTo('age_parental'); };
-  window.cvGuest=function(){ localStorage.setItem('coinaverse_user','guest'); load(); refreshHUD(); goTo('age_parental'); };
+  window.cvSocial=function(prov){ const e=`hero@${prov}`; const a=accounts(); if(!a[e]){a[e]={pw:'',created:Date.now(),social:prov};saveAccounts(a);} setUser(e); cvGrabName(); toast(`Continuing with ${prov}`); goTo('age_parental'); };
+  window.cvGuest=function(){ localStorage.setItem('coinaverse_user','guest'); load(); cvGrabName(); refreshHUD(); goTo('age_parental'); };
   window.cvLogout=function(){ save(); localStorage.removeItem('coinaverse_user'); cvCloseModal(); const s=S(); s.coins=100;s.xp=0;s.level=1;s.learned={};s.missionsDone={};s.gamesDone={}; goTo('signin'); toast('Logged out'); };
 
   /* ───────── BOOT + render hooks ───────── */
