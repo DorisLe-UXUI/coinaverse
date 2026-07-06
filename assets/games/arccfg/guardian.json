@@ -1,0 +1,120 @@
+{
+  "guardian_1": {
+    "mech": "catch",
+    "name": "Emergency Vault",
+    "title": "EMERGENCY VAULT",
+    "icon": "🛟",
+    "goal": 170,
+    "time": 60,
+    "gateEvery": 17,
+    "hint": "MOVE to CATCH 🪙 · DODGE 💸",
+    "winMsg": "BUFFER BUILT!",
+    "lesson": [
+      ["🛟", "An emergency fund covers surprise costs."],
+      ["💰", "Try to save enough for 3 months of needs."],
+      ["🐷", "Add a little to your fund every time you can."]
+    ],
+    "good": ["🪙", "💰", "💎"],
+    "bad": ["💸", "🔥"],
+    "player": "🛟",
+    "pts": 12,
+    "badRate": 0.3
+  },
+  "guardian_2": {
+    "mech": "tap",
+    "name": "Savings Satellite",
+    "title": "SAVINGS SATELLITE NET",
+    "icon": "🛰️",
+    "goal": 180,
+    "time": 58,
+    "gateEvery": 18,
+    "hint": "TAP each 🪙 as it beeps past · skip 💸",
+    "winMsg": "AUTO-SAVE ON!",
+    "lesson": [
+      ["🔁", "Saving the same day each time builds the habit."],
+      ["🛰️", "Set up automatic transfers so you never forget."],
+      ["📅", "Even small regular savings add up fast."]
+    ],
+    "good": ["🪙", "💰", "💫"],
+    "bad": ["💸"],
+    "pts": 14,
+    "badRate": 0.3
+  },
+  "guardian_3": {
+    "mech": "aim",
+    "name": "Security Shield",
+    "title": "SECURITY SHIELD CMD",
+    "icon": "🛡️",
+    "goal": 195,
+    "time": 64,
+    "gateEvery": 19,
+    "hint": "AIM and ZAP the 🦹 scammer · spare 👮",
+    "winMsg": "SCAM BLOCKED!",
+    "lesson": [
+      ["🔒", "Never share your password or PIN with anyone."],
+      ["🦹", "If a deal seems too good to be true, it is a scam."],
+      ["✋", "Ask a trusted adult before clicking strange links."]
+    ],
+    "good": ["🦹"],
+    "bad": ["👮"],
+    "pts": 15
+  },
+  "guardian_4": {
+    "mech": "grow",
+    "name": "Compound Star",
+    "title": "COMPOUND CONSTELLATION",
+    "icon": "🌟",
+    "goal": 160,
+    "time": 62,
+    "gateEvery": 18,
+    "hint": "TAP fast to grow · grab ✨ · dodge 💸",
+    "winMsg": "STARS MULTIPLIED!",
+    "lesson": [
+      ["📈", "Compound interest pays you for money you already saved."],
+      ["⏳", "The earlier you save, the more it grows."],
+      ["🌟", "Leaving savings alone lets them grow on their own."]
+    ],
+    "good": ["✨", "📈"],
+    "bad": ["💸"],
+    "player": "⭐",
+    "tapLabel": "TAP TO GROW!",
+    "pts": 10
+  },
+  "guardian_5": {
+    "mech": "balance",
+    "name": "Dreams Harbor",
+    "title": "FUTURE DREAMS HARBOR",
+    "icon": "⚓",
+    "goal": 175,
+    "time": 60,
+    "gateEvery": 17,
+    "hint": "TILT to keep 🚢 steady in the safe zone",
+    "winMsg": "GOAL IN SIGHT!",
+    "lesson": [
+      ["🎯", "Saving toward a goal makes it easier to stay on track."],
+      ["⚓", "Steady, balanced saving beats spending it all at once."],
+      ["🏝️", "Big dreams come true one small deposit at a time."]
+    ],
+    "player": "🚢",
+    "zone": 0.16,
+    "pts": 15
+  },
+  "guardian_6": {
+    "mech": "match",
+    "name": "Resilience Arena",
+    "title": "RESILIENCE ARENA",
+    "icon": "💪",
+    "goal": 156,
+    "time": 62,
+    "gateEvery": 18,
+    "hint": "FLIP two cards · find the matching pair",
+    "winMsg": "BOUNCED BACK!",
+    "lesson": [
+      ["💪", "Everyone slips up with money sometimes."],
+      ["🔄", "Start saving again right after a setback."],
+      ["⭐", "Each new try makes your money habits stronger."]
+    ],
+    "pairs": ["🪙", "💎", "💰", "🛡️", "🔄", "⭐"],
+    "pts": 26
+  }
+}

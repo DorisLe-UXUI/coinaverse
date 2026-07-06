@@ -1,0 +1,1181 @@
+/* ════════════════════════════════════════════════════════════════
+   DEBT DISCOVERY · DEBT DETOX DISTRICT — Drag-sort mini-game
+   Sort 20 debt cards into Good Debt / Bad Debt before time runs out.
+   Level 1 (10 cards): Clear-cut examples.
+   Level 2 (10 cards): Situational — same loan type, different context.
+   Screen ID : game_ddt_discovery
+   Hub       : rebuilder (#4B2D8F)
+   ════════════════════════════════════════════════════════════════ */
+(function () {
+
+  /* ── palette ─────────────────────────────────────────────────── */
+  const ACCENT   = '#4B2D8F';   // hub purple
+  const VIOLET   = '#7B52EF';   // lighter purple glow
+  const GOLD     = '#F5C842';   // good debt / coins
+  const CRIMSON  = '#E84060';   // bad debt / error
+  const TEAL     = '#00D4AA';   // combo / speed bonus
+  const DIM      = '#0A060F';   // near-black bg
+
+  /* ── game constants ──────────────────────────────────────────── */
+  const TOTAL_CARDS  = 20;
+  const LEVEL_SIZE   = 10;
+  const CARD_TIMEOUT = 12000;   // ms per card before auto-miss
+  const SPEED_BONUS_MS = 2500;  // sort under this → speed bonus
+  const COMBO_THRESHOLD = 3;    // consecutive correct → combo bonus
+  const ERROR_MAX    = 6;       // max wrong before game over
+  const STAR3_SCORE  = 220;
+  const STAR2_SCORE  = 140;
+
+  /* ── debt card catalogue ─────────────────────────────────────── */
+  const LEVEL1 = [
+    // GOOD DEBT — clear cut
+    { e: '🏠', t: 'Mortgage',           cat: 'good',
+      note: 'Builds equity and provides shelter — a classic wealth-building debt.' },
+    { e: '🎓', t: 'Student Loan',       cat: 'good',
+      note: 'Invests in education that raises your lifetime earning potential.' },
+    { e: '🏪', t: 'Small Business Loan',cat: 'good',
+      note: 'Funds income-generating assets — can return far more than it costs.' },
+    { e: '🚗', t: 'Affordable Car Loan',cat: 'good',
+      note: 'Enables commuting to work with manageable payments and low interest.' },
+    { e: '⚡', t: 'Solar Panel Loan',   cat: 'good',
+      note: 'Cuts monthly utility bills and adds home value over time.' },
+    // BAD DEBT — clear cut
+    { e: '💸', t: 'Payday Loan',        cat: 'bad',
+      note: '300–400% APR traps borrowers in a cycle of fees and renewals.' },
+    { e: '💳', t: 'High-Interest Credit Card',cat: 'bad',
+      note: 'Carrying a 29% APR balance means interest outgrows the purchase.' },
+    { e: '🛍️', t: 'BNPL for Wants',    cat: 'bad',
+      note: '"Buy Now Pay Later" for non-essentials adds hidden fees and spending habits that harm budgets.' },
+    { e: '🎰', t: 'Gambling Debt',      cat: 'bad',
+      note: 'No asset created — pure liability with no path to repayment income.' },
+    { e: '💄', t: 'Luxury Debt',        cat: 'bad',
+      note: 'Financing vacations or designer goods at high interest destroys net worth.' },
+  ];
+
+  const LEVEL2 = [
+    // Situational — requires reasoning from context
+    {
+      e: '🚗', t: 'Car Loan — 19% APR',  cat: 'bad',
+      ctx: 'You earn $32 000/yr. The monthly payment is $680 and the loan rate is 19%.',
+      note: 'At 19% APR with a tight income, interest will cost more than the car is worth.'
+    },
+    {
+      e: '🚗', t: 'Car Loan — 3.9% APR', cat: 'good',
+      ctx: 'You earn $70 000/yr. Monthly payment is $320 at 3.9% — the car is needed for work.',
+      note: 'Low-rate, proportionate payment for a work asset — this passes the good-debt test.'
+    },
+    {
+      e: '🎓', t: 'Graduate Degree Loan',cat: 'good',
+      ctx: 'An MBA at a target school costs $80 000 but increases your expected salary by $45 000/yr.',
+      note: 'ROI is clear: salary uplift repays the loan in under two years.'
+    },
+    {
+      e: '🎓', t: 'For-Profit Degree',   cat: 'bad',
+      ctx: 'The school is unaccredited. Graduates report median salary below minimum wage. Loan: $60 000.',
+      note: 'No income gain + $60 K debt = financial damage disguised as education.'
+    },
+    {
+      e: '🏠', t: 'Vacation Home Mortgage',cat: 'bad',
+      ctx: 'You still have $25 000 in high-interest credit card debt. The second mortgage is interest-only.',
+      note: 'Adding secured debt before clearing toxic debt compounds risk dangerously.'
+    },
+    {
+      e: '🏪', t: 'Business Expansion Loan',cat: 'good',
+      ctx: 'Your bakery\'s revenue doubled. A $50 000 loan funds a second location with projected breakeven in 8 months.',
+      note: 'Data-backed expansion with a clear payback timeline — textbook good debt.'
+    },
+    {
+      e: '💳', t: 'Balance Transfer Card', cat: 'good',
+      ctx: '0% APR for 18 months. You have a plan to pay off the full balance within 12 months.',
+      note: 'Strategic use of 0% intro rate to eliminate existing debt — smart if disciplined.'
+    },
+    {
+      e: '💳', t: 'Store Credit Card',    cat: 'bad',
+      ctx: '28% APR, no rewards. You use it for everyday shopping and carry a monthly balance.',
+      note: 'High-rate revolving balance with no benefit erodes net worth every cycle.'
+    },
+    {
+      e: '🏥', t: 'Medical Payment Plan',  cat: 'good',
+      ctx: 'Hospital offers 0% interest over 24 months for a necessary procedure.',
+      note: 'Zero-interest structured repayment for a health necessity — manageable and unavoidable.'
+    },
+    {
+      e: '🏖️', t: 'Vacation Loan',        cat: 'bad',
+      ctx: '14% APR personal loan to fund a two-week holiday. No asset created.',
+      note: 'Paying 14% interest for a memory means the trip costs 30–40% more than the sticker price.'
+    },
+  ];
+
+  /* ── state object ────────────────────────────────────────────── */
+  let G = null;
+
+  /* ── screen registration ─────────────────────────────────────── */
+  window.SCREENS = window.SCREENS || {};
+  window.SCREENS.game_ddt_discovery = function () {
+    G = null;
+    setTimeout(initGame, 40);
+    return `
+<div id="ddt_root" style="
+  position:absolute;inset:0;background:${DIM};overflow:hidden;
+  font-family:Inter,sans-serif;color:#fff;user-select:none;
+">
+  <!-- ambient city canvas -->
+  <canvas id="ddt_bg" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas>
+
+  <!-- gradient overlays -->
+  <div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 50% at 50% 100%,rgba(75,45,143,.18),transparent);pointer-events:none"></div>
+  <div style="position:absolute;bottom:0;left:0;right:0;height:35%;background:linear-gradient(to top,rgba(10,6,15,.9),transparent);pointer-events:none"></div>
+
+  <!-- top bar -->
+  <div id="ddt_topbar" style="
+    position:absolute;top:0;left:0;right:0;z-index:20;
+    display:flex;align-items:center;gap:10px;
+    padding:10px 14px;
+    background:linear-gradient(to bottom,rgba(10,6,15,.92),transparent);
+  ">
+    <button id="ddt_back" style="
+      background:rgba(75,45,143,.3);border:1px solid rgba(123,82,239,.4);
+      color:${VIOLET};border-radius:10px;padding:7px 12px;cursor:pointer;
+      font-size:.85rem;font-family:Inter,sans-serif;transition:all .15s;flex-shrink:0;
+    "
+    onmouseover="this.style.background='rgba(75,45,143,.55)'"
+    onmouseout="this.style.background='rgba(75,45,143,.3)'"
+    onclick="window.ddt_discoveryExit()">← Back</button>
+
+    <div style="flex:1;min-width:0">
+      <div style="font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.2em;color:${VIOLET}88;line-height:1">DEBT DETOX DISTRICT</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:.82rem;letter-spacing:.08em;color:#fff;line-height:1.2;margin-top:1px">DEBT DISCOVERY</div>
+    </div>
+
+    <!-- score -->
+    <div style="text-align:center;flex-shrink:0">
+      <div style="font-family:Orbitron,sans-serif;font-size:.45rem;color:${GOLD}88;letter-spacing:.15em">SCORE</div>
+      <div id="ddt_score_val" style="font-family:Orbitron,sans-serif;font-size:1.05rem;color:${GOLD};text-shadow:0 0 10px ${GOLD}66;font-variant-numeric:tabular-nums">0</div>
+    </div>
+
+    <!-- timer -->
+    <div style="text-align:center;flex-shrink:0">
+      <div style="font-family:Orbitron,sans-serif;font-size:.45rem;color:#aaa;letter-spacing:.15em">TIME</div>
+      <div id="ddt_timer_val" style="font-family:Orbitron,sans-serif;font-size:1.05rem;color:#fff;font-variant-numeric:tabular-nums">1:00</div>
+    </div>
+  </div>
+
+  <!-- level + combo strip -->
+  <div style="
+    position:absolute;top:52px;left:0;right:0;z-index:15;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:4px 14px;
+  ">
+    <div id="ddt_level_badge" style="
+      font-family:Orbitron,sans-serif;font-size:.5rem;letter-spacing:.18em;
+      color:${VIOLET};border:1px solid rgba(123,82,239,.5);
+      border-radius:20px;padding:3px 10px;
+    ">LEVEL 1 · LEARN</div>
+
+    <div id="ddt_combo_wrap" style="display:none;align-items:center;gap:5px">
+      <div style="font-family:Orbitron,sans-serif;font-size:.45rem;color:${TEAL};letter-spacing:.15em">COMBO</div>
+      <div id="ddt_combo_val" style="font-family:Orbitron,sans-serif;font-size:.8rem;color:${TEAL};text-shadow:0 0 8px ${TEAL}">×1</div>
+    </div>
+
+    <!-- cards counter -->
+    <div style="font-family:Orbitron,sans-serif;font-size:.5rem;color:#aaa;letter-spacing:.1em">
+      <span id="ddt_cards_done">0</span>/<span>${TOTAL_CARDS}</span>
+    </div>
+  </div>
+
+  <!-- progress bar -->
+  <div style="position:absolute;top:82px;left:14px;right:14px;z-index:15;height:3px;background:rgba(255,255,255,.08);border-radius:2px">
+    <div id="ddt_progress_bar" style="height:100%;width:0%;background:linear-gradient(90deg,${ACCENT},${VIOLET});border-radius:2px;transition:width .3s ease"></div>
+  </div>
+
+  <!-- error health pip row -->
+  <div id="ddt_pips" style="
+    position:absolute;top:93px;left:0;right:0;z-index:15;
+    display:flex;justify-content:center;gap:6px;
+  "></div>
+
+  <!-- bins row (bottom) -->
+  <div id="ddt_bins" style="
+    position:absolute;bottom:0;left:0;right:0;z-index:10;
+    display:flex;height:130px;
+  ">
+    <!-- GOOD DEBT bin -->
+    <div id="ddt_bin_good" style="
+      flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      background:linear-gradient(to top,rgba(245,200,66,.12),rgba(245,200,66,.04));
+      border-top:2px solid rgba(245,200,66,.35);
+      border-right:1px solid rgba(255,255,255,.06);
+      cursor:pointer;transition:background .15s;
+      gap:4px;
+    ">
+      <div style="font-size:1.5rem">✅</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.15em;color:${GOLD}">GOOD DEBT</div>
+      <div id="ddt_good_count" style="font-family:Orbitron,sans-serif;font-size:.9rem;color:${GOLD};font-variant-numeric:tabular-nums">0</div>
+    </div>
+    <!-- BAD DEBT bin -->
+    <div id="ddt_bin_bad" style="
+      flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      background:linear-gradient(to top,rgba(232,64,96,.12),rgba(232,64,96,.04));
+      border-top:2px solid rgba(232,64,96,.35);
+      border-left:1px solid rgba(255,255,255,.06);
+      cursor:pointer;transition:background .15s;
+      gap:4px;
+    ">
+      <div style="font-size:1.5rem">❌</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.15em;color:${CRIMSON}">BAD DEBT</div>
+      <div id="ddt_bad_count" style="font-family:Orbitron,sans-serif;font-size:.9rem;color:${CRIMSON};font-variant-numeric:tabular-nums">0</div>
+    </div>
+  </div>
+
+  <!-- card stage (middle) -->
+  <div id="ddt_stage" style="
+    position:absolute;left:0;right:0;
+    top:110px;bottom:130px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    z-index:12;
+  ">
+    <!-- card goes here dynamically -->
+    <div id="ddt_hint" style="
+      font-size:.7rem;color:rgba(255,255,255,.3);margin-top:12px;
+      font-family:Inter,sans-serif;text-align:center;
+    ">Drag the card · or tap a bin · or press ← →</div>
+  </div>
+
+  <!-- feedback flash -->
+  <div id="ddt_flash" style="
+    position:absolute;inset:0;z-index:50;pointer-events:none;
+    opacity:0;transition:opacity .15s;
+  "></div>
+
+  <!-- card timeout bar sits below card -->
+  <div id="ddt_timeout_track" style="
+    position:absolute;left:10%;right:10%;height:3px;border-radius:2px;
+    background:rgba(255,255,255,.08);z-index:13;display:none;
+  ">
+    <div id="ddt_timeout_bar" style="height:100%;width:100%;border-radius:2px;background:${VIOLET};transition:width linear"></div>
+  </div>
+
+  <style>
+    @keyframes ddt_card_in {
+      from { opacity:0; transform:translateY(-40px) scale(.9); }
+      to   { opacity:1; transform:translateY(0) scale(1); }
+    }
+    @keyframes ddt_card_fly_good {
+      to { opacity:0; transform:translateX(-120vw) rotate(-15deg); }
+    }
+    @keyframes ddt_card_fly_bad {
+      to { opacity:0; transform:translateX(120vw) rotate(15deg); }
+    }
+    @keyframes ddt_shake {
+      0%,100%{ transform:translateX(0) }
+      20%{ transform:translateX(-8px) }
+      40%{ transform:translateX(8px) }
+      60%{ transform:translateX(-6px) }
+      80%{ transform:translateX(6px) }
+    }
+    @keyframes ddt_pulse_good {
+      0%{ box-shadow:0 0 0 0 rgba(245,200,66,.5); }
+      100%{ box-shadow:0 0 0 20px rgba(245,200,66,0); }
+    }
+    @keyframes ddt_pulse_bad {
+      0%{ box-shadow:0 0 0 0 rgba(232,64,96,.5); }
+      100%{ box-shadow:0 0 0 20px rgba(232,64,96,0); }
+    }
+    @keyframes ddt_pop_in {
+      from{ transform:scale(0) rotate(-10deg); opacity:0; }
+      to  { transform:scale(1) rotate(0deg); opacity:1; }
+    }
+    @keyframes ddt_bonus_float {
+      0%  { opacity:1; transform:translateY(0) scale(1); }
+      100%{ opacity:0; transform:translateY(-60px) scale(1.3); }
+    }
+    @keyframes ddt_city_glow {
+      0%,100%{ opacity:.6; }
+      50%{ opacity:1; }
+    }
+    #ddt_bin_good:hover { background: linear-gradient(to top, rgba(245,200,66,.22), rgba(245,200,66,.08)) !important; }
+    #ddt_bin_bad:hover  { background: linear-gradient(to top, rgba(232,64,96,.22), rgba(232,64,96,.08)) !important; }
+  </style>
+</div>`;
+  };
+
+  /* ── init ────────────────────────────────────────────────────── */
+  function initGame() {
+    const root = document.getElementById('ddt_root');
+    if (!root) return;
+
+    /* build shuffled deck */
+    const deck = shuffle([...LEVEL1]).concat(shuffle([...LEVEL2]));
+
+    G = {
+      deck,
+      deckIdx:       0,
+      score:         0,
+      errors:        0,
+      combo:         0,
+      bestCombo:     0,
+      goodCount:     0,
+      badCount:      0,
+      level:         1,
+      timeLeft:      60,  // seconds
+      cardStartMs:   0,
+      active:        false,
+      done:          false,
+      timerInterval: null,
+      cardTimeout:   null,
+      /* drag state */
+      dragging:      false,
+      dragCard:      null,
+      dragStartX:    0,
+      dragStartY:    0,
+      dragOffX:      0,
+      dragOffY:      0,
+      cardX:         0,
+      cardY:         0,
+    };
+
+    buildPips();
+    drawCityBg();
+    attachBinListeners();  // only called on first load; ddt_playAgain uses initGameReplay which skips this
+    attachKeyboard();
+    startTimer();
+    showNextCard();
+  }
+
+  /* ── city background canvas ──────────────────────────────────── */
+  function drawCityBg() {
+    const canvas = document.getElementById('ddt_bg');
+    if (!canvas) return;
+    const W = canvas.offsetWidth || window.innerWidth;
+    const H = canvas.offsetHeight || window.innerHeight;
+    canvas.width  = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    /* sky gradient */
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#06030E');
+    sky.addColorStop(1, '#130926');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    /* stars */
+    for (let i = 0; i < 80; i++) {
+      const x = Math.random() * W;
+      const y = Math.random() * H * 0.7;
+      const r = Math.random() * 1.2 + 0.3;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(200,180,255,${Math.random() * 0.6 + 0.2})`;
+      ctx.fill();
+    }
+
+    /* silhouette buildings */
+    const buildings = [
+      { x: 0,          w: 55,  h: 90,  col: '#120A1E' },
+      { x: 40,         w: 35,  h: 130, col: '#0F0820' },
+      { x: 65,         w: 60,  h: 75,  col: '#110922' },
+      { x: 110,        w: 45,  h: 110, col: '#0C061A' },
+      { x: 140,        w: 70,  h: 160, col: '#100820' },
+      { x: W * 0.28,   w: 50,  h: 100, col: '#12092A' },
+      { x: W * 0.35,   w: 40,  h: 140, col: '#0E071F' },
+      { x: W * 0.44,   w: 80,  h: 85,  col: '#130A22' },
+      { x: W * 0.55,   w: 45,  h: 150, col: '#0F0820' },
+      { x: W * 0.62,   w: 60,  h: 95,  col: '#110922' },
+      { x: W * 0.72,   w: 35,  h: 125, col: '#0C061A' },
+      { x: W * 0.79,   w: 55,  h: 80,  col: '#100820' },
+      { x: W - 120,    w: 50,  h: 110, col: '#0E071F' },
+      { x: W - 70,     w: 40,  h: 145, col: '#12092A' },
+      { x: W - 38,     w: 38,  h: 75,  col: '#0F0820' },
+    ];
+
+    buildings.forEach(b => {
+      /* main silhouette */
+      ctx.fillStyle = b.col;
+      ctx.fillRect(b.x, H - b.h, b.w, b.h);
+
+      /* purple glow windows */
+      for (let wy = H - b.h + 8; wy < H - 15; wy += 14) {
+        for (let wx = b.x + 5; wx < b.x + b.w - 8; wx += 12) {
+          if (Math.random() < 0.45) {
+            ctx.fillStyle = Math.random() < 0.3
+              ? `rgba(245,200,66,${Math.random() * 0.5 + 0.2})`
+              : `rgba(123,82,239,${Math.random() * 0.5 + 0.2})`;
+            ctx.fillRect(wx, wy, 6, 5);
+          }
+        }
+      }
+
+      /* rooftop accent line */
+      ctx.strokeStyle = `rgba(123,82,239,${Math.random() * 0.4 + 0.1})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(b.x, H - b.h);
+      ctx.lineTo(b.x + b.w, H - b.h);
+      ctx.stroke();
+    });
+
+    /* ground glow strip */
+    const grd = ctx.createLinearGradient(0, H - 20, 0, H);
+    grd.addColorStop(0, `rgba(75,45,143,.4)`);
+    grd.addColorStop(1, `rgba(75,45,143,0)`);
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, H - 20, W, 20);
+  }
+
+  /* ── error pips ──────────────────────────────────────────────── */
+  function buildPips() {
+    const container = document.getElementById('ddt_pips');
+    if (!container) return;
+    container.innerHTML = '';
+    for (let i = 0; i < ERROR_MAX; i++) {
+      const pip = document.createElement('div');
+      pip.id = `ddt_pip_${i}`;
+      pip.style.cssText = `
+        width:10px;height:10px;border-radius:50%;
+        background:rgba(232,64,96,.6);
+        border:1px solid rgba(232,64,96,.4);
+        transition:all .2s;
+      `;
+      container.appendChild(pip);
+    }
+  }
+
+  function updatePips() {
+    for (let i = 0; i < ERROR_MAX; i++) {
+      const pip = document.getElementById(`ddt_pip_${i}`);
+      if (!pip) continue;
+      if (i < G.errors) {
+        pip.style.background = 'rgba(232,64,96,.15)';
+        pip.style.border = '1px solid rgba(232,64,96,.15)';
+      } else {
+        pip.style.background = 'rgba(232,64,96,.6)';
+        pip.style.border = '1px solid rgba(232,64,96,.4)';
+      }
+    }
+  }
+
+  /* ── timer ───────────────────────────────────────────────────── */
+  function startTimer() {
+    G.timerInterval = setInterval(() => {
+      if (!G || G.done) return;
+      G.timeLeft--;
+      updateTimerDisplay();
+      if (G.timeLeft <= 0) {
+        clearInterval(G.timerInterval);
+        triggerEnd(false);
+      }
+    }, 1000);
+  }
+
+  function updateTimerDisplay() {
+    const el = document.getElementById('ddt_timer_val');
+    if (!el) return;
+    const m = Math.floor(G.timeLeft / 60);
+    const s = G.timeLeft % 60;
+    el.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+    el.style.color = G.timeLeft <= 10 ? CRIMSON : G.timeLeft <= 20 ? '#FF9900' : '#fff';
+    if (G.timeLeft <= 10) el.style.textShadow = `0 0 8px ${CRIMSON}88`;
+    else el.style.textShadow = 'none';
+  }
+
+  /* ── card rendering ──────────────────────────────────────────── */
+  function showNextCard() {
+    if (!G || G.done) return;
+
+    if (G.deckIdx >= G.deck.length) {
+      triggerEnd(true);
+      return;
+    }
+
+    /* level transition announcement */
+    if (G.deckIdx === LEVEL_SIZE) {
+      showLevelUp();
+      return;
+    }
+
+    const card = G.deck[G.deckIdx];
+    G.cardStartMs = Date.now();
+    G.active = true;
+
+    const stage = document.getElementById('ddt_stage');
+    if (!stage) return;
+
+    /* clear old card */
+    const old = document.getElementById('ddt_active_card');
+    if (old) old.remove();
+
+    /* level 2 context banner */
+    const isL2 = G.level === 2 && card.ctx;
+    const ctxHtml = isL2 ? `
+      <div style="
+        background:rgba(75,45,143,.25);border:1px solid rgba(123,82,239,.3);
+        border-radius:10px;padding:8px 12px;margin-top:10px;
+        font-size:.68rem;line-height:1.5;color:#c9b8f0;text-align:center;
+        max-width:280px;
+      ">${card.ctx}</div>` : '';
+
+    const cardEl = document.createElement('div');
+    cardEl.id = 'ddt_active_card';
+    cardEl.style.cssText = `
+      position:relative;
+      width:min(300px,80vw);
+      background:linear-gradient(145deg,rgba(30,18,55,.97),rgba(18,10,35,.99));
+      border:2px solid rgba(123,82,239,.5);
+      border-radius:20px;
+      padding:22px 18px;
+      text-align:center;
+      box-shadow:0 0 40px rgba(75,45,143,.3),0 8px 32px rgba(0,0,0,.6);
+      animation:ddt_card_in .35s cubic-bezier(.22,1,.36,1) both;
+      cursor:grab;
+      z-index:30;
+      touch-action:none;
+    `;
+    cardEl.innerHTML = `
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${VIOLET},transparent);border-radius:20px 20px 0 0"></div>
+      <div style="font-size:2.8rem;line-height:1;margin-bottom:10px">${card.e}</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:.85rem;letter-spacing:.05em;color:#fff;margin-bottom:6px">${card.t}</div>
+      ${isL2 ? '' : `<div style="font-size:.65rem;color:rgba(255,255,255,.4);line-height:1.5;max-width:230px;margin:0 auto">${card.note}</div>`}
+      ${ctxHtml}
+      <div style="margin-top:14px;display:flex;justify-content:center;gap:20px">
+        <div style="font-family:Orbitron,sans-serif;font-size:.48rem;color:${GOLD}88;letter-spacing:.12em">← GOOD</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:.48rem;color:${CRIMSON}88;letter-spacing:.12em">BAD →</div>
+      </div>
+      <div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${ACCENT},transparent);border-radius:0 0 20px 20px"></div>
+    `;
+
+    stage.appendChild(cardEl);
+
+    /* position timeout track */
+    const track = document.getElementById('ddt_timeout_track');
+    if (track) {
+      const stageRect = stage.getBoundingClientRect();
+      const cardRect  = cardEl.getBoundingClientRect();
+      track.style.display = 'block';
+      track.style.top  = (cardRect.bottom - stageRect.top + 8) + 'px';
+    }
+
+    /* start card timeout bar */
+    startCardTimeout(cardEl);
+
+    /* attach drag */
+    attachDrag(cardEl, card);
+
+    /* update HUD */
+    updateHUD();
+  }
+
+  /* ── card timeout ────────────────────────────────────────────── */
+  function startCardTimeout(cardEl) {
+    if (G.cardTimeout) clearTimeout(G.cardTimeout);
+    const bar = document.getElementById('ddt_timeout_bar');
+    if (bar) {
+      bar.style.transition = 'none';
+      bar.style.width = '100%';
+      requestAnimationFrame(() => {
+        bar.style.transition = `width ${CARD_TIMEOUT}ms linear`;
+        bar.style.width = '0%';
+      });
+    }
+    G.cardTimeout = setTimeout(() => {
+      if (!G || G.done || !G.active) return;
+      /* timed out → count as miss */
+      registerSort(null, cardEl);
+    }, CARD_TIMEOUT);
+  }
+
+  /* ── drag system ─────────────────────────────────────────────── */
+  function attachDrag(cardEl, card) {
+    let startX = 0, startY = 0, currX = 0, currY = 0;
+    let isDragging = false;
+    let stageRect;
+
+    function getStage() {
+      return document.getElementById('ddt_stage');
+    }
+
+    function onStart(ex, ey) {
+      isDragging = true;
+      startX = ex; startY = ey;
+      currX = 0; currY = 0;
+      stageRect = getStage()?.getBoundingClientRect();
+      cardEl.style.cursor = 'grabbing';
+      cardEl.style.transition = 'none';
+      cardEl.style.zIndex = '40';
+    }
+
+    function onMove(ex, ey) {
+      if (!isDragging) return;
+      currX = ex - startX;
+      currY = ey - startY;
+      const rot = currX * 0.08;
+      cardEl.style.transform = `translate(${currX}px, ${currY}px) rotate(${rot}deg)`;
+
+      /* tint overlay */
+      if (currX < -30) {
+        cardEl.style.boxShadow = `0 0 40px rgba(245,200,66,.5),0 8px 32px rgba(0,0,0,.6),inset 0 0 0 2px rgba(245,200,66,.5)`;
+      } else if (currX > 30) {
+        cardEl.style.boxShadow = `0 0 40px rgba(232,64,96,.5),0 8px 32px rgba(0,0,0,.6),inset 0 0 0 2px rgba(232,64,96,.5)`;
+      } else {
+        cardEl.style.boxShadow = `0 0 40px rgba(75,45,143,.3),0 8px 32px rgba(0,0,0,.6)`;
+      }
+    }
+
+    function onEnd() {
+      if (!isDragging) return;
+      isDragging = false;
+      cardEl.style.cursor = 'grab';
+
+      const THRESHOLD = 80;
+      if (currX < -THRESHOLD) {
+        flyCard(cardEl, 'good', card);
+      } else if (currX > THRESHOLD) {
+        flyCard(cardEl, 'bad', card);
+      } else {
+        /* snap back */
+        cardEl.style.transition = 'transform .3s cubic-bezier(.22,1,.36,1), box-shadow .2s';
+        cardEl.style.transform  = 'translate(0,0) rotate(0deg)';
+        cardEl.style.boxShadow  = `0 0 40px rgba(75,45,143,.3),0 8px 32px rgba(0,0,0,.6)`;
+        cardEl.style.zIndex     = '30';
+      }
+    }
+
+    /* mouse */
+    const _mm = e => { if (isDragging) onMove(e.clientX, e.clientY); };
+    const _mu = () => { if (isDragging) onEnd(); };
+    cardEl.addEventListener('mousedown', e => { onStart(e.clientX, e.clientY); e.preventDefault(); });
+    window.addEventListener('mousemove', _mm);
+    window.addEventListener('mouseup', _mu);
+    /* store on G so exit can remove them */
+    G._mouseMove = _mm;
+    G._mouseUp   = _mu;
+
+    /* touch */
+    cardEl.addEventListener('touchstart', e => {
+      const t = e.touches[0];
+      onStart(t.clientX, t.clientY);
+      e.preventDefault();
+    }, { passive: false });
+    cardEl.addEventListener('touchmove', e => {
+      const t = e.touches[0];
+      onMove(t.clientX, t.clientY);
+      e.preventDefault();
+    }, { passive: false });
+    cardEl.addEventListener('touchend', () => { onEnd(); });
+  }
+
+  /* ── bin tap ─────────────────────────────────────────────────── */
+  function attachBinListeners() {
+    const binGood = document.getElementById('ddt_bin_good');
+    const binBad  = document.getElementById('ddt_bin_bad');
+    if (binGood) binGood.addEventListener('click', () => {
+      if (!G || !G.active || G.done) return;
+      const cardEl = document.getElementById('ddt_active_card');
+      if (cardEl) flyCard(cardEl, 'good', G.deck[G.deckIdx]);
+    });
+    if (binBad) binBad.addEventListener('click', () => {
+      if (!G || !G.active || G.done) return;
+      const cardEl = document.getElementById('ddt_active_card');
+      if (cardEl) flyCard(cardEl, 'bad', G.deck[G.deckIdx]);
+    });
+  }
+
+  /* ── keyboard ─────────────────────────────────────────────────── */
+  function attachKeyboard() {
+    function handler(e) {
+      if (!G || !G.active || G.done) return;
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        const cardEl = document.getElementById('ddt_active_card');
+        if (cardEl) flyCard(cardEl, 'good', G.deck[G.deckIdx]);
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        const cardEl = document.getElementById('ddt_active_card');
+        if (cardEl) flyCard(cardEl, 'bad', G.deck[G.deckIdx]);
+      }
+    }
+    document.addEventListener('keydown', handler);
+    /* store ref for cleanup */
+    G._kbHandler = handler;
+  }
+
+  /* ── fly animation → resolve ─────────────────────────────────── */
+  function flyCard(cardEl, direction, card) {
+    if (!G || !G.active) return;
+    G.active = false;
+    if (G.cardTimeout) { clearTimeout(G.cardTimeout); G.cardTimeout = null; }
+
+    /* stop timeout bar */
+    const bar = document.getElementById('ddt_timeout_bar');
+    if (bar) { bar.style.transition = 'none'; bar.style.width = bar.style.width; }
+
+    const anim = direction === 'good' ? 'ddt_card_fly_good' : 'ddt_card_fly_bad';
+    cardEl.style.animation = `${anim} .4s cubic-bezier(.55,.06,.68,.19) forwards`;
+
+    setTimeout(() => {
+      registerSort(direction, cardEl);
+    }, 380);
+  }
+
+  /* ── sort logic ──────────────────────────────────────────────── */
+  function registerSort(direction, cardEl) {
+    if (!G) return;
+    /* remove per-card drag listeners before they accumulate */
+    if (G._mouseMove) { window.removeEventListener('mousemove', G._mouseMove); G._mouseMove = null; }
+    if (G._mouseUp)   { window.removeEventListener('mouseup',   G._mouseUp);   G._mouseUp   = null; }
+    if (cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl);
+
+    const card = G.deck[G.deckIdx];
+    const elapsed = Date.now() - G.cardStartMs;
+
+    if (direction === null) {
+      /* timed out — count as wrong */
+      onWrong(card, 'timeout');
+    } else if (direction === card.cat) {
+      onCorrect(card, elapsed);
+    } else {
+      onWrong(card, 'wrong');
+    }
+
+    G.deckIdx++;
+    updateHUD();
+
+    /* pause briefly then show next */
+    setTimeout(() => {
+      if (!G || G.done) return;
+      showNextCard();
+    }, 600);
+  }
+
+  function onCorrect(card, elapsed) {
+    G.combo++;
+    if (G.combo > G.bestCombo) G.bestCombo = G.combo;
+
+    let pts = 10;
+
+    /* speed bonus */
+    let speedBonus = 0;
+    if (elapsed < SPEED_BONUS_MS) {
+      speedBonus = 5;
+      pts += speedBonus;
+    }
+
+    /* combo bonus */
+    let comboBonus = 0;
+    if (G.combo >= COMBO_THRESHOLD) {
+      comboBonus = Math.min(G.combo - COMBO_THRESHOLD + 1, 5) * 3;
+      pts += comboBonus;
+    }
+
+    G.score += pts;
+    if (card.cat === 'good') G.goodCount++; else G.badCount++;
+
+    updateScoreDisplay();
+    updateCombo();
+    flashScreen(GOLD, 0.18);
+    pulseGoodBin();
+
+    if (speedBonus > 0 || comboBonus > 0) {
+      showFloatingBonus(`+${pts}`, comboBonus > 0 ? TEAL : GOLD);
+    } else {
+      showFloatingBonus(`+${pts}`, GOLD);
+    }
+  }
+
+  function onWrong(card, reason) {
+    G.combo = 0;
+    G.score = Math.max(0, G.score - 5);
+    G.errors++;
+
+    updateScoreDisplay();
+    updateCombo();
+    updatePips();
+    flashScreen(CRIMSON, 0.25);
+    shakeStage();
+
+    if (reason === 'timeout') showFloatingBonus('⏰ MISS!', CRIMSON);
+    else showFloatingBonus('💪 NICE TRY −5', CRIMSON);
+
+    if (G.errors >= ERROR_MAX) {
+      setTimeout(() => triggerEnd(false), 300);
+    }
+  }
+
+  /* ── combo display ───────────────────────────────────────────── */
+  function updateCombo() {
+    const wrap = document.getElementById('ddt_combo_wrap');
+    const val  = document.getElementById('ddt_combo_val');
+    if (!wrap || !val) return;
+    if (G.combo >= COMBO_THRESHOLD) {
+      wrap.style.display = 'flex';
+      val.textContent = `×${G.combo}`;
+      val.style.color = G.combo >= 6 ? GOLD : TEAL;
+    } else {
+      wrap.style.display = 'none';
+    }
+  }
+
+  /* ── HUD update ──────────────────────────────────────────────── */
+  function updateHUD() {
+    const done = document.getElementById('ddt_cards_done');
+    const prog = document.getElementById('ddt_progress_bar');
+    const gc   = document.getElementById('ddt_good_count');
+    const bc   = document.getElementById('ddt_bad_count');
+    if (done) done.textContent = G.deckIdx;
+    if (prog) prog.style.width = `${(G.deckIdx / TOTAL_CARDS) * 100}%`;
+    if (gc)   gc.textContent = G.goodCount;
+    if (bc)   bc.textContent = G.badCount;
+  }
+
+  function updateScoreDisplay() {
+    const el = document.getElementById('ddt_score_val');
+    if (el) el.textContent = G.score;
+  }
+
+  /* ── flash / shake / pulse ───────────────────────────────────── */
+  function flashScreen(color, alpha) {
+    const el = document.getElementById('ddt_flash');
+    if (!el) return;
+    el.style.background = color;
+    el.style.opacity = alpha;
+    setTimeout(() => { el.style.opacity = 0; }, 180);
+  }
+
+  function shakeStage() {
+    const stage = document.getElementById('ddt_stage');
+    if (!stage) return;
+    stage.style.animation = 'ddt_shake .35s ease';
+    setTimeout(() => { stage.style.animation = ''; }, 380);
+  }
+
+  function pulseGoodBin() {
+    const bin = document.getElementById('ddt_bin_good');
+    if (!bin) return;
+    bin.style.animation = 'ddt_pulse_good .4s ease-out';
+    setTimeout(() => { bin.style.animation = ''; }, 420);
+  }
+
+  function showFloatingBonus(text, color) {
+    const stage = document.getElementById('ddt_stage');
+    if (!stage) return;
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+      font-family:Orbitron,sans-serif;font-size:1.2rem;font-weight:700;
+      color:${color};text-shadow:0 0 12px ${color}88;
+      pointer-events:none;z-index:80;white-space:nowrap;
+      animation:ddt_bonus_float .8s ease-out forwards;
+    `;
+    el.textContent = text;
+    stage.appendChild(el);
+    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 850);
+  }
+
+  /* ── level up transition ─────────────────────────────────────── */
+  function showLevelUp() {
+    G.active = false;
+    G.level  = 2;
+
+    const badge = document.getElementById('ddt_level_badge');
+    if (badge) {
+      badge.textContent = 'LEVEL 2 · MASTER';
+      badge.style.borderColor = `rgba(245,200,66,.5)`;
+      badge.style.color = GOLD;
+    }
+
+    const stage = document.getElementById('ddt_stage');
+    if (!stage) { showNextCard(); return; }
+
+    const banner = document.createElement('div');
+    banner.style.cssText = `
+      position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      z-index:60;background:rgba(10,6,15,.85);animation:ddt_card_in .3s ease both;
+    `;
+    banner.innerHTML = `
+      <div style="font-size:2rem;margin-bottom:10px">🔓</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:1.1rem;letter-spacing:.12em;color:${GOLD};text-shadow:0 0 16px ${GOLD}88;margin-bottom:8px">LEVEL 2 UNLOCKED</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.15em;color:${VIOLET};margin-bottom:14px">MASTER MODE</div>
+      <div style="font-size:.72rem;color:rgba(255,255,255,.6);text-align:center;max-width:260px;line-height:1.6;margin-bottom:20px">
+        Now context matters — the same debt type can be Good or Bad depending on interest rate, income, and purpose.
+      </div>
+      <button id="ddt_continue_btn" style="
+        font-family:Orbitron,sans-serif;font-size:.65rem;letter-spacing:.15em;
+        background:linear-gradient(135deg,${ACCENT},${VIOLET});
+        border:none;color:#fff;border-radius:14px;padding:12px 28px;cursor:pointer;
+        box-shadow:0 0 20px rgba(75,45,143,.5);
+      ">CONTINUE →</button>
+    `;
+
+    const root = document.getElementById('ddt_root');
+    if (root) root.appendChild(banner);
+
+    document.getElementById('ddt_continue_btn')?.addEventListener('click', () => {
+      banner.remove();
+      showNextCard();
+    });
+  }
+
+  /* ── end game ────────────────────────────────────────────────── */
+  function triggerEnd(won) {
+    if (!G || G.done) return;
+    G.done   = true;
+    G.active = false;
+    if (G.timerInterval) clearInterval(G.timerInterval);
+    if (G.cardTimeout)   clearTimeout(G.cardTimeout);
+    if (G._kbHandler)    document.removeEventListener('keydown', G._kbHandler);
+
+    /* remove active card */
+    const old = document.getElementById('ddt_active_card');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+
+    /* compute stars */
+    let stars;
+    if (!won) {
+      stars = G.score >= STAR2_SCORE ? 1 : G.score > 0 ? 1 : 0;
+    } else if (G.score >= STAR3_SCORE && G.errors === 0) {
+      stars = 3;
+    } else if (G.score >= STAR2_SCORE) {
+      stars = 2;
+    } else {
+      stars = 1;
+    }
+
+    endGame(stars, won);
+  }
+
+  function endGame(stars, won) {
+    const is3star = stars === 3;
+    const coins = stars >= 1 && window.cvAwardGame
+      ? cvAwardGame('game_ddt_discovery', { level: G.level, stars, is3star, isPerfect: is3star, badge: 'Debt Detective' })
+      : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
+    if (stars >= 1 && window.cvHubMeter) cvHubMeter('ddt_recovery', stars * 4);
+    if (stars < 1 && window.cvSave) cvSave();
+
+    const root = document.getElementById('ddt_root');
+    if (!root) return;
+
+    const starStr = stars >= 1 ? ['⭐','⭐⭐','⭐⭐⭐'][stars - 1] : '💀';
+    const accuracy = G.deckIdx > 0 ? Math.round(((G.deckIdx - G.errors) / Math.max(G.deckIdx,1)) * 100) : 0;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'ddt_end_overlay';
+    overlay.style.cssText = `
+      position:absolute;inset:0;z-index:100;
+      background:rgba(10,6,15,.92);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:20px;
+      animation:ddt_card_in .4s ease both;
+    `;
+
+    overlay.innerHTML = `
+      <div style="
+        width:min(360px,90vw);
+        background:linear-gradient(145deg,rgba(30,18,55,.98),rgba(15,8,28,.99));
+        border:2px solid rgba(123,82,239,.4);
+        border-radius:24px;
+        padding:26px 22px;
+        text-align:center;
+        box-shadow:0 0 60px rgba(75,45,143,.25),0 20px 60px rgba(0,0,0,.8);
+        position:relative;overflow:hidden;
+      ">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${VIOLET},transparent)"></div>
+
+        <div style="font-family:Orbitron,sans-serif;font-size:.5rem;letter-spacing:.22em;color:${VIOLET}88;margin-bottom:6px">
+          ${won ? 'DISTRICT CLEARED' : 'SESSION ENDED'}
+        </div>
+
+        <div style="font-size:2.6rem;margin:4px 0 8px">${starStr}</div>
+
+        <div style="font-family:Orbitron,sans-serif;font-size:1.15rem;letter-spacing:.1em;
+          color:${won ? GOLD : CRIMSON};
+          text-shadow:0 0 14px ${won ? GOLD : CRIMSON}88;margin-bottom:18px">
+          ${won ? (stars === 3 ? 'DEBT MASTER!' : stars === 2 ? 'WELL SORTED!' : 'CLEARED!') : 'BETTER LUCK!'}
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+          ${statBox('SCORE', G.score, GOLD)}
+          ${statBox('ACCURACY', accuracy + '%', TEAL)}
+          ${statBox('ERRORS', G.errors + '/' + ERROR_MAX, CRIMSON)}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+          ${statBox('GOOD DEBT', G.goodCount, GOLD)}
+          ${statBox('BAD DEBT',  G.badCount,  CRIMSON)}
+        </div>
+
+        ${coins > 0 ? `
+        <div style="
+          background:linear-gradient(135deg,rgba(245,200,66,.12),rgba(245,200,66,.04));
+          border:1px solid rgba(245,200,66,.3);
+          border-radius:12px;padding:10px;margin-bottom:14px;
+        ">
+          <div style="font-family:Orbitron,sans-serif;font-size:.48rem;color:${GOLD}88;letter-spacing:.15em">COINS EARNED</div>
+          <div style="font-family:Orbitron,sans-serif;font-size:1.4rem;color:${GOLD};text-shadow:0 0 12px ${GOLD}88">+${coins} 🪙</div>
+        </div>
+        ` : ''}
+
+        <div style="
+          background:rgba(75,45,143,.15);border:1px solid rgba(123,82,239,.25);
+          border-radius:12px;padding:12px;margin-bottom:18px;
+          font-size:.68rem;line-height:1.65;color:#b8a8d8;text-align:left;
+        ">
+          <div style="font-family:Orbitron,sans-serif;font-size:.48rem;letter-spacing:.1em;color:${VIOLET};margin-bottom:5px">💡 LESSON</div>
+          Not all debt is harmful. <strong style="color:${GOLD}">Good debt</strong> — like a mortgage or student loan — builds assets and future income. <strong style="color:${CRIMSON}">Bad debt</strong> — like payday loans or luxury credit — costs more than it gives back. Always ask: does this debt help me grow or hold me back?
+        </div>
+
+        <div style="display:flex;gap:10px">
+          <button onclick="window.ddt_playAgain()" style="
+            flex:1;padding:11px 8px;border-radius:12px;cursor:pointer;
+            border:2px solid rgba(123,82,239,.5);
+            background:rgba(75,45,143,.2);
+            color:${VIOLET};font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.1em;
+            transition:all .15s;
+          "
+          onmouseover="this.style.background='rgba(75,45,143,.4)'"
+          onmouseout="this.style.background='rgba(75,45,143,.2)'">
+            ↻ PLAY AGAIN
+          </button>
+          <button onclick="window.ddt_discoveryExit()" style="
+            flex:1;padding:11px 8px;border-radius:12px;cursor:pointer;
+            border:2px solid rgba(245,200,66,.4);
+            background:rgba(245,200,66,.1);
+            color:${GOLD};font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.1em;
+            transition:all .15s;
+          "
+          onmouseover="this.style.background='rgba(245,200,66,.2)'"
+          onmouseout="this.style.background='rgba(245,200,66,.1)'">
+            ← HUB
+          </button>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${ACCENT},transparent)"></div>
+      </div>
+    `;
+
+    root.appendChild(overlay);
+  }
+
+  function statBox(label, val, color) {
+    return `
+      <div style="
+        background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+        border-radius:10px;padding:8px 4px;
+      ">
+        <div style="font-family:Orbitron,sans-serif;font-size:.42rem;color:#666;letter-spacing:.08em;margin-bottom:3px">${label}</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:.85rem;color:${color};font-variant-numeric:tabular-nums">${val}</div>
+      </div>
+    `;
+  }
+
+  /* ── play again ──────────────────────────────────────────────── */
+  window.ddt_playAgain = function () {
+    /* clear any running timers from the previous round before re-init */
+    if (G) {
+      if (G.timerInterval) clearInterval(G.timerInterval);
+      if (G.cardTimeout)   clearTimeout(G.cardTimeout);
+      if (G._kbHandler)    document.removeEventListener('keydown', G._kbHandler);
+      if (G._mouseMove)    window.removeEventListener('mousemove', G._mouseMove);
+      if (G._mouseUp)      window.removeEventListener('mouseup', G._mouseUp);
+    }
+    G = null;
+
+    const overlay = document.getElementById('ddt_end_overlay');
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+
+    /* reset level badge */
+    const badge = document.getElementById('ddt_level_badge');
+    if (badge) {
+      badge.textContent = 'LEVEL 1 · LEARN';
+      badge.style.borderColor = 'rgba(123,82,239,.5)';
+      badge.style.color = VIOLET;
+    }
+
+    /* reset progress */
+    const prog = document.getElementById('ddt_progress_bar');
+    if (prog) prog.style.width = '0%';
+
+    /* reset combo */
+    const wrap = document.getElementById('ddt_combo_wrap');
+    if (wrap) wrap.style.display = 'none';
+
+    /* reset bin counts display */
+    const gc = document.getElementById('ddt_good_count');
+    const bc = document.getElementById('ddt_bad_count');
+    if (gc) gc.textContent = '0';
+    if (bc) bc.textContent = '0';
+
+    /* reset timer display */
+    const tv = document.getElementById('ddt_timer_val');
+    if (tv) { tv.textContent = '1:00'; tv.style.color = '#fff'; tv.style.textShadow = 'none'; }
+
+    /* reset score display */
+    const sv = document.getElementById('ddt_score_val');
+    if (sv) sv.textContent = '0';
+
+    /* rebuild pips */
+    buildPips();
+
+    /* rebuild game state — skip bin listeners (DOM nodes persist, listeners already attached) */
+    initGameReplay();
+  };
+
+  /* initGameReplay: same as initGame but skips attachBinListeners to avoid duplicate handlers */
+  function initGameReplay() {
+    const root = document.getElementById('ddt_root');
+    if (!root) return;
+
+    const deck = shuffle([...LEVEL1]).concat(shuffle([...LEVEL2]));
+
+    G = {
+      deck,
+      deckIdx:       0,
+      score:         0,
+      errors:        0,
+      combo:         0,
+      bestCombo:     0,
+      goodCount:     0,
+      badCount:      0,
+      level:         1,
+      timeLeft:      60,
+      cardStartMs:   0,
+      active:        false,
+      done:          false,
+      timerInterval: null,
+      cardTimeout:   null,
+      dragging:      false,
+      dragCard:      null,
+      dragStartX:    0,
+      dragStartY:    0,
+      dragOffX:      0,
+      dragOffY:      0,
+      cardX:         0,
+      cardY:         0,
+    };
+
+    buildPips();
+    attachKeyboard();
+    startTimer();
+    showNextCard();
+  }
+
+  /* ── exit ────────────────────────────────────────────────────── */
+  window.ddt_discoveryExit = function () {
+    if (G) {
+      if (G.timerInterval) clearInterval(G.timerInterval);
+      if (G.cardTimeout)   clearTimeout(G.cardTimeout);
+      if (G._kbHandler)    document.removeEventListener('keydown', G._kbHandler);
+      if (G._mouseMove)    window.removeEventListener('mousemove', G._mouseMove);
+      if (G._mouseUp)      window.removeEventListener('mouseup', G._mouseUp);
+    }
+    G = null;
+    if (window.state) state.viewingWorld = 'rebuilder';
+    goTo('hub');
+  };
+
+  /* ── utils ───────────────────────────────────────────────────── */
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+})();

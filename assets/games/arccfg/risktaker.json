@@ -1,0 +1,152 @@
+{
+  "risktaker_1": {
+    "mech": "tap",
+    "name": "NFT Nexus",
+    "title": "NFT NEXUS",
+    "icon": "🖼️",
+    "goal": 170,
+    "time": 60,
+    "gateEvery": 17,
+    "hint": "TAP real NFTs FAST · skip the fakes",
+    "winMsg": "TRUE OWNER!",
+    "lesson": [
+      ["🖼️", "An NFT is a digital token that proves you own a unique item."],
+      ["🔍", "Always check the official link before you buy."],
+      ["🚫", "A copied picture is not the real NFT."]
+    ],
+    "good": ["🖼️", "💎", "🎨"],
+    "bad": ["🎣", "🤡"],
+    "pts": 14,
+    "badRate": 0.3
+  },
+  "risktaker_2": {
+    "mech": "sort",
+    "name": "Volatility Vortex",
+    "title": "VOLATILITY VORTEX",
+    "icon": "🌪️",
+    "goal": 165,
+    "time": 62,
+    "gateEvery": 17,
+    "hint": "◀ SAFE or RISKY ▶ · sort each one",
+    "winMsg": "STEADY HEAD!",
+    "lesson": [
+      ["⚖️", "Risky money can grow fast but also crash fast."],
+      ["🧊", "Only risk what you can afford to lose."],
+      ["📈", "Spreading your money lowers your risk."]
+    ],
+    "left": ["SAFE", "#34d399"],
+    "right": ["RISKY", "#ef4444"],
+    "items": [
+      ["🏦", "Savings account", 0],
+      ["📚", "Doing research", 0],
+      ["🐢", "Slow steady plan", 0],
+      ["🛡️", "Verified exchange", 0],
+      ["🎰", "Bet it all", 1],
+      ["🚀", "Hot meme coin", 1],
+      ["🤑", "Borrow to invest", 1],
+      ["⏰", "Buy now or miss out!", 1]
+    ],
+    "pts": 16
+  },
+  "risktaker_3": {
+    "mech": "lane",
+    "name": "Blockchain Blvd",
+    "title": "BLOCKCHAIN BLVD",
+    "icon": "⛓️",
+    "goal": 175,
+    "time": 64,
+    "gateEvery": 18,
+    "hint": "MOVE to catch good blocks · dodge bad data",
+    "winMsg": "CHAIN VERIFIED!",
+    "lesson": [
+      ["⛓️", "A blockchain links records in a chain that is hard to change."],
+      ["✅", "Every block is checked by many computers."],
+      ["🛑", "Bad or fake data gets rejected by the network."]
+    ],
+    "good": ["🧱"],
+    "bad": ["🐞"],
+    "player": "⛓️",
+    "pts": 14,
+    "badRate": 0.45
+  },
+  "risktaker_4": {
+    "mech": "match",
+    "name": "Coinaverse Market",
+    "title": "COINAVERSE MARKET",
+    "icon": "🛒",
+    "goal": 180,
+    "time": 66,
+    "gateEvery": 18,
+    "hint": "FLIP cards · match the digital goods",
+    "winMsg": "MARKET MASTER!",
+    "lesson": [
+      ["🪙", "Digital coins live online, not in your pocket."],
+      ["🔐", "Keep your wallet keys secret and safe."],
+      ["💡", "Know what you buy before you spend."]
+    ],
+    "pairs": ["⛓️", "🪙", "🔐", "🖼️", "💎", "🤖"],
+    "pts": 26
+  },
+  "risktaker_5": {
+    "mech": "aim",
+    "name": "AI Innovation Labs",
+    "title": "AI INNOVATION LABS",
+    "icon": "🤖",
+    "goal": 170,
+    "time": 60,
+    "gateEvery": 17,
+    "hint": "AIM at smart tech · avoid the hype traps",
+    "winMsg": "FUTURE BUILDER!",
+    "lesson": [
+      ["🤖", "AI is a tool that learns from lots of data."],
+      ["🧠", "Smart tech helps, but you still think for yourself."],
+      ["🎭", "Watch out for fake 'AI gets-rich' tricks."]
+    ],
+    "good": ["🤖"],
+    "bad": ["🎭"],
+    "pts": 15
+  },
+  "risktaker_6": {
+    "mech": "quiz",
+    "name": "Future Trends Cmd",
+    "title": "FUTURE TRENDS CMD",
+    "icon": "🔮",
+    "goal": 160,
+    "time": 60,
+    "gateEvery": 16,
+    "hint": "READ · pick the smartest safe answer",
+    "winMsg": "FORWARD THINKER!",
+    "lesson": [
+      ["🔮", "Thinking ahead helps you spot good and bad ideas early."],
+      ["🛡️", "New tech is exciting, but stay safe and verify."],
+      ["📚", "Learning a little each day beats chasing hype."]
+    ],
+    "qs": [
+      {
+        "q": "A new app promises to double your money in a day. You should?",
+        "a": ["Send money fast", "Walk away, it's a scam", "Tell all your friends"],
+        "c": 1
+      },
+      {
+        "q": "What is the safest first step before trying new tech?",
+        "a": ["Research and ask an adult", "Click any link", "Share your password"],
+        "c": 0
+      },
+      {
+        "q": "A trend is when something becomes popular. Smart investors?",
+        "a": ["Copy blindly", "Learn first, then decide", "Panic and buy"],
+        "c": 1
+      },
+      {
+        "q": "Someone online asks for your wallet keys to 'help'. You?",
+        "a": ["Share them", "Never share keys", "Send a little first"],
+        "c": 1
+      },
+      {
+        "q": "Why spread your money across different things?",
+        "a": ["It looks cool", "To lower your risk", "To spend faster"],
+        "c": 1
+      }
+    ]
+  }
+}

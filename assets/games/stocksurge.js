@@ -1,405 +1,1135 @@
 /* ════════════════════════════════════════════════════════════════
-   STOCK SURGE — real-time trading on a LIVE canvas line chart (Investopia)
-   Watch the price tick on a glowing chart, BUY low, SELL high, ride
-   the NEWS surges, and grow your net worth above the target in ~75s.
-   BUY (B) · SELL (S) · HOLD (H). Teaches buy-low/sell-high, volatility, news.
-   Loads after the main script; overrides the stub window.SCREENS.game_stocksurge.
+   STOCK SURGE v2 — Multi-stock HTML card trading game
+   13 Coincept stocks · BUY/SELL/HOLD · Surge Moment · News · Moods
+   7 levels · Financial literacy gates · Mobile-first touch UI
    ════════════════════════════════════════════════════════════════ */
-(function(){
-  const TOKEN='investor', START_CASH=1000, TARGET=1500, ROUND=75;
-  const MAXPTS=70;                         // points held on the scrolling chart
-  const GATE_EVERY=18;                     // knowledge gate every ~18s
-  let S=null, raf=null;
+(function () {
+  'use strict';
 
-  window.ssInit=function(){ S=null; };     // playDistrictGame calls this before goTo
+  /* ── constants ───────────────────────────────────────────────── */
+  const START_CASH   = 1000;
+  const TICK_MS      = 2000;   // price tick every 2 seconds
+  const GATE_EVERY   = 20000;  // knowledge gate every ~20s
+  const SURGE_CHANCE = 0.15;   // 15% chance per round of a Surge Moment
 
-  // LEARN WHILE PLAYING — investing lessons, one per Knowledge Gate
-  const FACTS=[
-    ['📈','Buy value and let it grow — patience pays.'],
-    ['🌱','Compounding: small amounts invested early grow big.'],
-    ['⚖️','Higher reward usually means higher risk.'],
-    ['🧺','Diversify — don\'t put all your money in one stock.'],
-    ['📰','News moves prices; don\'t panic-sell on a dip.'],
-    ['💸','Buy low, sell high — emotions are the enemy.'],
-    ['⏳','Time in the market beats timing the market.'],
+  /* ── stock catalogue ─────────────────────────────────────────── */
+  const STOCKS = [
+    { ticker:'CEG',  name:'Coincept Education Group',    sector:'Education',     risk:'Steady',  base:10 },
+    { ticker:'CGS',  name:'Coincept Gaming Studios',     sector:'Gaming',        risk:'Bouncy',  base:10 },
+    { ticker:'CTL',  name:'Coincept Technology Labs',    sector:'Technology',    risk:'Wild',    base:10 },
+    { ticker:'CEC',  name:'Coincept Entertainment Co',   sector:'Entertainment', risk:'Bouncy',  base:10 },
+    { ticker:'CAC',  name:'Coincept Apparel Collective', sector:'Apparel',       risk:'Steady',  base:10 },
+    { ticker:'CCC',  name:'Coincept Cosmetics & Care',   sector:'Cosmetics',     risk:'Bouncy',  base:10 },
+    { ticker:'CVW',  name:'Coincept VR Worlds',          sector:'VR',            risk:'Wild',    base:10 },
+    { ticker:'CAI',  name:'Coincept AI Systems',         sector:'AI',            risk:'Wild',    base:10 },
+    { ticker:'CFT',  name:'Coincept Financial Tools',    sector:'FinTech',       risk:'Steady',  base:10 },
+    { ticker:'CCCX', name:'Coincept Crypto Concepts',    sector:'Crypto',        risk:'Wild',    base:10 },
+    { ticker:'CGP',  name:'Coincept Global Partners',    sector:'Partnerships',  risk:'Steady',  base:10 },
+    { ticker:'CIV',  name:'Coincept Innovation Ventures',sector:'Innovation',    risk:'Wild',    base:10 },
+    { ticker:'CHL',  name:'Coincept Home & Living',      sector:'Housing',       risk:'Bouncy',  base:10, unlockLevel:5 },
   ];
 
-  // news event templates → bias the next several ticks
-  const NEWS=[
-    {type:'pos', e:'📈', t:'EARNINGS BEAT',       sub:'Profits up — bulls charging', drift:0.55, vol:0.9, ticks:8,  c:'#34d399'},
-    {type:'pos', e:'📈', t:'BIG PARTNERSHIP',     sub:'New deal signed — price climbing', drift:0.48, vol:0.8, ticks:7, c:'#34d399'},
-    {type:'pos', e:'🚀', t:'PRODUCT LAUNCH',      sub:'Fans love it — demand soaring', drift:0.6, vol:1.0, ticks:8,  c:'#34d399'},
-    {type:'neg', e:'📉', t:'WEAK SALES',          sub:'Revenue missed — bears growling', drift:-0.5, vol:0.9, ticks:8, c:'#f87171'},
-    {type:'neg', e:'📉', t:'LAWSUIT FILED',       sub:'Trouble ahead — price sliding', drift:-0.55, vol:1.0, ticks:7, c:'#f87171'},
-    {type:'neg', e:'⚠️', t:'CEO STEPS DOWN',      sub:'Uncertainty — selloff begins', drift:-0.45, vol:1.1, ticks:8,  c:'#f87171'},
-    {type:'vol', e:'⚡', t:'WILD SWINGS',         sub:'Markets erratic — buckle up!', drift:0.0, vol:2.6, ticks:9,   c:'#fbbf24'},
-    {type:'vol', e:'⚡', t:'RUMOR MILL',          sub:'Nobody knows — chaos reigns', drift:0.05, vol:2.4, ticks:8,   c:'#fbbf24'},
-  ];
-
-  function reset(){
-    const p0=100;
-    S={ phase:'play', time:ROUND, last:0, started:performance.now(),
-        cash:START_CASH, shares:0, price:p0, prevPrice:p0,
-        startNW:START_CASH, peakNW:START_CASH, costBasis:0,
-        prices:[], drift:0.0, vol:1.0, newsTicks:0, news:null,
-        tickT:0, newsT:8, banner:null,        // banner = {n, life} animation timer
-        gateT:GATE_EVERY, gateIdx:0,          // knowledge-gate countdown + lesson cursor
-        parts:[], floats:[], flash:0, flashC:'#34d399', shake:0,
-        trades:0, lastAction:'—', actionFlash:0 };
-    for(let i=0;i<MAXPTS;i++) S.prices.push(p0);
-  }
-
-  const netWorth=()=> S.cash + S.shares*S.price;
-  const fmt=(n)=> '$'+Math.round(n).toLocaleString();
-
-  window.SCREENS.game_stocksurge=function(){
-    if(!S) reset();
-    setTimeout(ssBoot,30);
-    return `<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,#071f0d,#031409 62%,#020a05);overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
-      <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(180deg,rgba(3,20,9,.9),transparent)">
-        <button onclick="ssExit()" style="padding:7px 14px;border:1px solid rgba(16,185,129,.45);border-radius:9px;background:rgba(16,185,129,.12);color:#6ee7b7;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← INVESTOPIA</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.2em;color:#34d399;flex:1;text-align:center">📊 STOCK SURGE</div>
-        <div id="ssTime" style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fbbf24;min-width:46px;text-align:right">${ROUND}s</div>
-      </div>
-
-      <!-- Big Net Worth + P/L -->
-      <div style="position:absolute;top:50px;left:0;right:0;z-index:5;text-align:center;pointer-events:none">
-        <div style="font-family:'Orbitron',sans-serif;font-size:.46rem;letter-spacing:.22em;color:rgba(110,231,183,.7)">NET WORTH · TARGET ${fmt(TARGET)}</div>
-        <div id="ssNW" style="font-family:'Anton',sans-serif;font-size:2.5rem;line-height:1.05;color:#fff;text-shadow:0 0 26px rgba(16,185,129,.5)">${fmt(START_CASH)}</div>
-        <div id="ssPL" style="font-family:'Orbitron',sans-serif;font-size:.74rem;letter-spacing:.06em;color:#9ca3af">+0.0%</div>
-      </div>
-
-      <!-- mini HUD row -->
-      <div style="position:absolute;top:150px;left:0;right:0;z-index:5;display:flex;gap:8px;padding:0 18px;justify-content:center">
-        ${hud('CASH','ssCash','#6ee7b7',fmt(START_CASH))}${hud('SHARES','ssShares','#fbbf24','0')}${hud('PRICE','ssPrice','#fff','$100')}
-      </div>
-
-      <!-- chart canvas (fills middle) -->
-      <canvas id="ssCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:manipulation"></canvas>
-
-      <!-- NEWS banner -->
-      <div id="ssBanner" style="position:absolute;left:50%;top:218px;transform:translate(-50%,-12px);z-index:6;display:none;pointer-events:none"></div>
-
-      <!-- instructions -->
-      <div id="ssHint" style="position:absolute;left:0;right:0;bottom:118px;text-align:center;z-index:4;font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.13em;color:rgba(255,255,255,.5);pointer-events:none">BUY LOW · SELL HIGH · RIDE THE 📈 SURGES — beat ${fmt(TARGET)} before time runs out</div>
-
-      <!-- action buttons -->
-      <div style="position:absolute;left:0;right:0;bottom:30px;z-index:7;display:flex;gap:12px;padding:0 20px;justify-content:center;max-width:560px;margin:0 auto">
-        ${btn('ssBuy','BUY','B','#10b981','#04150b','linear-gradient(135deg,#34d399,#059669)')}
-        ${btn('ssSell','SELL','S','#fbbf24','#1a1300','linear-gradient(135deg,#fcd34d,#d97706)')}
-        ${btn('ssHold','HOLD','H','#6ee7b7','#fff','rgba(16,185,129,.12)')}
-      </div>
-
-      <!-- KNOWLEDGE GATE overlay (pauses the market) -->
-      <div id="ssGate" style="position:absolute;inset:0;z-index:8;display:none;align-items:center;justify-content:center;background:rgba(2,10,5,.86);backdrop-filter:blur(5px);padding:22px"></div>
-
-      <div id="ssOver" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(2,10,5,.84);backdrop-filter:blur(4px)"></div>
-    </div>`;
+  // Risk volatility ranges (percent per tick)
+  const RISK_RANGE = {
+    Steady: { lo:1, hi:3,  surgeMult:1.2 },
+    Bouncy: { lo:3, hi:7,  surgeMult:1.5 },
+    Wild:   { lo:5, hi:20, surgeMult:2.0 },
   };
 
-  function hud(label,id,c,init){ return `<div style="flex:1;max-width:150px;text-align:center;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:10px;padding:6px"><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.45)">${label}</div><div id="${id}" style="font-family:'Anton',sans-serif;font-size:1.05rem;color:${c}">${init}</div></div>`; }
-  function btn(id,label,key,border,txt,bg){
-    const dark = txt!=='#fff';
-    return `<button id="${id}" onclick="ssAct('${label[0]}')" style="flex:1;max-width:170px;padding:15px 6px;border:1px solid ${border};border-radius:15px;background:${bg};color:${txt};font-family:'Orbitron',sans-serif;font-size:.92rem;font-weight:900;letter-spacing:.06em;cursor:pointer;box-shadow:0 6px 22px rgba(0,0,0,.4)${dark?',0 0 18px rgba(16,185,129,.25)':''};transition:transform .08s,box-shadow .15s">${label}<span style="display:block;font-size:.45rem;letter-spacing:.18em;opacity:.7;margin-top:3px;font-weight:700">KEY ${key}</span></button>`;
+  const PRICE_MIN = 2, PRICE_MAX = 50;
+
+  /* ── level definitions ───────────────────────────────────────── */
+  const LEVELS = [
+    // GDD Sec 10: Lv1 = CEG+CGS only ("Welcome to Exchange — what stocks are + buying & selling")
+    // Win: end round with more than starting cash (target = START_CASH + $100 profit)
+    { level:1, tickers:['CEG','CGS'],                                                      target:1100, time:75, hasSurge:false, hasPortView:false, hasLabels:false, hasNews:false, multiRound:1,
+      winCondition:'profit', winLabel:'End with +$100 profit' },
+    // GDD Sec 10: Lv2 = +CTL +CEC ("Timing Is Everything — buy low, sell high"); Surge introduced
+    // Win: make 1 profitable sell
+    { level:2, tickers:['CEG','CGS','CTL','CEC'],                                          target:2000, time:75, hasSurge:true,  hasPortView:false, hasLabels:false, hasNews:false, multiRound:1,
+      winCondition:'profitSell', winLabel:'Make 1 profitable sell' },
+    // GDD Sec 10: Lv3 = 5 stocks; Portfolio view unlocked; Win = own 3+ different stocks
+    { level:3, tickers:['CEG','CGS','CTL','CEC','CAC'],                                    target:2500, time:75, hasSurge:true,  hasPortView:true,  hasLabels:false, hasNews:false, multiRound:1,
+      diversify:3, winCondition:'diversify', winLabel:'Own 3+ different stocks' },
+    // GDD Sec 10: Lv4 = +CCC; Risk labels shown; Win = own 1 Steady + 1 Wild stock
+    { level:4, tickers:['CEG','CGS','CTL','CEC','CAC','CCC'],                              target:3000, time:75, hasSurge:true,  hasPortView:true,  hasLabels:true,  hasNews:false, multiRound:1,
+      winCondition:'steadyAndWild', winLabel:'Own 1 Steady + 1 Wild stock' },
+    // GDD Sec 10: Lv5 = full 13-stock access (incl CHL); News/mood introduced
+    // Win: respond correctly to 2 news events
+    { level:5, tickers:['CEG','CGS','CTL','CEC','CAC','CCC','CVW','CAI','CFT','CCCX','CGP','CIV','CHL'], target:4000, time:90, hasSurge:true, hasPortView:true, hasLabels:true, hasNews:true,  multiRound:1,
+      winCondition:'newsResponse', winLabel:'Respond correctly to 2 news events' },
+    // GDD Sec 10: Lv6 = multi-round (3 Pulses); Win: hold through a dip and finish positive
+    { level:6, tickers:['CEG','CGS','CTL','CEC','CAC','CCC','CVW','CAI','CFT','CCCX','CGP','CIV','CHL'], target:5000, time:75, hasSurge:true, hasPortView:true, hasLabels:true, hasNews:true,  multiRound:3 },
+    // GDD Sec 10: Lv7 = Trader League; Leaderboards, daily missions, streak bonuses
+    { level:7, tickers:['CEG','CGS','CTL','CEC','CAC','CCC','CVW','CAI','CFT','CCCX','CGP','CIV','CHL'], target:6000, time:90, hasSurge:true, hasPortView:true, hasLabels:true, hasNews:true,  multiRound:1, traderLeague:true },
+  ];
+
+  /* ── news events ─────────────────────────────────────────────── */
+  const NEWS_POS = [
+    { text:'New game release tops charts!',   ticker:'CGS'  },
+    { text:'School partnership expands!',     ticker:'CEG'  },
+    { text:'AI patent approved!',             ticker:'CAI'  },
+    { text:'VR headset sales record!',        ticker:'CVW'  },
+    { text:'Fashion collab goes viral!',      ticker:'CAC'  },
+    { text:'FinTech award winner!',           ticker:'CFT'  },
+    { text:'Crypto adoption surges!',         ticker:'CCCX' },
+    { text:'Innovation grant awarded!',       ticker:'CIV'  },
+    { text:'Entertainment deal signed!',      ticker:'CEC'  },
+    { text:'Housing boom continues!',         ticker:'CHL'  },
+  ];
+  const NEWS_NEG = [
+    { text:'Buggy update frustrates users',   ticker:'CGS'  },
+    { text:'Slow enrollment season',          ticker:'CEG'  },
+    { text:'AI regulation concern',           ticker:'CAI'  },
+    { text:'VR launch delayed',              ticker:'CVW'  },
+    { text:'Supply chain issues',             ticker:'CAC'  },
+    { text:'Data breach reported',            ticker:'CFT'  },
+    { text:'Crypto market dip',              ticker:'CCCX' },
+    { text:'Funding round fails',             ticker:'CIV'  },
+    { text:'Production costs soar',           ticker:'CEC'  },
+    { text:'Interest rates hurt housing',     ticker:'CHL'  },
+  ];
+  const NEWS_VOL = [
+    { text:'Mystery acquisition rumor!',      ticker:'CTL'  },
+    { text:'Influencer mentions brand',       ticker:'CCC'  },
+    { text:'Surprise earnings report',        ticker:'CGP'  },
+    { text:'Analyst upgrades/downgrades',     ticker:null   }, // any
+    { text:'Market-wide volatility spike',    ticker:'ALL'  }, // all
+    { text:'Insider trading investigation',   ticker:null   },
+    { text:'Product launch hype',             ticker:null   },
+    { text:'Competitor enters market',        ticker:null   },
+    { text:'Government contract rumor',       ticker:'CFT'  },
+    { text:'Viral social media moment',       ticker:'CCC'  },
+  ];
+
+  /* ── financial literacy facts ────────────────────────────────── */
+  const FACTS = [
+    { icon:'💡', title:'Buy Low, Sell High', body:'The core of investing: buy shares when prices are low, sell when they rise. Patience is key.' },
+    { icon:'🧺', title:'Diversification',    body:'Spread your money across different stocks. If one drops, others can cushion the loss.' },
+    { icon:'⚖️', title:'Risk vs Reward',     body:'Higher risk stocks can win big — or crash hard. Steady stocks grow slowly but safely.' },
+    { icon:'📰', title:'News Moves Prices',  body:'Good news lifts stocks; bad news drops them. Real investors read before they trade.' },
+    { icon:'⏳', title:'Patience Pays',      body:'Panic-selling locks in losses. Often the best move is HOLD and wait for recovery.' },
+    { icon:'📈', title:'Portfolio Value',    body:'Your portfolio = cash + (shares × price). Track both — not just the stock price.' },
+    { icon:'💸', title:'Realized vs Unrealized', body:'Profit is only REALIZED when you sell. Paper gains disappear if you hold too long.' },
+  ];
+
+  /* ── state ───────────────────────────────────────────────────── */
+  let S = null;
+  let _tickInterval   = null;
+  let _gateTimeout    = null;
+  let _surgeTimeout   = null;
+  let _countdownInt   = null;
+  let _newsTimeout    = null;
+  let _surgeCdInt     = null;
+
+  window.ssInit = function () { S = null; };
+
+  /* ══════════════════════════════════════════════════════════════
+     SCREEN — returns HTML string
+  ══════════════════════════════════════════════════════════════ */
+  window.SCREENS.game_stocksurge = function () {
+    if (!S) initGame(1);
+    setTimeout(ssMount, 30);
+    return buildShell();
+  };
+
+  /* ── build initial HTML shell ────────────────────────────────── */
+  function buildShell() {
+    return `
+<style>
+  #ss-root { position:absolute;inset:0;background:linear-gradient(160deg,#071a10 0%,#031409 55%,#020d07 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff;display:flex;flex-direction:column; }
+  .ss-topbar { display:flex;align-items:center;gap:8px;padding:10px 14px 8px;background:linear-gradient(180deg,rgba(3,20,9,.95) 0%,transparent 100%);flex-shrink:0;flex-wrap:wrap; }
+  .ss-back-btn { padding:6px 12px;border:1px solid rgba(16,185,129,.4);border-radius:8px;background:rgba(16,185,129,.1);color:#6ee7b7;font-size:.6rem;letter-spacing:.1em;cursor:pointer;font-family:'Orbitron',sans-serif;white-space:nowrap; }
+  .ss-title { font-family:'Orbitron',sans-serif;font-size:.65rem;letter-spacing:.2em;color:#34d399;flex:1;text-align:center; }
+  .ss-timer { font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fbbf24;min-width:42px;text-align:right; }
+  .ss-hud { display:flex;gap:6px;padding:0 12px 8px;flex-shrink:0; }
+  .ss-hud-box { flex:1;text-align:center;background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.18);border-radius:10px;padding:5px 4px; }
+  .ss-hud-label { font-size:.42rem;letter-spacing:.1em;color:rgba(255,255,255,.45);font-family:'Orbitron',sans-serif;text-transform:uppercase; }
+  .ss-hud-val { font-size:.95rem;font-weight:900;color:#fff;font-family:'Anton',sans-serif;line-height:1.2; }
+  .ss-stocks { flex:1;overflow-y:auto;padding:0 10px 8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;align-content:start; }
+  .ss-stocks::-webkit-scrollbar { width:3px; }
+  .ss-stocks::-webkit-scrollbar-thumb { background:rgba(16,185,129,.3);border-radius:3px; }
+  .ss-card { border-radius:13px;border:1.5px solid rgba(16,185,129,.2);background:rgba(7,31,13,.7);padding:10px;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .1s;-webkit-tap-highlight-color:transparent;position:relative;overflow:hidden; }
+  .ss-card.selected { border-color:#34d399;box-shadow:0 0 18px rgba(52,211,153,.45);transform:scale(1.03); }
+  .ss-card.surge-glow { animation:ssGlowPulse .6s ease-in-out infinite alternate; }
+  @keyframes ssGlowPulse { 0%{box-shadow:0 0 12px rgba(251,191,36,.4)} 100%{box-shadow:0 0 28px rgba(251,191,36,.9),0 0 50px rgba(251,191,36,.3)} }
+  .ss-card-top { display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px; }
+  .ss-ticker { font-family:'Orbitron',sans-serif;font-size:.7rem;font-weight:900;letter-spacing:.08em;color:#6ee7b7; }
+  .ss-risk-badge { font-size:.38rem;letter-spacing:.08em;padding:2px 5px;border-radius:5px;font-family:'Orbitron',sans-serif;font-weight:700;text-transform:uppercase;flex-shrink:0; }
+  .ss-risk-S { background:rgba(16,185,129,.2);color:#34d399; }
+  .ss-risk-B { background:rgba(251,191,36,.2);color:#fbbf24; }
+  .ss-risk-W { background:rgba(239,68,68,.2);color:#f87171; }
+  .ss-card-name { font-size:.52rem;color:rgba(255,255,255,.6);margin-bottom:5px;line-height:1.3; }
+  .ss-price-row { display:flex;align-items:center;justify-content:space-between; }
+  .ss-price { font-family:'Anton',sans-serif;font-size:1.15rem;line-height:1; }
+  .ss-up { color:#34d399; } .ss-down { color:#f87171; } .ss-flat { color:#9ca3af; }
+  .ss-arrow { font-size:.85rem; }
+  .ss-mood { font-size:.42rem;letter-spacing:.08em;font-family:'Orbitron',sans-serif;margin-top:3px; }
+  .ss-mood-calm { color:#9ca3af; } .ss-mood-hype { color:#34d399; } .ss-mood-panic { color:#f87171; }
+  .ss-shares-owned { font-size:.42rem;color:rgba(255,255,255,.45);margin-top:3px; }
+  .ss-actions { display:flex;gap:6px;padding:8px 10px;flex-shrink:0;background:rgba(3,20,9,.8);border-top:1px solid rgba(16,185,129,.12); }
+  .ss-qty-row { display:flex;align-items:center;gap:6px;padding:0 10px 6px;flex-shrink:0; }
+  .ss-qty-label { font-size:.5rem;letter-spacing:.1em;color:rgba(255,255,255,.5);font-family:'Orbitron',sans-serif; }
+  .ss-qty-btn { width:28px;height:28px;border-radius:7px;border:1px solid rgba(16,185,129,.3);background:rgba(16,185,129,.1);color:#6ee7b7;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;font-weight:700;flex-shrink:0; }
+  .ss-qty-val { font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fff;min-width:22px;text-align:center; }
+  .ss-cost-info { font-size:.45rem;color:rgba(255,255,255,.45);font-family:'Orbitron',sans-serif;flex:1;text-align:right; }
+  .ss-action-btn { flex:1;padding:12px 4px;border-radius:12px;border:none;font-family:'Orbitron',sans-serif;font-size:.62rem;font-weight:900;letter-spacing:.08em;cursor:pointer;transition:transform .08s;-webkit-tap-highlight-color:transparent; }
+  .ss-action-btn:active { transform:scale(.93); }
+  .ss-btn-buy  { background:linear-gradient(135deg,#34d399,#059669);color:#031409; }
+  .ss-btn-sell { background:linear-gradient(135deg,#fcd34d,#d97706);color:#0a0700; }
+  .ss-btn-hold { background:rgba(16,185,129,.12);color:#6ee7b7;border:1px solid rgba(16,185,129,.3)!important; }
+  /* overlays */
+  .ss-overlay { position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(2,10,5,.88);backdrop-filter:blur(6px);padding:20px; }
+  .ss-panel { max-width:420px;width:100%;text-align:center;padding:28px 22px;border-radius:20px;background:linear-gradient(160deg,rgba(7,31,13,.98),rgba(3,16,8,.98)); }
+  @keyframes ssPanelIn { 0%{transform:scale(.9);opacity:0} 100%{transform:scale(1);opacity:1} }
+  .ss-panel { animation:ssPanelIn .3s ease; }
+  .ss-surge-overlay { position:absolute;inset:0;z-index:8;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(251,191,36,.08);backdrop-filter:blur(2px);pointer-events:none; }
+  .ss-surge-box { text-align:center;padding:18px 28px;border-radius:16px;border:2px solid #fbbf24;background:rgba(2,10,5,.92);box-shadow:0 0 40px rgba(251,191,36,.5); }
+  @keyframes ssSurgeIn { 0%{transform:scale(.8);opacity:0} 60%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
+  .ss-surge-box { animation:ssSurgeIn .4s ease; }
+  .ss-news-banner { position:absolute;top:0;left:0;right:0;z-index:7;display:flex;align-items:center;gap:10px;padding:8px 14px;pointer-events:none; }
+  @keyframes ssBannerIn { 0%{transform:translateY(-100%);opacity:0} 100%{transform:translateY(0);opacity:1} }
+  .ss-news-banner { animation:ssBannerIn .35s ease; }
+  .ss-toast { position:absolute;bottom:130px;left:50%;transform:translateX(-50%);z-index:9;pointer-events:none;white-space:nowrap; }
+  @keyframes ssToastUp { 0%{opacity:0;transform:translateX(-50%) translateY(10px)} 20%{opacity:1;transform:translateX(-50%) translateY(0)} 80%{opacity:1} 100%{opacity:0;transform:translateX(-50%) translateY(-20px)} }
+  .ss-toast { animation:ssToastUp 2s ease forwards; }
+</style>
+<div id="ss-root">
+  <canvas id="ss-bg-canvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:.6"></canvas>
+  <div class="ss-topbar">
+    <button class="ss-back-btn" onclick="ssExit()">← HUB</button>
+    <div class="ss-title" id="ss-title">📊 STOCK SURGE</div>
+    <div class="ss-timer" id="ss-timer">75s</div>
+  </div>
+
+  <div class="ss-hud">
+    <div class="ss-hud-box">
+      <div class="ss-hud-label">CASH</div>
+      <div class="ss-hud-val" id="ss-cash">$1,000</div>
+    </div>
+    <div class="ss-hud-box">
+      <div class="ss-hud-label">PORTFOLIO</div>
+      <div class="ss-hud-val" id="ss-port">$1,000</div>
+    </div>
+    <div class="ss-hud-box">
+      <div class="ss-hud-label">GAIN / LOSS</div>
+      <div class="ss-hud-val" id="ss-gain">+$0</div>
+    </div>
+    <div class="ss-hud-box">
+      <div class="ss-hud-label">TARGET</div>
+      <div class="ss-hud-val" id="ss-target">$1,500</div>
+    </div>
+  </div>
+
+  <!-- stock cards grid -->
+  <div class="ss-stocks" id="ss-stocks"></div>
+
+  <!-- qty row -->
+  <div class="ss-qty-row">
+    <div class="ss-qty-label">QTY</div>
+    <button class="ss-qty-btn" onclick="ssQty(-1)">−</button>
+    <div class="ss-qty-val" id="ss-qty">1</div>
+    <button class="ss-qty-btn" onclick="ssQty(1)">+</button>
+    <div class="ss-cost-info" id="ss-cost-info">Select a stock</div>
+  </div>
+
+  <!-- action buttons -->
+  <div class="ss-actions">
+    <button class="ss-action-btn ss-btn-buy"  onclick="ssAct('buy')">BUY</button>
+    <button class="ss-action-btn ss-btn-sell" onclick="ssAct('sell')">SELL</button>
+    <button class="ss-action-btn ss-btn-hold" onclick="ssAct('hold')">HOLD</button>
+  </div>
+
+  <!-- overlays (hidden by default) -->
+  <div class="ss-overlay" id="ss-gate" style="display:none"></div>
+  <div class="ss-overlay" id="ss-over"  style="display:none"></div>
+  <div class="ss-overlay" id="ss-info"  style="display:none"></div>
+</div>`;
   }
 
-  function ssBoot(){
-    const cv=document.getElementById('ssCanvas'); if(!cv){ return; }
-    const ctx=cv.getContext('2d');
-    function size(){ cv.width=cv.clientWidth*devicePixelRatio; cv.height=cv.clientHeight*devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); }
-    size(); window.addEventListener('resize',size);
-    // keyboard input
-    const kd=e=>{ const k=e.key.toLowerCase(); if(k==='b'){ssAct('B');} else if(k==='s'){ssAct('S');} else if(k==='h'){ssAct('H');} };
-    window.addEventListener('keydown',kd);
-    S._cleanup=()=>{ window.removeEventListener('resize',size); window.removeEventListener('keydown',kd); };
-    S.last=performance.now();
-    cancelAnimationFrame(raf); raf=requestAnimationFrame(loop);
+  /* ══════════════════════════════════════════════════════════════
+     GAME INIT
+  ══════════════════════════════════════════════════════════════ */
+  function initGame(levelNum) {
+    stopTimers();
+    const lv = LEVELS[Math.min(levelNum - 1, LEVELS.length - 1)];
+
+    // Build active stocks list for this level
+    const activeStocks = STOCKS.filter(function (st) {
+      return lv.tickers.indexOf(st.ticker) !== -1;
+    }).map(function (st) {
+      return {
+        ticker:   st.ticker,
+        name:     st.name,
+        sector:   st.sector,
+        risk:     st.risk,
+        price:    st.base,
+        prev:     st.base,
+        history:  [st.base, st.base, st.base], // last 3 ticks for mood
+        shares:   0,
+        surge:    false,
+        newsBoost:0,  // ticks remaining with news bias
+        newsDrift:0,
+      };
+    });
+
+    S = {
+      phase:       'play',
+      level:       levelNum,
+      lv:          lv,
+      round:       1,
+      timeLeft:    lv.time * 1000,   // ms
+      lastTick:    Date.now(),
+      cash:        START_CASH,
+      startCash:   START_CASH,
+      stocks:      activeStocks,
+      selected:    null,   // ticker string
+      qty:         1,
+      trades:      0,
+      gateIdx:     0,
+      surgeActive: false,
+      surgeCountdown: 0,
+      surgeTickers: [],
+      newsVisible: false,
+      newsText:    '',
+      newsType:    'pos',
+      // Win-condition trackers (GDD Sec 10)
+      profitSells:       0,     // Lv2: count of sells where price > buy price
+      newsCorrectTrades: 0,     // Lv5: trades made in correct direction after a news event
+      lastBuyPrice:      {},    // ticker -> avg buy price for profit-sell detection
+      lastNewsType:      null,  // 'pos'|'neg'|'vol' — current active news bias
+      lastNewsTicker:    null,  // ticker affected by current news
+    };
   }
 
-  function loop(now){
-    const cv=document.getElementById('ssCanvas');
-    if(!cv || !S){ cancelAnimationFrame(raf); return; }       // left screen → stop
-    const ctx=cv.getContext('2d'); const W=cv.clientWidth, H=cv.clientHeight;
-    let dt=Math.min(40,now-S.last)/1000; S.last=now;
-    if(S.phase==='play'){ update(dt,W,H); }
-    render(ctx,W,H,now);
-    raf=requestAnimationFrame(loop);
-  }
-
-  function update(dt,W,H){
-    // timer
-    S.time-=dt; if(S.time<=0){ S.time=0; return end(); }
-    const tEl=document.getElementById('ssTime'); if(tEl) tEl.textContent=Math.ceil(S.time)+'s';
-
-    // knowledge gate every ~18s — pauses the market for one lesson
-    S.gateT-=dt;
-    if(S.gateT<=0){ openGate(); return; }
-
-    // schedule next news every 12–18s
-    S.newsT-=dt;
-    if(S.newsT<=0){ triggerNews(); S.newsT=12+Math.random()*6; }
-    // banner animation life
-    if(S.banner){ S.banner.life-=dt; if(S.banner.life<=0) S.banner=null; }
-
-    // price tick every ~0.7–1.0s (random walk with drift; news biases it)
-    S.tickT-=dt;
-    if(S.tickT<=0){
-      S.tickT=0.7+Math.random()*0.3;
-      tickPrice();
-    }
-
-    // decay fx
-    if(S.flash>0) S.flash-=dt;
-    if(S.shake>0) S.shake-=dt;
-    if(S.actionFlash>0) S.actionFlash-=dt;
-    for(const p of S.parts){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=1.4*dt; p.life-=dt; }
-    S.parts=S.parts.filter(p=>p.life>0);
-    for(const f of S.floats){ f.y-=dt*0.11; f.life-=dt; }
-    S.floats=S.floats.filter(f=>f.life>0);
-
-    // sync HUD
+  /* ══════════════════════════════════════════════════════════════
+     MOUNT — wires up live game after HTML is in the DOM
+  ══════════════════════════════════════════════════════════════ */
+  function ssMount() {
+    if (!S) return;
+    renderCards();
     syncHUD();
-    if(netWorth()>=TARGET) return end(true);
+    syncTitle();
+    var q = document.getElementById('ss-qty'); if (q) q.textContent = S.qty;   // DOM persists across restarts
+    startTimers();
+    ssInitCanvas();
   }
 
-  function tickPrice(){
-    S.prevPrice=S.price;
-    // base drift + active news drift; volatility scales the random shock
-    let baseDrift=0.06;                         // gentle upward market bias
-    let drift=baseDrift, vol=1.0;
-    if(S.newsTicks>0){ drift=S.drift; vol=S.vol; S.newsTicks--; if(S.newsTicks===0){ S.news=null; } }
-    const shock=(Math.random()-0.5)*2;          // -1..1
-    let change=drift + shock*vol*1.6;           // % move this tick
-    let next=S.price*(1+change/100);
-    next=Math.max(12, next);                     // floor so it never dies
-    S.price=Math.round(next*100)/100;
-    S.prices.push(S.price); if(S.prices.length>MAXPTS) S.prices.shift();
+  /* ── Live canvas sparklines background ───────────────────────── */
+  var _ssBgRaf = null;
+  var _ssBgParts = [];
+  var _ssBgCleanup = null;
+  function ssInitCanvas() {
+    var cv = document.getElementById('ss-bg-canvas');
+    if (!cv) return;
+    if (_ssBgCleanup) _ssBgCleanup();   // restart/next-level reuse the DOM — kill the old loop first
+    var ctx = cv.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+    function resize() {
+      cv.width  = cv.clientWidth  * dpr;
+      cv.height = cv.clientHeight * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+    _ssBgCleanup = function () {
+      cancelAnimationFrame(_ssBgRaf); _ssBgRaf = null; _ssBgParts = [];
+      window.removeEventListener('resize', resize);
+    };
+
+    function drawBg(t) {
+      if (!S || !document.getElementById('ss-bg-canvas')) return;
+      _ssBgRaf = requestAnimationFrame(drawBg);
+      var W = cv.clientWidth, H = cv.clientHeight;
+      ctx.clearRect(0, 0, W, H);
+
+      // animated grid
+      var gs = 48, off = (t * 0.015) % gs;
+      ctx.strokeStyle = 'rgba(16,185,129,.05)';
+      ctx.lineWidth = 1;
+      for (var gx = -off; gx < W; gx += gs) { ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke(); }
+      for (var gy = 0; gy < H; gy += gs) { ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke(); }
+
+      // sparklines — one panel per stock
+      var stocks = S ? S.stocks.filter(function(s){ return s.history && s.history.length >= 2; }) : [];
+      if (stocks.length) {
+        var cols = Math.ceil(Math.sqrt(stocks.length));
+        var rows = Math.ceil(stocks.length / cols);
+        stocks.forEach(function(st, i) {
+          var pts = st.history.slice(-24);
+          if (pts.length < 2) return;
+          var col = i % cols, row = Math.floor(i / cols);
+          var pw = W / cols, ph = H / rows;
+          var px = col * pw, py = row * ph;
+          var lo = Math.min.apply(null, pts), hi = Math.max.apply(null, pts);
+          var rng = hi - lo || 0.001;
+          var isUp = pts[pts.length-1] >= pts[0];
+          var lc = isUp ? 'rgba(52,211,153,' : 'rgba(248,113,113,';
+
+          // gradient fill
+          var grad = ctx.createLinearGradient(0, py, 0, py + ph);
+          grad.addColorStop(0, isUp ? 'rgba(52,211,153,.12)' : 'rgba(248,113,113,.1)');
+          grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+          ctx.beginPath();
+          for (var j = 0; j < pts.length; j++) {
+            var lx = px + (j / (pts.length - 1)) * pw;
+            var ly = py + ph - ((pts[j] - lo) / rng) * ph * 0.72 - ph * 0.12;
+            if (j === 0) ctx.moveTo(lx, ly); else ctx.lineTo(lx, ly);
+          }
+          var endX = px + pw, endY = py + ph;
+          ctx.lineTo(endX, endY); ctx.lineTo(px, endY); ctx.closePath();
+          ctx.fillStyle = grad; ctx.fill();
+
+          // line stroke
+          ctx.beginPath();
+          for (var k = 0; k < pts.length; k++) {
+            var lx2 = px + (k / (pts.length - 1)) * pw;
+            var ly2 = py + ph - ((pts[k] - lo) / rng) * ph * 0.72 - ph * 0.12;
+            if (k === 0) ctx.moveTo(lx2, ly2); else ctx.lineTo(lx2, ly2);
+          }
+          ctx.strokeStyle = lc + '.55)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+          // ticker ghost label
+          ctx.fillStyle = lc + '.25)';
+          ctx.font = "700 8px 'Orbitron',monospace";
+          ctx.textAlign = 'left';
+          ctx.fillText(st.ticker, px + 5, py + 13);
+        });
+      }
+
+      // float particles
+      for (var pi = _ssBgParts.length - 1; pi >= 0; pi--) {
+        var p = _ssBgParts[pi];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.018; p.life -= 0.018;
+        if (p.life <= 0) { _ssBgParts.splice(pi, 1); continue; }
+        ctx.globalAlpha = p.life * 0.85;
+        ctx.fillStyle = p.c;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.28); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    _ssBgRaf = requestAnimationFrame(drawBg);
+
+    // expose burst for buy/sell
+    window._ssBurst = function(x, y, up) {
+      var c = up ? '#34d399' : '#f87171';
+      var W2 = cv.clientWidth, H2 = cv.clientHeight;
+      for (var i = 0; i < 10; i++) {
+        _ssBgParts.push({ x: x*W2, y: y*H2, vx:(Math.random()-.5)*4, vy:-Math.random()*3-1, r:Math.random()*2.5+1, c:c, life:1 });
+      }
+    };
+
+    // cleanup when exiting — wrap ssExit ONCE (re-wrapping would chain dead closures)
+    if (!window._ssExitWrapped) {
+      window._ssExitWrapped = true;
+      var _origExit = window.ssExit;
+      window.ssExit = function() {
+        if (_ssBgCleanup) { _ssBgCleanup(); _ssBgCleanup = null; }
+        if (_origExit) _origExit();
+      };
+    }
   }
 
-  function triggerNews(){
-    const n=NEWS[Math.floor(Math.random()*NEWS.length)];
-    S.news=n; S.drift=n.drift; S.vol=n.vol; S.newsTicks=n.ticks;
-    S.banner={n, life:3.4};
-    S.flash=0.35; S.flashC = n.type==='pos'?'#10b981':(n.type==='neg'?'#ef4444':'#fbbf24');
+  /* ── helpers ─────────────────────────────────────────────────── */
+  function fmt(n) { return '$' + Math.round(Math.abs(n)).toLocaleString(); }
+  function fmtSigned(n) { return (n >= 0 ? '+' : '-') + fmt(n); }
+  // Level-6 rounds carry the portfolio over, so the target must escalate per round
+  function curTarget() {
+    if (!S) return 0;
+    var t = S.lv.target || 0;
+    return (S.lv.multiRound > 1) ? Math.round(t * (1 + 0.35 * (S.round - 1))) : t;
+  }
+  function portfolioValue() {
+    return S.stocks.reduce(function (sum, st) { return sum + st.shares * st.price; }, 0);
+  }
+  function totalValue() { return S.cash + portfolioValue(); }
+  function getStock(ticker) {
+    for (var i = 0; i < S.stocks.length; i++) {
+      if (S.stocks[i].ticker === ticker) return S.stocks[i];
+    }
+    return null;
+  }
+  function riskLabel(risk) {
+    return risk === 'Steady' ? 'S' : risk === 'Bouncy' ? 'B' : 'W';
+  }
+  function moodOf(st) {
+    var h = st.history;
+    if (h.length < 2) return 'Calm';
+    var recent = h[h.length - 1] - h[Math.max(0, h.length - 3)];
+    if (recent > 0.15) return 'Hype';
+    if (recent < -0.15) return 'Panic';
+    return 'Calm';
+  }
+  function stopTimers() {
+    if (_tickInterval)   { clearInterval(_tickInterval);  _tickInterval   = null; }
+    if (_gateTimeout)    { clearTimeout(_gateTimeout);    _gateTimeout    = null; }
+    if (_surgeTimeout)   { clearTimeout(_surgeTimeout);   _surgeTimeout   = null; }
+    if (_countdownInt)   { clearInterval(_countdownInt);  _countdownInt   = null; }
+    if (_newsTimeout)    { clearTimeout(_newsTimeout);     _newsTimeout    = null; }
+    if (_surgeCdInt)     { clearInterval(_surgeCdInt);    _surgeCdInt     = null; }
+  }
+  function rand(lo, hi) { return lo + Math.random() * (hi - lo); }
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  /* ══════════════════════════════════════════════════════════════
+     TIMERS
+  ══════════════════════════════════════════════════════════════ */
+  function startTimers() {
+    stopTimers();   // resume-safe: never stack intervals
+
+    // Price tick every 2s
+    _tickInterval = setInterval(tickPrices, TICK_MS);
+
+    // Knowledge gate every ~20s
+    scheduleGate();
+
+    // Surge moment — roll once per round (not re-rolled on every gate resume)
+    if (S.lv.hasSurge && !S.surgeRolled) {
+      S.surgeRolled = true;
+      if (Math.random() < SURGE_CHANCE) {
+        // trigger between 15s and (roundTime - 20s) into the round
+        var minDelay = 15000;
+        var maxDelay = Math.max(16000, S.lv.time * 1000 - 20000);
+        var delay    = rand(minDelay, maxDelay);
+        _surgeTimeout = setTimeout(triggerSurge, delay);
+      }
+    }
+
+    // News events — only level 5+
+    if (S.lv.hasNews) {
+      scheduleNews();
+    }
+
+    // Main countdown loop
+    _countdownInt = setInterval(tickTimer, 500);
   }
 
-  // ── knowledge gate (pause + one lesson card) ─────────────────────
-  function openGate(){
-    if(!S || S.phase!=='play') return; S.phase='gate';
-    const f=FACTS[S.gateIdx%FACTS.length]; S.gateIdx++;
-    const o=document.getElementById('ssGate'); if(!o){ S.phase='play'; return; }
-    o.style.display='flex';
-    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #34d399;border-radius:22px;background:linear-gradient(160deg,rgba(7,31,13,.97),rgba(3,16,8,.97));box-shadow:0 0 50px rgba(16,185,129,.4);animation:ssGateIn .35s ease">
-      <style>@keyframes ssGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}</style>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#6ee7b7;margin-bottom:10px">⛩️ KNOWLEDGE GATE · INVESTING TIP</div>
-      <div style="font-size:2.4rem;margin-bottom:8px">${f[0]}</div>
-      <p style="font-size:1.02rem;line-height:1.5;color:#fff;margin:0 0 18px">${f[1]}</p>
-      <button onclick="ssGateGo()" style="padding:13px 30px;border:none;border-radius:12px;background:linear-gradient(135deg,#34d399,#059669);color:#04150b;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.12em;font-weight:900;cursor:pointer">GOT IT → +$50</button>
-    </div>`;
-  }
-  window.ssGateGo=function(){
-    if(!S) return;
-    S.cash+=50;                                  // small bonus for learning
-    S.gateT=GATE_EVERY; S.phase='play';
-    S.last=performance.now();                     // avoid a dt spike after the pause
-    const o=document.getElementById('ssGate'); if(o){ o.style.display='none'; o.innerHTML=''; }
-    flashFloat('+$50 bonus!','#34d399'); S.flashC='#10b981'; S.flash=0.3;
-  };
-
-  // ── trading actions ──────────────────────────────────────────────
-  window.ssAct=function(a){
-    if(!S || S.phase!=='play') return;
-    if(a==='B') doBuy();
-    else if(a==='S') doSell();
-    else if(a==='H') doHold();
-    pulseBtn(a);
-  };
-
-  function doBuy(){
-    const qty=Math.floor(S.cash / S.price);
-    if(qty<=0){ S.lastAction='No cash'; flashFloat('Not enough cash','#fca5a5'); S.shake=0.25; return; }
-    const cost=qty*S.price;
-    // weighted-average cost basis
-    S.costBasis=(S.costBasis*S.shares + cost)/(S.shares+qty);
-    S.shares+=qty; S.cash-=cost; S.trades++;
-    S.lastAction='Bought '+qty;
-    flashFloat('BUY '+qty+' @ $'+S.price.toFixed(2),'#6ee7b7');
-    burst(0.5,0.5,'#34d399',8);
-    S.actionFlash=0.3; S.flashC='#10b981'; S.flash=0.18;
+  function scheduleGate() {
+    _gateTimeout = setTimeout(function () {
+      if (S && S.phase === 'play') openGate();
+    }, GATE_EVERY + Math.random() * 4000);
   }
 
-  function doSell(){
-    if(S.shares<=0){ S.lastAction='No shares'; flashFloat('No shares to sell','#fca5a5'); S.shake=0.25; return; }
-    const proceeds=S.shares*S.price;
-    const gain=proceeds - S.costBasis*S.shares;     // realized P/L
-    S.cash+=proceeds; S.trades++;
-    const sold=S.shares; S.shares=0;
-    if(gain>=0){
-      S.lastAction='Sold +'+Math.round(gain);
-      flashFloat('+'+fmt(gain)+' profit!','#34d399');
-      burst(0.5,0.5,'#34d399',18); S.flashC='#10b981'; S.flash=0.45;
-      factToast('💸 Bought low, sold high — that\'s the goal!');
+  function scheduleNews() {
+    var delay = rand(8000, 16000);
+    _newsTimeout = setTimeout(function () {
+      if (!S || S.phase !== 'play') return;
+      fireNewsEvent();
+      scheduleNews(); // chain
+    }, delay);
+  }
+
+  /* ── countdown ───────────────────────────────────────────────── */
+  function tickTimer() {
+    if (!S || S.phase !== 'play') return;
+    S.timeLeft -= 500;
+    var el = document.getElementById('ss-timer');
+    if (el) {
+      var secs = Math.max(0, Math.ceil(S.timeLeft / 1000));
+      el.textContent = secs + 's';
+      el.style.color = secs <= 10 ? '#f87171' : '#fbbf24';
+    }
+    if (S.timeLeft <= 0) endRound();
+  }
+
+  /* ── price ticks ─────────────────────────────────────────────── */
+  function tickPrices() {
+    if (!S || S.phase !== 'play') return;
+
+    S.stocks.forEach(function (st) {
+      st.prev = st.price;
+      var r = RISK_RANGE[st.risk];
+
+      // base random swing
+      var pct = rand(r.lo, r.hi);
+      if (Math.random() < 0.5) pct = -pct;
+
+      // Surge boost
+      if (st.surge) pct *= r.surgeMult;
+
+      // News bias
+      if (st.newsBoost > 0) {
+        pct += st.newsDrift;
+        st.newsBoost--;
+      }
+
+      // GDD Sec 8.3 / Table C: Hard 25% max-loss cap per round.
+      // If portfolio is already at/below the floor, bias prices upward so player can't lose more.
+      var tv = totalValue();
+      var floorValue = S.startCash * 0.75; // 25% loss cap
+      if (tv <= floorValue) {
+        // Force upward movement — lift by at least enough to stop further losses
+        pct = Math.abs(pct) + 2; // always positive (upward) when at cap floor
+      }
+
+      var next = st.price * (1 + pct / 100);
+      st.price = Math.max(PRICE_MIN, Math.min(PRICE_MAX, Math.round(next * 100) / 100));
+
+      // track history for mood
+      st.history.push(st.price);
+      if (st.history.length > 6) st.history.shift();
+    });
+
+    // news effect fully decayed on every stock → close the Lv5 response window
+    if (S.lastNewsType && !S.stocks.some(function (s2) { return s2.newsBoost > 0; })) {
+      S.lastNewsType = null; S.lastNewsTicker = null;
+    }
+
+    renderCards();
+    syncHUD();
+
+    // Check win conditions (GDD Sec 10 per-level conditions + fallback target check)
+    if (checkWinCondition()) return endRound(true);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     SURGE MOMENT
+  ══════════════════════════════════════════════════════════════ */
+  function triggerSurge() {
+    if (!S || S.phase !== 'play') return;
+    S.surgeActive = true;
+    S.surgeCountdown = 4;
+
+    // Pick 1-2 stocks to surge
+    var pool = S.stocks.slice();
+    var count = Math.min(2, pool.length);
+    S.surgeTickers = [];
+    for (var i = 0; i < count; i++) {
+      var idx = Math.floor(Math.random() * pool.length);
+      S.surgeTickers.push(pool[idx].ticker);
+      pool[idx].surge = true;
+      pool.splice(idx, 1);
+    }
+
+    showSurgeOverlay();
+    renderCards(); // flash glow immediately
+
+    // countdown
+    // GDD Sec 8.2: Surge duration = 3–5s. Countdown from 4 then end immediately.
+    var cd = 4;
+    _surgeCdInt = setInterval(function () {
+      cd--;
+      var cdEl = document.getElementById('ss-surge-cd');
+      if (cdEl) cdEl.textContent = cd;
+      if (cd <= 0) {
+        clearInterval(_surgeCdInt);
+        _surgeCdInt = null;
+        // End surge after 1 more second (total ~5s window, matching GDD 3–5s)
+        setTimeout(function () {
+          if (!S) return;
+          S.stocks.forEach(function (st) { st.surge = false; });
+          S.surgeActive = false;
+          S.surgeTickers = [];
+          hideSurgeOverlay();
+          renderCards();
+        }, 1000);
+      }
+    }, 1000);
+  }
+
+  function showSurgeOverlay() {
+    // inject surge banner into ss-root
+    var root = document.getElementById('ss-root');
+    if (!root || document.getElementById('ss-surge')) return;
+    var div = document.createElement('div');
+    div.id = 'ss-surge';
+    div.className = 'ss-surge-overlay';
+    div.innerHTML = '<div class="ss-surge-box">' +
+      '<div style="font-size:1.8rem;margin-bottom:4px">⚡</div>' +
+      '<div style="font-family:\'Orbitron\',sans-serif;font-size:.65rem;letter-spacing:.18em;color:#fbbf24;font-weight:900">SURGE MOMENT!</div>' +
+      '<div style="font-size:.55rem;color:rgba(255,255,255,.7);margin:4px 0 8px;font-family:\'Inter\',sans-serif">Prices moving fast — act quickly!</div>' +
+      '<div style="font-family:\'Orbitron\',sans-serif;font-size:2rem;color:#fbbf24;font-weight:900" id="ss-surge-cd">4</div>' +
+      '</div>';
+    root.appendChild(div);
+    // auto-remove overlay after 5s
+    setTimeout(function () {
+      var el = document.getElementById('ss-surge');
+      if (el) el.remove();
+    }, 5000);
+  }
+
+  function hideSurgeOverlay() {
+    var el = document.getElementById('ss-surge');
+    if (el) el.remove();
+  }
+
+  // Fully unwind a surge — the countdown interval dies with stopTimers(), so any
+  // gate/round-end during the window would otherwise leave surge multipliers on forever.
+  function clearSurge() {
+    if (_surgeCdInt) { clearInterval(_surgeCdInt); _surgeCdInt = null; }
+    if (S) { S.stocks.forEach(function (st) { st.surge = false; }); S.surgeActive = false; S.surgeTickers = []; }
+    hideSurgeOverlay();
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     NEWS EVENTS
+  ══════════════════════════════════════════════════════════════ */
+  function fireNewsEvent() {
+    var r = Math.random();
+    var ev, type;
+    if (r < 0.35) {
+      ev   = pick(NEWS_POS);
+      type = 'pos';
+    } else if (r < 0.70) {
+      ev   = pick(NEWS_NEG);
+      type = 'neg';
     } else {
-      S.lastAction='Sold '+Math.round(gain);
-      flashFloat(fmt(gain)+' loss','#fca5a5');
-      burst(0.5,0.5,'#f87171',14); S.flashC='#ef4444'; S.flash=0.4; S.shake=0.35;
-      factToast('📰 Selling on a dip locks in losses — patience pays.');
-    }
-    S.costBasis=0;
-  }
-
-  function doHold(){ S.lastAction='Holding'; flashFloat('HOLD','#9ca3af'); }
-
-  // ── render ───────────────────────────────────────────────────────
-  function render(ctx,W,H,now){
-    ctx.clearRect(0,0,W,H);
-    let ox=0,oy=0; if(S.shake>0){ ox=(Math.random()-.5)*S.shake*18; oy=(Math.random()-.5)*S.shake*18; }
-    ctx.save(); ctx.translate(ox,oy);
-
-    // subtle scrolling grid backdrop
-    drawGrid(ctx,W,H,now);
-
-    // chart geometry — leave room for HUD on top & buttons below
-    const padL=14, padR=14, top=H*0.30, bot=H*0.70;
-    const ph=bot-top;
-    const ps=S.prices;
-    let mn=Math.min(...ps), mx=Math.max(...ps);
-    const span=Math.max(4,(mx-mn)); mn-=span*0.18; mx+=span*0.18;
-    const X=i=> padL + (i/(MAXPTS-1))*(W-padL-padR);
-    const Y=v=> bot - ((v-mn)/(mx-mn))*ph;
-    const up = S.price>=S.prevPrice;
-    const lineC = up? '#34d399' : '#f87171';
-
-    // area fill under the line
-    const grad=ctx.createLinearGradient(0,top,0,bot+30);
-    grad.addColorStop(0, up?'rgba(52,211,153,.34)':'rgba(248,113,113,.3)');
-    grad.addColorStop(1,'rgba(3,20,9,0)');
-    ctx.beginPath(); ctx.moveTo(X(0),Y(ps[0]));
-    for(let i=1;i<ps.length;i++) ctx.lineTo(X(i),Y(ps[i]));
-    ctx.lineTo(X(ps.length-1),bot+30); ctx.lineTo(X(0),bot+30); ctx.closePath();
-    ctx.fillStyle=grad; ctx.fill();
-
-    // the glowing line
-    ctx.beginPath(); ctx.moveTo(X(0),Y(ps[0]));
-    for(let i=1;i<ps.length;i++) ctx.lineTo(X(i),Y(ps[i]));
-    ctx.lineWidth=2.6; ctx.strokeStyle=lineC; ctx.shadowColor=lineC; ctx.shadowBlur=16; ctx.lineJoin='round'; ctx.stroke();
-    ctx.shadowBlur=0;
-
-    // cost-basis reference line (where you bought) — dashed gold
-    if(S.shares>0 && S.costBasis>mn && S.costBasis<mx){
-      const cy=Y(S.costBasis);
-      ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(251,191,36,.55)'; ctx.lineWidth=1.3;
-      ctx.beginPath(); ctx.moveTo(padL,cy); ctx.lineTo(W-padR,cy); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle='rgba(251,191,36,.85)'; ctx.font="700 10px 'Inter',sans-serif"; ctx.textAlign='left'; ctx.textBaseline='bottom';
-      ctx.fillText('your buy $'+S.costBasis.toFixed(2), padL+4, cy-3);
+      ev   = pick(NEWS_VOL);
+      type = 'vol';
     }
 
-    // leading price dot + pulse + label
-    const lx=X(ps.length-1), ly=Y(S.price);
-    ctx.beginPath(); ctx.arc(lx,ly,4.5,0,7); ctx.fillStyle=lineC; ctx.shadowColor=lineC; ctx.shadowBlur=14; ctx.fill(); ctx.shadowBlur=0;
-    const pulse=(Math.sin(now*0.006)+1)/2;
-    ctx.beginPath(); ctx.arc(lx,ly,7+pulse*7,0,7); ctx.strokeStyle=lineC; ctx.globalAlpha=0.5-pulse*0.4; ctx.lineWidth=2; ctx.stroke(); ctx.globalAlpha=1;
-    // floating price tag at the dot
-    ctx.font="900 14px 'Anton',sans-serif"; ctx.textAlign='right'; ctx.textBaseline='middle';
-    const tag='$'+S.price.toFixed(2);
-    const tw=ctx.measureText(tag).width;
-    let tagX=Math.min(lx, W-padR-2), tagY=Math.max(top+10,Math.min(bot-10,ly-16));
-    ctx.fillStyle='rgba(3,20,9,.85)'; roundRect(ctx,tagX-tw-12,tagY-11,tw+12,22,6); ctx.fill();
-    ctx.fillStyle=lineC; ctx.fillText(tag,tagX-6,tagY+1);
-
-    // tick arrow (up/down) near the dot
-    ctx.font='13px serif'; ctx.textAlign='center';
-    if(S.price!==S.prevPrice){ ctx.fillText(up?'▲':'▼', lx-2, ly+ (up?-30:30)); }
-
-    // news-tint flash over chart
-    if(S.flash>0){ ctx.fillStyle=hexA(S.flashC,S.flash*0.16); ctx.fillRect(0,0,W,H); }
-
-    // particles
-    for(const p of S.parts){ ctx.globalAlpha=Math.max(0,p.life/p.max); ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x*W,p.y*H,p.s,0,7); ctx.fill(); }
-    ctx.globalAlpha=1;
-
-    // floating texts
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    for(const f of S.floats){ ctx.globalAlpha=Math.max(0,f.life/1.0); ctx.fillStyle=f.c; ctx.font="800 "+(f.big?20:15)+"px 'Inter',sans-serif"; ctx.fillText(f.t,f.x*W,f.y*H); }
-    ctx.globalAlpha=1;
-
-    ctx.restore();
-    drawBanner();   // DOM banner (kept outside shake transform)
-  }
-
-  function drawGrid(ctx,W,H,now){
-    ctx.strokeStyle='rgba(16,185,129,.06)'; ctx.lineWidth=1;
-    const off=(now*0.02)% 46;
-    for(let x=-off;x<W;x+=46){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-    for(let y=0;y<H;y+=46){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-  }
-
-  // animated DOM news banner
-  function drawBanner(){
-    const el=document.getElementById('ssBanner'); if(!el) return;
-    if(!S.banner){ if(el.style.display!=='none'){ el.style.display='none'; el.innerHTML=''; } return; }
-    const {n,life}=S.banner;
-    const inT=Math.min(1,(3.4-life)/0.25);                 // slide/fade in
-    const outT=life<0.5? life/0.5 : 1;                     // fade out
-    const a=Math.min(inT,outT);
-    const yShift=(1-inT)*-14;
-    el.style.display='block'; el.style.opacity=a;
-    el.style.transform=`translate(-50%,${yShift-12}px) scale(${0.96+inT*0.04})`;
-    el.innerHTML=`<div style="display:flex;align-items:center;gap:10px;padding:9px 18px;border-radius:13px;border:1px solid ${n.c};background:linear-gradient(135deg,rgba(3,20,9,.95),rgba(7,31,13,.95));box-shadow:0 0 30px ${hexA(n.c,0.5)}">
-        <span style="font-size:1.4rem;filter:drop-shadow(0 0 6px ${n.c})">${n.e}</span>
-        <div style="text-align:left">
-          <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;font-weight:900;letter-spacing:.14em;color:${n.c}">${n.t}</div>
-          <div style="font-family:'Inter',sans-serif;font-size:.62rem;color:rgba(255,255,255,.7)">${n.sub}</div>
-        </div>
-      </div>`;
-  }
-
-  // ── helpers ──────────────────────────────────────────────────────
-  function syncHUD(){
-    const nw=netWorth(), pl=(nw/S.startNW-1)*100;
-    S.peakNW=Math.max(S.peakNW,nw);
-    setTxt('ssNW',fmt(nw));
-    const plEl=document.getElementById('ssPL');
-    if(plEl){ const pos=pl>=0; plEl.textContent=(pos?'+':'')+pl.toFixed(1)+'%  ·  '+(pos?'PROFIT':'LOSS'); plEl.style.color=pos?'#34d399':'#f87171'; }
-    const nwEl=document.getElementById('ssNW'); if(nwEl) nwEl.style.color = nw>=TARGET? '#fbbf24' : '#fff';
-    setTxt('ssCash',fmt(S.cash)); setTxt('ssShares',S.shares); setTxt('ssPrice','$'+S.price.toFixed(2));
-    const prEl=document.getElementById('ssPrice'); if(prEl) prEl.style.color = S.price>=S.prevPrice? '#34d399':'#f87171';
-  }
-  function setTxt(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
-  function flashFloat(t,c){ S.floats.push({x:0.5,y:0.58,t,c,life:1.0,big:t.indexOf('profit')>=0||t.indexOf('loss')>=0}); }
-  function factToast(t){ S.floats.push({x:0.5,y:0.46,t,c:'#6ee7b7',life:1.6,big:false}); }   // brief learn-while-playing nudge on a sell
-  function burst(x,y,c,n){ for(let i=0;i<n;i++){ const a=Math.random()*7,s=0.18+Math.random()*0.55; S.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-0.25,s:2+Math.random()*3,c,life:0.5+Math.random()*0.35,max:0.85}); } }
-  function pulseBtn(a){ const id=a==='B'?'ssBuy':a==='S'?'ssSell':'ssHold'; const b=document.getElementById(id); if(b){ b.style.transform='scale(.93)'; setTimeout(()=>{ if(b)b.style.transform='scale(1)'; },90); } }
-  function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
-  function hexA(hex,a){ const h=hex.replace('#',''); const r=parseInt(h.substr(0,2),16),g=parseInt(h.substr(2,2),16),b=parseInt(h.substr(4,2),16); return `rgba(${r},${g},${b},${a})`; }
-
-  // ── end / overlay ────────────────────────────────────────────────
-  function end(win){
-    if(S.phase==='over') return; S.phase='over';
-    const nw=netWorth();
-    // liquidate any held shares into final net worth display
-    const profit=nw - S.startNW;
-    const won = win || nw>=TARGET;
-    // coins reward = profit-based (always a little for playing)
-    const reward = Math.max(20, Math.round(profit*0.5) + (won?120:0));
-    if(window.state){
-      state.coins=(state.coins||0)+reward;
-      if(window.cvAddXP) cvAddXP(Math.round(reward/4),0); else if(window.cvSave) cvSave();
-      state.gamesDone=state.gamesDone||{}; state.gamesDone['investor:0']=1;
+    var affectedTickers = [];
+    if (ev.ticker === 'ALL') {
+      affectedTickers = S.stocks.map(function (st) { return st.ticker; });
+    } else if (ev.ticker === null) {
+      // any random active stock
+      affectedTickers = [pick(S.stocks).ticker];
+    } else {
+      var st = getStock(ev.ticker);
+      if (st) affectedTickers = [ev.ticker];
+      else affectedTickers = [pick(S.stocks).ticker];
     }
-    const pl=(nw/S.startNW-1)*100;
-    const o=document.getElementById('ssOver'); if(!o) return; o.style.display='flex';
-    o.innerHTML=`<div style="max-width:430px;text-align:center;padding:34px 28px;border:1px solid ${won?'#fbbf24':'#10b981'};border-radius:22px;background:linear-gradient(160deg,rgba(7,31,13,.97),rgba(3,16,8,.97));box-shadow:0 0 60px rgba(16,185,129,.42)">
-      <div style="font-size:3rem;margin-bottom:8px">${won?'🏆':(profit>=0?'📈':'📉')}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#fbbf24':'#34d399'};margin-bottom:8px">${won?'TARGET SMASHED!':(profit>=0?'PROFITABLE RUN':'MARKET CLOSED')}</div>
-      <h1 style="font-family:'Anton',sans-serif;font-size:2.1rem;margin:0 0 4px;color:#fff">${fmt(nw)}</h1>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:${profit>=0?'#34d399':'#f87171'};margin-bottom:10px">${profit>=0?'+':''}${fmt(profit)}  (${pl>=0?'+':''}${pl.toFixed(1)}%)</div>
-      <p style="color:rgba(255,255,255,.65);margin:0 0 18px;font-size:.85rem">${S.trades} trades · started ${fmt(S.startNW)} · <span style="color:#fbbf24">+${reward} 🪙</span></p>
-      <button onclick="ssRestart()" style="padding:13px 26px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,#34d399,#059669);color:#04150b;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;font-weight:900;cursor:pointer">▶ TRADE AGAIN</button>
-      <button onclick="ssExit()" style="padding:13px 26px;margin:4px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
-    </div>`;
+
+    // Store active news context for win-condition tracking (Lv5)
+    S.lastNewsType   = type;
+    S.lastNewsTicker = ev.ticker; // 'ALL', null, or specific ticker
+    S.newsEventCredited = false;  // each news event can credit ONE correct response
+
+    // Apply drift to affected stocks (GDD Table D: pos/neg +10%, neutral +20% volatility)
+    affectedTickers.forEach(function (ticker) {
+      var st = getStock(ticker);
+      if (!st) return;
+      if (type === 'pos') {
+        st.newsDrift  = rand(10, 20);   // +10..+20% boost this tick
+        st.newsBoost  = 3;
+      } else if (type === 'neg') {
+        st.newsDrift  = -rand(10, 20);
+        st.newsBoost  = 3;
+      } else {
+        // Neutral/volatile: +20% volatility swing (GDD Table D)
+        st.newsDrift  = (Math.random() < 0.5 ? 1 : -1) * rand(10, 20);
+        st.newsBoost  = 2;
+      }
+    });
+
+    showNewsBanner(ev.text, type, affectedTickers);
   }
 
-  window.ssRestart=function(){ reset(); ['ssGate','ssOver'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); ssBoot(); };
-  window.ssExit=function(){ if(S&&S._cleanup)S._cleanup(); cancelAnimationFrame(raf); S=null; if(window.state)state.viewingWorld='investor'; goTo('hub'); };
+  function showNewsBanner(text, type, tickers) {
+    var root = document.getElementById('ss-root');
+    if (!root) return;
+
+    var old = document.getElementById('ss-news');
+    if (old) old.remove();
+
+    var color = type === 'pos' ? '#34d399' : type === 'neg' ? '#f87171' : '#fbbf24';
+    var icon  = type === 'pos' ? '📈' : type === 'neg' ? '📉' : '⚡';
+
+    var div = document.createElement('div');
+    div.id = 'ss-news';
+    div.className = 'ss-news-banner';
+    div.style.cssText = 'position:absolute;top:0;left:0;right:0;z-index:7;display:flex;align-items:center;gap:10px;padding:8px 14px;background:linear-gradient(90deg,rgba(3,20,9,.97),rgba(7,31,13,.95));border-bottom:1.5px solid ' + color + ';box-shadow:0 4px 20px ' + color + '44;pointer-events:none;animation:ssBannerIn .35s ease;';
+    div.innerHTML = '<span style="font-size:1.1rem">' + icon + '</span>' +
+      '<div style="flex:1">' +
+        '<div style="font-family:\'Orbitron\',sans-serif;font-size:.55rem;font-weight:900;letter-spacing:.1em;color:' + color + '">' + text + '</div>' +
+        '<div style="font-size:.45rem;color:rgba(255,255,255,.5);font-family:\'Inter\',sans-serif">Affects: ' + tickers.join(', ') + '</div>' +
+      '</div>' +
+      '<div style="font-size:.45rem;color:rgba(255,255,255,.35);font-family:\'Orbitron\',sans-serif;letter-spacing:.08em">NEWS</div>';
+    root.appendChild(div);
+
+    setTimeout(function () {
+      if (div.parentNode) {
+        div.style.animation = 'ssBannerIn .3s ease reverse';
+        setTimeout(function () { if (div.parentNode) div.remove(); }, 300);
+      }
+    }, 4000);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     RENDER CARDS
+  ══════════════════════════════════════════════════════════════ */
+  function renderCards() {
+    var container = document.getElementById('ss-stocks');
+    if (!container || !S) return;
+
+    var html = '';
+    S.stocks.forEach(function (st) {
+      var up    = st.price >= st.prev;
+      var flat  = st.price === st.prev;
+      var dir   = flat ? 'flat' : up ? 'up' : 'down';
+      var mood  = moodOf(st);
+      var moodClass = mood === 'Hype' ? 'ss-mood-hype' : mood === 'Panic' ? 'ss-mood-panic' : 'ss-mood-calm';
+      var moodIcon  = mood === 'Hype' ? '🔥 HYPE' : mood === 'Panic' ? '😱 PANIC' : '😌 CALM';
+      var isSel  = S.selected === st.ticker;
+      var isSurge = S.surgeTickers.indexOf(st.ticker) !== -1;
+      var rl     = riskLabel(st.risk);
+      var arrow  = flat ? '→' : up ? '▲' : '▼';
+      var change = st.prev > 0 ? ((st.price - st.prev) / st.prev * 100).toFixed(1) : '0.0';
+      var changeTxt = (up ? '+' : '') + change + '%';
+
+      html += '<div class="ss-card' + (isSel ? ' selected' : '') + (isSurge ? ' surge-glow' : '') + '"' +
+        ' onclick="ssSelect(\'' + st.ticker + '\')"' +
+        ' id="ss-card-' + st.ticker + '">' +
+        '<div class="ss-card-top">' +
+          '<div class="ss-ticker">' + st.ticker + '</div>' +
+          (S.lv.hasLabels
+            ? '<div class="ss-risk-badge ss-risk-' + rl + '">' + st.risk + '</div>'
+            : '') +
+        '</div>' +
+        '<div class="ss-card-name">' + st.name + '</div>' +
+        '<div class="ss-price-row">' +
+          '<div class="ss-price ss-' + dir + '">$' + st.price.toFixed(2) + '</div>' +
+          '<div class="ss-arrow ss-' + dir + '">' + arrow + ' <span style="font-size:.5rem">' + changeTxt + '</span></div>' +
+        '</div>' +
+        '<div class="ss-mood ' + moodClass + '">' + moodIcon + '</div>' +
+        (st.shares > 0 ? '<div class="ss-shares-owned">You own: ' + st.shares + ' shares</div>' : '') +
+      '</div>';
+    });
+
+    container.innerHTML = html;
+    updateCostInfo();
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     HUD SYNC
+  ══════════════════════════════════════════════════════════════ */
+  function syncHUD() {
+    if (!S) return;
+    var tv   = totalValue();
+    var gain = tv - S.startCash;
+    var txt  = document.getElementById('ss-cash');
+    if (txt) txt.textContent = fmt(S.cash);
+    var pe = document.getElementById('ss-port');
+    if (pe) { pe.textContent = fmt(tv); pe.style.color = tv >= curTarget() ? '#fbbf24' : '#fff'; }
+    var ge = document.getElementById('ss-gain');
+    if (ge) { ge.textContent = fmtSigned(gain); ge.style.color = gain >= 0 ? '#34d399' : '#f87171'; }
+    var te = document.getElementById('ss-target');
+    if (te) {
+      // Show win-condition label for levels with special conditions (GDD Sec 10)
+      if (S.lv.winLabel && S.lv.winCondition !== 'profit' && S.lv.winCondition !== 'profitSell') {
+        te.textContent = S.lv.winLabel;
+      } else if (S.lv.winCondition === 'profitSell') {
+        te.textContent = 'Profit Sell!';
+      } else {
+        te.textContent = fmt(curTarget());
+      }
+    }
+  }
+
+  function syncTitle() {
+    var el = document.getElementById('ss-title');
+    if (el) el.textContent = '📊 STOCK SURGE — LV' + S.level + (S.lv.traderLeague ? ' 🏆 TRADER LEAGUE' : '');
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     PLAYER ACTIONS
+  ══════════════════════════════════════════════════════════════ */
+  window.ssSelect = function (ticker) {
+    if (!S || S.phase !== 'play') return;
+    S.selected = (S.selected === ticker) ? null : ticker;
+    renderCards();
+    updateCostInfo();
+  };
+
+  window.ssQty = function (delta) {
+    if (!S) return;
+    S.qty = Math.max(1, Math.min(10, S.qty + delta));
+    var el = document.getElementById('ss-qty');
+    if (el) el.textContent = S.qty;
+    updateCostInfo();
+  };
+
+  function updateCostInfo() {
+    var el = document.getElementById('ss-cost-info');
+    if (!el || !S) return;
+    if (!S.selected) { el.textContent = 'Select a stock'; return; }
+    var st = getStock(S.selected);
+    if (!st) { el.textContent = 'Select a stock'; return; }
+    var cost = st.price * S.qty;
+    el.textContent = 'Cost: ' + fmt(cost) + ' · Own: ' + st.shares;
+  }
+
+  window.ssAct = function (action) {
+    if (!S || S.phase !== 'play') return;
+    if (action === 'hold') { showToast('HOLD — watching the market', '#9ca3af'); return; }
+    if (!S.selected) { showToast('Select a stock first!', '#fbbf24'); return; }
+    var st = getStock(S.selected);
+    if (!st) return;
+
+    if (action === 'buy') {
+      var cost = st.price * S.qty;
+      if (cost > S.cash) { showToast('Not enough cash!', '#f87171'); return; }
+      S.cash -= cost;
+      // Track avg buy price per ticker for profit-sell detection (Lv2 win condition)
+      var prevShares  = st.shares;
+      var prevAvg     = S.lastBuyPrice[st.ticker] || st.price;
+      var newTotal    = prevShares + S.qty;
+      S.lastBuyPrice[st.ticker] = newTotal > 0
+        ? (prevAvg * prevShares + st.price * S.qty) / newTotal
+        : st.price;
+      st.shares += S.qty;
+      S.trades++;
+      // Lv5 news-response tracking: buying a stock whose active news is positive = correct
+      if (S.lv.winCondition === 'newsResponse' && S.lastNewsType === 'pos' && !S.newsEventCredited &&
+          (S.lastNewsTicker === st.ticker || S.lastNewsTicker === 'ALL')) {
+        S.newsEventCredited = true;
+        S.newsCorrectTrades++;
+      }
+      showToast('Bought ' + S.qty + ' ' + st.ticker + ' @ $' + st.price.toFixed(2), '#34d399');
+      if (window._ssBurst) _ssBurst(0.5, 0.75, true);
+    } else if (action === 'sell') {
+      if (st.shares < S.qty) { showToast('Not enough shares!', '#f87171'); return; }
+      var proceeds = st.price * S.qty;
+      var avgBuy   = S.lastBuyPrice[st.ticker] || 0;
+      var sellProfitable = avgBuy > 0 && st.price > avgBuy;
+      S.cash += proceeds;
+      st.shares -= S.qty;
+      if (st.shares === 0) delete S.lastBuyPrice[st.ticker];
+      S.trades++;
+      // Lv2: count profitable sells (GDD Sec 10 Lv2 win = "make 1 profitable sell")
+      if (sellProfitable) S.profitSells++;
+      // Lv5 news-response tracking: selling a stock whose active news is negative = correct
+      if (S.lv.winCondition === 'newsResponse' && S.lastNewsType === 'neg' && !S.newsEventCredited &&
+          (S.lastNewsTicker === st.ticker || S.lastNewsTicker === 'ALL')) {
+        S.newsEventCredited = true;
+        S.newsCorrectTrades++;
+      }
+      // GDD Appendix A lesson: "Selling after a rise locks in profit!" vs panic sell
+      var lesson = sellProfitable
+        ? '💡 Selling after a rise locks in profit!'
+        : '📰 Selling in a dip locks in losses. Patience!';
+      if (window._ssBurst) _ssBurst(0.5, 0.75, sellProfitable);
+      showToast('Sold ' + S.qty + ' ' + st.ticker + ' → +' + fmt(proceeds), '#fbbf24');
+      setTimeout(function () { showToast(lesson, '#6ee7b7'); }, 2100);
+    }
+
+    syncHUD();
+    renderCards();
+
+    // Check win after trade (GDD Sec 10 per-level win conditions)
+    if (checkWinCondition()) endRound(true);
+  };
+
+  /* ══════════════════════════════════════════════════════════════
+     WIN CONDITION (GDD Section 10 per-level conditions)
+  ══════════════════════════════════════════════════════════════ */
+  function checkWinCondition() {
+    if (!S) return false;
+    var tv  = totalValue();
+    var wc  = S.lv.winCondition;
+
+    // Lv1: end with any profit above start (target = START_CASH + $100)
+    if (wc === 'profit') return tv >= S.lv.target;
+
+    // Lv2: make 1 profitable sell (sell higher than you bought)
+    if (wc === 'profitSell') return S.profitSells >= 1;
+
+    // Lv3: own at least 3 different stocks (and hit value target)
+    if (wc === 'diversify') {
+      var uniqueOwned = S.stocks.filter(function (st) { return st.shares > 0; }).length;
+      return uniqueOwned >= 3 && tv >= S.lv.target;
+    }
+
+    // Lv4: own 1 Steady + 1 Wild stock (and hit value target)
+    if (wc === 'steadyAndWild') {
+      var hasSteady = S.stocks.some(function (st) { return st.shares > 0 && st.risk === 'Steady'; });
+      var hasWild   = S.stocks.some(function (st) { return st.shares > 0 && st.risk === 'Wild'; });
+      return hasSteady && hasWild && tv >= S.lv.target;
+    }
+
+    // Lv5: respond correctly to 2 news events
+    if (wc === 'newsResponse') return S.newsCorrectTrades >= 2 && tv >= S.lv.target;
+
+    // Default / Lv6-7: reach target portfolio value (escalates per round on Lv6)
+    return tv >= curTarget();
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     KNOWLEDGE GATE
+  ══════════════════════════════════════════════════════════════ */
+  function openGate() {
+    if (!S || S.phase !== 'play') return;
+    S.phase = 'gate';
+    stopTimers(); // pause everything
+    clearSurge(); // a paused surge could never end otherwise
+
+    var f   = FACTS[S.gateIdx % FACTS.length];
+    S.gateIdx++;
+
+    var el = document.getElementById('ss-gate');
+    if (!el) { S.phase = 'play'; startTimers(); return; }
+
+    el.style.display = 'flex';
+    el.innerHTML = '<div class="ss-panel" style="border:1px solid #34d399;box-shadow:0 0 50px rgba(16,185,129,.4)">' +
+      '<div style="font-family:\'Orbitron\',sans-serif;font-size:.48rem;letter-spacing:.18em;color:#6ee7b7;margin-bottom:10px">⛩ KNOWLEDGE GATE</div>' +
+      '<div style="font-size:2.2rem;margin-bottom:8px">' + f.icon + '</div>' +
+      '<div style="font-family:\'Orbitron\',sans-serif;font-size:.72rem;font-weight:900;color:#fff;margin-bottom:10px">' + f.title + '</div>' +
+      '<p style="font-size:.82rem;line-height:1.55;color:rgba(255,255,255,.85);margin:0 0 18px">' + f.body + '</p>' +
+      '<button onclick="ssGateClose()" style="padding:12px 28px;border:none;border-radius:12px;background:linear-gradient(135deg,#34d399,#059669);color:#031409;font-family:\'Orbitron\',sans-serif;font-size:.68rem;letter-spacing:.1em;font-weight:900;cursor:pointer">GOT IT! +10 🪙 →</button>' +
+    '</div>';
+  }
+
+  window.ssGateClose = function () {
+    if (!S) return;
+    // reward real coins, NOT game cash — game cash would count toward the profit target
+    if (window.state) { state.coins = (state.coins || 0) + 10; if (window.cvSave) cvSave(); }
+    S.phase = 'play';
+    var el = document.getElementById('ss-gate');
+    if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+    syncHUD();
+    startTimers(); // resume (startTimers already calls scheduleGate internally)
+  };
+
+  /* ══════════════════════════════════════════════════════════════
+     END ROUND / GAME OVER
+  ══════════════════════════════════════════════════════════════ */
+  function endRound(won) {
+    if (!S || S.phase === 'over') return;
+    S.phase = 'over';
+    stopTimers();
+    clearSurge();
+
+    var tv     = totalValue();
+    var profit = tv - S.startCash;
+    var won2   = won || checkWinCondition();   // timeout must respect the level's mission too
+
+    // Multi-round progression (Level 6)
+    if (won2 && S.lv.multiRound > 1 && S.round < S.lv.multiRound) {
+      S.round++;
+      S.phase = 'play';
+      S.surgeRolled = false;              // each round gets its own surge roll
+      // carry over cash & portfolio, reset timer; target escalates via curTarget()
+      S.timeLeft = S.lv.time * 1000;
+      startTimers();
+      syncHUD();
+      showToast('Round ' + S.round + ' — new target ' + fmt(curTarget()) + '!', '#fbbf24');
+      return;
+    }
+
+    // Coins reward — win-gated + routed through cvAwardGame (records stars/level/badge)
+    var reward = 0;
+    if (window.state) {
+      if (won2 && window.cvAwardGame) {
+        var stars = profit >= 2 * Math.max(1, curTarget() - S.startCash) ? 3 : 2;
+        reward = cvAwardGame('game_stocksurge', { level: Math.min(S.level, 3), stars: stars, badge: 'Market Mogul', is3star: stars === 3, isPerfect: stars === 3, isFlagship: true });
+      } else {
+        reward = profit > 0 ? 40 : 20;    // small consolation, no farming value
+        state.coins = (state.coins || 0) + reward;
+        if (window.cvAddXP) cvAddXP(Math.round(reward / 4), 0);
+        else if (window.cvSave) cvSave();
+      }
+    }
+
+    // Diversification check (Level 3)
+    var uniqueOwned = S.stocks.filter(function (st) { return st.shares > 0; }).length;
+    var diversifyMsg = '';
+    if (S.lv.diversify && uniqueOwned < S.lv.diversify) {
+      diversifyMsg = '<div style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:10px;padding:10px;margin-bottom:14px;font-size:.6rem;color:#fbbf24;font-family:\'Orbitron\',sans-serif;letter-spacing:.05em">💡 TIP: Own 3+ different stocks to diversify risk!</div>';
+    }
+
+    // GDD Appendix A + Sec 10: per-level lesson text tied to the concept taught
+    var LEVEL_LESSONS = {
+      1: { win: '💡 You turned your cash into profit — that\'s what investing is all about!',
+           loss: '📉 Stocks go up AND down. Try buying when the price is lower next time.' },
+      2: { win: '💡 Selling after a rise locks in profit — that\'s the buy-low, sell-high rule!',
+           loss: '📉 Buying after a big spike can be risky. Watch for the right moment.' },
+      3: { win: '🧺 Spreading across multiple stocks cushioned your portfolio — diversification works!',
+           loss: '🧺 Owning just one stock is risky. Spread your money next time!' },
+      4: { win: '⚖️ Great mix of Steady and Wild! Risk vs reward is the investor\'s core skill.',
+           loss: '⚖️ Wild stocks can drop fast. Balance them with Steady stocks next round.' },
+      5: { win: '📰 You read the news and acted — good investors do exactly that!',
+           loss: '📰 News moves prices. Watch for good and bad news bubbles and react quickly.' },
+      6: { win: '⏳ Patience paid off! Holding through dips is a real investor move.',
+           loss: '⏳ Selling in a dip locks in losses. Sometimes the best move is to hold.' },
+      7: { win: '🏆 Trader League material! Consistency and long-term strategy win every time.',
+           loss: '🏆 Great investors think long-term. Smart choices over time grow investments.' },
+    };
+    var lvLessons = LEVEL_LESSONS[Math.min(S.level, 7)] || LEVEL_LESSONS[7];
+    var lesson = won2 ? lvLessons.win : (profit >= 0 ? lvLessons.win : lvLessons.loss);
+
+    var el = document.getElementById('ss-over');
+    if (!el) return;
+    el.style.display = 'flex';
+    el.innerHTML = '<div class="ss-panel" style="border:1px solid ' + (won2 ? '#fbbf24' : '#10b981') + ';box-shadow:0 0 60px rgba(16,185,129,.4)">' +
+      '<div style="font-size:2.6rem;margin-bottom:8px">' + (won2 ? '🏆' : profit >= 0 ? '📈' : '📉') + '</div>' +
+      '<div style="font-family:\'Orbitron\',sans-serif;font-size:.55rem;letter-spacing:.18em;color:' + (won2 ? '#fbbf24' : '#34d399') + ';margin-bottom:8px">' + (won2 ? 'TARGET REACHED!' : profit >= 0 ? 'PROFITABLE RUN' : 'MARKET CLOSED') + '</div>' +
+      '<div style="font-family:\'Orbitron\',sans-serif;font-size:.42rem;letter-spacing:.14em;color:rgba(255,255,255,.5);margin-bottom:6px">INVESTMENT ACCOUNT SUMMARY</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;text-align:left">' +
+        summaryRow('STARTING VALUE', fmt(S.startCash)) +
+        summaryRow('ENDING VALUE',   fmt(tv)) +
+        summaryRow('PROFIT / LOSS',  fmtSigned(profit), profit >= 0 ? '#34d399' : '#f87171') +
+        summaryRow('TRADES MADE',    S.trades) +
+        summaryRow('MISSION', S.lv.winLabel || ('Reach ' + fmt(S.lv.target))) +
+        summaryRow('LEVEL', 'LV' + S.level) +
+        summaryRow('REWARD', '+' + reward + ' 🪙', '#fbbf24') +
+      '</div>' +
+      diversifyMsg +
+      '<p style="font-size:.65rem;line-height:1.5;color:rgba(255,255,255,.7);margin:0 0 16px;padding:10px;background:rgba(52,211,153,.07);border-radius:8px;border-left:3px solid #34d399">' + lesson + '</p>' +
+      (won2 && S.level < 7
+        ? '<button onclick="ssNextLevel()" style="padding:11px 20px;margin:3px;border:none;border-radius:12px;background:linear-gradient(135deg,#fbbf24,#d97706);color:#0a0700;font-family:\'Orbitron\',sans-serif;font-size:.62rem;letter-spacing:.1em;font-weight:900;cursor:pointer">▶ NEXT LEVEL</button>'
+        : '') +
+      '<button onclick="ssRestart()" style="padding:11px 20px;margin:3px;border:none;border-radius:12px;background:linear-gradient(135deg,#34d399,#059669);color:#031409;font-family:\'Orbitron\',sans-serif;font-size:.62rem;letter-spacing:.1em;font-weight:900;cursor:pointer">↺ PLAY AGAIN</button>' +
+      '<button onclick="ssExit()" style="padding:11px 20px;margin:3px;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(255,255,255,.06);color:#fff;font-family:\'Orbitron\',sans-serif;font-size:.62rem;letter-spacing:.1em;cursor:pointer">← HUB</button>' +
+    '</div>';
+  }
+
+  function summaryRow(label, val, color) {
+    return '<div style="background:rgba(16,185,129,.07);border-radius:7px;padding:6px 8px">' +
+      '<div style="font-size:.38rem;letter-spacing:.08em;color:rgba(255,255,255,.4);font-family:\'Orbitron\',sans-serif">' + label + '</div>' +
+      '<div style="font-size:.82rem;font-weight:900;color:' + (color || '#fff') + ';font-family:\'Anton\',sans-serif">' + val + '</div>' +
+    '</div>';
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     TOAST
+  ══════════════════════════════════════════════════════════════ */
+  function showToast(text, color) {
+    var root = document.getElementById('ss-root');
+    if (!root) return;
+    var old = root.querySelector('.ss-toast');
+    if (old) old.remove();
+    var div = document.createElement('div');
+    div.className = 'ss-toast';
+    div.style.cssText = 'position:absolute;bottom:130px;left:50%;transform:translateX(-50%);z-index:9;pointer-events:none;white-space:nowrap;font-family:\'Inter\',sans-serif;font-weight:800;font-size:.78rem;color:' + (color || '#34d399') + ';background:rgba(2,10,5,.9);padding:8px 16px;border-radius:20px;border:1px solid ' + (color || '#34d399') + '44;box-shadow:0 4px 18px rgba(0,0,0,.4);animation:ssToastUp 2s ease forwards;';
+    div.textContent = text;
+    root.appendChild(div);
+    setTimeout(function () { if (div.parentNode) div.remove(); }, 2100);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     GLOBAL CONTROLS
+  ══════════════════════════════════════════════════════════════ */
+  window.ssRestart = function () {
+    stopTimers();
+    hideOverlays();
+    initGame(S ? S.level : 1);
+    ssMount();
+  };
+
+  window.ssNextLevel = function () {
+    stopTimers();
+    hideOverlays();
+    var next = S ? Math.min(S.level + 1, 7) : 1;
+    initGame(next);
+    ssMount();
+  };
+
+  window.ssExit = function () {
+    stopTimers();
+    S = null;
+    if (window.state) state.viewingWorld = state._returnHub || 'investor';
+    goTo('hub');
+  };
+
+  function hideOverlays() {
+    ['ss-gate', 'ss-over', 'ss-info'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+    });
+    hideSurgeOverlay();
+    var news = document.getElementById('ss-news');
+    if (news) news.remove();
+  }
+
 })();

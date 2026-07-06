@@ -111,7 +111,7 @@
 
     // SERVE on tap/click — hit-test the customer slots
     const hit=(clientX,clientY)=>{
-      if(G.phase!=='play') return;
+      if(!G||G.phase!=='play') return;
       const r=cv.getBoundingClientRect();
       const x=(clientX-r.left)/r.width, y=(clientY-r.top)/r.height;
       // iterate front→back so nearest gets served
@@ -126,16 +126,18 @@
         G.restockPulse=0.5;
       }
     };
-    cv.addEventListener('mousedown',e=>hit(e.clientX,e.clientY));
-    cv.addEventListener('touchstart',e=>{ if(e.touches[0]){ hit(e.touches[0].clientX,e.touches[0].clientY); e.preventDefault(); } },{passive:false});
+    const md=e=>hit(e.clientX,e.clientY);
+    const ts=e=>{ if(e.touches[0]){ hit(e.touches[0].clientX,e.touches[0].clientY); e.preventDefault(); } };
+    cv.addEventListener('mousedown',md);
+    cv.addEventListener('touchstart',ts,{passive:false});
     // keyboard: R restock, 1-5 serve nth waiting customer
     const kd=e=>{
-      if(G.phase!=='play') return;
+      if(!G||G.phase!=='play') return;
       if(e.key==='r'||e.key==='R'){ boDoRestock(); }
       else if(e.key>='1'&&e.key<='5'){ const idx=+e.key-1; const w=G.queue.filter(c=>c.state==='wait'); if(w[idx]) serve(w[idx]); }
     };
     window.addEventListener('keydown',kd);
-    G._cleanup=()=>{ window.removeEventListener('resize',size); window.removeEventListener('keydown',kd); };
+    G._cleanup=()=>{ window.removeEventListener('resize',size); window.removeEventListener('keydown',kd); cv.removeEventListener('mousedown',md); cv.removeEventListener('touchstart',ts); };
 
     if(G.phase==='pick') showPicker();
     else { const rb=document.getElementById('boRestock'); if(rb)rb.style.display='block'; }
@@ -271,22 +273,39 @@
   }
   function ease(t){ t=Math.max(0,Math.min(1,t)); return t*t*(3-2*t); }
 
+  const _bzStars=Array.from({length:45},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.0+0.25,s:Math.random()*0.45+0.2,c:Math.random()<0.5?'#c4b5fd':'#f0abfc'}));
+  function _bzBg(ctx,W,H,counterY,now){
+    // deep purple/indigo gradient sky
+    const bg=ctx.createLinearGradient(0,0,0,counterY);
+    bg.addColorStop(0,'#0d0618'); bg.addColorStop(0.5,'#120a22'); bg.addColorStop(1,'#1a0a2e');
+    ctx.fillStyle=bg; ctx.fillRect(0,0,W,counterY);
+    // warm floor zone
+    const flr=ctx.createLinearGradient(0,counterY-20,0,H);
+    flr.addColorStop(0,'rgba(168,85,247,.2)'); flr.addColorStop(1,'rgba(126,34,206,.06)');
+    ctx.fillStyle=flr; ctx.fillRect(0,counterY-20,W,H-counterY+20);
+    // glowing counter divider line
+    ctx.shadowColor='#c084fc'; ctx.shadowBlur=12;
+    ctx.fillStyle='rgba(192,132,252,.6)'; ctx.fillRect(0,counterY-2,W,3);
+    ctx.shadowBlur=0;
+    // twinkling stars in the "sky" area
+    const t=now/1000;
+    for(const st of _bzStars){
+      const tw=0.25+0.45*Math.sin(t*st.s+st.x*6.28);
+      ctx.globalAlpha=tw*0.65; ctx.fillStyle=st.c;
+      ctx.beginPath(); ctx.arc(st.x*W,st.y*(counterY*0.9),st.r,0,6.28); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    // top glow arc
+    const tg=ctx.createRadialGradient(W/2,-20,0,W/2,-20,W*0.8);
+    tg.addColorStop(0,'rgba(192,132,252,.10)'); tg.addColorStop(1,'transparent');
+    ctx.fillStyle=tg; ctx.fillRect(0,0,W,counterY);
+  }
+
   function render(ctx,W,H,now){
-    ctx.clearRect(0,0,W,H);
+    const counterY=QY*H+44;
+    _bzBg(ctx,W,H,counterY,now);
     let ox=0,oy=0; if(G.shake>0){ ox=(Math.random()-.5)*G.shake*20; oy=(Math.random()-.5)*G.shake*20; }
     ctx.save(); ctx.translate(ox,oy);
-
-    // floor / counter band
-    const counterY=QY*H+44;
-    const grd=ctx.createLinearGradient(0,counterY-30,0,H);
-    grd.addColorStop(0,'rgba(168,85,247,.16)'); grd.addColorStop(1,'rgba(126,34,206,.05)');
-    ctx.fillStyle=grd; ctx.fillRect(0,counterY,W,H-counterY);
-    ctx.fillStyle='rgba(192,132,252,.5)'; ctx.fillRect(0,counterY-3,W,3);
-    // soft ambient dots
-    ctx.fillStyle='rgba(192,132,252,.4)';
-    for(let i=0;i<28;i++){ const sx=(i*89.7%W), sy=((i*51.3 + now*0.01*((i%3)+1))%(counterY-60))+20; ctx.globalAlpha=0.1+(i%4)*0.05; ctx.beginPath(); ctx.arc(sx,sy,1.6,0,7); ctx.fill(); }
-    ctx.globalAlpha=1;
-
     if(G.flash>0){ ctx.fillStyle='rgba(168,85,247,'+(G.flash*0.22)+')'; ctx.fillRect(0,0,W,H); }
 
     // shop sign (your stand)
@@ -363,7 +382,7 @@
   function end(win){
     if(G.phase==='over') return; G.phase='over';
     const score=G.revenue;
-    if(window.state){ state.coins=(state.coins||0)+score; if(window.cvAddXP) cvAddXP(Math.round(score/4),0); else if(window.cvSave) cvSave();
+    if(window.state){ state.coins=(state.coins||0)+score; if(window.cvAddXP) cvAddXP(Math.round(score/4),0); if(window.cvSave) cvSave();
       state.gamesDone=state.gamesDone||{}; state.gamesDone['builder:0']=1; }
     const won = win || G.revenue>=GOAL;
     const rb=document.getElementById('boRestock'); if(rb) rb.style.display='none';
@@ -382,7 +401,7 @@
   function openGate(){
     if(!G||G.phase!=='play') return; G.phase='gate';
     const f=FACTS[G.gateIdx%FACTS.length]; G.gateIdx++;
-    const o=document.getElementById('boGate'); if(!o){ G.phase='play'; return; }
+    const o=document.getElementById('boGate'); if(!o){ G.phase='play'; G.gateT=GATE_EVERY; return; }
     o.style.display='flex';
     o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #a855f7;border-radius:22px;background:linear-gradient(160deg,rgba(61,37,96,.97),rgba(26,16,48,.97));box-shadow:0 0 50px rgba(168,85,247,.4);animation:boGateIn .35s ease">
       <style>@keyframes boGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}</style>
@@ -394,6 +413,6 @@
   }
   window.boGateGo=function(){ if(!G)return; G.revenue+=120; G.gateT=GATE_EVERY; G.phase='play'; G.last=performance.now(); const o=document.getElementById('boGate'); if(o){o.style.display='none';o.innerHTML='';} };
 
-  window.boRestart=function(){ const keep=G&&G.shopKey; reset(keep); ['boOver','boGate'].forEach(id=>{const o=document.getElementById(id); if(o){o.style.display='none';o.innerHTML='';}}); boBoot(); };
-  window.boExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); G=null; if(window.state)state.viewingWorld='builder'; goTo('hub'); };
+  window.boRestart=function(){ if(G&&G._cleanup)G._cleanup(); const keep=G&&G.shopKey; reset(keep); ['boOver','boGate'].forEach(id=>{const o=document.getElementById(id); if(o){o.style.display='none';o.innerHTML='';}}); boBoot(); };
+  window.boExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); G=null; if(window.state)state.viewingWorld=state._returnHub||'builder'; goTo('hub'); };
 })();

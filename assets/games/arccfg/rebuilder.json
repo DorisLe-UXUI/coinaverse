@@ -1,0 +1,153 @@
+{
+  "rebuilder_1": {
+    "mech": "lane",
+    "name": "Payment Plaza",
+    "title": "PAYMENT PLAN PLAZA",
+    "icon": "🏃",
+    "goal": 165,
+    "time": 60,
+    "gateEvery": 17,
+    "hint": "◀ ▶ grab 💵 payments, dodge 💳 new debt",
+    "winMsg": "PLAN PAID OFF!",
+    "lesson": [
+      ["📅", "A payment plan splits debt into steady chunks."],
+      ["⏰", "Pay on time so no extra fees pile up."],
+      ["💪", "Each payment shrinks what you owe."]
+    ],
+    "good": ["💵"],
+    "bad": ["💳"],
+    "player": "🏃",
+    "pts": 14,
+    "badRate": 0.45
+  },
+  "rebuilder_2": {
+    "mech": "balance",
+    "name": "Interest Lab",
+    "title": "INTEREST IMPACT LAB",
+    "icon": "⚖️",
+    "goal": 180,
+    "time": 64,
+    "gateEvery": 18,
+    "hint": "Tilt ◀ ▶ to keep the 📈 interest meter centered",
+    "winMsg": "INTEREST UNDER CONTROL!",
+    "lesson": [
+      ["📈", "Interest is the extra cost of borrowing money."],
+      ["🐌", "Low interest means debt grows slower."],
+      ["✂️", "Paying early cuts the interest you owe."]
+    ],
+    "player": "⚖️",
+    "zone": 0.16,
+    "pts": 15
+  },
+  "rebuilder_3": {
+    "mech": "stack",
+    "name": "Rebuild Station",
+    "title": "REBUILDING STATION",
+    "icon": "🏗️",
+    "goal": 190,
+    "time": 66,
+    "gateEvery": 19,
+    "hint": "TAP to drop each block and stack your health high",
+    "winMsg": "CREDIT REBUILT!",
+    "lesson": [
+      ["🧱", "Rebuild credit one good habit at a time."],
+      ["⏳", "On-time payments slowly raise your score."],
+      ["📊", "Keep balances low to stay financially strong."]
+    ],
+    "stackLabel": "Financial Health",
+    "pts": 18
+  },
+  "rebuilder_4": {
+    "mech": "quiz",
+    "name": "Habit Reset",
+    "title": "HABIT RESET CENTER",
+    "icon": "❓",
+    "goal": 170,
+    "time": 62,
+    "gateEvery": 18,
+    "hint": "TAP an answer or press 1–3",
+    "winMsg": "HABITS UPGRADED!",
+    "lesson": [
+      ["🔁", "Small habits repeated build big results."],
+      ["💰", "A budget tells your money where to go."],
+      ["🚫", "Skip impulse buys to keep debt away."]
+    ],
+    "qs": [
+      {
+        "q": "A budget helps you…",
+        "a": ["Plan spending", "Waste money", "Forget bills"],
+        "c": 0
+      },
+      {
+        "q": "Best habit to avoid new debt?",
+        "a": ["Borrow more", "Spend less than you earn", "Ignore bills"],
+        "c": 1
+      },
+      {
+        "q": "An emergency fund is for…",
+        "a": ["Surprise costs", "Daily snacks", "New toys"],
+        "c": 0
+      },
+      {
+        "q": "Paying yourself first means…",
+        "a": ["Save before you spend", "Buy treats first", "Skip saving"],
+        "c": 0
+      },
+      {
+        "q": "Tracking spending helps you…",
+        "a": ["See where money goes", "Spend blindly", "Owe more"],
+        "c": 0
+      }
+    ]
+  },
+  "rebuilder_5": {
+    "mech": "catch",
+    "name": "Fitness Gym",
+    "title": "FINANCIAL FITNESS GYM",
+    "icon": "💪",
+    "goal": 160,
+    "time": 58,
+    "gateEvery": 16,
+    "hint": "Move ◀ ▶ to catch good habits, dodge bad ones",
+    "winMsg": "MONEY MUSCLES STRONG!",
+    "lesson": [
+      ["🏋️", "Good money habits get stronger with practice."],
+      ["🥗", "Saving a little often beats spending it all."],
+      ["⏰", "Paying bills on time keeps you fit and fee-free."]
+    ],
+    "good": ["💰", "📈", "✅"],
+    "bad": ["🛍️", "💸"],
+    "player": "🧺",
+    "pts": 12,
+    "badRate": 0.3
+  },
+  "rebuilder_6": {
+    "mech": "sort",
+    "name": "Resilience Hall",
+    "title": "RESILIENCE HALL",
+    "icon": "🛡️",
+    "goal": 175,
+    "time": 63,
+    "gateEvery": 17,
+    "hint": "SWIPE each item to GOOD DEBT or BAD DEBT",
+    "winMsg": "DEBT SORTED SMART!",
+    "lesson": [
+      ["🎓", "Good debt can build your future, like a student loan."],
+      ["💳", "Bad debt buys things that lose value fast."],
+      ["🧠", "Knowing the difference makes you debt-resilient."]
+    ],
+    "left": ["GOOD DEBT", "#34d399"],
+    "right": ["BAD DEBT", "#ef4444"],
+    "items": [
+      ["🎓", "Student loan", 0],
+      ["🏠", "Home loan", 0],
+      ["💼", "Business loan", 0],
+      ["🔧", "Skill course loan", 0],
+      ["💳", "Credit card splurge", 1],
+      ["🛍️", "Impulse shopping debt", 1],
+      ["🎰", "Gambling debt", 1],
+      ["📱", "Buy-now-pay-later", 1]
+    ],
+    "pts": 16
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "coinaverse",
+  "version": "1.0.0",
+  "description": "Coinaverse — Kids Financial Literacy Game",
+  "private": true,
+  "scripts": {
+    "mobile:init": "npm install && npx cap init",
+    "mobile:android": "npx cap add android && npx cap sync android",
+    "mobile:ios": "npx cap add ios && npx cap sync ios",
+    "mobile:sync": "npx cap sync",
+    "mobile:open:android": "npx cap open android",
+    "mobile:open:ios": "npx cap open ios",
+    "server:install": "cd server && npm install",
+    "server:dev": "cd server && npm run dev",
+    "server:start": "cd server && npm start",
+    "deploy": "python3 deploy.py"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/ios": "^6.0.0"
+  }
+}

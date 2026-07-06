@@ -3247,6 +3247,13 @@ h1, h2, h3, .anton { font-family: 'Anton', 'Orbitron', sans-serif; letter-spacin
 }
 @media (min-width: 560px) { .v14-identity-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (min-width: 980px) { .v14-identity-grid { grid-template-columns: repeat(6, 1fr); } }
+.id--strategist { --id-c: var(--c-strategist); }
+.id--builder    { --id-c: var(--c-builder); }
+.id--investor   { --id-c: var(--c-investor); }
+.id--guardian   { --id-c: var(--c-guardian); }
+.id--risktaker  { --id-c: var(--c-risktaker); }
+.id--rebuilder  { --id-c: var(--c-rebuilder); }
+.id--credtech   { --id-c: var(--cyan); }
 .v14-id-card {
   background: rgba(10, 4, 41, 0.75);
   border: 2px solid var(--id-c);
@@ -4033,7 +4040,8 @@ video::-webkit-media-controls-play-button {
 
   window.state = {
     coins: 100, cred: 350, credPct: 41,
-    level: 1, streak: 3, xp: 60, xpMax: 100,
+    level: 1, streak: 3, xp: 60, xpMax: 100, articlesRead: 0,
+    gameStars: {}, gameLevels: {}, badges: [], hubMeters: {}, budgetMeter: 50, meters: {},
     playerName: 'Hero', archetype: null, selectedArchetype: null,
     viewingWorld: null, inventory: [], completedMissions: 0,
     friends: [], party: [], dailyClaimed: [true,true,true,false,false,false,false],
@@ -4331,8 +4339,13 @@ video::-webkit-media-controls-play-button {
   window.goTo = function(screenId, opts) {
     const app = document.getElementById('app');
     if (typeof SCREENS[screenId] !== 'function') {
-      app.innerHTML = `<div style="padding:80px;text-align:center;color:#fff;font-family:Orbitron">${screenId} not registered</div>`;
-      return;
+      // legacy/invalid target → route to the nearest sensible screen instead of a dead end
+      console.warn('[goTo] unknown screen:', screenId, '→ redirecting');
+      const alias = {world:'world_detail', worlds:'home', game:'game', main:'home', menu:'home', arena:'event_arena'}[screenId];
+      const fallback = (alias && typeof SCREENS[alias]==='function') ? alias
+        : (state && state.currentScreen && state.currentScreen!=='splash' ? (state.viewingWorld ? 'hub' : 'home') : 'splash');
+      screenId = fallback;
+      opts = undefined;
     }
     app.innerHTML = SCREENS[screenId](opts);
     state.currentScreen = screenId;
@@ -4348,8 +4361,10 @@ video::-webkit-media-controls-play-button {
   };
 
   // ───────── SCREEN: SPLASH ─────────
+  let _splashTimer = null;
   SCREENS.splash = function() {
-    setTimeout(() => goTo('signin'), 10000);
+    if(_splashTimer) clearTimeout(_splashTimer);
+    _splashTimer = setTimeout(() => { _splashTimer=null; goTo('signin'); }, 10000);
     return `
       <div class="v14-splash has-vid">
         ${vbg('splash','assets/bg/cosmic_main.jpeg')}
@@ -4464,7 +4479,7 @@ video::-webkit-media-controls-play-button {
     const w = WORLDS[state.archetype] || WORLDS.guardian;
     return `
       <div class="v14-welcome has-vid" style="--player-c: var(--c-${w.color})">
-        <video class="scr-vid wvid" id="welcomeVid" autoplay loop playsinline preload="auto" poster="assets/map/${w.id}.jpeg"><source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/${w.id}.mp4" type="video/mp4"></video><div class="scr-veil"></div>
+        <video class="scr-vid wvid" id="welcomeVid" autoplay loop playsinline preload="auto" poster="assets/map/${w.id}.jpeg"><source src="assets/bgvid/${w.id}.mp4" type="video/mp4"><source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/${w.id}.mp4" type="video/mp4"></video><div class="scr-veil"></div>
         <div class="v14-welcome-info">
           <span class="v14-welcome-badge">✨ IDENTITY CONFIRMED</span>
           <h1 class="v14-welcome-h1">Welcome ${(state.playerName&&state.playerName!=='Hero')?state.playerName:'Hero'},<br>${w.archetype}.</h1>
@@ -4478,7 +4493,7 @@ video::-webkit-media-controls-play-button {
   SCREENS.home = function() {
     const playerArch = state.archetype || 'guardian';
     const playerW = WORLDS[playerArch];
-    const playerChar = playerW.hero || playerW.character;
+    const playerChar = (typeof genderedHero==='function') ? genderedHero(playerArch) : (playerW.hero || playerW.character);
     const playerColor = playerW.color;
 
     const hubs = [
@@ -4496,6 +4511,7 @@ video::-webkit-media-controls-play-button {
            onclick="walkToHub('${h.id}')">
         <div class="home-hotspot-portal">
           <video class="home-hotspot-vid" autoplay loop muted playsinline>
+            <source src="assets/bgvid/${h.id}_hub.mp4" type="video/mp4">
             <source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/${h.id}_hub.mp4" type="video/mp4">
           </video>
         </div>
@@ -4548,6 +4564,7 @@ video::-webkit-media-controls-play-button {
           <button class="home-sb-btn" onclick="goTo('cinema')"><span class="ic">🎬</span>CINEMA</button>
           <button class="home-sb-btn" onclick="goTo('event_arena')"><span class="ic">⚡</span>EVENT ARENA</button>
           <button class="home-sb-btn" onclick="goTo('shop')"><span class="ic">🛒</span>MARKETPLACE</button>
+          <button class="home-sb-btn" onclick="goTo('store')" style="border-color:rgba(251,191,36,.4);background:linear-gradient(135deg,rgba(251,191,36,.08),rgba(192,132,252,.06))"><span class="ic">💎</span>COIN STORE</button>
           <button class="home-sb-btn" onclick="goTo('reward_center')"><span class="ic">🎁</span>REWARD CENTER</button>
         </aside>
 
@@ -4620,7 +4637,7 @@ video::-webkit-media-controls-play-button {
   SCREENS.party = function() {
     const arch = state.archetype || 'guardian';
     const AC={guardian:'#14b8a6',builder:'#a855f7',investor:'#10b981',strategist:'#3b82f6',risktaker:'#ef4444',rebuilder:'#f59e0b',credtech:'#38bdf8'};
-    const portrait=a=>`assets/characters/${(a||'guardian').toLowerCase().replace(/\s/g,'')}_portrait.png`;
+    const portrait=a=>{ const k=(a||'guardian').toLowerCase().replace(/\s/g,''); return `assets/characters/${k==='credtech'?'guardian':k}_portrait.png`; };   // no credtech portrait art exists
 
     const FRIENDS=[
       {name:'Bahati K.',arch:'investor',online:true,status:'In Investopia',lvl:14},
@@ -4773,7 +4790,20 @@ video::-webkit-media-controls-play-button {
   // ───────── SCREEN: LEADERBOARDS ─────────
   let _lbTab = 'weekly';
   SCREENS.leaderboards = function() {
-    const data = LEADERBOARDS[_lbTab] || LEADERBOARDS.weekly;
+    // live-ify: replace the mock "You" row with the real player, then re-rank
+    const raw = (LEADERBOARDS[_lbTab] || LEADERBOARDS.weekly).map(r=>({...r}));
+    const meArch = (state.archetype||'guardian');
+    raw.forEach(r=>{ if(r.isYou){
+      r.name = state.playerName || 'You';
+      r.arch = meArch.toUpperCase();
+      const _lbA = ['guardian','strategist','investor','builder','risktaker','rebuilder'].indexOf(meArch)>=0 ? meArch : 'guardian';
+      r.char = 'assets/characters/'+_lbA+(state.gender==='female'?'_f':'')+'.png';   // small chip art, matches other rows
+      r.score = Math.max(state.coins||0, Math.round((state.xp||0) + (state.level||1)*100));
+      r.change = 'up';
+    }});
+    raw.sort((a,b)=>b.score-a.score);
+    raw.forEach((r,i)=>r.rank=i+1);
+    const data = raw;
     const top3 = data.slice(0,3);
     const rest = data.slice(3);
     const AC={investor:'#10b981',builder:'#a855f7',strategist:'#3b82f6',guardian:'#14b8a6','risk taker':'#ef4444',risktaker:'#ef4444',rebuilder:'#f59e0b'};
@@ -4889,13 +4919,30 @@ video::-webkit-media-controls-play-button {
       {n:6,ic:'🎁',label:'LOOT CHEST',col:'#FF6B9D',glow:'rgba(255,107,157,.5)',tier:'RARE',done:false},
       {n:7,ic:'👑',label:'2× BONUS',col:'#FF9500',glow:'rgba(255,149,0,.6)',tier:'LEGEND',done:false},
     ];
+    // live progress from real state
+    const _mDone=Object.keys(state.missionsDone||{}).length;
+    const _gDone=Object.keys(state.gamesDone||{}).length;
+    const _hubs=Object.keys(state.hubsVisited||{}).length;
+    const _cine=state.cinemaSeen||0;
+    const _stars3=Object.values(state.gameStars||{}).filter(v=>v>=3).length;
     const CHALLENGES=[
-      {ic:'🎯',name:'Quest Hunter',desc:'Complete 5 daily missions',prog:2,goal:5,reward:'200 🪙',col:'#e50914'},
-      {ic:'🌍',name:'World Explorer',desc:'Visit all 7 hubs',prog:3,goal:7,reward:'Crystal',col:'#38bdf8'},
-      {ic:'🏆',name:'Game Master',desc:'Win 10 game rounds',prog:1,goal:10,reward:'300 XP',col:'#a855f7'},
-      {ic:'💡',name:'Knowledge Seeker',desc:'Watch 3 cinema lessons',prog:3,goal:3,reward:'Gem',col:'#10b981'},
-      {ic:'👥',name:'Social Star',desc:'Invite 2 friends to party',prog:0,goal:2,reward:'Avatar Frame',col:'#f59e0b'},
+      {id:'quest',ic:'🎯',name:'Quest Hunter',desc:'Complete 5 daily missions',prog:Math.min(_mDone,5),goal:5,reward:'200 🪙',col:'#e50914',coins:200},
+      {id:'world',ic:'🌍',name:'World Explorer',desc:'Visit all 7 hubs',prog:Math.min(_hubs,7),goal:7,reward:'500 🪙',col:'#38bdf8',coins:500},
+      {id:'games',ic:'🏆',name:'Game Master',desc:'Complete 10 games',prog:Math.min(_gDone,10),goal:10,reward:'300 🪙',col:'#a855f7',coins:300},
+      {id:'cinema',ic:'💡',name:'Knowledge Seeker',desc:'Watch 3 cinema lessons',prog:Math.min(_cine,3),goal:3,reward:'150 🪙',col:'#10b981',coins:150},
+      {id:'mastery',ic:'⭐',name:'Mastery Path',desc:'Earn 3★ in 3 games',prog:Math.min(_stars3,3),goal:3,reward:'400 🪙',col:'#f59e0b',coins:400},
     ];
+    // auto-grant once per completed challenge
+    state.challengesClaimed=state.challengesClaimed||{};
+    CHALLENGES.forEach(c=>{
+      if(c.prog>=c.goal && !state.challengesClaimed[c.id]){
+        state.challengesClaimed[c.id]=1;
+        state.coins=(state.coins||0)+c.coins;
+        if(window.cvSave) cvSave();
+        setTimeout(()=>{ if(window.cvToast) cvToast(`🏆 ${c.name} complete · +${c.coins}🪙`); },800);
+      }
+    });
+    const _chDone=CHALLENGES.filter(c=>c.prog>=c.goal).length;
     const archs=['guardian','builder','investor','strategist','risktaker','rebuilder'];
     const LB=[
       {name:'Bahati K.',arch:'investor',sc:14820,pos:1},
@@ -5009,11 +5056,39 @@ video::-webkit-media-controls-play-button {
           ✦ CLAIM DAY 5 · GEM ×1 ✦
         </button>
 
+        ${(function(){
+          // ── COIN DROP FRIDAY (Marketing Playbook: weekly mystery drop) ──
+          const now=new Date(); const isFri=now.getDay()===5;
+          const wk=now.getFullYear()+'-W'+Math.ceil(((now-new Date(now.getFullYear(),0,1))/864e5+new Date(now.getFullYear(),0,1).getDay()+1)/7);
+          state.coinDropClaimed=state.coinDropClaimed||{};
+          const claimed=!!state.coinDropClaimed[wk];
+          if(!isFri) return '';
+          return `<div style="margin:18px 0;border-radius:18px;padding:18px;background:linear-gradient(135deg,rgba(251,191,36,.14),rgba(168,85,247,.1));border:1px solid rgba(251,191,36,.35);display:flex;align-items:center;gap:14px;box-shadow:0 0 30px rgba(251,191,36,.12)">
+            <div style="font-size:2.2rem;${claimed?'':'animation:dayPulse 1.6s ease-in-out infinite'}">${claimed?'📭':'🎁'}</div>
+            <div style="flex:1">
+              <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.18em;color:#fbbf24">COIN DROP FRIDAY</div>
+              <div style="font-size:.78rem;color:rgba(255,255,255,.6);margin-top:3px">${claimed?'Claimed — next mystery drop next Friday!':'A mystery reward waits. No spoilers — just claim it.'}</div>
+            </div>
+            ${claimed?'':`<button onclick="cvCoinDrop('${wk}')" style="padding:11px 20px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;border-radius:11px;color:#1a0a00;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;font-weight:900;cursor:pointer">OPEN 🎁</button>`}
+          </div>`;
+        })()}
+
+        ${(state.badges&&state.badges.length)?`
+        <!-- BADGE COLLECTION -->
+        <div class="rc2-section-head">
+          <div class="rc2-section-icon" style="background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.2)">🏅</div>
+          <div class="rc2-section-title">BADGES EARNED</div>
+          <div class="rc2-section-sub">${state.badges.length} COLLECTED</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 20px">
+          ${state.badges.map(b=>`<span style="padding:7px 14px;border-radius:999px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);color:#fde68a;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.1em">🏅 ${b}</span>`).join('')}
+        </div>`:''}
+
         <!-- WEEKLY CHALLENGES -->
         <div class="rc2-section-head">
           <div class="rc2-section-icon" style="background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.2)">⚔️</div>
           <div class="rc2-section-title">WEEKLY CHALLENGES</div>
-          <div class="rc2-section-sub">0/5 COMPLETE</div>
+          <div class="rc2-section-sub">${_chDone}/5 COMPLETE</div>
         </div>
         ${CHALLENGES.map(c=>`<div class="rc2-challenge" style="--chc:${c.col}">
           <div class="rc2-ch-ic" style="background:rgba(255,255,255,.06);border:1px solid ${c.col}33">${c.ic}</div>
@@ -5030,15 +5105,118 @@ video::-webkit-media-controls-play-button {
     </div>`;
   };
 
+  // Coin Drop Friday — weekly mystery reward (Marketing Playbook)
+  window.cvCoinDrop = function(weekKey) {
+    state.coinDropClaimed = state.coinDropClaimed || {};
+    if (state.coinDropClaimed[weekKey]) return;
+    state.coinDropClaimed[weekKey] = 1;
+    const drops = [
+      {t:'coins', v:100, msg:'💰 +100 Coins!'},
+      {t:'coins', v:200, msg:'💰 +200 Coins!'},
+      {t:'coins', v:300, msg:'💰💰 +300 Coins!'},
+      {t:'coins', v:500, msg:'🤑 JACKPOT · +500 Coins!'},
+      {t:'xp',    v:150, msg:'⚡ +150 XP!'},
+      {t:'both',  v:150, msg:'🎁 +150 Coins & +75 XP!'},
+    ];
+    const d = drops[Math.floor(Math.random()*drops.length)];
+    if (d.t==='coins'||d.t==='both') state.coins=(state.coins||0)+(d.t==='both'?150:d.v);
+    if (d.t==='xp') { if(window.cvAddXP) cvAddXP(d.v,0); }
+    if (d.t==='both' && window.cvAddXP) cvAddXP(75,0);
+    if (window.cvSave) cvSave();
+    if (window.cvToast) cvToast('🎁 COIN DROP FRIDAY · '+d.msg);
+    goTo('reward_center');
+  };
+
   window.claimDaily = function() {
     const idx = state.dailyClaimed.findIndex(c => !c);
     if (idx < 0) return;
     state.dailyClaimed[idx] = true;
-    const rewards = [10, 20, 50, 40, 100, 200, 500];
+    const rewards = [50, 75, 100, 125, 150, 175, 300];
     state.coins += rewards[idx];
-    if(window.cvAddXP){ cvAddXP(20,0); } if(window.cvSave) cvSave();
-    if(window.cvToast) cvToast(`✨ Day ${idx+1} claimed · +${rewards[idx]}💰`); else alert('Day '+(idx+1)+' claimed');
+    state.streak = (state.streak || 0) + 1;
+    const streakBonuses = {3:100, 7:300, 14:600, 30:1500};
+    const sBonus = streakBonuses[state.streak] || 0;
+    if(sBonus){ state.coins += sBonus; }
+    if(window.cvAddXP){ cvAddXP(25,0); } if(window.cvSave) cvSave();
+    const msg = sBonus
+      ? `🔥 ${state.streak}-Day Streak! +${rewards[idx]} + ${sBonus} BONUS 🪙`
+      : `✨ Day ${idx+1} claimed · +${rewards[idx]}💰`;
+    if(window.cvToast) cvToast(msg); else alert('Day '+(idx+1)+' claimed');
     goTo('reward_center');
+  };
+
+  window.cvAwardGame = function(gameId, opts) {
+    const s = window.state; if (!s) return 0;
+    opts = opts || {};
+    s.gamesDone = s.gamesDone || {};
+    s.gameStars = s.gameStars || {};
+    s.gameLevels = s.gameLevels || {};
+    s.badges = s.badges || [];
+    const isFirst = !s.gamesDone[gameId];
+    s.gamesDone[gameId] = 1;
+    const lv = opts.level || 1;
+    // persistent mastery: best stars + highest level completed per game
+    const stars = (typeof opts.stars === 'number') ? Math.max(0, Math.min(3, opts.stars)) : (opts.is3star ? 3 : 2);
+    if ((s.gameStars[gameId] || 0) < stars) s.gameStars[gameId] = stars;
+    if ((s.gameLevels[gameId] || 0) < lv) s.gameLevels[gameId] = lv;
+    // persistent badge collection — earned at 3 stars
+    if (opts.badge && stars >= 3 && s.badges.indexOf(opts.badge) < 0) {
+      s.badges.push(opts.badge);
+      if (window.cvToast) setTimeout(()=>cvToast('🏅 Badge earned · ' + opts.badge), 600);
+    }
+    let coins = 0;
+    if (opts.isFlagship) {
+      const base = lv===1?400:lv===2?600:900;
+      const perfB = lv===1?100:lv===2?150:200;
+      const collB = lv===1?50:lv===2?100:150;
+      coins = base + (opts.isPerfect?perfB:0) + ((opts.collectibles||0)*collB);
+    } else {
+      const baseF = lv===1?100:150;
+      const baseR = lv===1?50:75;
+      const perfB = lv===1?25:50;
+      coins = (isFirst?baseF:baseR) + (opts.isPerfect?perfB:0) + (opts.is3star?25:0);
+    }
+    s.coins = (s.coins||0) + coins;
+    if (window.cvAddXP) cvAddXP(Math.round(coins/4),0);
+    if (window.cvSave) cvSave();
+    return coins;
+  };
+
+  // ── Hub meter services (GDD shared systems) ──
+  // Budgetron: Budget Meter 0–100, moved by net cash-flow results from bud_* games
+  window.budgetDelta = function(net) {
+    const s = window.state; if (!s) return;
+    s.hubMeters = s.hubMeters || {};
+    const cur = (typeof s.hubMeters.budgetron === 'number') ? s.hubMeters.budgetron : 50;
+    s.hubMeters.budgetron = Math.max(0, Math.min(100, cur + Math.max(-15, Math.min(15, Math.round(net / 40)))));
+    if (window.cvSave) cvSave();
+  };
+  // Launch Lab: Startup Success Meter — 7 pillars fed by ll_* games
+  window.StartupRewardsService = {
+    submit: function(res) {
+      const s = window.state; if (!s || !res) return;
+      s.hubMeters = s.hubMeters || {};
+      const ll = s.hubMeters.launchlab = s.hubMeters.launchlab || {};
+      if (res.pillar) {
+        const d = (typeof res.successDelta === 'number') ? res.successDelta : 10;
+        ll[res.pillar] = Math.max(0, Math.min(100, (ll[res.pillar] || 0) + d));
+      }
+      if (window.cvSave) cvSave();
+    }
+  };
+  // Generic hub meter bump (Debt Detox recovery, Investopia wealth)
+  window.cvHubMeter = function(hub, delta) {
+    const s = window.state; if (!s) return;
+    s.hubMeters = s.hubMeters || {};
+    const cur = (typeof s.hubMeters[hub] === 'number') ? s.hubMeters[hub] : 0;
+    s.hubMeters[hub] = Math.max(0, Math.min(100, cur + delta));
+    if (window.cvSave) cvSave();
+  };
+  // Capstone unlock check: 3★ in all listed games
+  window.cvCapstoneReady = function(gameIds) {
+    const s = window.state; if (!s || !s.gameStars) return {ready:false, done:0, total:gameIds.length};
+    const done = gameIds.filter(g => (s.gameStars[g]||0) >= 3).length;
+    return {ready: done >= gameIds.length, done, total: gameIds.length};
   };
 
   // ───────── SCREEN: CREDTECH GALAXY HUB (7th) ─────────
@@ -5072,6 +5250,27 @@ video::-webkit-media-controls-play-button {
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- FICO Racer flagship -->
+          <div onclick="goTo('game_ficoracer')" style="margin:0 0 18px;padding:20px 22px;border-radius:18px;background:linear-gradient(135deg,rgba(10,20,50,.9),rgba(3,8,28,.95));border:1.5px solid #fbbf24;cursor:pointer;display:flex;align-items:center;gap:18px;box-shadow:0 4px 30px rgba(251,191,36,.25);transition:box-shadow .2s" onmouseover="this.style.boxShadow='0 6px 40px rgba(251,191,36,.45)'" onmouseout="this.style.boxShadow='0 4px 30px rgba(251,191,36,.25)'">
+            <div style="font-size:2.8rem;line-height:1">🏎️</div>
+            <div style="flex:1">
+              <div style="font-family:'Orbitron',sans-serif;font-size:.7rem;letter-spacing:.18em;color:#fbbf24;margin-bottom:3px">⭐ FICO RACER — FLAGSHIP</div>
+              <div style="font-size:.84rem;color:rgba(255,255,255,.75);line-height:1.4">Race 3 tracks, build your FICO score, beat 4 AI rivals. Credit City · Cyber Canyon · Quantum Nexus.</div>
+            </div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:.65rem;letter-spacing:.1em;color:#fbbf24;white-space:nowrap">▶ RACE</div>
+          </div>
+
+          <h2 class="party-section-title" style="margin-top:22px">🎮 CREDTECH MINI-GAMES</h2>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px;margin-bottom:22px">
+            <div onclick="goTo('game_creditcore')" style="padding:14px 10px;border-radius:14px;background:rgba(10,16,40,.85);border:1.5px solid rgba(56,189,248,.35);cursor:pointer;text-align:center;transition:all .2s" onmouseover="this.style.border='1.5px solid #38bdf8';this.style.boxShadow='0 0 18px rgba(56,189,248,.3)'" onmouseout="this.style.border='1.5px solid rgba(56,189,248,.35)';this.style.boxShadow='none'"><div style="font-size:1.7rem;margin-bottom:5px">🃏</div><div style="font-family:Orbitron,sans-serif;font-size:.58rem;color:#38bdf8;margin-bottom:3px">CREDIT CORE</div><div style="font-size:.62rem;color:rgba(255,255,255,.45)">Sort credit types</div></div>
+            <div onclick="goTo('game_scoretower')" style="padding:14px 10px;border-radius:14px;background:rgba(10,16,40,.85);border:1.5px solid rgba(251,191,36,.35);cursor:pointer;text-align:center;transition:all .2s" onmouseover="this.style.border='1.5px solid #fbbf24';this.style.boxShadow='0 0 18px rgba(251,191,36,.3)'" onmouseout="this.style.border='1.5px solid rgba(251,191,36,.35)';this.style.boxShadow='none'"><div style="font-size:1.7rem;margin-bottom:5px">🗼</div><div style="font-family:Orbitron,sans-serif;font-size:.58rem;color:#fbbf24;margin-bottom:3px">SCORE TOWER</div><div style="font-size:.62rem;color:rgba(255,255,255,.45)">Stack your score</div></div>
+            <div onclick="goTo('game_borrowingbay')" style="padding:14px 10px;border-radius:14px;background:rgba(10,16,40,.85);border:1.5px solid rgba(52,211,153,.35);cursor:pointer;text-align:center;transition:all .2s" onmouseover="this.style.border='1.5px solid #34d399';this.style.boxShadow='0 0 18px rgba(52,211,153,.3)'" onmouseout="this.style.border='1.5px solid rgba(52,211,153,.35)';this.style.boxShadow='none'"><div style="font-size:1.7rem;margin-bottom:5px">🏦</div><div style="font-family:Orbitron,sans-serif;font-size:.58rem;color:#34d399;margin-bottom:3px">BORROWING BAY</div><div style="font-size:.62rem;color:rgba(255,255,255,.45)">Smart loans</div></div>
+            <div onclick="goTo('game_trustexchange')" style="padding:14px 10px;border-radius:14px;background:rgba(10,16,40,.85);border:1.5px solid rgba(167,139,250,.35);cursor:pointer;text-align:center;transition:all .2s" onmouseover="this.style.border='1.5px solid #a78bfa';this.style.boxShadow='0 0 18px rgba(167,139,250,.3)'" onmouseout="this.style.border='1.5px solid rgba(167,139,250,.35)';this.style.boxShadow='none'"><div style="font-size:1.7rem;margin-bottom:5px">🤝</div><div style="font-family:Orbitron,sans-serif;font-size:.58rem;color:#a78bfa;margin-bottom:3px">TRUST EXCHANGE</div><div style="font-size:.62rem;color:rgba(255,255,255,.45)">Build trust</div></div>
+            <div onclick="goTo('game_repaymentrunway')" style="padding:14px 10px;border-radius:14px;background:rgba(10,16,40,.85);border:1.5px solid rgba(245,158,11,.35);cursor:pointer;text-align:center;transition:all .2s" onmouseover="this.style.border='1.5px solid #f59e0b';this.style.boxShadow='0 0 18px rgba(245,158,11,.3)'" onmouseout="this.style.border='1.5px solid rgba(245,158,11,.35)';this.style.boxShadow='none'"><div style="font-size:1.7rem;margin-bottom:5px">🏃</div><div style="font-family:Orbitron,sans-serif;font-size:.58rem;color:#f59e0b;margin-bottom:3px">REPAYMENT RUN</div><div style="font-size:.62rem;color:rgba(255,255,255,.45)">Never miss a pay</div></div>
+            <div onclick="goTo('game_creditlimitlab')" style="padding:14px 10px;border-radius:14px;background:rgba(10,16,40,.85);border:1.5px solid rgba(6,182,212,.35);cursor:pointer;text-align:center;transition:all .2s" onmouseover="this.style.border='1.5px solid #06b6d4';this.style.boxShadow='0 0 18px rgba(6,182,212,.3)'" onmouseout="this.style.border='1.5px solid rgba(6,182,212,.35)';this.style.boxShadow='none'"><div style="font-size:1.7rem;margin-bottom:5px">⚗️</div><div style="font-family:Orbitron,sans-serif;font-size:.58rem;color:#06b6d4;margin-bottom:3px">CREDIT LIMIT LAB</div><div style="font-size:.62rem;color:rgba(255,255,255,.45)">Utilization</div></div>
+            <div onclick="goTo('game_reportobservatory')" style="padding:14px 10px;border-radius:14px;background:rgba(10,16,40,.85);border:1.5px solid rgba(139,92,246,.35);cursor:pointer;text-align:center;transition:all .2s" onmouseover="this.style.border='1.5px solid #8b5cf6';this.style.boxShadow='0 0 18px rgba(139,92,246,.3)'" onmouseout="this.style.border='1.5px solid rgba(139,92,246,.35)';this.style.boxShadow='none'"><div style="font-size:1.7rem;margin-bottom:5px">🔭</div><div style="font-family:Orbitron,sans-serif;font-size:.58rem;color:#8b5cf6;margin-bottom:3px">REPORT OBSERV.</div><div style="font-size:.62rem;color:rgba(255,255,255,.45)">Fix errors</div></div>
           </div>
 
           <h2 class="party-section-title">⭐ CRED MISSIONS</h2>
@@ -5217,6 +5416,199 @@ video::-webkit-media-controls-play-button {
   window.favItem = (el) => {
     el.textContent = el.textContent === '♡' ? '♥' : '♡';
     el.style.color = el.textContent === '♥' ? 'var(--pink-hot)' : '';
+  };
+
+  // ───────── SCREEN: IAP STORE ─────────
+  let _storeTab = 'coins';
+  window.cvStoreTab = function(t){ _storeTab=t; goTo('store'); };
+  SCREENS.store = function() {
+    const COIN_PACKS = [
+      { coins:500,  price:'$2.99',  bonus:'',     col:'#60a5fa', tag:'',          per:'' },
+      { coins:1200, price:'$4.99',  bonus:'+20%', col:'#34d399', tag:'POPULAR',   per:'Most Loved' },
+      { coins:2800, price:'$9.99',  bonus:'+40%', col:'#fbbf24', tag:'BEST VALUE',per:'Top Pick' },
+      { coins:6000, price:'$19.99', bonus:'+50%', col:'#f472b6', tag:'MEGA',      per:'Power Player' },
+      { coins:15000,price:'$39.99', bonus:'+67%', col:'#c084fc', tag:'LEGENDARY', per:'Whale Mode' },
+    ];
+    const BOOSTERS = [
+      { id:'b_2xp_1h',  name:'2× XP BOOST',        sub:'1 Hour',       emoji:'⚡', col:'#34d399', price:200 },
+      { id:'b_2xp_24h', name:'2× XP BOOST',         sub:'24 Hours',     emoji:'⚡', col:'#fbbf24', price:600 },
+      { id:'b_3c_1g',   name:'TRIPLE COINS',         sub:'1 Game',       emoji:'🪙', col:'#f59e0b', price:300 },
+      { id:'b_2dr',     name:'DOUBLE DAILY REWARDS', sub:'Next 7 Days',  emoji:'🎁', col:'#a78bfa', price:500 },
+    ];
+    const AVATAR_CATS = [
+      { id:'hair', label:'HAIRSTYLES', emoji:'💇', items:[
+        {n:'Neon Fade',p:150},{n:'Cyber Spikes',p:200},{n:'Galaxy Buns',p:350},{n:'Pro Dreads',p:250},{n:'Investor Cut',p:180},
+      ]},
+      { id:'shoe', label:'SHOES', emoji:'👟', items:[
+        {n:'Hover Kicks',p:200},{n:'Gold Runners',p:300},{n:'Cyber Cleats',p:250},{n:'Neo Wings',p:400},{n:'Diamond Boots',p:500},
+      ]},
+      { id:'jacket', label:'JACKETS', emoji:'🧥', items:[
+        {n:'Credit Cloak',p:350},{n:'Neon Bomber',p:280},{n:'Titan Vest',p:420},{n:'Investor Blazer',p:500},{n:'StreakFire Hoodie',p:220},
+      ]},
+      { id:'wing', label:'WINGS', emoji:'🦋', items:[
+        {n:'Golden Wings',p:600},{n:'Cyber Fins',p:400},{n:'Neon Aura',p:550},{n:'Dragon Wings',p:800},
+      ]},
+      { id:'board', label:'HOVERBOARDS', emoji:'🛹', items:[
+        {n:'Coin Surfer',p:500},{n:'Neon Glider',p:700},{n:'Gold Plank',p:900},{n:'Quantum Board',p:1200},
+      ]},
+      { id:'emote', label:'EMOTES', emoji:'💃', items:[
+        {n:'Money Dance',p:100},{n:'Coin Flip',p:150},{n:'Rocket Launch',p:200},{n:'Bull Run',p:250},
+      ]},
+      { id:'namecolor', label:'NAME COLORS', emoji:'🎨', items:[
+        {n:'VIP Gold',p:300},{n:'Elite Purple',p:250},{n:'Platinum',p:400},{n:'Rainbow',p:600},{n:'Crimson',p:200},
+      ]},
+    ];
+    const starterClaimed = (state.inventory||[]).includes('starter_pack');
+
+    const coinsTab = () => `
+      <div style="margin-bottom:18px">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.2em;color:rgba(255,255,255,.4);margin-bottom:12px;text-align:center">SELECT A COIN PACK</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px">
+          ${COIN_PACKS.map((p,i)=>`
+          <div onclick="storeIAP(${p.coins},'${p.price}')" style="position:relative;padding:18px 14px 16px;border-radius:18px;background:linear-gradient(160deg,rgba(10,16,40,.95),rgba(3,6,20,.98));border:1.5px solid ${p.col}55;cursor:pointer;text-align:center;transition:all .2s" onmouseover="this.style.borderColor='${p.col}';this.style.boxShadow='0 0 24px ${p.col}44'" onmouseout="this.style.borderColor='${p.col}55';this.style.boxShadow='none'">
+            ${p.tag?`<div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:${p.col};color:#000;font-family:'Orbitron',sans-serif;font-size:.48rem;font-weight:800;letter-spacing:.12em;padding:3px 10px;border-radius:20px;white-space:nowrap">${p.tag}</div>`:''}
+            <div style="font-size:2rem;margin-bottom:4px">🪙</div>
+            <div style="font-family:'Anton',sans-serif;font-size:1.5rem;color:${p.col};line-height:1">${p.coins.toLocaleString()}</div>
+            ${p.bonus?`<div style="font-family:'Orbitron',sans-serif;font-size:.52rem;color:#34d399;margin:3px 0">BONUS ${p.bonus}</div>`:`<div style="height:17px"></div>`}
+            <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:#fff;font-weight:700;margin-top:8px;background:${p.col}22;padding:6px 10px;border-radius:10px">${p.price}</div>
+          </div>`).join('')}
+        </div>
+        <div style="margin-top:20px;padding:14px 16px;border-radius:14px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);font-size:.72rem;color:rgba(255,255,255,.5);text-align:center;line-height:1.5">
+          💡 <strong style="color:rgba(251,191,36,.8)">Tip:</strong> You earn coins free by playing games, completing missions, and logging in daily. Purchases are optional and support development.
+        </div>
+      </div>`;
+
+    const starterTab = () => `
+      <div>
+        <div style="position:relative;margin-bottom:20px;padding:28px 22px;border-radius:22px;background:linear-gradient(135deg,rgba(251,191,36,.18),rgba(139,92,246,.12),rgba(10,16,40,.95));border:2px solid #fbbf24;box-shadow:0 0 60px rgba(251,191,36,.15)">
+          ${starterClaimed?'':'<div style="position:absolute;top:-13px;right:20px;background:linear-gradient(90deg,#f59e0b,#fbbf24);color:#000;font-family:Orbitron,sans-serif;font-size:.55rem;font-weight:800;letter-spacing:.15em;padding:5px 14px;border-radius:20px">72% OFF · LIMITED</div>'}
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px">
+            <div style="font-size:3rem">🎁</div>
+            <div>
+              <div style="font-family:'Orbitron',sans-serif;font-size:.65rem;letter-spacing:.18em;color:#fbbf24;margin-bottom:4px">STARTER PACK</div>
+              <div style="font-family:'Anton',sans-serif;font-size:1.4rem;color:#fff">ONE-TIME OFFER</div>
+              <div style="font-size:.7rem;color:rgba(255,255,255,.5)">Only available once per account</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+            ${[
+              {e:'🪙',n:'1,500 Coins',c:'#fbbf24'},
+              {e:'👗',n:'Exclusive Outfit',c:'#f472b6'},
+              {e:'🛹',n:'Hoverboard',c:'#a78bfa'},
+              {e:'🖼️',n:'Profile Frame',c:'#34d399'},
+              {e:'🎨',n:'VIP Name Color',c:'#60a5fa'},
+            ].map(r=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid ${r.c}33">
+              <span style="font-size:1.4rem">${r.e}</span>
+              <span style="font-family:'Orbitron',sans-serif;font-size:.58rem;color:${r.c}">${r.n}</span>
+            </div>`).join('')}
+          </div>
+          ${starterClaimed
+            ? `<div style="text-align:center;padding:14px;border-radius:14px;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);font-family:Orbitron,sans-serif;font-size:.65rem;color:#34d399">✅ ALREADY CLAIMED</div>`
+            : `<button onclick="storeIAP('starter','$4.99')" style="width:100%;padding:16px;border:none;border-radius:14px;background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#000;font-family:Orbitron,sans-serif;font-size:.75rem;font-weight:800;letter-spacing:.12em;cursor:pointer">GET STARTER PACK · $4.99</button>`
+          }
+        </div>
+      </div>`;
+
+    const avatarTab = () => `
+      <div>
+        ${AVATAR_CATS.map(cat=>`
+        <div style="margin-bottom:20px">
+          <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.18em;color:rgba(255,255,255,.4);margin-bottom:10px">${cat.emoji} ${cat.label}</div>
+          <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px">
+            ${cat.items.map(it=>`
+            <div onclick="storeIAP('avatar_${cat.id}','${it.p} coins')" style="flex:0 0 110px;padding:14px 10px;border-radius:14px;background:rgba(10,16,40,.9);border:1.5px solid rgba(255,255,255,.1);cursor:pointer;text-align:center;transition:all .2s" onmouseover="this.style.borderColor='rgba(251,191,36,.6)';this.style.boxShadow='0 0 16px rgba(251,191,36,.2)'" onmouseout="this.style.borderColor='rgba(255,255,255,.1)';this.style.boxShadow='none'">
+              <div style="font-size:1.5rem;margin-bottom:5px">${cat.emoji}</div>
+              <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;color:rgba(255,255,255,.8);margin-bottom:6px;line-height:1.3">${it.n}</div>
+              <div style="display:flex;align-items:center;justify-content:center;gap:3px;font-family:'Orbitron',sans-serif;font-size:.55rem;color:#fbbf24"><img src="assets/ui/coin_3d.png" style="width:12px;height:12px">${it.p}</div>
+            </div>`).join('')}
+          </div>
+        </div>`).join('')}
+      </div>`;
+
+    const seasonTab = () => `
+      <div style="display:grid;gap:14px">
+        <div style="padding:22px;border-radius:20px;background:linear-gradient(135deg,rgba(10,16,40,.97),rgba(3,6,20,.98));border:1.5px solid rgba(148,163,184,.25)">
+          <div style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.18em;color:rgba(255,255,255,.35);margin-bottom:8px">FREE TRACK</div>
+          <div style="font-family:'Anton',sans-serif;font-size:1.2rem;color:#fff;margin-bottom:14px">BASIC SEASON</div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+            ${['🪙 500 Coins','🏷️ Seasonal Stickers','🎖️ Season Badge','🌟 Weekly XP Bonus'].map(r=>`<div style="display:flex;align-items:center;gap:10px;font-size:.72rem;color:rgba(255,255,255,.65)"><span style="color:#34d399">✓</span>${r}</div>`).join('')}
+          </div>
+          <div style="font-family:'Orbitron',sans-serif;font-size:.65rem;color:rgba(255,255,255,.35);text-align:center">FREE WITH ACCOUNT</div>
+        </div>
+        <div style="position:relative;padding:22px;border-radius:20px;background:linear-gradient(135deg,rgba(251,191,36,.12),rgba(139,92,246,.1),rgba(10,16,40,.97));border:2px solid #fbbf24;box-shadow:0 0 40px rgba(251,191,36,.12)">
+          <div style="position:absolute;top:-12px;right:16px;background:linear-gradient(90deg,#7c3aed,#a78bfa);color:#fff;font-family:Orbitron,sans-serif;font-size:.48rem;font-weight:800;letter-spacing:.15em;padding:4px 12px;border-radius:20px">PREMIUM ⭐</div>
+          <div style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.18em;color:#fbbf24;margin-bottom:8px">PREMIUM TRACK</div>
+          <div style="font-family:'Anton',sans-serif;font-size:1.2rem;color:#fff;margin-bottom:14px">ELITE SEASON PASS</div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+            ${['🪙 3,000 Coins','👗 2 Exclusive Outfits','💃 Premium Emotes','🎖️ Elite Badge + Frame','🌟 2× Daily XP All Season','🏆 End-of-Season Trophy'].map(r=>`<div style="display:flex;align-items:center;gap:10px;font-size:.72rem;color:rgba(255,255,255,.85)"><span style="color:#fbbf24">★</span>${r}</div>`).join('')}
+          </div>
+          <div style="display:flex;gap:10px">
+            <button onclick="storeIAP('season_premium','$7.99')" style="flex:1;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;font-family:Orbitron,sans-serif;font-size:.65rem;font-weight:800;cursor:pointer">$7.99 / SEASON</button>
+            <button onclick="storeIAP('season_premium_yr','$9.99')" style="flex:1;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#581c87,#7c3aed);color:#fff;font-family:Orbitron,sans-serif;font-size:.65rem;font-weight:800;cursor:pointer">$9.99 + EXTRAS</button>
+          </div>
+        </div>
+      </div>`;
+
+    const boostsTab = () => `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        ${BOOSTERS.map(b=>`
+        <div onclick="storeBuyBoost('${b.id}',${b.price})" style="padding:18px 14px;border-radius:16px;background:linear-gradient(160deg,rgba(10,16,40,.95),rgba(3,6,20,.98));border:1.5px solid ${b.col}44;cursor:pointer;text-align:center;transition:all .2s" onmouseover="this.style.borderColor='${b.col}';this.style.boxShadow='0 0 20px ${b.col}33'" onmouseout="this.style.borderColor='${b.col}44';this.style.boxShadow='none'">
+          <div style="font-size:2rem;margin-bottom:6px">${b.emoji}</div>
+          <div style="font-family:'Orbitron',sans-serif;font-size:.54rem;color:${b.col};margin-bottom:3px;line-height:1.3">${b.name}</div>
+          <div style="font-size:.65rem;color:rgba(255,255,255,.4);margin-bottom:10px">${b.sub}</div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:4px;background:${b.col}22;padding:7px 10px;border-radius:10px">
+            <img src="assets/ui/coin_3d.png" style="width:14px;height:14px">
+            <span style="font-family:'Orbitron',sans-serif;font-size:.65rem;color:${b.col};font-weight:700">${b.price}</span>
+          </div>
+        </div>`).join('')}
+        <div style="grid-column:1/-1;margin-top:6px;padding:14px 16px;border-radius:14px;background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.2);font-size:.7rem;color:rgba(255,255,255,.45);text-align:center;line-height:1.5">
+          ⚡ Boosts activate immediately and stack with other active boosts.
+        </div>
+      </div>`;
+
+    const tabContent = _storeTab==='coins'?coinsTab():_storeTab==='starter'?starterTab():_storeTab==='avatar'?avatarTab():_storeTab==='season'?seasonTab():boostsTab();
+    const tabs = [{id:'coins',l:'💰 COINS'},{id:'starter',l:'🎁 STARTER'},{id:'avatar',l:'👗 AVATAR'},{id:'season',l:'🏆 SEASON'},{id:'boosts',l:'⚡ BOOSTS'}];
+
+    return `
+      <div class="v14-screen v14-page" style="background:linear-gradient(180deg,#060d24 0%,#030612 100%)">
+        <div class="v14-topbar">
+          <div class="v14-topbar-left">
+            <button class="v14-back" onclick="goTo('home')">← HOME</button>
+            <div class="v14-title">💎 STORE</div>
+          </div>
+          <div class="v14-topbar-right">
+            <div class="v14-coin-pill"><img src="assets/ui/coin_3d.png"><span class="n">${state.coins}</span></div>
+          </div>
+        </div>
+        <div class="v14-page-wrap">
+          <div style="text-align:center;margin-bottom:20px">
+            <div style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.25em;color:rgba(255,255,255,.3);margin-bottom:4px">COINAVERSE PREMIUM</div>
+            <div style="font-family:'Anton',sans-serif;font-size:1.6rem;background:linear-gradient(135deg,#fbbf24,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent">COIN STORE &amp; COSMETICS</div>
+          </div>
+          <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:20px">
+            ${tabs.map(t=>`<button onclick="cvStoreTab('${t.id}')" style="flex:0 0 auto;padding:9px 16px;border-radius:24px;border:none;background:${_storeTab===t.id?'linear-gradient(135deg,rgba(251,191,36,.3),rgba(192,132,252,.2))':'rgba(255,255,255,.06)'};color:${_storeTab===t.id?'#fbbf24':'rgba(255,255,255,.5)'};font-family:Orbitron,sans-serif;font-size:.55rem;font-weight:700;letter-spacing:.1em;cursor:pointer;${_storeTab===t.id?'border:1px solid rgba(251,191,36,.4)':'border:1px solid transparent'}">${t.l}</button>`).join('')}
+          </div>
+          ${tabContent}
+        </div>
+      </div>`;
+  };
+  window.storeIAP = function(item, price) {
+    if(window.cvToast) cvToast(`💎 In-app purchase: ${price} — coming soon in the mobile app!`);
+    else alert(`In-app purchase: ${price}\nComingSoon in mobile app.`);
+  };
+  window.storeBuyBoost = function(id, price) {
+    if(!window.state) return;
+    // boost effects aren't wired into gameplay yet — don't take kids' coins for a no-op
+    if(window.cvToast){ cvToast('⚡ Boosts are coming soon — save your coins!'); return; }
+    if(state.coins < price){ if(window.cvToast) cvToast(`❌ Not enough coins — need ${price}`); return; }
+    if(confirm(`Activate ${id.replace(/_/g,' ')} for ${price} 🪙?`)){
+      state.coins -= price;
+      state.inventory = state.inventory || [];
+      state.inventory.push(id);
+      if(window.cvSave) cvSave();
+      if(window.cvToast) cvToast(`⚡ Boost activated! -${price}💰`);
+      goTo('store');
+    }
   };
 
   // ───────── SCREEN: GAME (Coin Catcher) ─────────
@@ -5838,8 +6230,9 @@ video::-webkit-media-controls-play-button {
     if(state.vaultAura) badges.push('✦ Vault Aura');
     if(state.securityChamp) badges.push('🛡️ Security Champion');
     if(state.anchor) badges.push('⚓ Anchor');
+    (state.badges||[]).forEach(b=>badges.push('🏅 '+b));
     if(badges.length===0) badges.push('No badges yet — they appear as your child learns');
-    const lessons = (state.completedMissions||0);
+    const lessons = (state.completedMissions||0) + (state.articlesRead||0) + (state.cinemaSeen||0);
     const meter = (label,pct,col)=>`
       <div class="pd-meter"><div class="pd-meter-top"><span>${label}</span><b>${pct}%</b></div>
         <div class="pd-bar"><div style="width:${pct}%;background:${col}"></div></div></div>`;
@@ -6116,6 +6509,7 @@ video::-webkit-media-controls-play-button {
         let t=_sat.timer;
         _sat.tint=setInterval(()=>{
           if(!_sat) return;
+          if(window.state&&state.currentScreen&&state.currentScreen!=='satellite_game'){clearInterval(_sat.interval);clearInterval(_sat.tint);_sat.running=false;return;}
           t--; document.getElementById('satTimer')&&(document.getElementById('satTimer').textContent=t+'s');
           if(t<=0){
             clearInterval(_sat.interval); clearInterval(_sat.tint); _sat.running=false;
@@ -6181,6 +6575,7 @@ video::-webkit-media-controls-play-button {
         _comp.running=true;
         _comp.interval=setInterval(()=>{
           if(!_comp||_comp.years>=_comp.maxYears){clearInterval(_comp.interval);_comp.running=false;goTo('compound_game');return;}
+          if(window.state&&state.currentScreen&&state.currentScreen!=='compound_game'){clearInterval(_comp.interval);_comp.running=false;return;}
           _comp.years++;
           _comp.coins=Math.round(_comp.coins*(1+_comp.rate/100));
           _comp.stars=Math.min(100,Math.round(_comp.stars*(1+_comp.rate/200)));
@@ -6342,7 +6737,7 @@ video::-webkit-media-controls-play-button {
             💡 Save <b style="color:${dream.color}">$${Math.ceil(dream.price/(d.years*52))}/week</b> and you'll reach <b style="color:${dream.color}">${dream.name}</b> in exactly ${d.years} year${d.years>1?'s':''}. Set up an automatic transfer every payday!
           </div>
           <button onclick="dreamsGoQuiz()" style="padding:14px;background:linear-gradient(135deg,${dream.color},${dream.color}99);border:none;border-radius:13px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.78rem;letter-spacing:.1em;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4)">
-            ✓ SET GOAL · TAKE QUIZ →
+            ✓ SET GOAL · TAKE THE CHALLENGE →
           </button>
         </div>
       </div>`;
@@ -6353,7 +6748,7 @@ video::-webkit-media-controls-play-button {
         <style>@keyframes drmCardIn{from{transform:translateY(18px) scale(.97);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}@keyframes drmOptIn{from{transform:translateX(22px);opacity:0}to{transform:translateX(0);opacity:1}}.drm-opt{transition:border-color .15s,background .15s,transform .12s!important}.drm-opt:hover{border-color:#38bdf8!important;background:rgba(14,165,233,.1)!important;transform:translateX(5px)!important}</style>
         <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;background:rgba(2,9,19,.9);border-bottom:1px solid rgba(14,165,233,.2);flex-shrink:0">
           <button onclick="dreamsExit()" style="padding:7px 14px;border:1px solid rgba(255,255,255,.15);border-radius:9px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.6);font-family:'Orbitron',sans-serif;font-size:.6rem;cursor:pointer">← HUB</button>
-          <div style="font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.2em;color:#38bdf8">QUIZ · ${d.qIdx+1}/${QUIZ.length}</div>
+          <div style="font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.2em;color:#38bdf8">CHALLENGE · ${d.qIdx+1}/${QUIZ.length}</div>
         </div>
         <div style="max-width:580px;margin:0 auto;padding:28px 20px;width:100%;display:flex;flex-direction:column;gap:16px">
           <h2 style="font-family:'Anton',sans-serif;font-size:1.4rem;line-height:1.3;animation:drmCardIn .34s cubic-bezier(.34,1.1,.64,1)">${q.q}</h2>
@@ -6365,10 +6760,14 @@ video::-webkit-media-controls-play-button {
     }
     if(d.step==='result'){
       const correct=d.answers.filter((a,i)=>a===QUIZ[i].ans).length;
+      const pct=Math.round(correct/QUIZ.length*100);
+      const qReward=pct===100?500:pct>=90?300:pct>=80?125:0;
+      if(qReward>0 && !d._rewarded){ d._rewarded=true; if(window.state){state.coins=(state.coins||0)+qReward;if(window.cvAddXP)cvAddXP(Math.round(qReward/5),0);if(window.cvSave)cvSave();} }
       return `<div style="position:absolute;inset:0;background:linear-gradient(160deg,#020913,#031020);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Inter',sans-serif;text-align:center;padding:24px">
         <div style="font-size:3rem;margin-bottom:16px">${correct===3?'🌟':correct>=2?'⭐':'💡'}</div>
         <div style="font-family:'Anton',sans-serif;font-size:1.8rem;margin-bottom:8px">${correct===3?'DREAM MASTER!':correct>=2?'GOAL SETTER!':'KEEP LEARNING!'}</div>
-        <div style="color:rgba(255,255,255,.6);max-width:400px;line-height:1.65;margin-bottom:24px">You got ${correct}/${QUIZ.length} correct. ${correct===3?'You understand goal-based saving — your dream is achievable!':correct>=2?'Good work! Review the hint on missed questions.':'Practice makes perfect. Review lessons and try again.'}</div>
+        <div style="color:rgba(255,255,255,.6);max-width:400px;line-height:1.65;margin-bottom:12px">You got ${correct}/${QUIZ.length} correct (${pct}%). ${correct===3?'You understand goal-based saving — your dream is achievable!':correct>=2?'Good work! Review the hint on missed questions.':'Nice try — power up and go again!'}</div>
+        ${qReward>0?`<div style="margin-bottom:20px;padding:12px 24px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:12px;font-family:'Orbitron',sans-serif;font-size:.65rem;color:#fbbf24;letter-spacing:.1em">🪙 +${qReward} COINS EARNED!</div>`:''}
         <div style="display:flex;gap:10px">
           <button onclick="dreamsInit();goTo('dreams_game')" style="padding:13px 26px;background:linear-gradient(135deg,#0ea5e9,#0369a1);border:none;border-radius:12px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer">▶ PLAY AGAIN</button>
           <button onclick="dreamsExit()" style="padding:13px 20px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:12px;color:rgba(255,255,255,.7);font-family:'Orbitron',sans-serif;font-size:.7rem;cursor:pointer">← HUB</button>
@@ -6577,7 +6976,7 @@ video::-webkit-media-controls-play-button {
           </div>
           <div class="wd-stats">
             <div class="wd-player-pill">
-              <div class="av" style="background-image:url('${playerW.character}')"></div>
+              <div class="av" style="background-image:url('${(typeof genderedChar==='function')?genderedChar(state.archetype||'guardian'):playerW.character}')"></div>
               <div><div class="n">${state.playerName}</div><div class="a">${playerW.archetype}</div></div>
             </div>
             ${hudPills}
@@ -6603,7 +7002,7 @@ video::-webkit-media-controls-play-button {
           <h1 class="wd-hero-title">${w.zone}</h1>
           <div class="wd-hero-desc">${w.tagline}</div>
           ${previewRibbon}
-          <div class="wd-hero-character" style="background-image:url('${w.hero||w.character}')"></div>
+          <div class="wd-hero-character" style="background-image:url('${(typeof genderedHero==='function'&&wid!=='credtech')?genderedHero(wid):(w.hero||w.character)}')"></div>
         </main>
         <aside class="wd-right">
           <div class="wd-panel">
@@ -6678,6 +7077,35 @@ video::-webkit-media-controls-play-button {
     return [.58,.40,.22,.06,0,-.16,-.32,-.5].map(p => p===0 ? base : shade(base,p));
   }
   const AURAS = ['PULSE','ORBIT RING','SPARKS','NONE'];
+  // Gender choice (Kabria): kids pick MALE or FEMALE. Female swaps to a
+  // "<name>_f.png" hero when that art exists; until then it falls back to the
+  // base art (no broken images). Add a token to FEM_CHARS to light up its art.
+  const FEM_CHARS = new Set(['guardian','strategist','investor','builder','risktaker','rebuilder']);
+  function genderedHero(arch){
+    const w = WORLDS[arch] || WORLDS.guardian;
+    const base = w.hero || w.character;
+    if (state.gender === 'female' && FEM_CHARS.has(arch)) return base.replace(/(\.\w+)$/, '_f$1');
+    return base;
+  }
+  window.genderedHero = genderedHero;
+  // small avatar chip variant (uses <arch>.png / <arch>_f.png)
+  function genderedChar(arch){
+    const w = WORLDS[arch] || WORLDS.guardian;
+    // w.character is remapped to <arch>_portrait.png by the v17 asset loop, and no
+    // _portrait_f.png exists — female chips use the dedicated <arch>_f.png art.
+    if (state.gender === 'female' && FEM_CHARS.has(arch)) return 'assets/characters/'+arch+'_f.png';
+    return w.character;
+  }
+  window.genderedChar = genderedChar;
+
+  window.pickGender = function(g) {
+    state.gender = g;
+    if (window.cvSave) cvSave();
+    document.querySelectorAll('.av-gender').forEach(el => el.classList.toggle('on', el.dataset.g === g));
+    const hero = document.getElementById('avHero');
+    if (hero) hero.style.backgroundImage = "url('" + genderedHero(state.archetype || 'guardian') + "')";
+    document.querySelectorAll('.wd-player-pill .av').forEach(el => el.style.backgroundImage = "url('" + genderedChar(state.archetype || 'guardian') + "')");
+  };
 
   SCREENS.avatar = function() {
     const arch = state.archetype || 'guardian';
@@ -6686,6 +7114,7 @@ video::-webkit-media-controls-play-button {
     const ramp = colorRamp(arch);
     if (state.avatarColorIdx == null) state.avatarColorIdx = 4;           // base shade
     if (state.avatarAura == null) state.avatarAura = 'ORBIT RING';
+    if (state.gender == null) state.gender = 'male';
     const sel = ramp[state.avatarColorIdx] || sig.hex;
 
     const swatches = ramp.map((c,i) =>
@@ -6706,14 +7135,28 @@ video::-webkit-media-controls-play-button {
           <button class="wd-crumb" onclick="goTo('home')">← HOME</button>
           <div class="av-title">AVATAR STUDIO</div>
           <div class="wd-player-pill">
-            <div class="av" style="background-image:url('${w.character}')"></div>
+            <div class="av" style="background-image:url('${genderedChar(arch)}')"></div>
             <div><div class="n">${state.playerName}</div><div class="a">${w.archetype}</div></div>
           </div>
         </div>
 
+        <style>
+          .av-genders{display:flex;gap:10px}
+          .av-gender{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:13px 8px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);color:#cdd6f4;font:700 .62rem/1 'Orbitron',sans-serif;letter-spacing:.08em;cursor:pointer;transition:.15s}
+          .av-gender span{font-size:1.6rem;line-height:1}
+          .av-gender.on{border-color:var(--av-sel);background:color-mix(in srgb,var(--av-sel) 18%,transparent);color:#fff;box-shadow:0 0 16px color-mix(in srgb,var(--av-sel) 35%,transparent)}
+        </style>
         <div class="av-grid">
           <!-- LEFT: customization -->
           <div class="av-col av-left">
+            <div class="av-panel">
+              <div class="av-ph">CHARACTER</div>
+              <p class="av-hint">Choose your hero — boy or girl.</p>
+              <div class="av-genders">
+                <button class="av-gender${state.gender==='female'?'':' on'}" data-g="male" onclick="pickGender('male')"><span>👦</span> MALE</button>
+                <button class="av-gender${state.gender==='female'?' on':''}" data-g="female" onclick="pickGender('female')"><span>👧</span> FEMALE</button>
+              </div>
+            </div>
             <div class="av-panel">
               <div class="av-ph">COLORWAY <span class="av-lock">🔒 ${w.archetype}</span></div>
               <p class="av-hint">Your archetype signature is <b style="color:var(--av-sel)">${sig.name}</b>. Pick your shade — the palette stays locked to your color.</p>
@@ -6728,7 +7171,7 @@ video::-webkit-media-controls-play-button {
           <!-- CENTER: hero preview -->
           <div class="av-stage">
             <div class="av-pedestal"></div>
-            <div class="av-hero" id="avHero" style="background-image:url('${w.hero||w.character}')"></div>
+            <div class="av-hero" id="avHero" style="background-image:url('${genderedHero(arch)}')"></div>
             <div class="av-aura-fx" id="avAuraFx"></div>
           </div>
 
@@ -6842,7 +7285,7 @@ video::-webkit-media-controls-play-button {
       lines+=`<line x1="${cx}%" y1="${cy}%" x2="${x}%" y2="${y}%"/>`;
       nodes+=`<div class="hub-node" style="left:${x}%;top:${y}%"><b>${h.districts[i][0]}</b></div>`;
     }
-    return `<video class="hub-map-vid" autoplay loop muted playsinline poster="${sceneBg}"><source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/${w.id}_hub.mp4" type="video/mp4"></video>
+    return `<video class="hub-map-vid" autoplay loop muted playsinline poster="${sceneBg}"><source src="assets/bgvid/${w.id}_hub.mp4" type="video/mp4"><source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/${w.id}_hub.mp4" type="video/mp4"></video>
       <div class="hub-radial"><svg class="hub-svg">${lines}</svg>
       <div class="hub-core"><span>${w.name}</span></div>${nodes}</div>`;
   }
@@ -6857,6 +7300,12 @@ video::-webkit-media-controls-play-button {
     const w = WORLDS[token] || WORLDS.credtech;
     const h = HUBX[token] || HUBX.credtech;
     if (!h || !h.districts || !h.districts[i]) return;
+    // Premium Cosmic Classroom lesson deck (Kabria style) — if this district has one,
+    // show the multi-slide lesson board instead of the plain video modal.
+    if (window.LESSONDECK && window.LESSONDECK[token] && window.LESSONDECK[token][i]) {
+      if (window.markLearned) markLearned(token, i);
+      return window.openLessonDeck(token, i);
+    }
     const d = h.districts[i], nn = String(i+1).padStart(2,'0');
     // host video teaches with its OWN audio — duck bgm, no separate voiceover
     if (window.duckBgmForVideo) duckBgmForVideo(true);
@@ -6892,7 +7341,7 @@ video::-webkit-media-controls-play-button {
           `</div>`+
           `<div class="dist-actions">`+
             `<button class="dist-next" id="distNextBtn" onclick="distNextTip()">🌟 NEXT TIP <span id="distTipCount" style="opacity:.7;font-size:.85em">(0/${N})</span></button>`+
-            `<button class="dist-play" id="distPlayBtn" style="display:none" onclick="closeDistrict();playDistrictGame('${token}',${i})">▶ PLAY GAME</button>`+
+            `<button class="dist-play" id="distPlayBtn" onclick="closeDistrict();playDistrictGame('${token}',${i})">▶ PLAY GAME</button>`+
             `<button class="dist-back" onclick="closeDistrict()">← BACK</button>`+
           `</div>`+
         `</div>`+
@@ -6922,6 +7371,8 @@ video::-webkit-media-controls-play-button {
 
   SCREENS.hub = function(){
     const token = state.viewingWorld || state.archetype || 'credtech';
+    state.hubsVisited = state.hubsVisited || {};
+    if(!state.hubsVisited[token]){ state.hubsVisited[token]=1; if(window.cvSave) cvSave(); }
     const w = WORLDS[token] || WORLDS.credtech;
     const h = HUBX[token] || HUBX.credtech;
     const playerW = WORLDS[state.archetype || 'guardian'];
@@ -6967,8 +7418,58 @@ video::-webkit-media-controls-play-button {
     </div>`).join('');
     const verbs = (h.verbs||[]).map(v=>`<span class="h2verb">${v}</span>`).join('');
 
+    const MINIGAMES = {
+      investor:[
+        {id:'game_inv_academy',name:'INV ACADEMY',emoji:'🎓'},
+        {id:'game_inv_assetrealm',name:'ASSET REALM',emoji:'🏘️'},
+        {id:'game_inv_dividend',name:'DIVIDEND DISTRICT',emoji:'💰'},
+        {id:'game_inv_portfolio',name:'PORTFOLIO HQ',emoji:'📊'},
+        {id:'game_inv_research',name:'RESEARCH CORE',emoji:'🔬'},
+        {id:'game_inv_riskcontrol',name:'RISK CONTROL',emoji:'⚖️'},
+        {id:'game_inv_stockarena',name:'STOCK ARENA',emoji:'📈'},
+      ],
+      strategist:[
+        {id:'game_bud_billgrid',name:'BILL GRID',emoji:'📋'},
+        {id:'game_bud_cashflow',name:'CASH FLOW',emoji:'💵'},
+        {id:'game_bud_efflab',name:'EFFICIENCY LAB',emoji:'⚙️'},
+        {id:'game_bud_goaltower',name:'GOAL TOWER',emoji:'🏆'},
+        {id:'game_bud_needswants',name:'NEEDS VS WANTS',emoji:'🤔'},
+        {id:'game_bud_plaza',name:'SPENDING PLAZA',emoji:'🛍️'},
+        {id:'game_bud_vault',name:'BUDGET VAULT',emoji:'🔐'},
+      ],
+      builder:[
+        {id:'game_ll_branding_district',name:'BRANDING DIST.',emoji:'🎯'},
+        {id:'game_ll_idea_incubator',name:'IDEA INCUBATOR',emoji:'💡'},
+        {id:'game_ll_investor_pitch',name:'INVESTOR PITCH',emoji:'🎤'},
+        {id:'game_ll_marketing_metropolis',name:'MARKETING METRO',emoji:'📢'},
+        {id:'game_ll_product_dev_lab',name:'PRODUCT DEV LAB',emoji:'🔧'},
+        {id:'game_ll_scaling_center',name:'SCALING CENTER',emoji:'📐'},
+        {id:'game_ll_startup_street',name:'STARTUP STREET',emoji:'🚀'},
+      ],
+      risktaker:[
+        {id:'game_bsv_aiinnovationlabs',name:'AI INNOVATION',emoji:'🤖'},
+        {id:'game_bsv_bitstreammarket',name:'BITSTREAM MKT',emoji:'📡'},
+        {id:'game_bsv_blockchainblvd',name:'BLOCKCHAIN BLVD',emoji:'⛓️'},
+        {id:'game_bsv_cryptocrossing',name:'CRYPTO CROSSING',emoji:'₿'},
+        {id:'game_bsv_futuretrendscmd',name:'FUTURE TRENDS',emoji:'🔭'},
+        {id:'game_bsv_nftnexus',name:'NFT NEXUS',emoji:'🎨'},
+        {id:'game_bsv_volatilityvortex',name:'VOLATILITY',emoji:'🌀'},
+      ],
+      rebuilder:[
+        {id:'game_ddt_discovery',name:'DEBT DISCOVERY',emoji:'🔍'},
+        {id:'game_ddt_gym',name:'FINANCIAL GYM',emoji:'💪'},
+        {id:'game_ddt_habits',name:'MONEY HABITS',emoji:'✅'},
+        {id:'game_ddt_lab',name:'DETOX LAB',emoji:'⚗️'},
+        {id:'game_ddt_plaza',name:'PAYMENT PLAZA',emoji:'🏛️'},
+        {id:'game_ddt_rebuild',name:'REBUILD STATION',emoji:'🔨'},
+        {id:'game_ddt_resilience',name:'RESILIENCE',emoji:'🛡️'},
+      ],
+    };
+    const hubMiniGames = (MINIGAMES[token]||[]).map(g=>`<div onclick="goTo('${g.id}')" style="padding:13px 8px;border-radius:13px;background:rgba(2,9,19,.7);border:1.5px solid ${hc}33;cursor:pointer;text-align:center;transition:all .2s;backdrop-filter:blur(12px)" onmouseover="this.style.borderColor='${hc}';this.style.boxShadow='0 0 16px ${hc}44'" onmouseout="this.style.borderColor='${hc}33';this.style.boxShadow='none'"><div style="font-size:1.5rem;margin-bottom:5px">${g.emoji}</div><div style="font-family:Orbitron,sans-serif;font-size:.5rem;color:${hc};letter-spacing:.08em;line-height:1.3">${g.name}</div></div>`).join('');
+
     return `<div class="h2screen" style="--hc:${hc}">
       <video class="h2vbg" autoplay loop muted playsinline>
+        <source src="assets/bgvid/${token}_hub.mp4" type="video/mp4">
         <source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/${token}_hub.mp4" type="video/mp4">
       </video>
       <div class="h2vbg-overlay"></div>
@@ -7062,7 +7563,7 @@ video::-webkit-media-controls-play-button {
         <div class="h2brand">🎮 COINAVERSE</div>
         <div class="h2stats">
           <div class="h2ppill">
-            <div class="h2pav" style="background-image:url('${playerW.character}')"></div>
+            <div class="h2pav" style="background-image:url('${(typeof genderedChar==='function')?genderedChar(state.archetype||'guardian'):playerW.character}')"></div>
             <div><div class="h2pname">${state.playerName}</div><div class="h2parch">${playerW.archetype}</div></div>
           </div>
           <div class="h2spill"><span class="sn">${state.coins}</span>💰 COINS</div>
@@ -7073,6 +7574,7 @@ video::-webkit-media-controls-play-button {
 
       <div class="h2hero">
         <video class="h2hvid" autoplay loop muted playsinline poster="${w.mapImg||''}">
+          <source src="assets/bgvid/${w.id}_hub.mp4" type="video/mp4">
           <source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/${w.id}_hub.mp4" type="video/mp4">
         </video>
         <div class="h2hveil"></div>
@@ -7091,6 +7593,46 @@ video::-webkit-media-controls-play-button {
         </div>
       </div>
 
+      ${(function(){
+        // ── GDD hub meters (persistent, fed by game results) ──
+        const hm = state.hubMeters || {};
+        const M = {
+          strategist: {label:'BUDGET METER', ic:'📊', val: (typeof hm.budgetron==='number'?hm.budgetron:(state.budgetMeter??50))},
+          builder:    {label:'STARTUP SUCCESS', ic:'🚀', val: (function(){ const p=hm.launchlab||{}; const ks=Object.keys(p); return ks.length?Math.round(ks.reduce((s,k)=>s+p[k],0)/7):0; })()},
+          investor:   {label:'WEALTH GROWTH', ic:'🏙️', val: hm.inv_wealth||0},
+          rebuilder:  {label:'DISTRICT RECOVERY', ic:'🏗️', val: hm.ddt_recovery||0},
+          credtech:   {label:'GALAXY TRUST', ic:'🌌', val: hm.credtech_trust||0},
+        }[token];
+        if(!M) return '';
+        const stage = M.val>=90?'LEGENDARY':M.val>=70?'THRIVING':M.val>=45?'GROWING':M.val>=20?'RISING':'STARTING';
+        return `<div style="margin:0 0 14px;border-radius:16px;padding:14px 18px;background:rgba(255,255,255,.03);border:1px solid ${hc}33">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.16em;color:${hc}">${M.ic} ${M.label}</span>
+            <span style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.1em;color:rgba(255,255,255,.5)">${M.val}/100 · <b style="color:${hc}">${stage}</b></span>
+          </div>
+          <div style="height:9px;border-radius:5px;background:rgba(255,255,255,.07);overflow:hidden">
+            <div style="height:100%;width:${M.val}%;border-radius:5px;background:linear-gradient(90deg,${hc}88,${hc});box-shadow:0 0 10px ${hc}66;transition:width .5s"></div>
+          </div>
+        </div>`;
+      })()}
+
+      ${(function(){
+        // ── Capstone challenge card (unlocks at 3★ in all 7 hub games) ──
+        const capKey = {strategist:'budgetron',builder:'launchlab',investor:'investopia',rebuilder:'ddt',credtech:'credtech'}[token];
+        const cap = window.CAPSTONES && window.CAPSTONES[capKey];
+        if(!cap) return '';
+        const st = window.cvCapstoneReady ? cvCapstoneReady(cap.games) : {ready:false,done:0,total:7};
+        return `<div style="margin:0 0 16px;border-radius:18px;padding:16px 18px;background:linear-gradient(135deg,${hc}22,rgba(0,0,0,.25));border:1.5px solid ${st.ready?hc:hc+'44'};display:flex;align-items:center;gap:14px;${st.ready?`box-shadow:0 0 26px ${hc}44;`:''}cursor:pointer" onclick="goTo('${cap.screen}')">
+          <div style="font-size:2rem">${st.ready?'⚔️':'🔒'}</div>
+          <div style="flex:1">
+            <div style="font-family:'Orbitron',sans-serif;font-size:.66rem;letter-spacing:.16em;color:${hc}">${cap.name.toUpperCase()}</div>
+            <div style="font-size:.75rem;color:rgba(255,255,255,.55);margin-top:3px">${st.ready?'UNLOCKED — face the boss and claim your champion badge!':`Master all 7 games with ⭐⭐⭐ to unlock · ${st.done}/${st.total} done`}</div>
+            ${st.ready?'':`<div style="height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:7px;max-width:220px"><div style="height:100%;width:${Math.round(st.done/st.total*100)}%;background:${hc};border-radius:3px"></div></div>`}
+          </div>
+          <div style="font-family:'Orbitron',sans-serif;font-size:.56rem;letter-spacing:.12em;color:${st.ready?hc:'rgba(255,255,255,.35)'}">${st.ready?'ENTER →':'PRACTICE →'}</div>
+        </div>`;
+      })()}
+
       <div class="h2gsec">
         <div class="h2gsh">
           <span class="h2gsh-title">🎮 HUB GAMES</span>
@@ -7098,6 +7640,14 @@ video::-webkit-media-controls-play-button {
         </div>
         <div class="h2ggrid">${gameCards}</div>
       </div>
+
+      ${hubMiniGames ? `<div class="h2gsec" style="margin-top:4px">
+        <div class="h2gsh">
+          <span class="h2gsh-title">⚡ MINI-GAMES</span>
+          <span class="h2gsh-sub">QUICK PLAY · EARN COINS</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(125px,1fr));gap:10px">${hubMiniGames}</div>
+      </div>` : ''}
 
       <div class="h2lower">
         <div class="h2panel">
@@ -7254,7 +7804,7 @@ video::-webkit-media-controls-play-button {
       </div>
     </div>`;
   };
-  window.lessonExit = function(){ state.viewingWorld='guardian'; goTo('hub'); };
+  window.lessonExit = function(){ if(state._returnHub) state.viewingWorld=state._returnHub; goTo('hub'); };
   window.learnThenPlay = function(g){ _pendingGame=g; goTo('lesson'); };
   window.playGame = function(g){
     const v=document.getElementById('lessonVid'); if(v) v.pause();
@@ -7463,6 +8013,7 @@ video::-webkit-media-controls-play-button {
   window.marketInit=function(){_mkt={price:100,dir:1,speed:2,score:0,trades:0,maxTrades:8,holding:false,buyPrice:0,interval:null,done:false,history:[100]};};
   window.marketTick=function(){
     if(!_mkt||_mkt.done) return;
+    if(window.state&&state.currentScreen&&state.currentScreen!=='market_game'){clearInterval(_mkt.interval);_mkt.interval=null;return;}
     const prev=_mkt.price;
     _mkt.price=Math.max(50,Math.min(200,_mkt.price+_mkt.dir*(Math.random()*4+1)));
     if(Math.random()<0.15) _mkt.dir*=-1;
@@ -7488,7 +8039,7 @@ video::-webkit-media-controls-play-button {
     const svg=document.getElementById('mkt-chart');
     if(svg){
       const h=_mkt.history,mx=Math.max(...h),mn=Math.min(...h),rng=mx-mn||1;
-      const pts=h.map((p,i)=>Math.round(i/(h.length-1)*280)+','+Math.round((1-(p-mn)/rng)*80)).join(' ');
+      const pts=h.map((p,i)=>Math.round(i/Math.max(1,h.length-1)*280)+','+Math.round((1-(p-mn)/rng)*80)).join(' ');
       const line=svg.querySelector('.mkt-line'); if(line) line.setAttribute('points',pts);
       const fill=svg.querySelector('.mkt-fill'); if(fill) fill.setAttribute('points',pts+' 280,90 0,90');
     }
@@ -7507,7 +8058,7 @@ video::-webkit-media-controls-play-button {
       <button onclick="if(_mkt&&_mkt.interval)clearInterval(_mkt.interval);marketInit();goTo('hub')" style="padding:14px 32px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);border:none;border-radius:14px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.14em;cursor:pointer">← BACK TO HUB</button>
     </div>`;}
     const h=m.history;const mx=Math.max(...h);const mn=Math.min(...h);const rng=mx-mn||1;
-    const pts=h.map((p,i)=>Math.round(i/(h.length-1)*280)+','+Math.round((1-(p-mn)/rng)*80)).join(' ');
+    const pts=h.map((p,i)=>Math.round(i/Math.max(1,h.length-1)*280)+','+Math.round((1-(p-mn)/rng)*80)).join(' ');
     const priceColor=m.history.length>1&&m.price>=m.history[m.history.length-2]?'#34d399':'#f87171';
     return `<div style="position:absolute;inset:0;background:linear-gradient(160deg,#030b1a,#071424);overflow-y:auto;font-family:'Inter',sans-serif;color:#fff">
       <style>
@@ -7940,6 +8491,7 @@ video::-webkit-media-controls-play-button {
   window.volatilityInit=function(){_vol={price:1000,trades:0,maxTrades:10,holding:false,buyPrice:0,score:0,history:[1000],done:false,interval:null,streak:0};};
   window.volTick=function(){
     if(!_vol||_vol.done)return;
+    if(window.state&&state.currentScreen&&state.currentScreen!=='volatility_game'){clearInterval(_vol.interval);_vol.interval=null;return;}
     const volatility=0.08+Math.random()*0.14;
     const swing=_vol.price*volatility*(Math.random()>0.48?1:-1);
     _vol.price=Math.max(200,Math.min(8000,_vol.price+swing));
@@ -7963,7 +8515,7 @@ video::-webkit-media-controls-play-button {
     const v=_vol;
     if(!v.done&&!v.interval){v.interval=setInterval(window.volTick,480);}
     const h=v.history;const mx=Math.max(...h);const mn=Math.min(...h);const rng=mx-mn||1;
-    const pts=h.map((p,i)=>`${Math.round(i/(h.length-1)*280)},${Math.round((1-(p-mn)/rng)*72)}`).join(' ');
+    const pts=h.map((p,i)=>`${Math.round(i/Math.max(1,h.length-1)*280)},${Math.round((1-(p-mn)/rng)*72)}`).join(' ');
     const lastChange=h.length>1?h[h.length-1]-h[h.length-2]:0;
     const up=lastChange>=0;
     if(v.done){return `<div style="position:absolute;inset:0;background:linear-gradient(160deg,#1a0505,#2d0a0a);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Inter',sans-serif;color:#fff;padding:32px;text-align:center">
@@ -8149,7 +8701,7 @@ video::-webkit-media-controls-play-button {
       <div style="font-size:3rem;margin-bottom:16px">${c.score>=700?'⭐':'📋'}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:#f59e0b;margin-bottom:8px">CREDIT REVIEW</div>
       <div style="font-family:'Anton',sans-serif;font-size:3rem;margin-bottom:4px;color:${c.score>=750?'#34d399':c.score>=650?'#fbbf24':'#f87171'}">${c.score}</div>
-      <div style="font-size:1rem;color:rgba(255,255,255,.6);margin-bottom:24px">${c.score>=750?'EXCELLENT':'c.score>=650?GOOD:FAIR'} credit score</div>
+      <div style="font-size:1rem;color:rgba(255,255,255,.6);margin-bottom:24px">${c.score>=750?'EXCELLENT':c.score>=650?'GOOD':'FAIR'} credit score</div>
       <button onclick="creditInit();goTo('hub')" style="padding:14px 32px;background:linear-gradient(135deg,#f59e0b,#d97706);border:none;border-radius:14px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.14em;cursor:pointer">← BACK TO HUB</button>
     </div>`;}
     const pct=Math.round((c.score-300)/550*100);
@@ -8331,11 +8883,28 @@ video::-webkit-media-controls-play-button {
   /* ───────── PERSISTENCE (P1) ───────── */
   function userId(){ return localStorage.getItem('coinaverse_user') || 'guest'; }
   function userKey(){ return 'coinaverse_prog_' + userId(); }
-  const FIELDS = ['coins','level','xp','playerName','archetype','viewingWorld','dailyClaimed','streak','credPct','learned','missionsDone','gamesDone','inventory','skills'];
-  function ensure(){ const s=S(); s.xp=s.xp||0; s.level=s.level||1; s.learned=s.learned||{}; s.missionsDone=s.missionsDone||{}; s.gamesDone=s.gamesDone||{}; s.inventory=s.inventory||[]; s.skills=s.skills||[]; }
-  function save(){ try{ const s=S(),o={}; FIELDS.forEach(k=>{ if(s[k]!==undefined)o[k]=s[k]; }); localStorage.setItem(userKey(),JSON.stringify(o)); }catch(e){} }
+  const FIELDS = ['coins','level','xp','playerName','archetype','viewingWorld','dailyClaimed','streak','credPct','learned','missionsDone','gamesDone','inventory','skills','articlesRead','gameStars','gameLevels','badges','hubMeters','budgetMeter','meters','hubsVisited','cinemaSeen','challengesClaimed','coinDropClaimed','cinemaSeenMap','gender','avatarColorIdx','avatarAura'];
+  // player name is interpolated into HTML templates all over the app — keep it plain text
+  function cleanName(n){ return String(n||'').replace(/[<>&"'`]/g,'').trim().slice(0,20); }
+  window.cvCleanName = cleanName;
+  function ensure(){ const s=S(); s.xp=s.xp||0; s.level=s.level||1; s.learned=s.learned||{}; s.missionsDone=s.missionsDone||{}; s.gamesDone=s.gamesDone||{}; s.inventory=s.inventory||[]; s.skills=s.skills||[]; s.articlesRead=s.articlesRead||0; s.gameStars=s.gameStars||{}; s.gameLevels=s.gameLevels||{}; s.badges=s.badges||[]; s.hubMeters=s.hubMeters||{}; if(typeof s.budgetMeter!=='number')s.budgetMeter=50; s.meters=s.meters||{}; if(s.playerName) s.playerName=cleanName(s.playerName); }
+  function save(){ try{ const s=S(),o={}; FIELDS.forEach(k=>{ if(s[k]!==undefined)o[k]=s[k]; }); localStorage.setItem(userKey(),JSON.stringify(o)); }catch(e){} try{ _cvSyncBackend(); }catch(_){} }
   function load(){ try{ const r=localStorage.getItem(userKey()); if(!r)return; const o=JSON.parse(r),s=S(); Object.keys(o).forEach(k=>s[k]=o[k]); }catch(e){} }
   window.cvSave=save; window.cvLoad=load;
+
+  /* ───────── BACKEND SYNC ───────── */
+  const CV_API = 'https://coinaverse-server.vercel.app';
+  function cvJWT(){ return localStorage.getItem('cv_jwt')||''; }
+  function cvSetJWT(t){ if(t) localStorage.setItem('cv_jwt',t); else localStorage.removeItem('cv_jwt'); }
+  let _syncTimer=null;
+  function _cvSyncBackend(){
+    const jwt=cvJWT(); if(!jwt) return;
+    clearTimeout(_syncTimer);
+    _syncTimer=setTimeout(()=>{
+      const s=S(),o={}; FIELDS.forEach(k=>{ if(s[k]!==undefined)o[k]=s[k]; });
+      fetch(CV_API+'/api/progress',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt},body:JSON.stringify({state:o})}).catch(()=>{});
+    },2000);
+  }
 
   /* ───────── XP · LEVEL · RANK ───────── */
   const XP_PER=100;
@@ -8378,7 +8947,16 @@ video::-webkit-media-controls-play-button {
     const token=S().viewingWorld||S().archetype||'credtech';
     const idx=Array.from(row.parentElement.querySelectorAll('.hub-mrow')).indexOf(row);
     const k=token+':m'+idx; ensure(); const s=S();
-    if(!s.missionsDone[k]){ s.missionsDone[k]=1; row.classList.add('done'); addXP(15,20); toast('✅ Mission complete · +20💰 +15 XP'); }
+    if(!s.missionsDone[k]){
+      s.missionsDone[k]=1; row.classList.add('done'); addXP(25,50); toast('✅ Mission complete · +50💰 +25 XP');
+      // hub completion bonus: all .hub-mrow in this hub done?
+      const allRows=Array.from((row.parentElement||document).querySelectorAll('.hub-mrow')).length;
+      const doneSoFar=Object.keys(s.missionsDone).filter(x=>x.startsWith(token+':')).length;
+      if(doneSoFar>=allRows && allRows>0){
+        s.coins=(s.coins||0)+500; if(window.cvSave) cvSave();
+        setTimeout(()=>toast('🏆 Hub Complete! +500 Bonus Coins!'),800);
+      }
+    }
   });
   function markDoneMissions(){ const token=S().viewingWorld||S().archetype||'credtech'; const s=S(); ensure();
     document.querySelectorAll('.hub-screen .hub-mrow').forEach((r,idx)=>{ if(s.missionsDone[token+':m'+idx]) r.classList.add('done'); });
@@ -8455,7 +9033,7 @@ video::-webkit-media-controls-play-button {
   window.openProfile=function(){ ensure(); const s=S(); const learned=Object.keys(s.learned).length, games=Object.keys(s.gamesDone).length, miss=Object.keys(s.missionsDone).length;
     const w=(window.WORLDS||{})[s.archetype||'guardian']||{}; const pct=Math.round((s.xp%XP_PER));
     modal(`<div class="cvm-h">👤 HERO PROFILE</div>
-      <div class="cvm-prof"><div class="cvm-av" style="background-image:url('${w.character||''}')"></div>
+      <div class="cvm-prof"><div class="cvm-av" style="background-image:url('${(typeof genderedChar==='function')?genderedChar(s.archetype||'guardian'):(w.character||'')}')"></div>
       <div><div class="cvm-name">${s.playerName||'Hero'}</div><div class="cvm-arch">${w.archetype||'Explorer'} · LVL ${s.level}</div></div></div>
       <div class="cvm-xpbar"><div style="width:${pct}%"></div></div><div class="cvm-xptxt">${s.xp} XP · ${XP_PER-pct} to next level</div>
       <div class="cvm-grid"><div><b>${s.coins}</b><span>Coins</span></div><div><b>${learned}</b><span>Lessons</span></div><div><b>${games}</b><span>Games won</span></div><div><b>${miss}</b><span>Missions</span></div></div>`); };
@@ -8527,20 +9105,55 @@ video::-webkit-media-controls-play-button {
     modal(`<div class="cvm-h">🏆 LEADERBOARD · ${kind==='archetype'?'BY ARCHETYPE':kind==='friends'?'FRIENDS':'GLOBAL'}</div>
       <div class="cvm-lbtabs"><button onclick="cvCloseModal();cvLbTab('global')">Global</button><button onclick="cvCloseModal();cvLbTab('archetype')">Archetype</button><button onclick="cvCloseModal();cvLbTab('friends')">Friends</button></div>${html}`); };
 
-  /* ───────── AUTH FACADE (P4) ───────── */
+  /* ───────── AUTH FACADE (P4) — local + backend ───────── */
   function accounts(){ try{return JSON.parse(localStorage.getItem('coinaverse_accounts')||'{}');}catch(e){return {};} }
   function saveAccounts(a){ localStorage.setItem('coinaverse_accounts',JSON.stringify(a)); }
   function setUser(email){ localStorage.setItem('coinaverse_user',email); const s=S(); s.coins=s.coins||100;s.xp=s.xp||0;s.level=s.level||1; load(); refreshHUD(); }
-  window.cvGrabName=function(){ const nm=(document.getElementById('cvName')||{}).value||''; if(nm.trim()){ try{ const s=S(); s.playerName=nm.trim().slice(0,20); if(window.cvSave)cvSave(); else if(window.save)save(); }catch(e){} } };
-  window.cvSignup=function(){ const e=(document.getElementById('cvEmail')||{}).value||''; const p=(document.getElementById('cvPass')||{}).value||'';
-    if(!e||!p){ toast('Enter email + password'); return; } const a=accounts();
-    if(a[e]){ toast('Account exists — logging in'); } else { a[e]={pw:p,created:Date.now()}; saveAccounts(a); toast('Account created 🎉'); }
-    setUser(e); cvGrabName(); goTo('age_parental'); };
-  window.cvLogin=function(){ const e=(document.getElementById('cvEmail')||{}).value||''; const p=(document.getElementById('cvPass')||{}).value||''; const a=accounts();
-    if(a[e]&&a[e].pw===p){ setUser(e); toast('Welcome back'); goTo('age_parental'); } else { toast('Wrong email or password'); } };
+  window.cvGrabName=function(){ const nm=(document.getElementById('cvName')||{}).value||''; if(nm.trim()){ try{ const s=S(); s.playerName=cleanName(nm); if(window.cvSave)cvSave(); else if(window.save)save(); }catch(e){} } };
+
+  function _afterAuth(token, user, name){
+    cvSetJWT(token);
+    const a=accounts(); if(!a[user.email]) a[user.email]={pw:'***',created:Date.now()}; saveAccounts(a);   // never clobber a locally-stored password
+    setUser(user.email);
+    const s=S(); if(name) s.playerName=cleanName(name);
+    if(user.archetype) s.archetype=user.archetype;
+    save(); refreshHUD();
+  }
+
+  window.cvSignup=function(){
+    const e=(document.getElementById('cvEmail')||{}).value||'';
+    const p=(document.getElementById('cvPass')||{}).value||'';
+    const nm=(document.getElementById('cvName')||{}).value||'';
+    const arch=S().archetype||'guardian';
+    if(!e||!p){ toast('Enter email + password'); return; }
+    fetch(CV_API+'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username:nm||e.split('@')[0],email:e,password:p,archetype:arch})})
+      .then(r=>r.json()).then(d=>{
+        if(d.error){ toast('⚠ '+d.error); return; }
+        _afterAuth(d.token,d.user,nm); toast('Account created 🎉'); goTo('age_parental');
+      }).catch(()=>{
+        const a=accounts(); if(!a[e]){a[e]={pw:p,created:Date.now()};saveAccounts(a);}
+        setUser(e); if(nm){ const s=S(); s.playerName=cleanName(nm); } save(); toast('Account created 🎉'); goTo('age_parental');
+      });
+  };
+
+  window.cvLogin=function(){
+    const e=(document.getElementById('cvEmail')||{}).value||'';
+    const p=(document.getElementById('cvPass')||{}).value||'';
+    fetch(CV_API+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e,password:p})})
+      .then(r=>r.json()).then(d=>{
+        if(d.error){ toast('⚠ '+d.error); return; }
+        _afterAuth(d.token,d.user,''); toast('Welcome back! 👋'); goTo('age_parental');
+      }).catch(()=>{
+        const a=accounts();
+        if(a[e]&&a[e].pw===p){ setUser(e); toast('Welcome back'); goTo('age_parental'); }
+        else { toast("Oops — that email or password doesn't match"); }
+      });
+  };
+
   window.cvSocial=function(prov){ const e=`hero@${prov}`; const a=accounts(); if(!a[e]){a[e]={pw:'',created:Date.now(),social:prov};saveAccounts(a);} setUser(e); cvGrabName(); toast(`Continuing with ${prov}`); goTo('age_parental'); };
   window.cvGuest=function(){ localStorage.setItem('coinaverse_user','guest'); load(); cvGrabName(); refreshHUD(); goTo('age_parental'); };
-  window.cvLogout=function(){ save(); localStorage.removeItem('coinaverse_user'); cvCloseModal(); const s=S(); s.coins=100;s.xp=0;s.level=1;s.learned={};s.missionsDone={};s.gamesDone={}; goTo('signin'); toast('Logged out'); };
+  window.cvLogout=function(){ save(); cvSetJWT(''); localStorage.removeItem('coinaverse_user'); cvCloseModal(); const s=S(); s.coins=100;s.xp=0;s.level=1;s.learned={};s.missionsDone={};s.gamesDone={}; goTo('signin'); toast('Logged out'); };
 
   /* ───────── BOOT + render hooks ───────── */
   window._lsCur = 0;
@@ -8559,9 +9172,38 @@ video::-webkit-media-controls-play-button {
       nb.style.display='none';
       const pb = document.getElementById('ls-play-btn');
       if(pb){ pb.style.display='block'; setTimeout(()=>pb.style.animation='lessonPlayPulse 1.5s ease-in-out infinite',100); }
+      if(window.state && !nb._rewarded){
+        nb._rewarded = true;
+        state.articlesRead = (state.articlesRead||0) + 1;
+        state.coins = (state.coins||0) + 50;
+        const art = state.articlesRead;
+        let bonus = 0;
+        if(art===5) bonus=250;
+        else if(art===10) bonus=500;
+        if(bonus) state.coins += bonus;
+        if(window.cvAddXP) cvAddXP(10,0);
+        if(window.cvSave) cvSave();
+        const msg = bonus ? `📖 Lesson done! +50 + ${bonus} milestone bonus 🪙` : `📖 Lesson done · +50 🪙`;
+        if(window.cvToast) cvToast(msg);
+      }
     }
   };
   function postRender(){ ensure(); markDoneMissions(); refreshHUD();
+    // Live leaderboard from backend
+    if(document.querySelector('.lb2-list')||document.querySelector('.lb2-podium')){
+      const jwt=cvJWT();
+      if(jwt){ fetch(CV_API+'/api/leaderboard',{headers:{'Authorization':'Bearer '+jwt}}).then(r=>r.json()).then(d=>{
+        if(!d.leaderboard||!d.leaderboard.length) return;
+        const AC={investor:'#10b981',builder:'#a855f7',strategist:'#3b82f6',guardian:'#14b8a6','risk taker':'#ef4444',risktaker:'#ef4444',rebuilder:'#f59e0b'};
+        const getC=a=>(AC[(a||'').toLowerCase()]||'#6366f1');
+        const me=S().playerName||'You'; const myArch=S().archetype||'guardian';
+        const esc=s=>String(s||'').replace(/[<>&"'`]/g,'');
+        const okArch=a=>['guardian','strategist','investor','builder','risktaker','rebuilder'].indexOf(a)>=0?a:'guardian';
+        const rows=d.leaderboard.map((r,ix)=>({...r,rank:r.rank||ix+1,name:esc(r.username),arch:esc(r.archetype||'guardian'),score:r.coins||0,char:'assets/characters/'+okArch(r.archetype)+((r.username===me&&S().gender==='female')?'_f':'')+'.png',isYou:r.username===me}));
+        const listEl=document.querySelector('.lb2-list');
+        if(listEl && rows.length>3) listEl.innerHTML=rows.slice(3).map(r=>`<div class="lb2-row ${r.isYou?'you':''}"><div class="lb2-rank">${r.rank}</div><img class="lb2-av" src="${r.char}" onerror="this.style.opacity='.3'"><div><div class="lb2-name">${r.isYou?r.name+' (YOU)':r.name}</div><div class="lb2-arch">${r.arch}</div></div><div><div class="lb2-score">${r.score.toLocaleString()}</div><div class="lb2-xp">COINS</div></div></div>`).join('');
+      }).catch(()=>{}); }
+    }
     if(document.getElementById('ls-next-btn')){ _lsCur=0; setTimeout(lessonNext,300); }
     // Force-play all muted autoplay videos (browser may block autoplay without this)
     function _forcePlay(){
@@ -8903,7 +9545,7 @@ video::-webkit-media-controls-play-button {
   const CATCOL={'Money Basics':['#0e7a3a','#1B5E20'],'Earning':['#1d6fb8','#0e4a7a'],'Saving':['#0e7a6e','#0a5247'],'Counting':['#7a5a0e','#5a3f0a'],'CoinCept Squad':['#5a2d8a','#3a1d5e']};
   function epCard(e,i){ const [c1,c2]=CATCOL[e.cat]||['#1a1340','#0e0a26']; const tj=thumb(e);
     return `<div class="cine-card" onclick="playEp(${i})">
-      <div class="cine-thumb" style="${tj?`background-image:url('${tj}')`:`background:linear-gradient(150deg,${c1},${c2})`}">
+      <div class="cine-thumb" style="background-image:${tj?`url('${tj}'),`:''}linear-gradient(150deg,${c1},${c2})">
         <div class="cine-play">▶</div>${tj?'':`<div class="cine-thumb-t">${e.t}</div>`}
         <span class="cine-cat">${e.cat}</span></div>
       <div class="cine-meta"><div class="cine-title">${e.t}</div><div class="cine-sub">${e.sub}</div></div></div>`; }
@@ -8921,7 +9563,13 @@ video::-webkit-media-controls-play-button {
   window.cvOpenEpisode=function(i){
     i=((i%CINE.length)+CINE.length)%CINE.length;
     window._cvEp={i:i,answered:false,picked:-1,earned:false};
-    window._cvSeen=window._cvSeen||new Set(); window._cvSeen.add(i);
+    window._cvSeen=window._cvSeen||new Set();
+    if(window.state){ state.cinemaSeenMap=state.cinemaSeenMap||{}; Object.keys(state.cinemaSeenMap).forEach(k=>window._cvSeen.add(+k)); }
+    if(!window._cvSeen.has(i)){
+      if(window.state){ state.coins=(state.coins||0)+50; state.cinemaSeen=(state.cinemaSeen||0)+1; state.cinemaSeenMap[i]=1; if(window.cvSave) cvSave(); }
+      if(window.cvToast) cvToast('▶ +50 Coins · Episode watched!');
+    }
+    window._cvSeen.add(i);
     if(window.stopVoice) stopVoice();
     if(window.duckBgmForVideo) duckBgmForVideo(true);
     let o=document.getElementById('cvVideo');
@@ -8943,7 +9591,7 @@ video::-webkit-media-controls-play-button {
     const reward = st.answered && st.picked===q.ans
       ? `<div class="cvep-reward">
            <div class="cvep-reward-h">🎉 YOU EARNED!</div>
-           <div class="cvep-reward-row"><span>🪙 +100 Coins</span><span>⭐ +50 XP</span><span>🎖️ ${q.badge}</span></div>
+           <div class="cvep-reward-row"><span>🪙 +50 Coins</span><span>⭐ +50 XP</span><span>🎖️ ${q.badge}</span></div>
            <div class="cvep-actions">
              <button class="cvep-play" onclick="cvEpPlayGame()">🎮 Play ${HUB_NAME[e.hub]||'Hub'} Game</button>
              <button class="cvep-next" onclick="cvEpNext()">Next Episode →</button>
@@ -8990,7 +9638,19 @@ video::-webkit-media-controls-play-button {
     const st=window._cvEp; if(!st||st.answered) return; const e=CINE[st.i]; const q=e.quiz;
     st.answered=true; st.picked=k;
     if(k===q.ans && !st.earned){ st.earned=true;
-      if(window.state){ state.coins=(state.coins||0)+100; if(window.cvAddXP) cvAddXP(50,0); if(window.cvSave) cvSave(); }
+      if(window.state){
+        state.coins=(state.coins||0)+50;
+        if(window.cvAddXP) cvAddXP(50,0);
+        // series completion bonus: all episodes watched + quiz done
+        const seen=window._cvSeen||new Set();
+        const quizDone=(window._cvQuizDone=window._cvQuizDone||new Set());
+        quizDone.add(st.i);
+        if(seen.size>=CINE.length && quizDone.size>=CINE.length){
+          state.coins=(state.coins||0)+250;
+          if(window.cvToast) cvToast('🏆 +250 Bonus · Full Series Complete!');
+        }
+        if(window.cvSave) cvSave();
+      }
       window._cvBadges=window._cvBadges||new Set(); if(q.badge) window._cvBadges.add(q.badge);
     }
     cvRenderEpisode();
@@ -9109,7 +9769,7 @@ video::-webkit-media-controls-play-button {
       {tag:'UPDATE',t:'Every episode now links to a real hub game',d:'Finish a lesson, then jump straight into the matching game.'},
     ];
     const PLANS=[
-      {n:'Free',p:'$0',per:'forever',f:['First episode of every series','Browse all lessons','Earn from quizzes'],cta:'CURRENT PLAN',hot:false},
+      {n:'Free',p:'$0',per:'forever',f:['First episode of every series','Browse all lessons','Earn from challenges'],cta:'CURRENT PLAN',hot:false},
       {n:'Premium',p:'$3.99',per:'/month',f:['Full seasons','Interactive episodes','Behind the scenes','Bonus rewards'],cta:'GO PREMIUM',hot:true},
       {n:'Annual',p:'$35.99',per:'/year',f:['Everything in Premium','Exclusive avatar item yearly','Monthly bonus coins'],cta:'BEST VALUE',hot:false},
     ];
@@ -9155,7 +9815,7 @@ video::-webkit-media-controls-play-button {
         </div>
       </div>
       <div class="nf-body">
-        <div class="cn-promo">⚡ <b>Earn by watching</b> — answer a fun quiz after each episode for coins, badges & a game.<span>WATCH → QUIZ → EARN → PLAY</span></div>
+        <div class="cn-promo">⚡ <b>Earn by watching</b> — answer a fun challenge after each episode for coins, badges & a game.<span>WATCH → CHALLENGE → EARN → PLAY</span></div>
         <div class="nf-row-lbl">🔥 New This Week</div>${rail(CINE.slice(0,4))}
         ${ROWS.map(([lbl,list])=>`<div class="nf-row-lbl">${lbl}</div>${rail(list)}`).join('')}
         <div style="text-align:center;padding:16px 0;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.18em;color:rgba(255,255,255,.2)">🎬 ${CINE.length} LESSONS BY KABRIA · TAP ANY TO WATCH</div>
@@ -9194,7 +9854,7 @@ video::-webkit-media-controls-play-button {
           <div class="cn-stat"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">PROGRESS</div><div style="font-family:'Anton',sans-serif;font-size:1.3rem;color:#34d399">${avgProg}%</div></div>
           <div class="cn-stat"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">BADGES</div><div style="font-family:'Anton',sans-serif;font-size:1.3rem;color:#fbbf24">${earnedBadges.length}</div></div>
         </div>
-        ${earnedBadges.length?`<div style="padding:8px 16px">${earnedBadges.map(b=>`<span class="cn-chip">🎖️ ${b}</span>`).join('')}</div>`:`<div style="padding:8px 16px;color:rgba(255,255,255,.4);font-size:.82rem">Watch episodes & answer quizzes to earn badges →</div>`}
+        ${earnedBadges.length?`<div style="padding:8px 16px">${earnedBadges.map(b=>`<span class="cn-chip">🎖️ ${b}</span>`).join('')}</div>`:`<div style="padding:8px 16px;color:rgba(255,255,255,.4);font-size:.82rem">Watch episodes & complete challenges to earn badges →</div>`}
         <div class="cn-sect">📋 RECENT ACTIVITY</div>
         <div style="padding:4px 16px">${acts.map(a=>`<div style="display:flex;gap:10px;align-items:center;padding:9px 12px;margin-bottom:7px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);font-size:.84rem"><span style="font-size:1.05rem">${a[0]}</span><span>${a[1]}</span></div>`).join('')}</div>
         <div class="cn-sect">👨‍👩‍👧 PARENT MODE · LEARNING PROGRESS</div>
@@ -9827,26 +10487,44 @@ window.eaJoinLive = function(){
 // OVERRIDE playDistrictGame TO ROUTE TOKENS → GAMES
 // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 
+// Each hub's 7 districts = 7 DIFFERENT games. District 0 = the hub's elaborate
+// themed legacy game; districts 1-6 = unique themed arcade mini-games
+// "<hub>_1".."<hub>_6" (each a DIFFERENT mechanic) → 49 distinct games total.
+const GAME_ORDER = ['guardian','strategist','investor','builder','risktaker','rebuilder','credtech'];
+const DISTRICT_GAME = {};
+GAME_ORDER.forEach(function(home){ var row=[home]; for(var d=1;d<=6;d++) row.push(home+'_'+d); DISTRICT_GAME[home]=row; });
+window.DISTRICT_GAME = DISTRICT_GAME;
+const GAME_NAMES = { guardian:'Money Catcher', strategist:'Goal Quest', investor:'Stock Surge', builder:'Biz Op', risktaker:'Block Builder', rebuilder:'Debt Survivor', credtech:'Credit Core', credtech_2:'Report Observatory', credtech_6:'Credit Limit Lab', strategist_2:'Bill Management Grid' };
+window.GAME_NAMES = GAME_NAMES;
+window.gameNameFor = function(token,i){ var g=(DISTRICT_GAME[token]&&DISTRICT_GAME[token][i])||token; if(GAME_NAMES[g]) return GAME_NAMES[g]; var c=window.ARCADE_CFG&&window.ARCADE_CFG[g]; return c?(c.name||c.title||'Mini-Game'):'Mini-Game'; };
+
 window.playDistrictGame = function(token, i) {
-  if(window.state){state.gamesDone=state.gamesDone||{};state.gamesDone[token+':'+i]=1;if(window.cvSave)cvSave();}
+  const gameToken = (DISTRICT_GAME[token] && DISTRICT_GAME[token][i]) || token;
+  if(window.state){ state._returnHub = token; state.gamesDone=state.gamesDone||{}; state.gamesDone[token+':'+i]=1; if(window.cvSave)cvSave(); }
 
   const gameMap = {
     strategist: function(){ gqInit(); goTo('game_goalquest'); },
-    investor: function(){ ssInit(); goTo('game_stocksurge'); },
+    strategist_2: function(){ goTo('game_bud_billgrid'); },
+    strategist_bud_plaza: function(){ goTo('game_bud_plaza'); },
+    investor: function(){ ssInit(); goTo('game_stocksurge'); },   // flagship (Research Core stays on the hub MINIGAMES grid)
     builder: function(){ boInit(); goTo('game_bizop'); },
     risktaker: function(){ bbInit(); goTo('game_blockbuilder'); },
     guardian: function(){ mcInit(); goTo('game_moneycatcher'); },
     rebuilder: function(){ dsInit(); goTo('game_debtsurv'); },
-    credtech: function(){ frInit(); goTo('game_ficoracer'); }
+    rebuilder_1: function(){ goTo('game_ddt_plaza'); },
+    ddt_plaza: function(){ goTo('game_ddt_plaza'); },
+    credtech:   function(){ goTo('game_ficoracer'); },
   };
 
-  if(gameMap[token]){ gameMap[token](); } else {
-    goTo('hub');
-  }
+  if(gameMap[gameToken]){ gameMap[gameToken](); }
+  else if(window.ARCADE_CFG && window.ARCADE_CFG[gameToken] && window.arcInit){ arcInit(gameToken, token, i); goTo('game_arc'); }
+  else { goTo('hub'); }
 };
 
   </script>
   <!-- Real playable games (canvas) — loaded after main script, override the stub SCREENS.game_* -->
+  <script src="assets/games/lessonspecs.js"></script>
+  <script src="assets/games/lessondeck.js"></script>
   <script src="assets/games/moneycatcher.js"></script>
   <script src="assets/games/goalquest.js"></script>
   <script src="assets/games/stocksurge.js"></script>
@@ -9854,5 +10532,50 @@ window.playDistrictGame = function(token, i) {
   <script src="assets/games/blockbuilder.js"></script>
   <script src="assets/games/debtsurv.js"></script>
   <script src="assets/games/ficoracer.js"></script>
+  <script src="assets/games/creditcore.js"></script>
+  <script src="assets/games/scoretower.js"></script>
+  <script src="assets/games/borrowingbay.js"></script>
+  <script src="assets/games/trustexchange.js"></script>
+  <script src="assets/games/repaymentrunway.js"></script>
+  <script src="assets/games/creditlimitlab.js"></script>
+  <script src="assets/games/reportobservatory.js"></script>
+  <script src="assets/games/inv_academy.js"></script>
+  <script src="assets/games/inv_assetrealm.js"></script>
+  <script src="assets/games/inv_dividend.js"></script>
+  <script src="assets/games/inv_portfolio.js"></script>
+  <script src="assets/games/inv_research.js"></script>
+  <script src="assets/games/inv_riskcontrol.js"></script>
+  <script src="assets/games/inv_stockarena.js"></script>
+  <script src="assets/games/bud_billgrid.js"></script>
+  <script src="assets/games/bud_cashflow.js"></script>
+  <script src="assets/games/bud_efflab.js"></script>
+  <script src="assets/games/bud_goaltower.js"></script>
+  <script src="assets/games/bud_needswants.js"></script>
+  <script src="assets/games/bud_plaza.js"></script>
+  <script src="assets/games/bud_vault.js"></script>
+  <script src="assets/games/bsv_aiinnovationlabs.js"></script>
+  <script src="assets/games/bsv_bitstreammarket.js"></script>
+  <script src="assets/games/bsv_blockchainblvd.js"></script>
+  <script src="assets/games/bsv_cryptocrossing.js"></script>
+  <script src="assets/games/bsv_futuretrendscmd.js"></script>
+  <script src="assets/games/bsv_nftnexus.js"></script>
+  <script src="assets/games/bsv_volatilityvortex.js"></script>
+  <script src="assets/games/ll_branding_district.js"></script>
+  <script src="assets/games/ll_idea_incubator.js"></script>
+  <script src="assets/games/ll_investor_pitch.js"></script>
+  <script src="assets/games/ll_marketing_metropolis.js"></script>
+  <script src="assets/games/ll_product_dev_lab.js"></script>
+  <script src="assets/games/ll_scaling_center.js"></script>
+  <script src="assets/games/ll_startup_street.js"></script>
+  <script src="assets/games/ddt_discovery.js"></script>
+  <script src="assets/games/ddt_gym.js"></script>
+  <script src="assets/games/ddt_habits.js"></script>
+  <script src="assets/games/ddt_lab.js"></script>
+  <script src="assets/games/ddt_plaza.js"></script>
+  <script src="assets/games/ddt_rebuild.js"></script>
+  <script src="assets/games/ddt_resilience.js"></script>
+  <script src="assets/games/arccfg.js"></script>
+  <script src="assets/games/arcade.js"></script>
+  <script src="assets/games/capstones.js"></script>
 </body>
 </html>

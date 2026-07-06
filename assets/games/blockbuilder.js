@@ -11,15 +11,18 @@
   const GATE_EVERY=18;   // seconds between Knowledge Gates
   let G=null, raf=null;
 
-  // LEARN WHILE PLAYING — blockchain / risk lessons
+  // LEARN WHILE PLAYING — blockchain lessons mapped to GDD concept table
   const FACTS=[
-    ['⛓️','A blockchain records every transaction permanently.'],
-    ['✅','Validation checks each transaction is real before it\'s added.'],
-    ['🔒','Immutability: once written, a block can\'t be changed.'],
-    ['⚠️','Watch for fraud — fake or double-spend transactions.'],
-    ['📊','Crypto is volatile — prices swing fast; risk what you can lose.'],
-    ['🌐','Decentralized = no single point of control.'],
-    ['🧮','Miners/validators keep the network honest.']
+    ['⛓️','A block is a container that holds a batch of transactions — fill it, lock it, link it to the chain!'],
+    ['✅','Validation checks each transaction before the block can lock. No valid proof = no new block.'],
+    ['#️⃣','Every block gets a unique hash — like a fingerprint. Change one byte and the whole hash changes.'],
+    ['🔗','Each block stores the hash of the block before it. That\'s the "chain" — one bad link breaks everything.'],
+    ['🔒','Immutability: once a block is written, it can\'t be quietly changed. Hackers have to rewrite every block after it — that\'s why chains are so hard to hack.'],
+    ['🗳️','Consensus means enough validators agree the block is correct. One node saying yes isn\'t enough — the whole network must agree.'],
+    ['🌐','Decentralization means no single owner controls the chain. Thousands of nodes share the ledger — you can\'t bribe or hack just one.'],
+    ['⚠️','Fraud transactions — fake amounts, double-spends, bad signatures — must be rejected before they enter a block. Let them scroll off safely.'],
+    ['🤖','Smart contracts are rules that run automatically when conditions are met — no middleman needed.'],
+    ['🛡️','Network security = layered defenses: hashing, validation, consensus, and firewalls working together.']
   ];
 
   window.bbInit=function(){ G=null; };  // playDistrictGame calls this before goTo
@@ -36,15 +39,16 @@
     for(let i=0;i<26;i++){ G.code.push({x:Math.random(),y:Math.random(),sp:0.05+Math.random()*0.18,ch:rch(),al:0.04+Math.random()*0.1}); }
   }
 
-  // valid / fraud transaction pools
+  // valid / fraud transaction pools — GDD §B: "Sender → Receiver · Amount" format
   const VALID=[
-    {t:'Send 5 → Bob'},{t:'Pay invoice'},{t:'Buy NFT'},{t:'Stake 12'},
-    {t:'Send 3 → Mia'},{t:'Mint token'},{t:'Refund 8'},{t:'Swap → ETH'},
-    {t:'Tip 1 → Dev'},{t:'Send 20 → Lab'}
+    {t:'Mia → Bob · 5'},{t:'Lab → Dev · 20'},{t:'Ali → Zoe · 3'},
+    {t:'Sam → Ana · 8'},{t:'Joe → Kim · 12'},{t:'Pay Invoice · 15'},
+    {t:'Stake 10 coins'},{t:'Swap → ETH · 2'},{t:'Tip Dev · 1'},
+    {t:'Refund Ana · 8'},{t:'Leo → Max · 6'},{t:'Buy NFT · 4'}
   ];
   const FRAUD=[
-    {t:'Double-spend'},{t:'Fake hash'},{t:'Duplicate txn'},{t:'Bad signature'},
-    {t:'Replay attack'},{t:'Spoofed key'},{t:'Negative amount'},{t:'Forged block'}
+    {t:'Double-spend!'},{t:'Fake hash!'},{t:'Duplicate txn!'},{t:'Bad signature!'},
+    {t:'Replay attack!'},{t:'Spoofed key!'},{t:'Negative amt!'},{t:'Forged block!'}
   ];
   const CODE_CHARS='01ABCDEF₿x#$0110';
   function rch(){ return CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)]; }
@@ -66,7 +70,7 @@
         <div style="height:10px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid rgba(56,189,248,.25)"><div id="bbIntBar" style="height:100%;width:100%;background:linear-gradient(90deg,#38bdf8,#7dd3fc);transition:width .2s"></div></div>
       </div>
       <canvas id="bbCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none"></canvas>
-      <div id="bbHint" style="position:absolute;left:0;right:0;bottom:18px;text-align:center;z-index:4;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.13em;color:rgba(255,255,255,.5);pointer-events:none">TAP ✅ VALID to build the block · MINE at ${TXN_PER_BLOCK}/block · NEVER tap ⚠️ FRAUD · let fraud scroll off</div>
+      <div id="bbHint" style="position:absolute;left:0;right:0;bottom:18px;text-align:center;z-index:4;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.13em;color:rgba(255,255,255,.5);pointer-events:none">TAP ✅ VALID transactions to fill the block · ${TXN_PER_BLOCK} per block · NEVER tap ⚠️ FRAUD · grab 🛡️ Hash Shield &amp; ⚡ Lightning Validator</div>
       <div id="bbFact" style="position:absolute;left:50%;top:150px;transform:translateX(-50%);z-index:6;max-width:80%;display:none;pointer-events:none"></div>
       <div id="bbGate" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(2,12,22,.86);backdrop-filter:blur(5px);padding:22px"></div>
       <div id="bbOver" style="position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:rgba(2,12,22,.84);backdrop-filter:blur(4px)"></div>
@@ -84,12 +88,14 @@
       const r=cv.getBoundingClientRect();
       tapAt((clientX-r.left)/r.width,(clientY-r.top)/r.height);
     };
-    cv.addEventListener('mousedown',e=>{ hit(e.clientX,e.clientY); });
-    cv.addEventListener('touchstart',e=>{ if(e.touches[0]){ hit(e.touches[0].clientX,e.touches[0].clientY); e.preventDefault(); } },{passive:false});
-    // keyboard: space = mine ready block manually, 1-4 lanes optional
-    const kd=e=>{ if(e.key===' '||e.key==='Enter'){ if(G&&G.phase==='play'&&G.fills>=TXN_PER_BLOCK) mineBlock(); e.preventDefault(); } };
+    const md=e=>{ hit(e.clientX,e.clientY); };
+    const ts=e=>{ if(e.touches[0]){ hit(e.touches[0].clientX,e.touches[0].clientY); e.preventDefault(); } };
+    cv.addEventListener('mousedown',md);
+    cv.addEventListener('touchstart',ts,{passive:false});
+    // keyboard: space = mine ready block manually (don't swallow keys for overlay buttons)
+    const kd=e=>{ if((e.key===' '||e.key==='Enter') && G&&G.phase==='play'&&G.fills>=TXN_PER_BLOCK){ mineBlock(); e.preventDefault(); } };
     window.addEventListener('keydown',kd);
-    G._cleanup=()=>{ window.removeEventListener('resize',size); window.removeEventListener('keydown',kd); };
+    G._cleanup=()=>{ window.removeEventListener('resize',size); window.removeEventListener('keydown',kd); cv.removeEventListener('mousedown',md); cv.removeEventListener('touchstart',ts); };
     G.last=performance.now();
     cancelAnimationFrame(raf); raf=requestAnimationFrame(loop);
   }
@@ -104,8 +110,8 @@
       const halfW=0.115, halfH=0.052;
       if(nx>=it.x-halfW && nx<=it.x+halfW && ny>=it.y-halfH && ny<=it.y+halfH){
         if(it.kind==='power'){
-          if(it.p==='shield'){ G.shield=8; floatTxt(it.x,it.y,'🛡️ SHIELD','#7dd3fc'); }
-          else { G.validator=6; floatTxt(it.x,it.y,'⚡ VALIDATOR','#fbbf24'); }
+          if(it.p==='shield'){ G.shield=20; floatTxt(it.x,it.y,'🛡️ HASH SHIELD','#7dd3fc'); }
+          else { G.validator=10; floatTxt(it.x,it.y,'⚡ LIGHTNING VALIDATOR','#fbbf24'); }
           burst(it.x,it.y,'#7dd3fc',12); G.flash=0.3; G.flashColor='#38bdf8';
           it.dead=1; return;
         }
@@ -173,7 +179,7 @@
       const fraudChance=0.30+prog*0.22;
       if(roll<0.06){ // power-up (rare)
         const p=Math.random()<0.5?'shield':'validator';
-        G.tiles.push({x:-0.14,y:laneY,vx:speed*0.85,kind:'power',p,e:p==='shield'?'🛡️':'⚡',t:p==='shield'?'Hash Shield':'Validator'});
+        G.tiles.push({x:-0.14,y:laneY,vx:speed*0.85,kind:'power',p,e:p==='shield'?'🛡️':'⚡',t:p==='shield'?'Hash Shield':'Lightning Validator'});
       } else if(roll<0.06+fraudChance){
         const f=FRAUD[Math.floor(Math.random()*FRAUD.length)];
         G.tiles.push({x:-0.14,y:laneY,vx:speed,kind:'fraud',e:'⚠️',t:f.t});
@@ -216,8 +222,27 @@
     if(G.integrity<=0) return end(false);
   }
 
+  const _bbStars=Array.from({length:40},()=>({x:Math.random(),y:Math.random(),r:Math.random()*0.9+0.2,s:Math.random()*0.4+0.15}));
+  function _bbBg(ctx,W,H,now){
+    const bg=ctx.createLinearGradient(0,0,0,H);
+    bg.addColorStop(0,'#020c14'); bg.addColorStop(0.5,'#030e1c'); bg.addColorStop(1,'#050f1a');
+    ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+    // starfield
+    const t=now/1000;
+    for(const st of _bbStars){
+      const tw=0.3+0.4*Math.sin(t*st.s+st.x*6.28);
+      ctx.globalAlpha=tw*0.55; ctx.fillStyle='#38bdf8';
+      ctx.beginPath(); ctx.arc(st.x*W,st.y*H*0.6,st.r,0,6.28); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    // ambient top glow
+    const tg=ctx.createRadialGradient(W/2,0,0,W/2,0,W*0.7);
+    tg.addColorStop(0,'rgba(56,189,248,.09)'); tg.addColorStop(1,'transparent');
+    ctx.fillStyle=tg; ctx.fillRect(0,0,W,H);
+  }
+
   function render(ctx,W,H,now){
-    ctx.clearRect(0,0,W,H);
+    _bbBg(ctx,W,H,now);
     let ox=0,oy=0; if(G.shake>0){ ox=(Math.random()-.5)*G.shake*24; oy=(Math.random()-.5)*G.shake*24; }
     ctx.save(); ctx.translate(ox,oy);
 
@@ -227,7 +252,7 @@
     ctx.globalAlpha=1;
 
     // lane guide rails (faint)
-    ctx.strokeStyle='rgba(56,189,248,.08)'; ctx.lineWidth=1;
+    ctx.strokeStyle='rgba(56,189,248,.1)'; ctx.lineWidth=1;
     for(let l=0;l<G.lanes;l++){ const y=(0.30+l*0.10)*H; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
 
     if(G.flash>0){ const a=G.flash*0.28; ctx.fillStyle=hexA(G.flashColor,a); ctx.fillRect(0,0,W,H); }
@@ -255,8 +280,8 @@
     // active power-up indicators
     ctx.textAlign='left'; ctx.font="11px 'Orbitron',sans-serif";
     let iy=H-46;
-    if(G.shield>0){ ctx.fillStyle='#7dd3fc'; ctx.fillText('🛡️ SHIELD '+Math.ceil(G.shield)+'s',16,iy); iy-=16; }
-    if(G.validator>0){ ctx.fillStyle='#fbbf24'; ctx.fillText('⚡ x2 '+Math.ceil(G.validator)+'s',16,iy); }
+    if(G.shield>0){ ctx.fillStyle='#7dd3fc'; ctx.fillText('🛡️ HASH SHIELD '+Math.ceil(G.shield)+'s',16,iy); iy-=16; }
+    if(G.validator>0){ ctx.fillStyle='#fbbf24'; ctx.fillText('⚡ LIGHTNING VALIDATOR '+Math.ceil(G.validator)+'s',16,iy); }
 
     ctx.restore();
   }
@@ -356,7 +381,7 @@
     o.style.display='flex';
     o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #38bdf8;border-radius:22px;background:linear-gradient(160deg,rgba(5,30,48,.97),rgba(3,16,25,.97));box-shadow:0 0 50px rgba(56,189,248,.4);animation:bbGateIn .35s ease">
       <style>@keyframes bbGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}</style>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#7dd3fc;margin-bottom:10px">⛩️ KNOWLEDGE GATE · BLOCKCHAIN</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#7dd3fc;margin-bottom:10px">⛓️ KNOWLEDGE GATE · BITSTREAM VALLEY</div>
       <div style="font-size:2.4rem;margin-bottom:8px">${f[0]}</div>
       <p style="font-size:1.02rem;line-height:1.5;color:#fff;margin:0 0 18px">${f[1]}</p>
       <button onclick="bbGateGo()" style="padding:13px 30px;border:none;border-radius:12px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);color:#031019;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.12em;font-weight:900;cursor:pointer">GOT IT → +40</button>
@@ -369,24 +394,51 @@
     if(G.last!=null) G.last=performance.now();   // avoid a dt spike on resume
   };
 
+  // GDD §04 & §13: surface a blockchain lesson on every end screen
+  const END_LESSONS=[
+    {icon:'⛓️', concept:'What a Blockchain Is', text:'A blockchain is a chain of locked blocks — each one holding verified transactions. Once sealed, a block can\'t be secretly altered without breaking every block after it.'},
+    {icon:'#️⃣', concept:'Hashes & Previous-Hash Links', text:'Every block has a unique hash fingerprint, and stores the previous block\'s hash. Change even one transaction and the hash breaks — the chain snaps apart instantly.'},
+    {icon:'✅', concept:'Validation', text:'Before any block is added, validators must check every transaction is real. No valid proof = the block gets rejected. That\'s the first line of defence against fraud.'},
+    {icon:'🔒', concept:'Immutability', text:'Once written, blockchain history can\'t be quietly changed. A hacker would have to rewrite every single block after the target — and outpace the whole network. Nearly impossible.'},
+    {icon:'🗳️', concept:'Consensus', text:'The network only accepts a block when enough validators agree it\'s correct. One node saying yes isn\'t enough — majority rules. That\'s consensus.'},
+    {icon:'🌐', concept:'Decentralization', text:'No single server, company, or person controls the chain. Thousands of nodes share the ledger — take one down and the rest keep going. That\'s why it\'s so resilient.'},
+    {icon:'⚠️', concept:'Fraud & Network Security', text:'Fraud transactions — fake amounts, double-spends, bad signatures — must be caught before entering a block. Layers of hashing, validation, and consensus make the Coinaverse Network nearly unbreakable.'}
+  ];
+
   function end(win){
     if(G.phase==='over') return; G.phase='over';
     const score=G.score;
-    if(window.state){ state.coins=(state.coins||0)+score; if(window.cvAddXP) cvAddXP(Math.round(score/4),0); else if(window.cvSave) cvSave();
-      state.gamesDone=state.gamesDone||{}; state.gamesDone['risktaker:0']=1; }
     const won=win || G.blocks>=GOAL_BLOCKS || score>=GOAL_SCORE;
+    let _bbCoins=0;
+    if(window.state){
+      state.gamesDone=state.gamesDone||{}; state.gamesDone['risktaker:0']=1;
+      if(won && window.cvAwardGame){
+        const stars=G.integrity>70?3:(G.integrity>40?2:1);
+        _bbCoins=cvAwardGame('game_blockbuilder',{level:1,stars,badge:'Chain Master',is3star:stars===3,isPerfect:stars===3,isFlagship:true});
+      } else {
+        _bbCoins=50; state.coins=(state.coins||0)+_bbCoins;   // consolation, no farming value
+        if(window.cvAddXP) cvAddXP(10,0); if(window.cvSave) cvSave();
+      }
+    }
     const survived=G.integrity>0;
+    // pick lesson based on how many gates were shown (cycles through concepts)
+    const lesson=END_LESSONS[G.gateIdx % END_LESSONS.length];
     const o=document.getElementById('bbOver'); if(!o) return; o.style.display='flex';
-    o.innerHTML=`<div style="max-width:430px;text-align:center;padding:34px 28px;border:1px solid ${won?'#38bdf8':(survived?'#7dd3fc':'#ef4444')};border-radius:22px;background:linear-gradient(160deg,rgba(5,30,48,.97),rgba(3,16,25,.97));box-shadow:0 0 60px rgba(56,189,248,.4)">
+    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:34px 28px;border:1px solid ${won?'#38bdf8':(survived?'#7dd3fc':'#ef4444')};border-radius:22px;background:linear-gradient(160deg,rgba(5,30,48,.97),rgba(3,16,25,.97));box-shadow:0 0 60px rgba(56,189,248,.4)">
       <div style="font-size:3rem;margin-bottom:8px">${won?'⛓️':(survived?'🧊':'💥')}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#38bdf8':(survived?'#7dd3fc':'#ef4444')};margin-bottom:8px">${won?'CHAIN VALIDATED!':(survived?"TIME'S UP":'INTEGRITY LOST')}</div>
       <h1 style="font-family:'Anton',sans-serif;font-size:2rem;margin:0 0 6px">${score} pts</h1>
-      <p style="color:rgba(255,255,255,.65);margin:0 0 18px;font-size:.9rem">${G.blocks} blocks mined · best streak x${G.bestCombo} · ${G.fraudHits} fraud accepted · +${score} 🪙</p>
+      <p style="color:rgba(255,255,255,.65);margin:0 0 14px;font-size:.9rem">${G.blocks} blocks mined · best streak x${G.bestCombo} · ${G.fraudHits} fraud accepted · +${_bbCoins} 🪙</p>
+      <div style="background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.3);border-radius:14px;padding:14px 16px;margin-bottom:18px;text-align:left">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.16em;color:#7dd3fc;margin-bottom:6px">⛓️ BLOCKCHAIN CONCEPT · ${lesson.concept.toUpperCase()}</div>
+        <div style="font-size:1.5rem;margin-bottom:6px">${lesson.icon}</div>
+        <p style="font-size:.82rem;line-height:1.55;color:rgba(255,255,255,.88);margin:0">${lesson.text}</p>
+      </div>
       <button onclick="bbRestart()" style="padding:13px 26px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);color:#031019;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;font-weight:900;cursor:pointer">▶ PLAY AGAIN</button>
       <button onclick="bbExit()" style="padding:13px 26px;margin:4px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
     </div>`;
   }
 
-  window.bbRestart=function(){ reset(); ['bbOver','bbGate'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); const ft=document.getElementById('bbFact'); if(ft)ft.style.display='none'; bbBoot(); };
-  window.bbExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); G=null; if(window.state)state.viewingWorld='risktaker'; goTo('hub'); };
+  window.bbRestart=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); clearTimeout(window._bbFactT); reset(); ['bbOver','bbGate'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); const ft=document.getElementById('bbFact'); if(ft)ft.style.display='none'; bbBoot(); };
+  window.bbExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); clearTimeout(window._bbFactT); G=null; if(window.state)state.viewingWorld=state._returnHub||'risktaker'; goTo('hub'); };
 })();

@@ -1,0 +1,801 @@
+/* ════════════════════════════════════════════════════════════════
+   BRANDING DISTRICT · LAUNCH LAB — Brand Identity Match mini-game
+   Match logo, color palette, brand voice and target audience for
+   each business concept to fill the Brand Recognition Meter.
+   Screen ID : game_ll_branding_district
+   Hub       : risktaker (#7C3AED)
+   ════════════════════════════════════════════════════════════════ */
+(function () {
+  /* ── palette ──────────────────────────────────────────────────── */
+  const ACCENT   = '#7C3AED';
+  const LIGHT    = '#A78BFA';
+  const PINK     = '#EC4899';
+  const GREEN    = '#10B981';
+  const GOLD     = '#F59E0B';
+  const CYAN     = '#06B6D4';
+  const RED      = '#EF4444';
+  const DARK_BG  = '#0d0618';
+  const CARD_BG  = '#130d26';
+
+  /* ── game config ─────────────────────────────────────────────── */
+  const CONFUSION_MAX   = 4;   // wrong picks before run ends
+  const LVL1_TIME       = 90;  // seconds for level 1
+  const LVL2_TIME       = 120; // seconds for level 2
+  const COMPLETE_BONUS  = 50;  // points for perfect brand match
+  const SPEED_THRESHOLD = 8;   // seconds — fast pick bonus
+
+  /* ── brand database ─────────────────────────────────────────── */
+  const BRANDS_L1 = [
+    {
+      business: 'Toy Company',      icon: '🧸',
+      elements: {
+        logo:     { correct: 'Fun & Playful',    wrong: ['Bold & Sharp', 'Minimal & Sleek', 'Classic & Formal'] },
+        colors:   { correct: 'Bright Rainbow',   wrong: ['Muted Earth Tones', 'Black & White', 'Navy & Gold'] },
+        voice:    { correct: 'Playful',           wrong: ['Professional', 'Luxurious', 'Authoritative'] },
+        audience: { correct: 'Kids & Families',   wrong: ['Business Executives', 'Seniors', 'Tech Enthusiasts'] },
+      },
+      lesson: 'Toy brands win with fun logos, bright colours, playful voice and family appeal.',
+    },
+    {
+      business: 'Law Firm',          icon: '⚖️',
+      elements: {
+        logo:     { correct: 'Classic & Formal',   wrong: ['Fun & Playful', 'Bold & Sharp', 'Retro & Vintage'] },
+        colors:   { correct: 'Navy & Gold',         wrong: ['Bright Rainbow', 'Neon Colors', 'Pastel Pink'] },
+        voice:    { correct: 'Authoritative',        wrong: ['Playful', 'Trendy', 'Casual & Friendly'] },
+        audience: { correct: 'Business & Legal',     wrong: ['Kids & Families', 'Teenagers', 'Gamers'] },
+      },
+      lesson: 'Law firms build trust through formal imagery, authoritative messaging and professional colours.',
+    },
+    {
+      business: 'Eco Skincare Brand', icon: '🌿',
+      elements: {
+        logo:     { correct: 'Minimal & Sleek',    wrong: ['Fun & Playful', 'Bold & Sharp', 'Classic & Formal'] },
+        colors:   { correct: 'Muted Earth Tones',  wrong: ['Bright Rainbow', 'Navy & Gold', 'Neon Colors'] },
+        voice:    { correct: 'Conscious & Calm',   wrong: ['Authoritative', 'Playful', 'Bold & Edgy'] },
+        audience: { correct: 'Health-Conscious Adults', wrong: ['Kids & Families', 'Business Executives', 'Gamers'] },
+      },
+      lesson: 'Eco brands use earth tones, minimal design and calm messaging to attract mindful consumers.',
+    },
+    {
+      business: 'Gaming Studio',     icon: '🎮',
+      elements: {
+        logo:     { correct: 'Bold & Sharp',       wrong: ['Classic & Formal', 'Minimal & Sleek', 'Fun & Playful'] },
+        colors:   { correct: 'Neon Colors',         wrong: ['Muted Earth Tones', 'Navy & Gold', 'Pastel Pink'] },
+        voice:    { correct: 'Bold & Edgy',         wrong: ['Authoritative', 'Conscious & Calm', 'Luxurious'] },
+        audience: { correct: 'Gamers & Gen Z',      wrong: ['Seniors', 'Business Executives', 'Kids Under 5'] },
+      },
+      lesson: 'Gaming brands punch hard with neon colours, bold logos and edgy language aimed at Gen Z.',
+    },
+    {
+      business: 'Luxury Jeweller',   icon: '💎',
+      elements: {
+        logo:     { correct: 'Elegant Serif',      wrong: ['Bold & Sharp', 'Fun & Playful', 'Retro & Vintage'] },
+        colors:   { correct: 'Black & Gold',        wrong: ['Bright Rainbow', 'Neon Colors', 'Muted Earth Tones'] },
+        voice:    { correct: 'Luxurious',           wrong: ['Playful', 'Bold & Edgy', 'Casual & Friendly'] },
+        audience: { correct: 'Affluent Adults',     wrong: ['Kids & Families', 'Teenagers', 'Gamers'] },
+      },
+      lesson: 'Luxury brands whisper, not shout — elegance, black-and-gold palettes and aspirational language.',
+    },
+  ];
+
+  const BRANDS_L2 = [
+    {
+      business: 'Fitness App',       icon: '💪',
+      elements: {
+        logo:     { correct: 'Bold & Sharp',           wrong: ['Elegant Serif', 'Fun & Playful', 'Classic & Formal'] },
+        colors:   { correct: 'Electric Blue & Orange', wrong: ['Pastel Pink', 'Muted Earth Tones', 'Black & Gold'] },
+        voice:    { correct: 'Motivational',            wrong: ['Luxurious', 'Conscious & Calm', 'Authoritative'] },
+        audience: { correct: 'Active Millennials',      wrong: ['Seniors', 'Business Executives', 'Kids Under 5'] },
+        mascot:   { correct: 'Athlete Character',       wrong: ['Wise Owl', 'Cute Animal', 'Robot Bot'] },
+        font:     { correct: 'Heavy Sans-Serif',        wrong: ['Thin Italic Serif', 'Handwritten Script', 'Classic Roman'] },
+        social:   { correct: 'Before/After + Challenges', wrong: ['Educational Infographics', 'Meme Humour', 'Corporate Case Studies'] },
+      },
+      lesson: 'Fitness brands ignite motivation — bold fonts, energetic palettes and transformation stories.',
+    },
+    {
+      business: 'Kids\' Food Brand',  icon: '🥕',
+      elements: {
+        logo:     { correct: 'Fun & Playful',           wrong: ['Elegant Serif', 'Bold & Sharp', 'Classic & Formal'] },
+        colors:   { correct: 'Bright Rainbow',           wrong: ['Black & Gold', 'Neon Colors', 'Muted Earth Tones'] },
+        voice:    { correct: 'Playful',                  wrong: ['Authoritative', 'Luxurious', 'Motivational'] },
+        audience: { correct: 'Kids & Families',          wrong: ['Gamers & Gen Z', 'Business Executives', 'Affluent Adults'] },
+        mascot:   { correct: 'Cute Animal',              wrong: ['Athlete Character', 'Robot Bot', 'Corporate Person'] },
+        font:     { correct: 'Rounded Friendly',         wrong: ['Heavy Sans-Serif', 'Classic Roman', 'Thin Italic Serif'] },
+        social:   { correct: 'Fun Recipes + Parent Tips', wrong: ['Meme Humour', 'Corporate Case Studies', 'Lifestyle Aesthetic'] },
+      },
+      lesson: 'Kids\' brands use joyful characters, rounded fonts and parent-friendly content to build loyalty.',
+    },
+    {
+      business: 'Fintech Startup',   icon: '💳',
+      elements: {
+        logo:     { correct: 'Minimal & Sleek',          wrong: ['Fun & Playful', 'Elegant Serif', 'Retro & Vintage'] },
+        colors:   { correct: 'Deep Navy & Teal',         wrong: ['Bright Rainbow', 'Pastel Pink', 'Black & Gold'] },
+        voice:    { correct: 'Smart & Trustworthy',      wrong: ['Playful', 'Bold & Edgy', 'Luxurious'] },
+        audience: { correct: 'Young Professionals',      wrong: ['Kids & Families', 'Seniors', 'Gamers & Gen Z'] },
+        mascot:   { correct: 'Robot Bot',                wrong: ['Cute Animal', 'Athlete Character', 'Wise Owl'] },
+        font:     { correct: 'Clean Geometric Sans',     wrong: ['Handwritten Script', 'Heavy Sans-Serif', 'Classic Roman'] },
+        social:   { correct: 'Educational Infographics', wrong: ['Meme Humour', 'Before/After + Challenges', 'Lifestyle Aesthetic'] },
+      },
+      lesson: 'Fintech earns trust through clarity — clean design, honest language and educational content.',
+    },
+    {
+      business: 'Retro Diner',       icon: '🍔',
+      elements: {
+        logo:     { correct: 'Retro & Vintage',          wrong: ['Minimal & Sleek', 'Bold & Sharp', 'Elegant Serif'] },
+        colors:   { correct: 'Red & Cream',              wrong: ['Neon Colors', 'Muted Earth Tones', 'Deep Navy & Teal'] },
+        voice:    { correct: 'Casual & Friendly',        wrong: ['Authoritative', 'Luxurious', 'Smart & Trustworthy'] },
+        audience: { correct: 'Nostalgia Seekers',        wrong: ['Tech Enthusiasts', 'Business Executives', 'Kids Under 5'] },
+        mascot:   { correct: 'Classic Cartoon Chef',     wrong: ['Robot Bot', 'Athlete Character', 'Wise Owl'] },
+        font:     { correct: 'Slab Serif',               wrong: ['Clean Geometric Sans', 'Heavy Sans-Serif', 'Thin Italic Serif'] },
+        social:   { correct: 'Throwback Stories + Food Pics', wrong: ['Educational Infographics', 'Before/After', 'Corporate Case Studies'] },
+      },
+      lesson: 'Nostalgia branding taps emotion — retro fonts, vintage palettes and feel-good storytelling.',
+    },
+    {
+      business: 'Beauty Influencer Brand', icon: '💄',
+      elements: {
+        logo:     { correct: 'Elegant Serif',            wrong: ['Bold & Sharp', 'Fun & Playful', 'Classic & Formal'] },
+        colors:   { correct: 'Pastel Pink & Rose Gold',  wrong: ['Navy & Gold', 'Neon Colors', 'Electric Blue & Orange'] },
+        voice:    { correct: 'Aspirational & Warm',      wrong: ['Authoritative', 'Bold & Edgy', 'Conscious & Calm'] },
+        audience: { correct: 'Gen Z & Millennial Women', wrong: ['Business Executives', 'Kids & Families', 'Seniors'] },
+        mascot:   { correct: 'Glam Avatar',              wrong: ['Robot Bot', 'Classic Cartoon Chef', 'Athlete Character'] },
+        font:     { correct: 'Thin Italic Serif',        wrong: ['Heavy Sans-Serif', 'Rounded Friendly', 'Slab Serif'] },
+        social:   { correct: 'Lifestyle Aesthetic + Tutorials', wrong: ['Educational Infographics', 'Meme Humour', 'Before/After Challenges'] },
+      },
+      lesson: 'Beauty brands sell aspiration — elegant type, soft palettes and authentic lifestyle content.',
+    },
+  ];
+
+  const TREND_CARDS = [
+    { text: '🔥 Viral Trend: "Silent Luxury" — understated branding is trending! Minimal scores +20 bonus!', bonus: 'Minimal & Sleek', bonusPts: 20 },
+    { text: '🌍 Cultural Moment: Eco-conscious going mainstream! Earth tones score +20 today!', bonus: 'Muted Earth Tones', bonusPts: 20 },
+    { text: '⚡ Gen Z Culture Drop: Bold neon and edgy voice are viral right now! +20 for edgy picks!', bonus: 'Neon Colors', bonusPts: 20 },
+    { text: '💫 Nostalgia Wave: Retro aesthetics are everywhere. Vintage picks earn +20!', bonus: 'Retro & Vintage', bonusPts: 20 },
+    { text: '🤖 Tech Boom: Clean geometric and smart branding dominating feeds! +20 bonus!', bonus: 'Clean Geometric Sans', bonusPts: 20 },
+  ];
+
+  /* ── state ────────────────────────────────────────────────────── */
+  let G = null;
+
+  /* ── screen registration ─────────────────────────────────────── */
+  window.SCREENS = window.SCREENS || {};
+  window.SCREENS.game_ll_branding_district = function () {
+    G = null;
+    setTimeout(initGame, 40);
+    return `
+<div id="bd_root" style="position:absolute;inset:0;background:${DARK_BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff">
+
+  <!-- city backdrop canvas -->
+  <canvas id="bd_city" style="position:absolute;inset:0;width:100%;height:100%;opacity:.6"></canvas>
+
+  <!-- gradient overlays -->
+  <div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 100%,rgba(124,58,237,.18) 0%,transparent 70%);pointer-events:none"></div>
+  <div style="position:absolute;bottom:0;left:0;right:0;height:45%;background:linear-gradient(to top,${DARK_BG} 30%,transparent);pointer-events:none"></div>
+
+  <!-- TOP BAR -->
+  <div id="bd_topbar" style="
+    position:absolute;top:0;left:0;right:0;z-index:20;
+    display:flex;align-items:center;gap:10px;
+    padding:10px 14px;
+    background:linear-gradient(180deg,rgba(2,0,10,.92) 0%,transparent 100%);
+    border-bottom:1px solid rgba(124,58,237,.25);
+  ">
+    <button id="bd_back" onclick="window.ll_branding_districtExit()" style="
+      padding:6px 12px;border:1px solid rgba(124,58,237,.45);border-radius:8px;
+      background:rgba(124,58,237,.12);color:${LIGHT};
+      font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.15em;cursor:pointer;
+      transition:background .15s;white-space:nowrap;
+    " onmouseover="this.style.background='rgba(124,58,237,.28)'" onmouseout="this.style.background='rgba(124,58,237,.12)'">← HUB</button>
+
+    <div style="font-family:Orbitron,sans-serif;font-size:.72rem;letter-spacing:.18em;color:${LIGHT};flex:1;text-align:center;text-shadow:0 0 14px ${ACCENT}cc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+      BRANDING DISTRICT
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center;flex-shrink:0">
+      <div style="text-align:right">
+        <div style="font-family:Orbitron,sans-serif;font-size:.48rem;color:#888;letter-spacing:.1em">SCORE</div>
+        <div id="bd_score" style="font-family:Orbitron,sans-serif;font-size:.82rem;color:${GOLD};text-shadow:0 0 8px ${GOLD}88;font-variant-numeric:tabular-nums">0</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:Orbitron,sans-serif;font-size:.48rem;color:#888;letter-spacing:.1em">TIME</div>
+        <div id="bd_timer" style="font-family:Orbitron,sans-serif;font-size:.82rem;color:${CYAN};text-shadow:0 0 8px ${CYAN}88;font-variant-numeric:tabular-nums">90</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- METERS BAR -->
+  <div style="position:absolute;top:52px;left:0;right:0;z-index:18;padding:6px 14px;display:flex;gap:10px;align-items:center">
+    <div style="flex:1">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+        <span style="font-family:Orbitron,sans-serif;font-size:.48rem;letter-spacing:.12em;color:${GREEN}">BRAND RECOGNITION</span>
+        <span id="bd_recog_pct" style="font-family:Orbitron,sans-serif;font-size:.48rem;color:${GREEN}">0%</span>
+      </div>
+      <div style="height:7px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;border:1px solid rgba(16,185,129,.2)">
+        <div id="bd_recog_bar" style="height:100%;width:0%;background:linear-gradient(90deg,${ACCENT},${GREEN});border-radius:4px;transition:width .4s ease"></div>
+      </div>
+    </div>
+    <div style="width:1px;height:28px;background:rgba(255,255,255,.1)"></div>
+    <div style="flex:0 0 130px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+        <span style="font-family:Orbitron,sans-serif;font-size:.48rem;letter-spacing:.12em;color:${RED}">CONFUSION</span>
+        <span id="bd_conf_count" style="font-family:Orbitron,sans-serif;font-size:.48rem;color:${RED}">0/${CONFUSION_MAX}</span>
+      </div>
+      <div style="height:7px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;border:1px solid rgba(239,68,68,.2)">
+        <div id="bd_conf_bar" style="height:100%;width:0%;background:linear-gradient(90deg,${PINK},${RED});border-radius:4px;transition:width .4s ease"></div>
+      </div>
+    </div>
+    <div id="bd_level_badge" style="
+      flex-shrink:0;
+      font-family:Orbitron,sans-serif;font-size:.48rem;letter-spacing:.12em;
+      padding:3px 9px;border-radius:20px;
+      border:1px solid rgba(124,58,237,.5);
+      background:rgba(124,58,237,.12);
+      color:${LIGHT};white-space:nowrap;
+    ">LV 1 · LEARN</div>
+  </div>
+
+  <!-- MAIN GAME AREA -->
+  <div id="bd_game" style="position:absolute;top:96px;left:0;right:0;bottom:0;z-index:10;overflow-y:auto;padding:10px 14px 20px;box-sizing:border-box"></div>
+
+  <!-- TREND BANNER -->
+  <div id="bd_trend" style="display:none;position:absolute;top:98px;left:0;right:0;z-index:30;
+    padding:10px 16px;
+    background:linear-gradient(135deg,rgba(124,58,237,.95),rgba(236,72,153,.85));
+    border-bottom:1px solid ${PINK};
+    font-size:.78rem;font-weight:600;text-align:center;
+    text-shadow:0 1px 4px rgba(0,0,0,.5);
+    cursor:pointer;
+  " onclick="window._bd_dismissTrend && window._bd_dismissTrend()"></div>
+
+  <!-- FEEDBACK TOAST -->
+  <div id="bd_toast" style="
+    display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:50;
+    padding:16px 28px;border-radius:14px;text-align:center;pointer-events:none;
+    font-family:Orbitron,sans-serif;font-size:1rem;letter-spacing:.1em;
+    box-shadow:0 0 40px rgba(0,0,0,.6);
+  "></div>
+
+</div>`;
+  };
+
+  /* ── exit ─────────────────────────────────────────────────────── */
+  window.ll_branding_districtExit = function () {
+    if (G) {
+      clearInterval(G.timerInterval);
+      if (G.trendTimer) clearTimeout(G.trendTimer);
+    }
+    G = null;
+    if (window.state) state.viewingWorld = 'risktaker';
+    goTo('hub');
+  };
+
+  /* ── city canvas backdrop ─────────────────────────────────────── */
+  function drawCity() {
+    const canvas = document.getElementById('bd_city');
+    if (!canvas) return;
+    const W = canvas.offsetWidth; const H = canvas.offsetHeight;
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    // sky gradient
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#050010');
+    sky.addColorStop(.6, '#0d0618');
+    sky.addColorStop(1, '#180830');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+
+    // stars
+    for (let i = 0; i < 120; i++) {
+      const x = Math.random() * W; const y = Math.random() * H * .65;
+      const r = Math.random() * 1.2;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,255,${.3 + Math.random() * .5})`;
+      ctx.fill();
+    }
+
+    // buildings silhouette
+    const buildings = [
+      [0, .45, .08, .45], [.07, .32, .06, .55], [.12, .4, .05, .4],
+      [.16, .25, .09, .6], [.24, .38, .07, .45], [.30, .2, .08, .7],
+      [.37, .35, .06, .45], [.42, .28, .1, .58], [.51, .4, .07, .38],
+      [.57, .22, .09, .68], [.65, .36, .06, .42], [.70, .3, .11, .52],
+      [.80, .38, .07, .44], [.86, .25, .08, .6], [.93, .4, .07, .42],
+    ];
+    buildings.forEach(([x, y, w, h]) => {
+      const bx = x * W; const by = y * H; const bw = w * W; const bh = h * H;
+      // building body
+      const bg = ctx.createLinearGradient(bx, by, bx, by + bh);
+      bg.addColorStop(0, '#1a0a3a');
+      bg.addColorStop(1, '#0a0520');
+      ctx.fillStyle = bg;
+      ctx.fillRect(bx, by, bw, bh);
+
+      // windows
+      const cols = Math.floor(bw / 9);
+      const rows = Math.floor(bh / 12);
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (Math.random() > .45) {
+            const wx = bx + 3 + c * 9; const wy = by + 5 + r * 12;
+            const hue = Math.random() > .6 ? ACCENT : (Math.random() > .5 ? CYAN : LIGHT);
+            ctx.fillStyle = hue + '55';
+            ctx.fillRect(wx, wy, 5, 7);
+          }
+        }
+      }
+      // rooftop glow
+      ctx.fillStyle = (Math.random() > .5 ? ACCENT : PINK) + '44';
+      ctx.fillRect(bx, by, bw, 3);
+    });
+
+    // neon ground strip
+    const grd = ctx.createLinearGradient(0, H * .88, 0, H);
+    grd.addColorStop(0, 'rgba(124,58,237,.35)');
+    grd.addColorStop(1, 'rgba(124,58,237,0)');
+    ctx.fillStyle = grd; ctx.fillRect(0, H * .88, W, H * .12);
+
+    // holographic billboards
+    const billboards = [
+      { x: .15, y: .18, w: .12, h: .08, text: 'BRAND POWER', color: PINK },
+      { x: .55, y: .15, w: .14, h: .07, text: 'GO VIRAL', color: CYAN },
+      { x: .78, y: .2, w: .11, h: .08, text: 'TARGET ADS', color: GOLD },
+    ];
+    billboards.forEach(b => {
+      const bx = b.x * W; const by = b.y * H; const bw = b.w * W; const bh = b.h * H;
+      ctx.strokeStyle = b.color + '88'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx, by, bw, bh);
+      ctx.fillStyle = b.color + '15'; ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = b.color + 'cc';
+      ctx.font = `bold ${bh * .32}px Orbitron,sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(b.text, bx + bw / 2, by + bh / 2);
+    });
+  }
+
+  /* ── init game ────────────────────────────────────────────────── */
+  function initGame() {
+    drawCity();
+
+    G = {
+      level: 1,
+      score: 0,
+      confusion: 0,
+      recognition: 0,
+      totalBrands: 0,
+      brandsDone: 0,
+      timeLeft: LVL1_TIME,
+      timerInterval: null,
+      trendTimer: null,
+      pickStartTime: 0,
+      activeTrend: null,
+      trendActive: false,
+      brandQueue: [],
+      currentBrand: null,
+      currentStep: 0,    // which element are we picking?
+      stepKeys: [],       // element keys for current brand
+      picks: {},          // user picks for current brand
+      done: false,
+    };
+
+    // build queue
+    G.brandQueue = shuffle([...BRANDS_L1]);
+    G.totalBrands = G.brandQueue.length;
+    G.timerInterval = setInterval(tickTimer, 1000);
+
+    nextBrand();
+  }
+
+  /* ── timer ────────────────────────────────────────────────────── */
+  function tickTimer() {
+    if (!G || G.done) return;
+    G.timeLeft--;
+    const el = document.getElementById('bd_timer');
+    if (el) {
+      el.textContent = G.timeLeft;
+      el.style.color = G.timeLeft <= 10 ? RED : CYAN;
+    }
+    if (G.timeLeft <= 0) endGame();
+  }
+
+  /* ── brand flow ───────────────────────────────────────────────── */
+  function nextBrand() {
+    if (!G || G.done) return;
+
+    // check level advance
+    if (G.level === 1 && G.brandQueue.length === 0) {
+      // advance to level 2
+      G.level = 2;
+      G.brandQueue = shuffle([...BRANDS_L2]);
+      G.totalBrands += G.brandQueue.length;
+      G.timeLeft = LVL2_TIME;
+      const badge = document.getElementById('bd_level_badge');
+      if (badge) badge.textContent = 'LV 2 · MASTER';
+      showToast('LEVEL 2 UNLOCKED!', ACCENT, 1800);
+      // maybe show trend card
+      if (Math.random() > .4) scheduleTrendCard();
+    }
+
+    if (G.brandQueue.length === 0) {
+      // all brands done
+      setTimeout(endGame, 400);
+      return;
+    }
+
+    G.currentBrand = G.brandQueue.shift();
+    G.stepKeys = Object.keys(G.currentBrand.elements);
+    G.currentStep = 0;
+    G.picks = {};
+    G.pickStartTime = Date.now();
+    G.brandsDone++;
+    renderBrand();
+  }
+
+  /* ── render brand challenge ───────────────────────────────────── */
+  function renderBrand() {
+    const area = document.getElementById('bd_game');
+    if (!area || !G || !G.currentBrand) return;
+    const b = G.currentBrand;
+    const stepKey = G.stepKeys[G.currentStep];
+    const el = b.elements[stepKey];
+    const totalSteps = G.stepKeys.length;
+    const label = stepKey.charAt(0).toUpperCase() + stepKey.slice(1);
+
+    // build options: correct + 3 wrongs, shuffled
+    const options = shuffle([el.correct, ...el.wrong.slice(0, 3)]);
+
+    area.innerHTML = `
+<div style="max-width:520px;margin:0 auto">
+
+  <!-- Brand card header -->
+  <div style="
+    background:${CARD_BG};border:1px solid rgba(124,58,237,.4);border-radius:16px;
+    padding:16px 18px;margin-bottom:12px;
+    box-shadow:0 0 28px rgba(124,58,237,.15);
+  ">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <div style="
+        width:52px;height:52px;border-radius:12px;
+        background:linear-gradient(135deg,${ACCENT}33,${PINK}22);
+        border:1px solid ${ACCENT}66;
+        display:flex;align-items:center;justify-content:center;
+        font-size:1.8rem;flex-shrink:0;
+      ">${b.icon}</div>
+      <div style="flex:1">
+        <div style="font-family:Orbitron,sans-serif;font-size:.58rem;letter-spacing:.15em;color:${LIGHT};margin-bottom:2px">BUSINESS TYPE</div>
+        <div style="font-size:1.1rem;font-weight:700;color:#fff">${b.business}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-family:Orbitron,sans-serif;font-size:.48rem;color:#666;letter-spacing:.1em">BRAND ${G.brandsDone}/${G.totalBrands}</div>
+      </div>
+    </div>
+
+    <!-- step progress dots -->
+    <div style="display:flex;gap:6px;align-items:center">
+      ${G.stepKeys.map((k, i) => {
+        const done = i < G.currentStep;
+        const active = i === G.currentStep;
+        const key = k.charAt(0).toUpperCase() + k.slice(1);
+        return `<div style="flex:1;text-align:center">
+          <div style="height:3px;border-radius:2px;margin-bottom:3px;background:${done ? GREEN : active ? ACCENT : 'rgba(255,255,255,.1)'}"></div>
+          <div style="font-size:.42rem;font-family:Orbitron,sans-serif;letter-spacing:.06em;color:${done ? GREEN : active ? LIGHT : '#555'}">${key}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+
+  <!-- picks so far -->
+  ${G.currentStep > 0 ? `
+  <div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);border-radius:12px;padding:10px 14px;margin-bottom:10px">
+    <div style="font-family:Orbitron,sans-serif;font-size:.48rem;color:${GREEN};letter-spacing:.12em;margin-bottom:6px">CHOSEN SO FAR</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      ${G.stepKeys.slice(0, G.currentStep).map(k => `
+        <span style="
+          padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600;
+          background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.35);color:${GREEN};
+        ">${G.picks[k]}</span>
+      `).join('')}
+    </div>
+  </div>` : ''}
+
+  <!-- question -->
+  <div style="text-align:center;margin-bottom:14px">
+    <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.18em;color:${LIGHT};margin-bottom:4px">CHOOSE THE ${label.toUpperCase()}</div>
+    <div style="font-size:.85rem;color:#ccc">Step ${G.currentStep + 1} of ${totalSteps} — Pick the best <strong style="color:#fff">${label}</strong> for <strong style="color:${LIGHT}">${b.business}</strong></div>
+  </div>
+
+  <!-- option grid -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    ${options.map((opt, i) => `
+      <button id="bd_opt_${i}" onclick="window._bd_pick('${esc(opt)}')" style="
+        padding:14px 12px;border-radius:12px;cursor:pointer;
+        background:rgba(124,58,237,.08);
+        border:1.5px solid rgba(124,58,237,.28);
+        color:#e0d4ff;font-size:.82rem;font-weight:600;
+        text-align:center;line-height:1.3;
+        transition:all .15s;
+        -webkit-tap-highlight-color:transparent;
+      "
+      onmouseover="this.style.background='rgba(124,58,237,.22)';this.style.borderColor='${ACCENT}'"
+      onmouseout="this.style.background='rgba(124,58,237,.08)';this.style.borderColor='rgba(124,58,237,.28)'"
+      >${opt}</button>
+    `).join('')}
+  </div>
+
+</div>`;
+  }
+
+  /* ── pick handler ─────────────────────────────────────────────── */
+  window._bd_pick = function (opt) {
+    if (!G || G.done) return;
+    const b = G.currentBrand;
+    const stepKey = G.stepKeys[G.currentStep];
+    const el = b.elements[stepKey];
+    const isCorrect = opt === el.correct;
+    const elapsed = (Date.now() - G.pickStartTime) / 1000;
+
+    G.picks[stepKey] = opt;
+
+    if (isCorrect) {
+      let pts = 30;
+      if (elapsed < SPEED_THRESHOLD) pts += 10; // speed bonus
+      // trend bonus
+      if (G.activeTrend && opt === G.activeTrend.bonus) {
+        pts += G.activeTrend.bonusPts;
+        showToast('TREND BONUS +' + (pts - (elapsed < SPEED_THRESHOLD ? 40 : 30)), GOLD, 1200);
+      }
+      G.score += pts;
+      updateScore();
+
+      // fill recognition meter
+      const totalEl = G.brandQueue.reduce((a, x) => a + Object.keys(x.elements).length, 0)
+        + G.stepKeys.length + Object.values(BRANDS_L1).reduce((a, x) => a, 0);
+      // simple approach: each correct pick adds to recognition
+      G.recognition = Math.min(100, G.recognition + Math.round(100 / (G.totalBrands * 4)));
+      updateMeters();
+
+      flashCorrect(opt, true);
+      G.pickStartTime = Date.now();
+
+      G.currentStep++;
+      if (G.currentStep >= G.stepKeys.length) {
+        // brand complete — check full alignment
+        const allCorrect = G.stepKeys.every(k => G.picks[k] === b.elements[k].correct);
+        if (allCorrect) {
+          G.score += COMPLETE_BONUS;
+          updateScore();
+          G.recognition = Math.min(100, G.recognition + 8);
+          updateMeters();
+          setTimeout(() => {
+            showToast('BRAND ALIGNED! +' + COMPLETE_BONUS + ' BONUS', GOLD, 1600);
+            setTimeout(nextBrand, 1700);
+          }, 300);
+        } else {
+          setTimeout(() => {
+            showToast('BRAND DONE', LIGHT, 1000);
+            setTimeout(nextBrand, 1100);
+          }, 300);
+        }
+      } else {
+        setTimeout(renderBrand, 350);
+      }
+    } else {
+      flashCorrect(opt, false);
+      G.confusion++;
+      updateMeters();
+      if (G.confusion >= CONFUSION_MAX) {
+        setTimeout(endGame, 600);
+        return;
+      }
+      showToast('OOPS — NOT A MATCH', RED, 1000);
+      setTimeout(renderBrand, 400);
+    }
+  };
+
+  function flashCorrect(opt, correct) {
+    // visually highlight buttons
+    const btns = document.querySelectorAll('[id^="bd_opt_"]');
+    btns.forEach(btn => {
+      if (btn.textContent.trim() === opt) {
+        btn.style.background = correct ? 'rgba(16,185,129,.35)' : 'rgba(239,68,68,.35)';
+        btn.style.borderColor = correct ? GREEN : RED;
+      }
+      btn.disabled = true;
+      btn.style.cursor = 'default';
+    });
+  }
+
+  /* ── trend cards (level 2) ────────────────────────────────────── */
+  function scheduleTrendCard() {
+    const t = TREND_CARDS[Math.floor(Math.random() * TREND_CARDS.length)];
+    G.activeTrend = t;
+    G.trendActive = true;
+    const el = document.getElementById('bd_trend');
+    if (el) {
+      el.style.display = 'block';
+      el.innerHTML = `<span style="font-size:.8rem">📈 VIRAL TREND! </span>${t.text} <span style="opacity:.7;font-size:.68rem;margin-left:8px">[tap to dismiss]</span>`;
+    }
+    window._bd_dismissTrend = () => {
+      const el2 = document.getElementById('bd_trend');
+      if (el2) el2.style.display = 'none';
+      G.trendActive = false;
+    };
+    // auto-dismiss after 12s
+    if (G) G.trendTimer = setTimeout(() => {
+      if (G && G.trendActive) window._bd_dismissTrend();
+    }, 12000);
+  }
+
+  /* ── UI updates ───────────────────────────────────────────────── */
+  function updateScore() {
+    const el = document.getElementById('bd_score');
+    if (el) el.textContent = G.score;
+  }
+
+  function updateMeters() {
+    const rb = document.getElementById('bd_recog_bar');
+    const rp = document.getElementById('bd_recog_pct');
+    const cb = document.getElementById('bd_conf_bar');
+    const cc = document.getElementById('bd_conf_count');
+    if (rb) rb.style.width = G.recognition + '%';
+    if (rp) rp.textContent = G.recognition + '%';
+    if (cb) cb.style.width = ((G.confusion / CONFUSION_MAX) * 100) + '%';
+    if (cc) cc.textContent = G.confusion + '/' + CONFUSION_MAX;
+  }
+
+  function showToast(msg, color, dur) {
+    const el = document.getElementById('bd_toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = 'block';
+    el.style.background = color + '22';
+    el.style.border = '2px solid ' + color;
+    el.style.color = color;
+    el.style.boxShadow = '0 0 30px ' + color + '66';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.style.display = 'none'; }, dur);
+  }
+
+  /* ── end game ─────────────────────────────────────────────────── */
+  function endGame() {
+    if (!G || G.done) return;
+    G.done = true;
+    clearInterval(G.timerInterval);
+
+    const score = G.score;
+    const stars = score >= 700 ? 3 : score >= 400 ? 2 : score > 0 ? 1 : 0;
+    const is3star = stars === 3;
+    const coins = stars >= 1 && window.cvAwardGame
+      ? cvAwardGame('game_ll_branding_district', { stars, level: G.level, badge: 'Brand Builder', is3star, isPerfect: is3star })
+      : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
+    if (stars < 1 && window.cvSave) cvSave();
+
+    // feed Startup Success Meter — brand pillar
+    if (window.StartupRewardsService) StartupRewardsService.submit({ pillar: 'brand', successDelta: stars === 3 ? 15 : stars === 2 ? 8 : 3 });
+
+    const root = document.getElementById('bd_root');
+    if (!root) return;
+
+    const starStr = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+    const confusedOut = G.confusion >= CONFUSION_MAX;
+    const resultMsg = confusedOut
+      ? 'Customer Confusion maxed out — brands lost focus!'
+      : G.recognition >= 80
+        ? 'Exceptional branding! Your brands are iconic!'
+        : G.recognition >= 50
+          ? 'Solid branding identity achieved!'
+          : 'Keep refining your brand strategy.';
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position:absolute;inset:0;z-index:100;
+      background:rgba(2,0,10,.94);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:20px;box-sizing:border-box;overflow-y:auto;
+    `;
+    overlay.innerHTML = `
+<div style="max-width:480px;width:100%;text-align:center">
+
+  <!-- stars -->
+  <div style="font-size:2.4rem;margin-bottom:6px;text-shadow:0 0 20px ${GOLD}88">${starStr}</div>
+
+  <!-- title -->
+  <div style="font-family:Orbitron,sans-serif;font-size:1.3rem;letter-spacing:.18em;color:${LIGHT};margin-bottom:4px;text-shadow:0 0 20px ${ACCENT}aa">
+    ${stars === 3 ? 'PERFECT BRAND!' : stars === 2 ? 'BRAND BUILT!' : stars === 1 ? 'BRAND DRAFTED!' : 'BRAND COLLAPSED!'}
+  </div>
+  <div style="font-size:.82rem;color:#aaa;margin-bottom:18px">${resultMsg}</div>
+
+  <!-- stats grid -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px">
+    <div style="background:${CARD_BG};border:1px solid rgba(124,58,237,.3);border-radius:12px;padding:12px">
+      <div style="font-family:Orbitron,sans-serif;font-size:.48rem;color:#888;letter-spacing:.1em;margin-bottom:4px">SCORE</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:1.1rem;color:${GOLD};font-variant-numeric:tabular-nums">${score}</div>
+    </div>
+    <div style="background:${CARD_BG};border:1px solid rgba(16,185,129,.3);border-radius:12px;padding:12px">
+      <div style="font-family:Orbitron,sans-serif;font-size:.48rem;color:#888;letter-spacing:.1em;margin-bottom:4px">BRAND ID</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:1.1rem;color:${GREEN}">${G.recognition}%</div>
+    </div>
+    <div style="background:${CARD_BG};border:1px solid rgba(245,158,11,.3);border-radius:12px;padding:12px">
+      <div style="font-family:Orbitron,sans-serif;font-size:.48rem;color:#888;letter-spacing:.1em;margin-bottom:4px">COINS</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:1.1rem;color:${GOLD}">+${coins}</div>
+    </div>
+  </div>
+
+  <!-- badges -->
+  ${stars >= 2 ? `<div style="
+    background:linear-gradient(135deg,rgba(124,58,237,.2),rgba(236,72,153,.1));
+    border:1px solid rgba(124,58,237,.4);border-radius:12px;
+    padding:10px 16px;margin-bottom:16px;
+    display:flex;align-items:center;gap:10px;
+  ">
+    <span style="font-size:1.4rem">🏆</span>
+    <div style="text-align:left">
+      <div style="font-family:Orbitron,sans-serif;font-size:.58rem;color:${LIGHT};letter-spacing:.12em">BADGE EARNED</div>
+      <div style="font-size:.78rem;color:#ddd;font-weight:600">${stars === 3 ? 'Perfect Brand Builder' : 'Brand Builder'}</div>
+    </div>
+  </div>` : ''}
+
+  <!-- lesson -->
+  <div style="
+    background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.25);border-radius:12px;
+    padding:14px 16px;margin-bottom:20px;text-align:left;
+  ">
+    <div style="font-family:Orbitron,sans-serif;font-size:.48rem;color:${LIGHT};letter-spacing:.12em;margin-bottom:6px">BRAND LESSON</div>
+    <div style="font-size:.8rem;color:#ccc;line-height:1.55">
+      A strong brand tells customers exactly who you are and why they should choose you.
+      Matching your logo, colours, voice and target audience creates trust — and trust drives sales.
+    </div>
+  </div>
+
+  <!-- buttons -->
+  <div style="display:flex;gap:12px;justify-content:center">
+    <button onclick="window._bd_replay()" style="
+      flex:1;padding:14px;border-radius:12px;cursor:pointer;
+      background:linear-gradient(135deg,${ACCENT},${PINK});
+      border:none;color:#fff;font-family:Orbitron,sans-serif;
+      font-size:.65rem;letter-spacing:.15em;
+      box-shadow:0 4px 20px rgba(124,58,237,.4);
+      transition:opacity .15s;
+    " onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">PLAY AGAIN</button>
+    <button onclick="window.ll_branding_districtExit()" style="
+      flex:1;padding:14px;border-radius:12px;cursor:pointer;
+      background:rgba(124,58,237,.12);
+      border:1.5px solid rgba(124,58,237,.4);color:${LIGHT};
+      font-family:Orbitron,sans-serif;font-size:.65rem;letter-spacing:.15em;
+      transition:background .15s;
+    " onmouseover="this.style.background='rgba(124,58,237,.22)'" onmouseout="this.style.background='rgba(124,58,237,.12)'">← HUB</button>
+  </div>
+
+</div>`;
+    root.appendChild(overlay);
+  }
+
+  window._bd_replay = function () {
+    if (G) {
+      clearInterval(G.timerInterval);
+      if (G.trendTimer) clearTimeout(G.trendTimer);
+    }
+    G = null;
+    const root = document.getElementById('bd_root');
+    // remove overlay
+    const overlays = root.querySelectorAll('[style*="z-index:100"]');
+    overlays.forEach(o => o.remove());
+    // reset game area
+    const area = document.getElementById('bd_game');
+    if (area) area.innerHTML = '';
+    initGame();
+  };
+
+  /* ── helpers ──────────────────────────────────────────────────── */
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function esc(str) {
+    return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  }
+
+})();

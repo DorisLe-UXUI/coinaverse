@@ -96,7 +96,8 @@
       // grab an item near the pointer to drag it
       const fx=(clientX-r.left)/r.width;
       let pick=null,pd=0.12;
-      for(const it of G.items){ if(it.dead||it.kind==='power') continue; const d=Math.hypot(it.x-fx,it.y-fy); if(d<pd){pd=d;pick=it;} }
+      for(const it of G.items){ if(it.dead) continue; const d=Math.hypot(it.x-fx,it.y-fy); if(d<pd){pd=d;pick=it;} }
+      if(pick && pick.kind==='power'){ resolve(pick,0); return; }   // tap a power-up → collect instantly
       if(pick && fy<0.78){ G.drag=pick; pick.grab=true; }
       else { G.tapBin=binAt(clientX); }   // tapped a bin/zone → resolve on up
     };
@@ -131,7 +132,7 @@
   }
 
   // resolve item → bin (correct = item.bin matches bi)
-  function resolve(it,bi){
+  function _resolveSort(it,bi){
     if(it.dead) return;
     const correct = it.bin===bi;
     it.dead=1;
@@ -160,7 +161,7 @@
 
   function loop(now){
     const cv=document.getElementById('gqCanvas');
-    if(!cv || !G){ cancelAnimationFrame(raf); return; }       // left screen → stop
+    if(!cv || !G){ if(G&&G._cleanup){G._cleanup();} G=null; cancelAnimationFrame(raf); return; }   // left screen → stop + release listeners
     const ctx=cv.getContext('2d'); const W=cv.clientWidth, H=cv.clientHeight;
     let dt=Math.min(40,now-G.last)/1000; G.last=now;
     if(G.phase==='play'){ update(dt,W,H); }
@@ -239,29 +240,55 @@
   }
 
   // power-ups: granted via resolve() too — intercept there
-  const _resolve=resolve;
-  resolve=function(it,bi){
+  function resolve(it,bi){
     if(it.kind==='power'){
-      it.dead=1; G.sorted++;
+      it.dead=1;
       if(it.pk==='time'){ G.time=Math.min(ROUND,G.time+5); floatTxt(it.x,it.y,'+5 SEC','#5eead4'); }
       else if(it.pk==='x2'){ G.x2=8; floatTxt(it.x,it.y,'POINTS x2!','#fde68a'); }
       burst(it.x,it.y,'#a78bfa',12); ring(it.x,it.y,'#a78bfa');
       G.flash=0.25; G.flashC='#a78bfa';
       return;
     }
-    _resolve(it,bi);
-  };
+    _resolveSort(it,bi);
+  }
+
+  const _gqStars=Array.from({length:60},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.1+0.3,s:Math.random()*0.5+0.2,c:Math.random()<0.5?'#93c5fd':'#c4b5fd'}));
+  function _gqBg(ctx,W,H,now){
+    // rich dark gradient background
+    const bg=ctx.createLinearGradient(0,0,W,H);
+    bg.addColorStop(0,'#0a0416'); bg.addColorStop(0.4,'#0d0829'); bg.addColorStop(1,'#0a1628');
+    ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+    // perspective floor grid vanishing toward bottom
+    ctx.strokeStyle='rgba(139,92,246,.09)'; ctx.lineWidth=1;
+    const vy=H*0.82;
+    for(let i=0;i<=10;i++){
+      const t=i/10;
+      ctx.beginPath(); ctx.moveTo(t*W,0); ctx.lineTo(W/2+(t*W-W/2)*3,vy); ctx.stroke();
+    }
+    for(let j=0;j<4;j++){
+      const fy=H*0.25*(j+0.5);
+      const sc=1-fy/vy; const lx=W/2-W*sc*0.5; const rx=W/2+W*sc*0.5;
+      ctx.beginPath(); ctx.moveTo(lx,fy); ctx.lineTo(rx,fy); ctx.stroke();
+    }
+    // twinkling stars
+    const t=now/1000;
+    for(const st of _gqStars){
+      const tw=0.3+0.45*Math.sin(t*st.s+st.x*6.28);
+      ctx.globalAlpha=tw*0.65; ctx.fillStyle=st.c;
+      ctx.beginPath(); ctx.arc(st.x*W,st.y*H*0.65,st.r,0,6.28); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    // top ambient glow
+    const tg=ctx.createRadialGradient(W/2,-H*0.1,0,W/2,-H*0.1,W*0.7);
+    tg.addColorStop(0,'rgba(139,92,246,.12)'); tg.addColorStop(1,'transparent');
+    ctx.fillStyle=tg; ctx.fillRect(0,0,W,H);
+  }
 
   function render(ctx,W,H,now){
-    ctx.clearRect(0,0,W,H);
+    _gqBg(ctx,W,H,now);
     let ox=0,oy=0; if(G.shake>0){ ox=(Math.random()-.5)*G.shake*22; oy=(Math.random()-.5)*G.shake*22; }
     ctx.save(); ctx.translate(ox,oy);
-
-    // drifting grid / starfield
-    ctx.fillStyle='rgba(96,165,250,.5)';
-    for(let i=0;i<44;i++){ const sx=(i*71.7%W), sy=((i*131.3 + now*0.011*((i%3)+1))%H); ctx.globalAlpha=0.12+(i%5)*0.06; ctx.fillRect(sx,sy,2,2); }
-    ctx.globalAlpha=1;
-    if(G.flash>0){ ctx.fillStyle=hexA(G.flashC,G.flash*0.22); ctx.fillRect(0,0,W,H); }
+    if(G.flash>0){ ctx.fillStyle=hexA(G.flashC,G.flash*0.18); ctx.fillRect(0,0,W,H); }
 
     // ── bins / drop zones across the bottom ──────────────────────────
     const floorY=0.82*H;
@@ -270,25 +297,40 @@
       const cx=G.bins[i]*W;
       const x0=i*binW, x1=binW;
       const col=BIN_COL[i];
-      // zone column glow
-      const grad=ctx.createLinearGradient(0,floorY-10,0,H);
-      grad.addColorStop(0,hexA(col,0));
-      grad.addColorStop(1,hexA(col,0.16));
-      ctx.fillStyle=grad; ctx.fillRect(x0+4,floorY,x1-8,H-floorY);
+      // zone column glow — deeper
+      const grad=ctx.createLinearGradient(0,floorY-30,0,H);
+      grad.addColorStop(0,hexA(col,0)); grad.addColorStop(0.5,hexA(col,0.08)); grad.addColorStop(1,hexA(col,0.28));
+      ctx.fillStyle=grad; ctx.fillRect(x0,floorY,x1,H-floorY);
       // divider
-      if(i>0){ ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x0,floorY); ctx.lineTo(x0,H); ctx.stroke(); }
-      // bin body (rounded)
-      const bw=binW*0.62, bh=46, bx=cx-bw/2, by=H-bh-14;
-      roundRect(ctx,bx,by,bw,bh,12);
-      ctx.fillStyle=hexA(col,0.16); ctx.fill();
-      ctx.strokeStyle=hexA(col,0.65); ctx.lineWidth=2; ctx.stroke();
+      if(i>0){
+        ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(x0,floorY); ctx.lineTo(x0,H); ctx.stroke();
+      }
+      // floor glow line
+      ctx.shadowColor=col; ctx.shadowBlur=10;
+      ctx.strokeStyle=hexA(col,0.65); ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(x0+6,floorY); ctx.lineTo(x0+binW-6,floorY); ctx.stroke();
+      ctx.shadowBlur=0;
+      // bin body (rounded) — glassy panel
+      const bw=binW*0.68, bh=50, bx=cx-bw/2, by=H-bh-10;
+      roundRect(ctx,bx,by,bw,bh,14);
+      // glass fill
+      const bg2=ctx.createLinearGradient(0,by,0,by+bh);
+      bg2.addColorStop(0,hexA(col,0.22)); bg2.addColorStop(1,hexA(col,0.08));
+      ctx.fillStyle=bg2; ctx.fill();
+      ctx.shadowColor=col; ctx.shadowBlur=14;
+      ctx.strokeStyle=hexA(col,0.7); ctx.lineWidth=2; ctx.stroke();
+      ctx.shadowBlur=0;
+      // inner highlight line
+      roundRect(ctx,bx+3,by+3,bw-6,8,8);
+      ctx.fillStyle='rgba(255,255,255,.08)'; ctx.fill();
       // label
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillStyle=col; ctx.font="700 13px 'Orbitron',sans-serif"; ctx.fillText(BIN_LBL[i],cx,by+bh/2-5);
-      ctx.fillStyle='rgba(255,255,255,.45)'; ctx.font="9px 'Orbitron',sans-serif";
+      ctx.shadowColor=col; ctx.shadowBlur=8;
+      ctx.fillStyle=col; ctx.font="700 13px 'Orbitron',sans-serif"; ctx.fillText(BIN_LBL[i],cx,by+bh/2-6);
+      ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(255,255,255,.4)'; ctx.font="9px 'Orbitron',sans-serif";
       ctx.fillText(i===0?'← KEY':i===1?'↓ KEY':'→ KEY',cx,by+bh/2+13);
-      // floor line
-      ctx.strokeStyle=hexA(col,0.4); ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x0+8,floorY); ctx.lineTo(x0+binW-8,floorY); ctx.stroke();
     }
 
     // ── falling items ────────────────────────────────────────────────
@@ -343,19 +385,25 @@
   function end(win){
     if(G.phase==='over') return; G.phase='over';
     const score=G.score;
-    if(window.state){
-      state.coins=(state.coins||0)+score;
-      if(window.cvAddXP) cvAddXP(Math.round(score/4),0); else if(window.cvSave) cvSave();
-      state.gamesDone=state.gamesDone||{}; state.gamesDone['strategist:0']=1;
-    }
     const won = win===true || G.goal>=GOAL;
     const acc = G.sorted>0?Math.round(G.perfect/G.sorted*100):0;
+    let earned=0;
+    if(window.state){
+      state.gamesDone=state.gamesDone||{}; state.gamesDone['strategist:0']=1;
+      const stars = won ? (acc>=90?3:acc>=70?2:1) : 0;
+      if(stars>=1 && window.cvAwardGame){
+        earned = cvAwardGame('game_goalquest',{level:1,stars,badge:'Budget Boss',is3star:stars===3,isPerfect:stars===3,isFlagship:true});
+      } else if(!won){
+        earned=50; state.coins=(state.coins||0)+earned;   // small consolation, no farming value
+        if(window.cvSave) cvSave();
+      }
+    }
     const o=document.getElementById('gqOver'); if(!o) return; o.style.display='flex';
     o.innerHTML=`<div style="max-width:420px;text-align:center;padding:34px 28px;border:1px solid ${won?'#fbbf24':'#3b82f6'};border-radius:22px;background:linear-gradient(160deg,rgba(30,41,59,.97),rgba(7,13,24,.97));box-shadow:0 0 60px rgba(59,130,246,.4)">
       <div style="font-size:3rem;margin-bottom:8px">${won?'🏆':G.health<=0?'💸':'⏱'}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#fbbf24':'#60a5fa'};margin-bottom:8px">${won?'GOAL FUNDED — BUDGET BOSS!':G.health<=0?'BUDGET BUSTED':"TIME'S UP"}</div>
       <h1 style="font-family:'Anton',sans-serif;font-size:2rem;margin:0 0 6px">${score} pts</h1>
-      <p style="color:rgba(255,255,255,.65);margin:0 0 18px;font-size:.9rem">Goal ${G.goal}/${GOAL} 🎯 · Accuracy ${acc}% · Best combo x${G.best} · +${score} 🪙</p>
+      <p style="color:rgba(255,255,255,.65);margin:0 0 18px;font-size:.9rem">Goal ${G.goal}/${GOAL} 🎯 · Accuracy ${acc}% · Best combo x${G.best} · +${earned} 🪙</p>
       <button onclick="gqRestart()" style="padding:13px 26px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;font-weight:900;cursor:pointer">▶ PLAY AGAIN</button>
       <button onclick="gqExit()" style="padding:13px 26px;margin:4px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
     </div>`;
@@ -384,6 +432,6 @@
     G.flash=0.25; G.flashC='#60a5fa';
   };
 
-  window.gqRestart=function(){ reset(); ['gqGate','gqOver'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); gqBoot(); };
-  window.gqExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); G=null; if(window.state)state.viewingWorld='strategist'; goTo('hub'); };
+  window.gqRestart=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); reset(); ['gqGate','gqOver'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); gqBoot(); };
+  window.gqExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); G=null; if(window.state)state.viewingWorld=state._returnHub||'strategist'; goTo('hub'); };
 })();

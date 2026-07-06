@@ -1,0 +1,144 @@
+{
+  "credtech_1": {
+    "mech": "lane",
+    "name": "Score Tower",
+    "title": "SCORE TOWER",
+    "icon": "🏗️",
+    "goal": 175,
+    "time": 62,
+    "gateEvery": 17,
+    "hint": "◀ ▶ grab ✅ on-time payments, dodge ⏰ late fees",
+    "winMsg": "TOP SCORE!",
+    "lesson": [
+      ["💳", "Paying on time is the #1 thing that builds your credit score."],
+      ["📈", "A higher score means people trust you to borrow."],
+      ["⏰", "Even one late payment can knock your score down."]
+    ],
+    "good": ["✅"],
+    "bad": ["⏰"],
+    "player": "🏗️",
+    "pts": 14,
+    "badRate": 0.45
+  },
+  "credtech_2": {
+    "mech": "grow",
+    "name": "Borrowing Bay",
+    "title": "BORROWING BAY",
+    "icon": "🌱",
+    "goal": 170,
+    "time": 60,
+    "gateEvery": 17,
+    "hint": "TAP smart borrowing to grow · skip the debt traps",
+    "winMsg": "CREDIT GROWN!",
+    "lesson": [
+      ["🌱", "Borrowing a little and paying it back grows your credit."],
+      ["💳", "Only borrow what you can pay back on time."],
+      ["📉", "Borrowing too much at once can hurt your score."]
+    ],
+    "good": ["🌱", "💳"],
+    "bad": ["💸"],
+    "player": "🏦",
+    "tapLabel": "TAP TO BORROW!",
+    "pts": 10
+  },
+  "credtech_3": {
+    "mech": "quiz",
+    "name": "Trust Exchange",
+    "title": "TRUST EXCHANGE",
+    "icon": "🤝",
+    "goal": 165,
+    "time": 62,
+    "gateEvery": 18,
+    "hint": "TAP an answer or press 1–3",
+    "winMsg": "TRUSTED!",
+    "lesson": [
+      ["🤝", "Your credit score is your money reputation."],
+      ["💳", "Lenders check your score before they trust you."],
+      ["⏰", "Paying on time keeps your reputation strong."]
+    ],
+    "qs": [
+      {
+        "q": "A credit score is best described as your…",
+        "a": ["Money reputation", "Lucky number", "Phone number"],
+        "c": 0
+      },
+      {
+        "q": "Who looks at your credit score?",
+        "a": ["Lenders who might trust you", "Your gym teacher", "Nobody ever"],
+        "c": 0
+      },
+      {
+        "q": "The fastest way to build trust is to…",
+        "a": ["Pay bills on time", "Skip payments", "Borrow the max"],
+        "c": 0
+      },
+      {
+        "q": "Missing a payment will…",
+        "a": ["Boost your score", "Hurt your reputation", "Do nothing"],
+        "c": 1
+      },
+      {
+        "q": "A longer history of paying on time is…",
+        "a": ["Bad for you", "Good for your score", "Against the rules"],
+        "c": 1
+      }
+    ]
+  },
+  "credtech_4": {
+    "mech": "balance",
+    "name": "Repayment Runway",
+    "title": "REPAYMENT RUNWAY",
+    "icon": "🛫",
+    "goal": 170,
+    "time": 64,
+    "gateEvery": 18,
+    "hint": "Tilt ◀ ▶ to keep payments balanced and on-time",
+    "winMsg": "SMOOTH LANDING!",
+    "lesson": [
+      ["🛫", "Steady, on-time payments keep your credit on track."],
+      ["⚖️", "Pay a little each month so debt never piles up."],
+      ["📅", "Reminders help you never miss a due date."]
+    ],
+    "player": "🛫",
+    "zone": 0.16,
+    "pts": 15
+  },
+  "credtech_5": {
+    "mech": "match",
+    "name": "Credit Lab",
+    "title": "CREDIT LIMIT LAB",
+    "icon": "🧪",
+    "goal": 180,
+    "time": 66,
+    "gateEvery": 18,
+    "hint": "FLIP cards · match the credit terms",
+    "winMsg": "TERMS MASTERED!",
+    "lesson": [
+      ["💳", "Your credit limit is the most you are allowed to borrow."],
+      ["📊", "Using under 30% of your limit helps your score."],
+      ["🔒", "Staying under the limit keeps your credit safe."]
+    ],
+    "pairs": ["💳", "✅", "📈", "🏦", "⏰", "🔒"],
+    "pts": 26
+  },
+  "credtech_6": {
+    "mech": "tap",
+    "name": "Report Watch",
+    "title": "REPORT OBSERVATORY",
+    "icon": "🔭",
+    "goal": 170,
+    "time": 60,
+    "gateEvery": 17,
+    "hint": "TAP ❌ errors to fix them · leave ✅ correct entries",
+    "winMsg": "REPORT CLEAN!",
+    "lesson": [
+      ["🔭", "A credit report lists how you have used credit."],
+      ["🔍", "Check your report so you can fix any mistakes."],
+      ["✅", "Fixing errors keeps your score fair and accurate."]
+    ],
+    "good": ["❌", "⚠️", "🐞"],
+    "bad": ["✅", "📄"],
+    "pts": 14,
+    "badRate": 0.3
+  }
+}
