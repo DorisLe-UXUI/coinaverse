@@ -161,18 +161,9 @@
      3.  ROUTING PATCH — intercept credtech / district 2
   ───────────────────────────────────────────── */
   function patchRouter() {
-    const _orig = window.playDistrictGame;
-    window.playDistrictGame = function(district, districtName, ...rest) {
-      const d  = (district     || '').toString().toLowerCase().trim();
-      const dn = (districtName || '').toString().toLowerCase().trim();
-      if (d === DISTRICT_ID || dn === DISTRICT_N || dn === DISTRICT_ID) {
-        launchGame();
-        return;
-      }
-      if (typeof _orig === 'function') {
-        _orig.call(this, district, districtName, ...rest);
-      }
-    };
+    // Removed: this wrapper matched EVERY credtech district (playDistrictGame's 2nd
+    // arg is the district INDEX, not a name), hijacking FICO Racer + all arcade
+    // districts. Borrowing Bay is launched from the CredTech hub MINIGAMES tile.
   }
 
   /* ─────────────────────────────────────────────

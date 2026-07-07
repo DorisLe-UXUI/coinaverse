@@ -1,686 +1,805 @@
 /* ════════════════════════════════════════════════════════════════
-   FICO RACER — GDD-aligned implementation (Kabria GDD v1.0)
-   3 Tracks · 7 FICO Bands · AI Racers · Full Financial Metrics
+   FICO RACER — true-3D circuit racer (rebuilt to match the delivered
+   Unity build "Fico-racer-main" + the FICO Racer GDD):
+   - Real closed circuit, chase camera, 4 cars (player + 3 AI personalities)
+   - Real Toon-Racing car models (assets/games3d/rally*.fbx + atlas PNG)
+   - FICO starts at 850 and gets DAMAGED DOWN. Car state degrades by band
+     (CarStateManager enum): 850 NoDamage → 800 Dents → 700 Scratches →
+     600 Smoke → 500 FlatTires (50% speed) → 400 Fire (10%) →
+     350 Immobile (no steering) → 300 Destroyed (game over).
+   - Track pickups (respawn 20s, like FicoScorePickup.cs): blue/green
+     credit cards, on-time-payment checkmark, coins, red X traps.
+   - Knowledge Gates are holographic arches: steer into lane A/B/C.
+     The car never stops (GDD §10).
+   - Post-race: placement, FICO delta, cash, lesson, cvAwardGame.
    ════════════════════════════════════════════════════════════════ */
 (function(){
-  const LANES=[-2.4,0,2.4], CARZ=3.2, SPAWNZ=-120, KILLZ=10;
-  const LAP_DIST=1400, MAX_FICO=850, BASE_SPEED=30;
-  const COSMIC='assets/bgvid/credtech_hub.mp4';   // self-hosted (GH release serves attachment-type, breaks Safari inline play)
   let G=null, raf=null;
 
-  /* ── 7 FICO Score Bands (from GDD Section 7) ── */
-  const FICO_BANDS=[
-    {min:800,max:850, name:'Legendary 850',label:'👑 Legendary 850',   glow:'#ffd700', mult:1.0,  steer:true,  filter:'drop-shadow(0 0 18px #ffd700) brightness(1.1)'},
-    {min:750,max:799, name:'Platinum',      label:'⚪ Platinum Mode',   glow:'#e5e7eb', mult:1.0,  steer:true,  filter:'drop-shadow(0 12px 28px rgba(229,231,235,.5)) brightness(1.05)'},
-    {min:700,max:749, name:'Elite',         label:'⭐ Elite Mode',      glow:'#fbbf24', mult:1.0,  steer:true,  filter:'drop-shadow(0 12px 28px rgba(251,191,36,.5))'},
-    {min:600,max:699, name:'Prime',         label:'💚 Prime Mode',      glow:'#34d399', mult:0.95, steer:true,  filter:'drop-shadow(0 12px 28px rgba(52,211,153,.4))'},
-    {min:450,max:599, name:'Builder',       label:'🔵 Builder Mode',    glow:'#38bdf8', mult:0.80, steer:true,  filter:'brightness(.88) drop-shadow(0 10px 22px rgba(56,189,248,.3))'},
-    {min:300,max:449, name:'Recovery',      label:'🔴 Recovery Mode',   glow:'#f87171', mult:0.55, steer:true,  filter:'brightness(.72) sepia(.4) drop-shadow(0 8px 18px rgba(239,68,68,.3))'},
-    {min:0,  max:299, name:'Crisis',        label:'💀 Crisis Mode',     glow:'#7f1d1d', mult:0.25, steer:false, filter:'grayscale(.6) brightness(.5) sepia(.5)'},
-  ];
-  function getBand(fico){ for(const b of FICO_BANDS) if(fico>=b.min) return b; return FICO_BANDS[6]; }
+  window.frInit=function(){ if(G) teardown(); G=null; };
 
-  /* ── 3 Level Definitions (GDD Section 8) ── */
+  /* ── Level definitions (GDD §8) ── */
   const LEVELS=[
-    {
-      id:0, name:'Credit City', subtitle:'BEGINNER',
-      emoji:'🏙️', color:'#34d399', fog:0x0a1633, road:0x0a1633, rail:0x38bdf8,
-      laps:3, desc:'Neon city streets — on-time payments & utilization basics.',
-      badRate:0.28, gateInterval:22, lapTime:'60-90s',
-      ambientColor:0x88aadd, pointColor:0x38bdf8,
-    },
-    {
-      id:1, name:'Cyber Canyon', subtitle:'INTERMEDIATE',
-      emoji:'🏔️', color:'#f59e0b', fog:0x0d0a1f, road:0x0d0a1f, rail:0xf59e0b,
-      laps:3, desc:'Canyon roads — interest rates, debt-to-income, APR traps.',
-      badRate:0.40, gateInterval:18, lapTime:'90-120s',
-      ambientColor:0xaa8833, pointColor:0xf59e0b,
-    },
-    {
-      id:2, name:'Quantum Nexus', subtitle:'ADVANCED',
-      emoji:'🌌', color:'#a78bfa', fog:0x060312, road:0x060312, rail:0xa78bfa,
-      laps:4, desc:'Floating megacity — fraud, investing, mortgages & wealth.',
-      badRate:0.52, gateInterval:15, lapTime:'120-150s',
-      ambientColor:0x6633bb, pointColor:0xa78bfa,
-    },
+    { name:'CREDIT CITY', sub:'BEGINNER · NEON CITY LOOP', laps:2, icon:'🏙️',
+      desc:'Wide friendly streets. Learn payments, utilization and smart credit.',
+      env:'city', fog:0x9fd8ff, fogFar:340, amb:0xffffff,
+      pickups:26, hazardRate:.22, gateEvery:520, aiSkill:.86 },
+    { name:'CYBER CANYON', sub:'INTERMEDIATE · DUSK CANYON RUN', laps:3, icon:'🏜️',
+      desc:'Tighter corners and loan traps. Interest and debt get real.',
+      env:'canyon', fog:0xffb27d, fogFar:300, amb:0xffe0c0,
+      pickups:30, hazardRate:.34, gateEvery:480, aiSkill:.93 },
+    { name:'QUANTUM NEXUS', sub:'ADVANCED · GALAXY CHAMPIONSHIP', laps:3, icon:'🌌',
+      desc:'The championship arena of CredTech Galaxy. Fraud drones everywhere.',
+      env:'space', fog:0x1b1040, fogFar:280, amb:0x9fb4ff,
+      pickups:32, hazardRate:.46, gateEvery:440, aiSkill:1.0 },
   ];
 
-  /* ── AI Racer Personalities (GDD Section 13) ── */
-  const AI_RACERS=[
-    {name:'Investor Ivy',    color:'#34d399', strategy:'steady',   startDiff:0.92, finalDiff:1.05, emoji:'🌿'},
-    {name:'Maxed-Out Marcus',color:'#ef4444', strategy:'earlyfast',startDiff:1.05, finalDiff:0.82, emoji:'🔥'},
-    {name:'Coupon Chloe',    color:'#f9a8d4', strategy:'safe',     startDiff:0.97, finalDiff:0.98, emoji:'💗'},
-    {name:'Crypto Kyle',     color:'#a78bfa', strategy:'random',   startDiff:0.85, finalDiff:1.15, emoji:'💜'},
+  /* ── Cars (delivered Toon-Racing rally cars) ── */
+  const CARS=[
+    { key:'rally1', name:'CredRunner', tint:0xffffff },
+    { key:'rally2', name:'Investor Ivy',     ai:{early:.88,late:1.06}, color:'#34d399' },
+    { key:'rally3', name:'Maxed-Out Marcus', ai:{early:1.08,late:.84}, color:'#f87171' },
+    { key:'rally4', name:'Prime Parker',     ai:{early:.97,late:.99}, color:'#60a5fa' },
   ];
 
-  /* ── Pickups (GDD Section 9) ── */
-  const PICKUPS_GOOD=[
-    {id:'blueCard',   shape:'card',    c:0x2563eb, fico:+20, cash:0,   debt:0,   util:-5, phist:+5, spinout:false, shield:false, fact:'💳 Blue Credit Card — responsible credit use! +20 FICO', type:'good'},
-    {id:'payToken',   shape:'check',   c:0x22c55e, fico:+25, cash:0,   debt:0,   util:-3, phist:+8, spinout:false, shield:false, fact:'✅ On-Time Payment Token — payment history is 35% of FICO!', type:'good'},
-    {id:'emShield',   shape:'shield',  c:0x10b981, fico:+5,  cash:0,   debt:0,   util:0,  phist:+3, spinout:false, shield:true,  fact:'🛡️ Emergency Fund Shield — savings protect against setbacks!', type:'shield'},
-    {id:'coin',       shape:'coin',    c:0xfbbf24, fico:0,   cash:5,   debt:-3,  util:0,  phist:0,  spinout:false, shield:false, fact:'🪙 Small savings build big financial cushions!', type:'good'},
-    {id:'bigCoin',    shape:'bigcoin', c:0xff9900, fico:+8,  cash:15,  debt:-8,  util:-4, phist:+2, spinout:false, shield:false, fact:'💰 Big savings + FICO boost! Keep stacking!', type:'good'},
-    {id:'greenReset', shape:'star',    c:0x4ade80, fico:+40, cash:20,  debt:-20, util:-10,phist:+10,spinout:false, shield:false, fact:'🟢 Green Reset! Second chance — full recovery boost!', type:'bonus'},
+  /* ── Car state bands (CarStateManager.cs) ── */
+  // exact CarStateManager.cs thresholds: >800 NoDamage · >700 Dents · >600 Scratches ·
+  // >500 Smoke · >400 FlatTires(50%) · >350 Fire(10%) · >300 Immobile(no steer) · ≤300 Destroyed
+  const BANDS=[
+    { min:800, label:'NO DAMAGE',   st:0, spd:1.00, steer:true,  col:'#34d399' },
+    { min:700, label:'DENTS',       st:1, spd:1.00, steer:true,  col:'#a3e635' },
+    { min:600, label:'SCRATCHES',   st:2, spd:1.00, steer:true,  col:'#fbbf24' },
+    { min:500, label:'SMOKE',       st:3, spd:1.00, steer:true,  col:'#fb923c' },
+    { min:400, label:'FLAT TIRES',  st:3, spd:0.50, steer:true,  col:'#f87171' },
+    { min:350, label:'ON FIRE',     st:4, spd:0.12, steer:true,  col:'#ef4444' },
+    { min:300, label:'IMMOBILE',    st:4, spd:0.12, steer:false, col:'#dc2626' },
+    { min:-1,  label:'DESTROYED',   st:4, spd:0.00, steer:false, col:'#991b1b' },
   ];
-  const PICKUPS_BAD=[
-    {id:'redCard',    shape:'card',    c:0xef4444, fico:-20, cash:0,   debt:+10, util:+8, phist:-8, spinout:false, shield:false, fact:'🟥 Red Credit Card — overspending drops FICO fast!', type:'bad'},
-    {id:'bnplTrap',   shape:'bag',     c:0xf97316, fico:-15, cash:0,   debt:+15, util:+12,phist:-5, spinout:false, shield:false, fact:'🛍️ BNPL Trap! Buy-now-pay-later hides costs — debt added!', type:'bad'},
-    {id:'hardInquiry',shape:'scanner', c:0x9333ea, fico:-10, cash:0,   debt:0,   util:+5, phist:-3, spinout:false, shield:false, fact:'🔍 Hard Inquiry — new credit has tradeoffs. -10 FICO', type:'bad'},
-    {id:'puddle',     shape:'puddle',  c:0xf59e0b, fico:-12, cash:0,   debt:0,   util:+5, phist:-5, spinout:true,  shield:false, fact:'💧 Golden Puddle — SPIN OUT! Debt trap hits hard!', type:'bad'},
-    {id:'missedPay',  shape:'barrier', c:0xdc2626, fico:-28, cash:0,   debt:+18, util:+10,phist:-15,spinout:false, shield:false, fact:'❌ Missed Payment — biggest FICO killer! -28 FICO', type:'bad'},
-  ];
-  const PICKUPS_ADV=[
-    {id:'fraudFreeze',shape:'lock',    c:0x67e8f9, fico:+12, cash:0,   debt:0,   util:0,  phist:+4, spinout:false, shield:false, fact:'🔒 Fraud Freeze — protect your identity! +12 FICO', type:'good'},
-    {id:'idTheft',    shape:'skull',   c:0x6b21a8, fico:-30, cash:0,   debt:+25, util:+15,phist:-12,spinout:true,  shield:false, fact:'💀 Identity Theft! Your data was stolen. Massive losses!', type:'bad'},
-    {id:'indexFund',  shape:'chart',   c:0x34d399, fico:+18, cash:25,  debt:-10, util:-8, phist:+6, spinout:false, shield:false, fact:'📈 Index Fund Boost — diversification pays off! +18 FICO', type:'good'},
-  ];
+  function bandFor(f){ for(const b of BANDS){ if(f>b.min) return b; } return BANDS[BANDS.length-1]; }
 
-  /* ── Quiz Questions (GDD Section 10) ── */
+  /* ── Knowledge gate questions (steer into the lane!) ── */
   const QUIZ=[
-    {q:'Payment history is what % of your FICO score?',opts:['35%','30%','15%','10%'],ans:0,fact:'Payment history = 35% of FICO — the biggest factor!',fico:+30,cash:10},
-    {q:'What utilization % should you target to protect your score?',opts:['Below 30%','Below 70%','Below 50%','Below 90%'],ans:0,fact:'Keep utilization under 30% for a healthy score.',fico:+25,cash:8},
-    {q:'Which factor has the 2nd biggest impact on FICO?',opts:['Credit utilization (30%)','Credit age (15%)','Credit mix (10%)','New credit (10%)'],ans:0,fact:'Utilization is #2 at 30% — keep balances low!',fico:+25,cash:8},
-    {q:'What is the highest possible FICO score?',opts:['850','900','800','1000'],ans:0,fact:'Perfect FICO is 850 — legendary status!',fico:+20,cash:5},
-    {q:'An Emergency Fund protects you by...',opts:['Covering costs without debt','Raising your credit limit','Lowering interest rates','Closing old accounts'],ans:0,fact:'Emergency funds let you cover setbacks without going into debt!',fico:+28,cash:12},
-    {q:'Buy-Now-Pay-Later products...',opts:['Can hurt credit if misused','Always help credit','Are never reported','Have zero interest'],ans:0,fact:'BNPL traps add up — only buy what you can repay now.',fico:+20,cash:5},
-    {q:'How long does a missed payment stay on your credit report?',opts:['7 years','2 years','6 months','10 years'],ans:0,fact:'Missed payments stay 7 years — on-time payments are everything.',fico:+22,cash:7},
-    {q:'What should you do if your identity is stolen?',opts:['Freeze credit & report it','Ignore it','Close all accounts','Dispute nothing'],ans:0,fact:'Fraud freeze + immediate reporting = best defense!',fico:+30,cash:15},
-    {q:'Why diversify your investments?',opts:['Reduce risk across assets','Get higher returns always','Avoid paying taxes','Increase utilization'],ans:0,fact:'Diversification spreads risk — one crash won\'t destroy everything.',fico:+25,cash:10},
-    {q:'Paying minimum balance monthly will...',opts:['Cost more in interest','Pay off debt faster','Raise your score quickly','Close the account'],ans:0,fact:'Minimum payments = debt lingers and interest piles up.',fico:+20,cash:5},
-    {q:'What is the Debt Snowball method?',opts:['Pay smallest debts first','Pay highest interest first','Pay equally across all debts','Ignore debt until income rises'],ans:0,fact:'Snowball = quick wins motivate you to stay debt-free!',fico:+22,cash:8},
-    {q:'A FICO score of 750 is considered...',opts:['Very Good','Fair','Excellent','Poor'],ans:0,fact:'750-799 is Very Good / Elite Mode — strong financial choices!',fico:+20,cash:5},
+    {q:'Payment history is what % of your FICO score?',opts:['35%','15%','10%'],ans:0,fact:'Payment history = 35% of FICO — the biggest factor!',fico:+30,cash:10},
+    {q:'Best utilization to protect your score?',opts:['Below 30%','Below 70%','Below 90%'],ans:0,fact:'Keep utilization under 30% for a healthy score.',fico:+25,cash:8},
+    {q:'2nd biggest FICO factor?',opts:['Utilization 30%','Credit age 15%','New credit 10%'],ans:0,fact:'Utilization is #2 at 30% — keep balances low!',fico:+25,cash:8},
+    {q:'Highest possible FICO score?',opts:['850','900','1000'],ans:0,fact:'Perfect FICO is 850 — legendary status!',fico:+20,cash:5},
+    {q:'An Emergency Fund helps you…',opts:['Avoid new debt','Raise your limit','Close accounts'],ans:0,fact:'Emergency funds cover setbacks without debt!',fico:+28,cash:12},
+    {q:'Buy-Now-Pay-Later products…',opts:['Can hide real costs','Always help credit','Are free money'],ans:0,fact:'BNPL adds up — only buy what you can repay now.',fico:+20,cash:5},
+    {q:'A missed payment stays on your report…',opts:['7 years','6 months','2 weeks'],ans:0,fact:'Missed payments stay 7 years — pay on time!',fico:+22,cash:7},
+    {q:'Identity stolen — first move?',opts:['Freeze credit','Ignore it','Post about it'],ans:0,fact:'Fraud freeze + report immediately = best defense!',fico:+30,cash:15},
+    {q:'Why diversify investments?',opts:['Spread the risk','Higher fees','Avoid taxes'],ans:0,fact:'Diversification spreads risk across assets.',fico:+25,cash:10},
+    {q:'Paying only the minimum balance…',opts:['Costs more interest','Clears debt fast','Boosts score fast'],ans:0,fact:'Minimum payments = debt lingers and interest piles up.',fico:+20,cash:5},
+    {q:'Debt Snowball means…',opts:['Smallest debts first','Biggest debts first','Pay nothing'],ans:0,fact:'Snowball = quick wins keep you motivated!',fico:+22,cash:8},
+    {q:'A 750 FICO score is…',opts:['Very good','Poor','Average'],ans:0,fact:'750-799 is Very Good — strong choices!',fico:+20,cash:5},
   ];
 
-  window.frInit=function(){ G=null; };
-
-  function ensureThree(cb){
-    if(window.THREE) return cb();
-    if(window._three3dQ){ window._three3dQ.push(cb); return; }
-    window._three3dQ=[cb];
-    const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-    s.onload=()=>{ const q=window._three3dQ; window._three3dQ=null; q.forEach(f=>f()); };
-    s.onerror=()=>{ window._three3dQ=null; s.remove(); const w=document.getElementById('fr3dWrap'); if(w) w.innerHTML='<div style="color:#fff;text-align:center;padding-top:40vh;font-family:Orbitron,sans-serif">3D engine failed — check connection and try again.</div>'; };
-    document.head.appendChild(s);
+  /* ══════════════ 3D libs (three r128 + self-hosted FBXLoader) ══════════════ */
+  function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>{ s.remove(); rej(new Error('load fail '+src)); }; document.head.appendChild(s); }); }
+  let _libsP=null;
+  function ensure3D(){
+    if(window.THREE && window.THREE.FBXLoader) return Promise.resolve();
+    if(_libsP) return _libsP;
+    _libsP=(window.THREE?Promise.resolve():loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'))
+      .then(()=>window.fflate?null:loadScript('assets/games3d/lib/fflate.min.js'))
+      .then(()=>window.THREE.NURBSCurve?null:loadScript('assets/games3d/lib/NURBSUtils.js').then(()=>loadScript('assets/games3d/lib/NURBSCurve.js')).catch(()=>{}))
+      .then(()=>window.THREE.FBXLoader?null:loadScript('assets/games3d/lib/FBXLoader.js'))
+      .catch(e=>{ _libsP=null; throw e; });
+    return _libsP;
   }
 
-  /* ── SCREENS entry point → show level select ── */
+  /* ══════════════ SCREEN ══════════════ */
   window.SCREENS.game_ficoracer=function(){
-    setTimeout(()=>ensureThree(showLevelSelect),30);
-    return `<div id="frRoot" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
-      <video id="frBgVid" autoplay loop muted playsinline poster="assets/bg/cosmic_main.jpeg"
-        style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.9;z-index:0">
-        <source src="${COSMIC}" type="video/mp4">
-      </video>
-      <div style="position:absolute;inset:0;z-index:0;background:radial-gradient(ellipse at 50% 45%,transparent 45%,rgba(3,4,12,.6) 85%)"></div>
-      <div id="frUI" style="position:absolute;inset:0;z-index:2"></div>
+    setTimeout(showLevelSelect,30);
+    return `<div id="frRoot" style="position:absolute;inset:0;background:#04060f;overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
+      <div id="fr3dWrap" style="position:absolute;inset:0"></div>
+      <div id="frUI" style="position:absolute;inset:0;pointer-events:none"></div>
     </div>`;
   };
 
-  /* ── Level Select Screen ── */
+  /* ── Level select (garage-style, GDD track cards) ── */
   function showLevelSelect(){
-    const bv=document.getElementById('frBgVid'); if(bv) bv.play().catch(()=>{});
     const ui=document.getElementById('frUI'); if(!ui) return;
+    const best=(window.state&&state.gameLevels&&state.gameLevels['game_ficoracer'])||0;
+    ui.style.pointerEvents='auto';
     ui.innerHTML=`
-    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:16px">
-      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.3em;color:#38bdf8;text-shadow:0 0 20px rgba(56,189,248,.7)">CREDTECH GALAXY</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:clamp(1.4rem,4vw,2.4rem);font-weight:900;background:linear-gradient(135deg,#fbbf24,#f59e0b,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center">🏎️ FICO RACER</div>
-      <div style="font-size:.75rem;color:rgba(255,255,255,.55);letter-spacing:.1em;margin-top:-8px">BUILD YOUR CREDIT · OUTRACE YOUR FUTURE</div>
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,rgba(56,189,248,.25),transparent 55%),linear-gradient(180deg,#050a1e,#02040c);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px">
+        <button onclick="frExit()" style="position:absolute;top:14px;left:14px;padding:8px 16px;border:1px solid rgba(56,189,248,.4);border-radius:10px;background:rgba(10,16,40,.6);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← HUB</button>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.3em;color:#38bdf8">CREDTECH GALAXY PRESENTS</div>
+        <div style="font-family:'Anton',sans-serif;font-size:clamp(2rem,6vw,3.4rem);letter-spacing:.04em;background:linear-gradient(90deg,#7dd3fc,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent">🏁 FICO RACER</div>
+        <div style="font-size:.85rem;color:rgba(255,255,255,.6);margin-top:-8px">Build your credit. Outrace your future. Start at 850 — keep your car alive!</div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;max-width:900px">
+          ${LEVELS.map((L,i)=>{
+            const locked=i>0 && best<i;
+            return `<div onclick="${locked?'':'frStart('+i+')'}" style="width:250px;padding:20px 18px;border-radius:18px;border:1.5px solid ${locked?'rgba(255,255,255,.12)':'rgba(56,189,248,.45)'};background:linear-gradient(165deg,rgba(12,20,48,.95),rgba(4,8,24,.98));cursor:${locked?'default':'pointer'};text-align:center;position:relative;transition:all .2s" ${locked?'':`onmouseover="this.style.borderColor='#fbbf24';this.style.transform='translateY(-4px)'" onmouseout="this.style.borderColor='rgba(56,189,248,.45)';this.style.transform='none'"`}>
+              <div style="font-size:2.4rem;margin-bottom:6px;filter:${locked?'grayscale(1) opacity(.4)':'none'}">${L.icon}</div>
+              <div style="font-family:'Orbitron',sans-serif;font-size:.85rem;letter-spacing:.1em;color:${locked?'rgba(255,255,255,.35)':'#7dd3fc'}">${L.name}</div>
+              <div style="font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.14em;color:rgba(255,255,255,.4);margin:5px 0 8px">${L.sub}</div>
+              <div style="font-size:.72rem;line-height:1.5;color:rgba(255,255,255,${locked?'.3':'.65'})">${L.desc}</div>
+              <div style="margin-top:10px;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.1em;color:#fbbf24">${L.laps} LAPS · 3 RIVALS</div>
+              ${locked?`<div style="position:absolute;top:10px;right:12px;font-size:1rem">🔒</div><div style="margin-top:8px;font-size:.55rem;color:rgba(255,255,255,.4)">Win ${LEVELS[i-1].name} to unlock</div>`:''}
+            </div>`;}).join('')}
+        </div>
+        <div style="font-size:.62rem;color:rgba(255,255,255,.35)">🎮 Steer: ← → / A D / tilt-drag · Boost: SPACE or the ⚡ button · Steer through the ANSWER LANE at Knowledge Gates!</div>
+      </div>`;
+  }
 
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;width:100%;max-width:680px;margin-top:8px">
-        ${LEVELS.map((lv,i)=>`
-        <button onclick="frSelectLevel(${i})" style="
-          padding:18px 14px;border-radius:16px;cursor:pointer;text-align:left;
-          border:1.5px solid ${lv.color}44;
-          background:linear-gradient(135deg,rgba(10,16,40,.85),rgba(3,4,12,.9));
-          transition:all .2s;
-          ${i===1?'opacity:.92':''}
-          ${i===2?'opacity:.88':''}
-        " onmouseover="this.style.border='1.5px solid ${lv.color}';this.style.boxShadow='0 0 24px ${lv.color}33'"
-           onmouseout="this.style.border='1.5px solid ${lv.color}44';this.style.boxShadow='none'">
-          <div style="font-size:1.6rem;margin-bottom:6px">${lv.emoji}</div>
-          <div style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.15em;color:${lv.color};margin-bottom:3px">${lv.subtitle}</div>
-          <div style="font-family:'Orbitron',sans-serif;font-size:.84rem;font-weight:700;color:#fff;margin-bottom:5px">${lv.name}</div>
-          <div style="font-size:.7rem;color:rgba(255,255,255,.55);line-height:1.4">${lv.desc}</div>
-          <div style="margin-top:8px;display:flex;gap:8px;font-size:.62rem;color:rgba(255,255,255,.4)">
-            <span>🏁 ${lv.laps} Laps</span><span>⏱ ${lv.lapTime}</span>
-          </div>
-        </button>`).join('')}
-      </div>
+  window.frStart=function(li){
+    const ui=document.getElementById('frUI'); if(ui){ ui.style.pointerEvents='none'; ui.innerHTML=
+      `<div id="frLoad" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#02040c">
+        <div style="font-family:'Anton',sans-serif;font-size:2rem;color:#7dd3fc">LAUNCHING ${LEVELS[li].name}…</div>
+        <div style="width:220px;height:8px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden"><div id="frLoadBar" style="width:10%;height:100%;border-radius:6px;background:linear-gradient(90deg,#38bdf8,#fbbf24);transition:width .3s"></div></div>
+        <div id="frLoadTxt" style="font-size:.65rem;color:rgba(255,255,255,.45)">warming up the engine…</div>
+      </div>`; }
+    const bar=p=>{ const b=document.getElementById('frLoadBar'); if(b) b.style.width=(p*100)+'%'; };
+    ensure3D().then(()=>{ bar(.45); return loadCarAssets(bar); })
+      .then(models=>{ bar(1); startRace(li, models); })
+      .catch(e=>{ console.warn('FICO 3D load issue:', e); startRace(li, null); });
+  };
 
-      <div style="margin-top:6px;display:flex;flex-direction:column;align-items:center;gap:6px">
-        <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.2em;color:rgba(255,255,255,.35)">YOUR STARTING CAR</div>
-        <div style="padding:10px 20px;border:1px solid rgba(52,211,153,.3);border-radius:12px;background:rgba(10,16,40,.6);display:flex;align-items:center;gap:12px">
-          <div style="font-size:1.4rem">🏎️</div>
-          <div>
-            <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;color:#34d399">CredRunner S</div>
-            <div style="font-size:.62rem;color:rgba(255,255,255,.45)">Handling 8 · Speed 5 · Boost 4</div>
+  /* ── FBX car loading (with procedural fallback) ── */
+  let _carCache=null;
+  function loadCarAssets(bar){
+    if(_carCache) return Promise.resolve(_carCache);
+    const loader=new THREE.FBXLoader();
+    const texLoader=new THREE.TextureLoader();
+    let done=0;
+    const one=(c,i)=>new Promise(res=>{
+      const tex=texLoader.load('assets/games3d/'+c.key+'.png', t=>{ t.flipY=true; });
+      loader.load('assets/games3d/'+c.key+'.fbx', obj=>{
+        // drop the *_Lights meshes — their pivots import offset and float above the roof
+        const drop=[]; obj.traverse(m=>{ if(m.isMesh&&/_Lights$/i.test(m.name)) drop.push(m); });
+        drop.forEach(m=>m.parent&&m.parent.remove(m));
+        // normalize: center, sit on ground, length ≈ 4.2 units, forward = +Z
+        obj.updateMatrixWorld(true);
+        const box=new THREE.Box3().setFromObject(obj), size=box.getSize(new THREE.Vector3());
+        const longest=Math.max(size.x,size.z);
+        if(size.x>size.z) obj.rotation.y=Math.PI/2;             // align long axis to Z
+        const s=4.2/(longest||1); obj.scale.setScalar(s);
+        obj.updateMatrixWorld(true);
+        const box2=new THREE.Box3().setFromObject(obj);
+        obj.position.y=-box2.min.y; obj.position.x=-(box2.min.x+box2.max.x)/2; obj.position.z=-(box2.min.z+box2.max.z)/2;
+        const wheels=[];
+        obj.traverse(m=>{ if(m.isMesh){
+          m.material=new THREE.MeshToonMaterial({ map:tex });
+          m.castShadow=false; m.receiveShadow=false;
+          if(/wheel|tire|tyre/i.test(m.name)) wheels.push(m);
+        }});
+        done++; if(bar) bar(.45+.55*done/CARS.length);
+        res({root:obj, wheels});
+      }, undefined, ()=>{ done++; if(bar) bar(.45+.55*done/CARS.length); res(null); });
+    });
+    return Promise.all(CARS.map(one)).then(arr=>{ _carCache=arr; return arr; });
+  }
+  function buildFallbackCar(hex){
+    const g=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.BoxGeometry(1.9,.55,4.0), new THREE.MeshToonMaterial({color:hex}));
+    body.position.y=.55; g.add(body);
+    const cab=new THREE.Mesh(new THREE.BoxGeometry(1.5,.5,1.7), new THREE.MeshToonMaterial({color:0x0b1530}));
+    cab.position.set(0,.98,-.2); g.add(cab);
+    const wg=new THREE.CylinderGeometry(.42,.42,.32,14), wm=new THREE.MeshToonMaterial({color:0x111318});
+    const wheels=[];
+    [[-.95,.42,1.35],[.95,.42,1.35],[-.95,.42,-1.35],[.95,.42,-1.35]].forEach(p=>{ const w=new THREE.Mesh(wg,wm); w.rotation.z=Math.PI/2; w.position.set(p[0],p[1],p[2]); g.add(w); wheels.push(w); });
+    const spoil=new THREE.Mesh(new THREE.BoxGeometry(1.8,.1,.5), new THREE.MeshToonMaterial({color:hex})); spoil.position.set(0,1.05,-1.9); g.add(spoil);
+    return {root:g, wheels};
+  }
+
+  /* ══════════════ RACE ══════════════ */
+  const TAU=Math.PI*2;
+  function trackPoints(env){
+    // three distinct closed circuits (x,z control points)
+    if(env==='city')   return [[0,-120],[85,-110],[130,-55],[125,30],[70,80],[90,140],[30,175],[-55,160],[-95,95],[-70,30],[-120,-15],[-90,-90]];
+    if(env==='canyon') return [[0,-140],[70,-120],[95,-45],[60,5],[110,60],[70,130],[-10,110],[-40,165],[-110,130],[-95,55],[-130,-20],[-60,-80]];
+    return [[0,-130],[90,-115],[120,-40],[80,20],[130,80],[60,150],[-20,115],[-80,160],[-140,90],[-90,25],[-130,-60],[-50,-95]];
+  }
+  function makeCanvasTex(w,h,draw,repX,repY){
+    const c=document.createElement('canvas'); c.width=w; c.height=h;
+    draw(c.getContext('2d'),w,h);
+    const t=new THREE.CanvasTexture(c);
+    if(repX||repY){ t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(repX||1,repY||1); }
+    t.userData=t.userData||{}; t.userData.perRace=true;   // r128 textures lack userData; per-race = disposable
+    return t;
+  }
+
+  function startRace(li, models){
+    if(G) teardown();
+    const wrap=document.getElementById('fr3dWrap'); if(!wrap) return;
+    const L=LEVELS[li];
+    const W=7;                         // road half-width
+    const scene=new THREE.Scene();
+    scene.fog=new THREE.Fog(L.fog, 40, L.fogFar);
+    const cam=new THREE.PerspectiveCamera(68, wrap.clientWidth/Math.max(1,wrap.clientHeight), .1, 1200);
+    const rndr=new THREE.WebGLRenderer({antialias:true});
+    rndr.setPixelRatio(Math.min(devicePixelRatio,2));
+    rndr.setSize(wrap.clientWidth, wrap.clientHeight);
+    wrap.innerHTML=''; wrap.appendChild(rndr.domElement);
+
+    /* sky */
+    if(L.env==='space'){
+      scene.background=new THREE.Color(0x060218);
+      const sg=new THREE.BufferGeometry(), sp=[];
+      for(let i=0;i<1400;i++){ const r=500+Math.random()*300, a=Math.random()*TAU, b=(Math.random()-.5)*Math.PI; sp.push(r*Math.cos(a)*Math.cos(b), r*Math.sin(b)*.6+80, r*Math.sin(a)*Math.cos(b)); }
+      sg.setAttribute('position', new THREE.Float32BufferAttribute(sp,3));
+      scene.add(new THREE.Points(sg, new THREE.PointsMaterial({color:0xbfd7ff,size:1.6,sizeAttenuation:true})));
+    } else {
+      new THREE.TextureLoader().load('assets/games3d/sky_day.png', t=>{
+        t.mapping=THREE.EquirectangularReflectionMapping;
+        if(L.env==='canyon'){ scene.background=new THREE.Color(0xffa46b); scene.backgroundBlurriness=0; }
+        scene.background=t;
+      }, undefined, ()=>{ scene.background=new THREE.Color(L.fog); });
+      if(L.env==='canyon') scene.fog=new THREE.Fog(0xffa46b,40,L.fogFar);
+    }
+
+    /* lights */
+    scene.add(new THREE.AmbientLight(L.amb, L.env==='space'?.75:.95));
+    const sun=new THREE.DirectionalLight(0xffffff, L.env==='space'?.6:1.0); sun.position.set(120,180,60); scene.add(sun);
+    if(L.env==='space'){ const p=new THREE.PointLight(0x8b5cf6,1.2,400); p.position.set(0,120,0); scene.add(p); }
+
+    /* track curve */
+    const pts=trackPoints(L.env).map(p=>new THREE.Vector3(p[0],0,p[1]));
+    const curve=new THREE.CatmullRomCurve3(pts,true,'catmullrom',.6);
+    const SEG=420, P=[], T=[], NRM=[];
+    for(let i=0;i<SEG;i++){ const u=i/SEG; P.push(curve.getPointAt(u)); const t=curve.getTangentAt(u).normalize(); T.push(t); NRM.push(new THREE.Vector3(-t.z,0,t.x)); }
+    const trackLen=curve.getLength();
+
+    function ribbon(halfIn,halfOut,tex,y){
+      const g=new THREE.BufferGeometry(), v=[],uv=[],ix=[];
+      for(let i=0;i<=SEG;i++){ const k=i%SEG, p=P[k], n=NRM[k];
+        v.push(p.x+n.x*halfIn, y, p.z+n.z*halfIn, p.x+n.x*halfOut, y, p.z+n.z*halfOut);
+        uv.push(0, i*.25, 1, i*.25); }
+      for(let i=0;i<SEG;i++){ const a=i*2; ix.push(a,a+1,a+2, a+1,a+3,a+2); }
+      g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+      g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+      g.setIndex(ix); g.computeVertexNormals();
+      return new THREE.Mesh(g,new THREE.MeshToonMaterial({map:tex,side:THREE.DoubleSide}));
+    }
+    const roadTex=makeCanvasTex(256,256,(x,w,h)=>{
+      x.fillStyle=L.env==='space'?'#141232':'#2b2e36'; x.fillRect(0,0,w,h);
+      for(let i=0;i<700;i++){ x.fillStyle=`rgba(255,255,255,${Math.random()*.05})`; x.fillRect(Math.random()*w,Math.random()*h,1.5,1.5); }
+      x.strokeStyle=L.env==='space'?'#6d5cff':'#f4f4f4'; x.lineWidth=7; x.setLineDash([26,22]);
+      x.beginPath(); x.moveTo(w/2,0); x.lineTo(w/2,h); x.stroke();
+      x.setLineDash([]); x.lineWidth=10; x.strokeStyle=L.env==='space'?'#38bdf8':'#e8e8e8';
+      x.beginPath(); x.moveTo(4,0); x.lineTo(4,h); x.stroke();
+      x.beginPath(); x.moveTo(w-4,0); x.lineTo(w-4,h); x.stroke();
+    },1,1);
+    roadTex.wrapT=THREE.RepeatWrapping;
+    scene.add(ribbon(-W,W,roadTex,0));
+    const curbTex=makeCanvasTex(64,64,(x,w,h)=>{ x.fillStyle='#e23b3b'; x.fillRect(0,0,w,h); x.fillStyle='#f4f4f4'; x.fillRect(0,0,w,h/2); },1,1); curbTex.wrapT=THREE.RepeatWrapping;
+    scene.add(ribbon(-W-1.1,-W,curbTex,.02));
+    scene.add(ribbon(W,W+1.1,curbTex,.02));
+
+    /* ground */
+    const groundCol=L.env==='city'?'#3f9b4e':L.env==='canyon'?'#c07a45':'#0b0824';
+    const gtex=makeCanvasTex(256,256,(x,w,h)=>{ x.fillStyle=groundCol; x.fillRect(0,0,w,h);
+      for(let i=0;i<900;i++){ x.fillStyle=`rgba(0,0,0,${Math.random()*.08})`; x.fillRect(Math.random()*w,Math.random()*h,2,2); } },60,60);
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(1600,1600), new THREE.MeshToonMaterial({map:gtex}));
+    ground.rotation.x=-Math.PI/2; ground.position.y=-.05; scene.add(ground);
+
+    /* fences + sponsor boards (delivered scene: FenceAds) */
+    const ADS=['COINAVERSE','850 CLUB','CREDTECH GALAXY','PAY ON TIME','KEEP UTILIZATION LOW','MR JQ APPROVES'];
+    const adMats=ADS.map((txt,i)=>new THREE.MeshBasicMaterial({map:makeCanvasTex(256,64,(x,w,h)=>{
+      x.fillStyle=['#0a2a6b','#153c1e','#3c1560','#6b3a0a','#0a4a5e','#5e0a3c'][i%6]; x.fillRect(0,0,w,h);
+      x.strokeStyle='rgba(255,255,255,.5)'; x.lineWidth=4; x.strokeRect(2,2,w-4,h-4);
+      x.fillStyle='#fff'; x.font='900 26px Arial'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(txt,w/2,h/2+1);
+    })}));
+    const fenceG=new THREE.BoxGeometry(9,1.6,.15);
+    function clearOfTrack(x,z,minD){ for(let k=0;k<SEG;k+=3){ const dx=P[k].x-x,dz=P[k].z-z; if(dx*dx+dz*dz<minD*minD) return false; } return true; }
+    for(let i=0;i<SEG;i+=8){
+      const side=(Math.floor(i/8)%2===0)?1:-1;
+      const off=W+3.4, p=P[i], n=NRM[i];
+      const fx=p.x+n.x*off*side, fz=p.z+n.z*off*side;
+      // skip boards that land on ANOTHER section of the circuit
+      let nearOther=false;
+      for(let k=0;k<SEG;k+=3){ if(Math.abs(k-i)<14||Math.abs(k-i)>SEG-14) continue;
+        const dx=P[k].x-fx,dz=P[k].z-fz; if(dx*dx+dz*dz<(W+2)*(W+2)){ nearOther=true; break; } }
+      if(nearOther) continue;
+      const m=new THREE.Mesh(fenceG, adMats[Math.floor(i/8)%adMats.length]);
+      m.position.set(fx, .8, fz);
+      m.rotation.y=Math.atan2(T[i].x,T[i].z);
+      scene.add(m);
+    }
+
+    /* environment decor */
+    const decor=new THREE.Group(); scene.add(decor);
+    function rndOffTrack(minD,maxD){
+      for(let tries=0;tries<40;tries++){
+        const x=(Math.random()-.5)*1100, z=(Math.random()-.5)*1100;
+        let ok=true;
+        for(let i=0;i<SEG;i+=6){ const dx=P[i].x-x,dz=P[i].z-z; if(dx*dx+dz*dz<minD*minD){ ok=false; break; } }
+        if(ok && Math.hypot(x,z)<maxD) return [x,z];
+      }
+      return null;
+    }
+    if(L.env==='city'){
+      for(let i=0;i<70;i++){ const s=rndOffTrack(26,520); if(!s) continue;
+        const h=8+Math.random()*36;
+        const b=new THREE.Mesh(new THREE.BoxGeometry(8+Math.random()*10,h,8+Math.random()*10),
+          new THREE.MeshToonMaterial({color:new THREE.Color().setHSL(.58+Math.random()*.06,.25,.28+Math.random()*.2)}));
+        b.position.set(s[0],h/2,s[1]); decor.add(b);
+        if(Math.random()<.5){ const glow=new THREE.Mesh(new THREE.BoxGeometry(b.geometry.parameters.width+.2,.5,b.geometry.parameters.depth+.2), new THREE.MeshBasicMaterial({color:Math.random()<.5?0x38bdf8:0xfbbf24})); glow.position.set(s[0],h+.3,s[1]); decor.add(glow); }
+      }
+      for(let i=0;i<50;i++){ const s=rndOffTrack(18,420); if(!s) continue;
+        const tr=new THREE.Group();
+        const tk=new THREE.Mesh(new THREE.CylinderGeometry(.3,.4,2.4,6), new THREE.MeshToonMaterial({color:0x6b4a2b})); tk.position.y=1.2; tr.add(tk);
+        const cr=new THREE.Mesh(new THREE.SphereGeometry(2.1,8,7), new THREE.MeshToonMaterial({color:0x2f8f46})); cr.position.y=3.4; cr.scale.y=1.15; tr.add(cr);
+        tr.position.set(s[0],0,s[1]); decor.add(tr); }
+    } else if(L.env==='canyon'){
+      for(let i=0;i<80;i++){ const s=rndOffTrack(22,560); if(!s) continue;
+        const h=6+Math.random()*40;
+        const r=new THREE.Mesh(new THREE.CylinderGeometry(3+Math.random()*7,6+Math.random()*10,h,7),
+          new THREE.MeshToonMaterial({color:new THREE.Color().setHSL(.07,.5,.3+Math.random()*.18)}));
+        r.position.set(s[0],h/2,s[1]); r.rotation.y=Math.random()*TAU; decor.add(r); }
+    } else {
+      for(let i=0;i<46;i++){ const s=rndOffTrack(26,560); if(!s) continue;
+        const h=10+Math.random()*44;
+        const t=new THREE.Mesh(new THREE.BoxGeometry(6,h,6), new THREE.MeshToonMaterial({color:0x181242,emissive:0x0}));
+        t.position.set(s[0],h/2,s[1]); decor.add(t);
+        const e=new THREE.Mesh(new THREE.BoxGeometry(6.3,.6,6.3), new THREE.MeshBasicMaterial({color:[0x8b5cf6,0x38bdf8,0xf472b6][i%3]})); e.position.set(s[0],h+.3,s[1]); decor.add(e); }
+      for(let i=0;i<3;i++){ const ring=new THREE.Mesh(new THREE.TorusGeometry(60+i*30,1.2,8,60), new THREE.MeshBasicMaterial({color:0x6d5cff,transparent:true,opacity:.35}));
+        ring.position.set(0,90+i*20,0); ring.rotation.x=Math.PI/2.3; decor.add(ring); }
+    }
+
+    /* start gantry */
+    const gant=new THREE.Group();
+    const postG=new THREE.BoxGeometry(.8,9,.8), postM=new THREE.MeshToonMaterial({color:0xdddddd});
+    const p0=P[0], n0=NRM[0];
+    [[-1],[1]].forEach(([s])=>{ const po=new THREE.Mesh(postG,postM); po.position.set(p0.x+n0.x*(W+1.5)*s,4.5,p0.z+n0.z*(W+1.5)*s); gant.add(po); });
+    const ban=new THREE.Mesh(new THREE.BoxGeometry((W+1.5)*2,1.6,.4), new THREE.MeshBasicMaterial({map:makeCanvasTex(512,64,(x,w,h)=>{
+      x.fillStyle='#0b1024'; x.fillRect(0,0,w,h);
+      for(let i=0;i<16;i++){ for(let j=0;j<2;j++){ x.fillStyle=(i+j)%2?'#fff':'#111'; x.fillRect(i*16,j*16,16,16); } }
+      x.fillStyle='#fbbf24'; x.font='900 34px Arial'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('★ FICO RACER — START ★',w/2,h/2+8);
+    })}));
+    ban.position.set(p0.x,8.2,p0.z); ban.rotation.y=Math.atan2(T[0].x,T[0].z); gant.add(ban);
+    scene.add(gant);
+
+    /* cars */
+    const carRoots=[], wheelSets=[];
+    for(let i=0;i<4;i++){
+      let mdl=models&&models[i];
+      let inst;
+      if(mdl){ inst={root:mdl.root.clone(true),wheels:[]}; inst.root.traverse(m=>{ if(m.isMesh){ m.material=m.material.clone(); if(/wheel|tire|tyre/i.test(m.name)) inst.wheels.push(m); } }); }
+      else inst=buildFallbackCar([0xf59e0b,0x34d399,0xef4444,0x60a5fa][i]);
+      const holder=new THREE.Group(); holder.add(inst.root);
+      // name tag for AI
+      if(i>0){ const tag=new THREE.Sprite(new THREE.SpriteMaterial({map:makeCanvasTex(256,64,(x,w,h)=>{
+          x.fillStyle='rgba(3,6,20,.75)'; x.beginPath(); x.roundRect?x.roundRect(0,0,w,h,18):x.fillRect(0,0,w,h); x.fill();
+          x.fillStyle=CARS[i].color; x.font='700 30px Arial'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(CARS[i].name,w/2,h/2);
+        }),transparent:true}));
+        tag.scale.set(3.1,.78,1); tag.position.y=2.45; holder.add(tag); holder.userData.tag=tag; }
+      scene.add(holder); carRoots.push(holder); wheelSets.push(inst.wheels);
+    }
+
+    /* pickups (delivered PickupAbles) */
+    const texL=new THREE.TextureLoader();
+    const PK_DEFS=[
+      {k:'blue',  img:'pk_CreditCardBlue.png',  w:1.9,h:1.25, fico:+25, cash:0,  msg:'+25 FICO · Smart credit!',       good:true,  weight:.22},
+      {k:'green', img:'pk_CreditCardGreen.png', w:1.9,h:1.25, fico:+15, cash:5,  msg:'+15 FICO · Healthy account!',    good:true,  weight:.16},
+      {k:'check', img:'pk_GreenCheckmark.png',  w:1.5,h:1.5,  fico:+18, cash:0,  msg:'ON-TIME PAYMENT! +18 FICO',      good:true,  weight:.18, boost:.25},
+      {k:'coin',  img:'pk_Coin.png',            w:1.3,h:1.3,  fico:0,   cash:12, msg:'+$12',                            good:true,  weight:.24},
+      {k:'red',   img:'pk_CreditCardRed.png',   w:1.9,h:1.25, fico:-40, cash:0,  msg:'MAXED OUT! −40 FICO',            good:false, weight:0},
+      {k:'x',     img:'pk_X.png',               w:1.5,h:1.5,  fico:-30, cash:-5, msg:'MISSED PAYMENT! −30 FICO',       good:false, weight:0},
+    ];
+    const pkTex={}; PK_DEFS.forEach(d=>pkTex[d.k]=texL.load('assets/games3d/'+d.img));
+    const pickups=[];
+    const goodDefs=PK_DEFS.filter(d=>d.good), badDefs=PK_DEFS.filter(d=>!d.good);
+    for(let i=0;i<L.pickups;i++){
+      const bad=Math.random()<L.hazardRate;
+      let def;
+      if(bad) def=badDefs[Math.floor(Math.random()*badDefs.length)];
+      else { let r=Math.random()*goodDefs.reduce((a,d)=>a+d.weight,0); def=goodDefs.find(d=>(r-=d.weight)<=0)||goodDefs[0]; }
+      const s=(i+1)/(L.pickups+1)+(Math.random()-.5)*.01;
+      const d=(Math.random()*2-1)*(W-2);
+      const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:pkTex[def.k],transparent:true}));
+      sp.scale.set(def.w,def.h,1);
+      scene.add(sp);
+      pickups.push({def,s:s%1,d,node:sp,active:true,respawnAt:0});
+    }
+
+    /* knowledge gate arch (reused across gates) */
+    const gate={ node:new THREE.Group(), s:-1, q:null, lanes:[], asked:0, answeredAt:-9, banner:0 };
+    const laneMatOn=new THREE.MeshBasicMaterial({color:0x38bdf8,transparent:true,opacity:.42});
+    const archM=new THREE.MeshBasicMaterial({color:0x7dd3fc,transparent:true,opacity:.9});
+    [[-1],[1]].forEach(([sd])=>{ const po=new THREE.Mesh(new THREE.BoxGeometry(.6,8,.6),archM); po.position.set(sd*(W+.9),4,0); gate.node.add(po); });
+    const topBar=new THREE.Mesh(new THREE.BoxGeometry((W+1)*2,1.1,.6),archM); topBar.position.y=8.2; gate.node.add(topBar);
+    const laneW=(W*2-1)/3;
+    for(let i=0;i<3;i++){
+      const lane=new THREE.Group();
+      const panel=new THREE.Mesh(new THREE.PlaneGeometry(laneW-.6,3.4), laneMatOn.clone());
+      panel.position.y=2.2; lane.add(panel);
+      const label=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true})); label.scale.set(3.4,1.7,1); label.position.y=5.2; lane.add(label);
+      lane.position.x=-W+.5+laneW*(i+.5);
+      gate.node.add(lane); gate.lanes.push({grp:lane,panel,label});
+    }
+    gate.node.visible=false; scene.add(gate.node);
+
+    /* smoke + fire particles for damage states */
+    function mkPuffTex(col){ return makeCanvasTex(64,64,(x,w,h)=>{ const g=x.createRadialGradient(32,32,4,32,32,30); g.addColorStop(0,col); g.addColorStop(1,'rgba(0,0,0,0)'); x.fillStyle=g; x.fillRect(0,0,w,h); }); }
+    const smokeTex=mkPuffTex('rgba(120,120,130,.85)'), fireTex=mkPuffTex('rgba(255,140,40,.95)');
+    const puffs=[];
+    function spawnPuff(pos,fire){
+      const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:fire?fireTex:smokeTex,transparent:true,depthWrite:false,opacity:fire?.85:.55}));
+      // trail from the rear of the car, not its center
+      const t=curve.getTangentAt(G?G.s:0);
+      sp.position.copy(pos); sp.position.x-=t.x*2.1; sp.position.z-=t.z*2.1;
+      sp.position.y+=0.9+Math.random()*.3; sp.position.x+=(Math.random()-.5)*.5; sp.position.z+=(Math.random()-.5)*.5;
+      const sc=fire?.55:.8; sp.scale.set(sc,sc,1);
+      scene.add(sp); puffs.push({sp,life:fire?.45:.8,max:fire?.45:.8,vy:fire?2.6:2.0});
+    }
+
+    /* HUD */
+    const ui=document.getElementById('frUI');
+    ui.style.pointerEvents='none';
+    ui.innerHTML=`
+      <div style="position:absolute;top:0;left:0;right:0;padding:10px 14px;display:flex;align-items:flex-start;gap:10px;background:linear-gradient(180deg,rgba(2,4,12,.82),transparent);pointer-events:none">
+        <button onclick="frExit()" style="pointer-events:auto;padding:7px 13px;border:1px solid rgba(56,189,248,.4);border-radius:9px;background:rgba(10,16,40,.7);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.1em;cursor:pointer">← EXIT</button>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+            <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.18em;color:#7dd3fc">🏁 ${L.name}</div>
+            <div style="display:flex;gap:14px;align-items:center">
+              <div id="frLap" style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:#fff">LAP 1/${L.laps}</div>
+              <div id="frPos" style="font-family:'Orbitron',sans-serif;font-size:.92rem;color:#fbbf24">P4/4</div>
+            </div>
           </div>
-          <div style="font-size:.62rem;color:#34d399;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);border-radius:6px;padding:3px 8px">STARTER</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;color:rgba(255,255,255,.55)">FICO</div>
+            <div style="flex:1;height:12px;border-radius:8px;background:linear-gradient(90deg,#ef4444,#f59e0b,#fbbf24,#a3e635,#34d399);position:relative;box-shadow:inset 0 0 6px rgba(0,0,0,.5)">
+              <div id="frFicoPin" style="position:absolute;top:-4px;left:100%;transform:translateX(-50%);width:6px;height:20px;border-radius:3px;background:#fff;box-shadow:0 0 8px #fff;transition:left .25s"></div>
+            </div>
+            <div id="frFico" style="font-family:'Anton',sans-serif;font-size:1.25rem;color:#34d399;min-width:64px;text-align:right">850</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:2px">
+            <div id="frBand" style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:#34d399">NO DAMAGE</div>
+            <div style="display:flex;gap:12px">
+              <div id="frCash" style="font-family:'Orbitron',sans-serif;font-size:.58rem;color:#fbbf24">💰 $0</div>
+              <div id="frSpd" style="font-family:'Orbitron',sans-serif;font-size:.58rem;color:#7dd3fc">0 MPH</div>
+            </div>
+          </div>
         </div>
       </div>
-
-      <button onclick="frExit()" style="margin-top:4px;padding:8px 18px;border:1px solid rgba(255,255,255,.15);border-radius:9px;background:transparent;color:rgba(255,255,255,.5);font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.1em;cursor:pointer">← BACK TO CREDTECH</button>
-    </div>`;
-  }
-
-  window.frSelectLevel=function(idx){
-    G=null;
-    window._frLevel=LEVELS[idx];
-    const ui=document.getElementById('frUI'); if(!ui) return;
-    ui.innerHTML=`
-    <div id="fr3dWrap" style="position:absolute;inset:0;z-index:1">
-      <div id="fr3dLoad" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.7rem;letter-spacing:.2em">
-        <div style="font-size:2rem">🏎️</div>LAUNCHING ${window._frLevel.name.toUpperCase()}…
+      <div id="frQBox" style="position:absolute;top:96px;left:50%;transform:translateX(-50%);max-width:640px;width:92%;padding:10px 16px;border-radius:14px;border:1.5px solid #38bdf8;background:rgba(3,8,26,.88);text-align:center;display:none;pointer-events:none">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.44rem;letter-spacing:.2em;color:#7dd3fc;margin-bottom:4px">🎯 KNOWLEDGE GATE AHEAD — STEER INTO THE ANSWER LANE</div>
+        <div id="frQTxt" style="font-size:.92rem;font-weight:700;color:#fff"></div>
       </div>
-    </div>
-    <img id="frCar" src="assets/games/car.png"
-      style="position:absolute;left:50%;bottom:0;width:min(34vw,420px);z-index:3;transform:translateX(-50%);transition:transform .18s cubic-bezier(.34,1.2,.64,1);pointer-events:none;filter:drop-shadow(0 14px 34px rgba(0,0,0,.7))">
-    <!-- Top bar -->
-    <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 16px;background:linear-gradient(180deg,rgba(3,4,12,.85),transparent);pointer-events:none">
-      <button onclick="frExit()" style="pointer-events:auto;padding:6px 12px;border:1px solid rgba(56,189,248,.4);border-radius:9px;background:rgba(56,189,248,.1);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.55rem;cursor:pointer">← EXIT</button>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.66rem;letter-spacing:.2em;color:#38bdf8;flex:1;text-align:center">🏎️ FICO RACER — ${window._frLevel.name.toUpperCase()}</div>
-      <div id="frPosTxt" style="font-family:'Orbitron',sans-serif;font-size:.7rem;color:#fbbf24;min-width:54px;text-align:center">P1/5</div>
-      <div id="frLapTxt" style="font-family:'Orbitron',sans-serif;font-size:.7rem;color:#e5e7eb;min-width:54px;text-align:right">LAP 1/${window._frLevel.laps}</div>
-    </div>
-    <!-- FICO bar -->
-    <div style="position:absolute;top:48px;left:14px;right:14px;z-index:5;pointer-events:none">
-      <div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.46rem;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-bottom:2px">
-        <span>FICO SCORE</span><span id="frFicoTxt" style="color:#34d399">850</span>
+      <div id="frMsg" style="position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);font-family:'Anton',sans-serif;font-size:2.2rem;color:#fbbf24;text-shadow:0 4px 24px rgba(0,0,0,.6);opacity:0;transition:opacity .2s;pointer-events:none;text-align:center"></div>
+      <div id="frBoostWrap" style="position:absolute;right:16px;bottom:18px;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none">
+        <div style="width:14px;height:120px;border-radius:8px;background:rgba(255,255,255,.09);overflow:hidden;display:flex;align-items:flex-end"><div id="frBoostBar" style="width:100%;height:0%;background:linear-gradient(180deg,#fbbf24,#f97316)"></div></div>
+        <button id="frBoostBtn" style="pointer-events:auto;width:64px;height:64px;border-radius:50%;border:2px solid #fbbf24;background:radial-gradient(circle,#f59e0b,#b45309);color:#1a0d00;font-size:1.5rem;cursor:pointer;box-shadow:0 4px 20px rgba(245,158,11,.4)">⚡</button>
       </div>
-      <div style="height:8px;border-radius:5px;background:rgba(0,0,0,.4);overflow:hidden;border:1px solid rgba(56,189,248,.3)">
-        <div id="frFicoBar" style="height:100%;width:100%;background:linear-gradient(90deg,#ef4444,#f59e0b,#fbbf24,#34d399);transition:width .25s"></div>
+      <div style="position:absolute;left:14px;bottom:18px;display:flex;gap:10px;pointer-events:none">
+        <button id="frLBtn" style="pointer-events:auto;width:62px;height:62px;border-radius:16px;border:1px solid rgba(255,255,255,.25);background:rgba(10,16,40,.6);color:#fff;font-size:1.4rem;cursor:pointer">◀</button>
+        <button id="frRBtn" style="pointer-events:auto;width:62px;height:62px;border-radius:16px;border:1px solid rgba(255,255,255,.25);background:rgba(10,16,40,.6);color:#fff;font-size:1.4rem;cursor:pointer">▶</button>
       </div>
-      <div id="frBandLabel" style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:#34d399;margin-top:2px;text-align:right">👑 Legendary 850</div>
-      <!-- Stats row -->
-      <div style="display:flex;gap:5px;margin-top:5px">
-        ${sbox('CASH 💵','frCash','#34d399')}
-        ${sbox('DEBT 💸','frDebt','#ef4444')}
-        ${sbox('UTIL% 📊','frUtil','#f59e0b')}
-        ${sbox('PAY HX ✅','frPhist','#38bdf8')}
-      </div>
-    </div>
-    <!-- AI positions -->
-    <div id="frAIbar" style="position:absolute;top:50%;right:12px;transform:translateY(-50%);z-index:5;display:flex;flex-direction:column;gap:4px;pointer-events:none"></div>
-    <!-- Fact banner -->
-    <div id="frFact" style="position:absolute;left:50%;top:148px;transform:translateX(-50%);z-index:6;max-width:82%;display:none;pointer-events:none"></div>
-    <!-- Knowledge Gate HUD (non-blocking) -->
-    <div id="frGateHUD" style="position:absolute;bottom:80px;left:50%;transform:translateX(-50%);z-index:8;width:min(94%,520px);display:none;pointer-events:auto"></div>
-    <!-- Lap flash -->
-    <div id="frLapFlash" style="position:absolute;inset:0;z-index:7;display:none;align-items:center;justify-content:center;pointer-events:none"></div>
-    <!-- Game over overlay -->
-    <div id="frOver" style="position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.9);backdrop-filter:blur(5px)"></div>
-    <!-- Controls hint -->
-    <div style="position:absolute;left:0;right:0;bottom:10px;text-align:center;z-index:4;font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.08em;color:rgba(255,255,255,.35);pointer-events:none">← → / SWIPE to STEER · 💳✅🛡️ = GOOD · 🟥🛍️⛔ = DANGER</div>`;
-    ensureThree(boot);
-  };
+      <div id="frCount" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Anton',sans-serif;font-size:7rem;color:#fbbf24;text-shadow:0 8px 40px rgba(0,0,0,.7);pointer-events:none">3</div>
+      <div id="frOver" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(2,4,12,.78);backdrop-filter:blur(6px);pointer-events:auto"></div>`;
 
-  function sbox(l,id,c){ return `<div style="flex:1;text-align:center;background:rgba(10,16,40,.55);border:1px solid rgba(56,189,248,.2);border-radius:8px;padding:4px 2px"><div style="font-family:'Orbitron',sans-serif;font-size:.32rem;letter-spacing:.05em;color:rgba(255,255,255,.4)">${l}</div><div id="${id}" style="font-family:'Anton',sans-serif;font-size:.88rem;color:${c}">0</div></div>`; }
+    /* state */
+    G={ li,L,scene,cam,rndr,wrap,curve,P,T,NRM,SEG,trackLen,W,
+        cars:carRoots, wheels:wheelSets, pickups, gate, puffs,
+        fico:850, cash:0, band:BANDS[0],
+        lap:1, done:false, phase:'count', countT:3.4,
+        s:0, d:0, v:0, steerVis:0, spin:0, boost:0, boosting:0, offroad:false,
+        gatesRight:0, gatesWrong:0, paysOnTime:0, missed:0,
+        ai:[1,2,3].map(i=>({ s:-(i*.008)-.006, d:(i-2)*3.2, v:0, spin:0, prog:0,
+                             skill:L.aiSkill*(CARS[i].ai?1:1), def:CARS[i] })),
+        prog:0, startAt:performance.now(), last:performance.now(),
+        keys:{}, dragX:0, camPos:new THREE.Vector3(), camLook:new THREE.Vector3(),
+        nextGateAt: L.gateEvery, quizBag:[...QUIZ].sort(()=>Math.random()-.5), quizIdx:0,
+        msgT:0 };
 
-  /* ── Three.js boot ── */
-  function boot(){
-    const wrap=document.getElementById('fr3dWrap'); if(!wrap||!window.THREE) return;
-    const ld=document.getElementById('fr3dLoad'); if(ld) ld.remove();
-    const T=window.THREE;
-    const lv=window._frLevel||LEVELS[0];
-    const W=wrap.clientWidth, H=wrap.clientHeight;
-    const scene=new T.Scene(); scene.fog=new T.Fog(lv.fog,55,125);
-    const cam=new T.PerspectiveCamera(70,W/H,0.1,300); cam.position.set(0,3.6,8); cam.lookAt(0,1,-14);
-    const rndr=new T.WebGLRenderer({antialias:true,alpha:true}); rndr.setClearColor(0x000000,0);
-    rndr.setPixelRatio(Math.min(2,devicePixelRatio)); rndr.setSize(W,H); wrap.appendChild(rndr.domElement);
-
-    scene.add(new T.AmbientLight(lv.ambientColor,0.85));
-    const dir=new T.DirectionalLight(0xffffff,1.0); dir.position.set(4,10,6); scene.add(dir);
-    const pt=new T.PointLight(lv.pointColor,1.6,46); pt.position.set(0,6,6); scene.add(pt);
-
-    // Road
-    const road=new T.Mesh(new T.PlaneGeometry(9,400),
-      new T.MeshStandardMaterial({color:lv.road,roughness:.85,metalness:.2,transparent:true,opacity:.96}));
-    road.rotation.x=-Math.PI/2; road.position.z=-160; scene.add(road);
-    const railM=new T.MeshBasicMaterial({color:lv.rail});
-    [-4.5,4.5].forEach(x=>{ const r=new T.Mesh(new T.BoxGeometry(0.16,0.5,400),railM); r.position.set(x,0.25,-160); scene.add(r); });
-
-    // Lane dashes
-    const dashM=new T.MeshBasicMaterial({color:lv.id===2?0x9370db:0xbcd4ff,transparent:true,opacity:.6});
-    const dashes=[]; const DASH_N=28, DASH_GAP=6;
-    for(let i=0;i<DASH_N;i++){ for(const lx of [-1.2,1.2]){ const d=new T.Mesh(new T.BoxGeometry(0.14,0.02,2.4),dashM); d.position.set(lx,0.02,-i*DASH_GAP); scene.add(d); dashes.push(d); } }
-
-    // Road rungs
-    const rungM=new T.MeshBasicMaterial({color:lv.id===1?0x1d0a00:lv.id===2?0x0e0020:0x1b3a66,transparent:true,opacity:.5});
-    const rungs=[]; const RUNG_N=44, RUNG_GAP=5;
-    for(let i=0;i<RUNG_N;i++){ const r=new T.Mesh(new T.BoxGeometry(9,0.02,0.1),rungM); r.position.set(0,0.011,-i*RUNG_GAP); scene.add(r); rungs.push(r); }
-
-    // AI racers 3D representations
-    const aiMeshes=[];
-    AI_RACERS.forEach((ai,i)=>{
-      const col=parseInt(ai.color.replace('#',''),16);
-      const m=new T.Mesh(new T.BoxGeometry(1.1,0.6,1.8),
-        new T.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:.5,metalness:.7,roughness:.3}));
-      m.position.set(LANES[i%3],0.45,-(30+i*18));
-      scene.add(m); aiMeshes.push(m);
-    });
-
-    G={ T,scene,cam,rndr,wrap,dashes,rungs,aiMeshes,
-        dead:false,phase:'play', lv,
-        lane:1, fico:MAX_FICO,
-        cash:0, debt:0, util:15, payHist:100,
-        items:[], spawnT:0,
-        dist:0, lapDist:0, lap:1, totalLaps:lv.laps,
-        speed:BASE_SPEED, shake:0, spinout:0,
-        shieldActive:false, shieldTimer:0,
-        band:FICO_BANDS[0],
-        aiDists:AI_RACERS.map(()=>0),
-        aiSpeeds:AI_RACERS.map(()=>BASE_SPEED*(0.9+Math.random()*0.15)),
-        last:performance.now(),
-        DASH_SPAN:DASH_N*DASH_GAP, RUNG_SPAN:RUNG_N*RUNG_GAP,
-        gateT:lv.gateInterval, gateIdx:0,
-        gateOpen:false, gateTimer:0, gateQ:null,
-        paymentsOnTime:0, missedPayments:0, bonusQuiz:0,
-        placement:1, raceDist:0,
-        quizBank:[...QUIZ].sort(()=>Math.random()-.5),
-    };
-
-    updateCarDOM(0); updateBand(); syncUI(); buildAIBar();
-
-    // Input
-    const lane=(d)=>{
-      if(!G||G.phase!=='play') return;
-      if(G.spinout>0||!G.band.steer) return;
-      const p=G.lane; G.lane=Math.max(0,Math.min(2,G.lane+d));
-      if(G.lane!==p) updateCarDOM(G.lane>p?1:-1);
-      // Gate lane answer
-      if(G.gateOpen && G.gateQ) checkGateLane();
-    };
-    G.kd=e=>{ if(e.key==='ArrowLeft') lane(-1); else if(e.key==='ArrowRight') lane(1); };
-    window.addEventListener('keydown',G.kd);
-    G.cv=rndr.domElement; G.tsx=null;
-    G.cvTS=e=>{ G.tsx=e.touches[0].clientX; };
-    G.cvTE=e=>{
-      if(G.tsx==null) return;
-      const dx=e.changedTouches[0].clientX-G.tsx;
-      if(Math.abs(dx)>24) lane(dx>0?1:-1);
-      else { const r=G.cv.getBoundingClientRect(); lane(e.changedTouches[0].clientX<r.left+r.width/2?-1:1); }
-      G.tsx=null;
-    };
-    G.cvMD=e=>{ const r=G.cv.getBoundingClientRect(); lane(e.clientX<r.left+r.width/2?-1:1); };
-    G.cv.addEventListener('touchstart',G.cvTS,{passive:true});
-    G.cv.addEventListener('touchend',G.cvTE,{passive:true});
-    G.cv.addEventListener('mousedown',G.cvMD);
-    G.onResize=()=>{ if(!G||G.dead) return; const w=wrap.clientWidth,h=wrap.clientHeight; G.cam.aspect=w/h; G.cam.updateProjectionMatrix(); G.rndr.setSize(w,h); };
-    window.addEventListener('resize',G.onResize);
-    G.last=performance.now(); cancelAnimationFrame(raf); raf=requestAnimationFrame(loop);
-  }
-
-  /* ── Spawn pickup ── */
-  function spawn(){
-    const T=G.T, lv=G.lv;
-    const ln=Math.floor(Math.random()*3);
-    let pool;
-    const r=Math.random();
-    const advChance=lv.id===2?0.15:0.05;
-    if(r<advChance && lv.id>=1) pool=PICKUPS_ADV;
-    else if(r<advChance+lv.badRate) pool=PICKUPS_BAD;
-    else pool=PICKUPS_GOOD;
-    const def=pool[Math.floor(Math.random()*pool.length)];
-    let mesh;
-    if(def.shape==='coin'||def.shape==='bigcoin'){
-      mesh=new T.Mesh(new T.CylinderGeometry(def.shape==='bigcoin'?.78:.6,def.shape==='bigcoin'?.78:.6,0.14,18),
-        new T.MeshStandardMaterial({color:def.c,metalness:.85,roughness:.2,emissive:def.c,emissiveIntensity:.4}));
-      mesh.rotation.x=Math.PI/2; mesh.position.y=0.9;
-    } else if(def.shape==='barrier'||def.shape==='skull'){
-      mesh=new T.Mesh(new T.BoxGeometry(1.8,0.9,0.4),
-        new T.MeshStandardMaterial({color:def.c,emissive:def.c,emissiveIntensity:.8,metalness:.3}));
-      mesh.position.y=0.45;
-    } else if(def.shape==='puddle'){
-      mesh=new T.Mesh(new T.CylinderGeometry(1.1,.85,0.1,14),
-        new T.MeshStandardMaterial({color:def.c,transparent:true,opacity:.82,emissive:0x78350f,emissiveIntensity:.7}));
-      mesh.position.y=0.06;
-    } else if(def.shape==='shield'){
-      mesh=new T.Mesh(new T.OctahedronGeometry(0.7,0),
-        new T.MeshStandardMaterial({color:def.c,emissive:def.c,emissiveIntensity:.6,transparent:true,opacity:.85}));
-      mesh.position.y=1.0;
-    } else if(def.shape==='bag'||def.shape==='scanner'||def.shape==='lock'||def.shape==='chart'||def.shape==='star'){
-      mesh=new T.Mesh(new T.TetrahedronGeometry(0.75,0),
-        new T.MeshStandardMaterial({color:def.c,emissive:def.c,emissiveIntensity:.7,metalness:.5}));
-      mesh.position.y=1.0;
-    } else {
-      mesh=new T.Mesh(new T.BoxGeometry(1.0,1.4,0.12),
-        new T.MeshStandardMaterial({color:def.c,emissive:def.c,emissiveIntensity:.5,metalness:.4,roughness:.3}));
-      mesh.position.y=0.9;
+    /* place cars on grid */
+    function place(root, s, d, yaw){
+      const k=Math.floor(((s%1)+1)%1*SEG)%SEG;
+      const u=((s%1)+1)%1;
+      const p=curve.getPointAt(u), t=curve.getTangentAt(u), n=new THREE.Vector3(-t.z,0,t.x);
+      root.position.set(p.x+n.x*d, 0, p.z+n.z*d);
+      root.rotation.y=Math.atan2(t.x,t.z)+(yaw||0);
+      return {p,t,n,k};
     }
-    mesh.position.x=LANES[ln]; mesh.position.z=SPAWNZ;
-    G.scene.add(mesh);
-    G.items.push({mesh,lane:ln,def,spin:(Math.random()*.6+.4)*(Math.random()<.5?-1:1),dead:0,hit:false});
+    G.cars.forEach((c,i)=>{ if(i===0) place(c, -.004, 1.8, 0); else place(c, G.ai[i-1].s, G.ai[i-1].d, 0); });
+
+    /* input */
+    const kd=e=>{ if(!G) return; G.keys[e.key.toLowerCase()]=true;
+      if([' ','arrowup','arrowleft','arrowright','a','d','w'].includes(e.key.toLowerCase())) e.preventDefault(); };
+    const ku=e=>{ if(G) G.keys[e.key.toLowerCase()]=false; };
+    window.addEventListener('keydown',kd); window.addEventListener('keyup',ku);
+    const cvEl=rndr.domElement;
+    let touchX=null;
+    const ts=e=>{ if(e.touches[0]){ touchX=e.touches[0].clientX; e.preventDefault(); } };
+    const tm=e=>{ if(touchX!=null&&e.touches[0]&&G){ G.dragX=(e.touches[0].clientX-touchX)/60; e.preventDefault(); } };
+    const te=()=>{ touchX=null; if(G) G.dragX=0; };
+    cvEl.addEventListener('touchstart',ts,{passive:false}); cvEl.addEventListener('touchmove',tm,{passive:false});
+    cvEl.addEventListener('touchend',te); cvEl.addEventListener('touchcancel',te);
+    const hold=(id,key)=>{ const b=document.getElementById(id); if(!b) return;
+      const on=e=>{ if(G) G.keys[key]=true; e.preventDefault(); }, off=()=>{ if(G) G.keys[key]=false; };
+      b.addEventListener('pointerdown',on); b.addEventListener('pointerup',off); b.addEventListener('pointerleave',off); };
+    hold('frLBtn','arrowleft'); hold('frRBtn','arrowright'); hold('frBoostBtn',' ');
+    const onResize=()=>{ if(!G) return; const w=wrap.clientWidth,h=Math.max(1,wrap.clientHeight);
+      cam.aspect=w/h; cam.updateProjectionMatrix(); rndr.setSize(w,h); };
+    window.addEventListener('resize',onResize);
+    G._cleanup=()=>{ window.removeEventListener('keydown',kd); window.removeEventListener('keyup',ku);
+      window.removeEventListener('resize',onResize);
+      cvEl.removeEventListener('touchstart',ts); cvEl.removeEventListener('touchmove',tm);
+      cvEl.removeEventListener('touchend',te); cvEl.removeEventListener('touchcancel',te); };
+
+    G.place=place;
+    G.spawnPuff=spawnPuff;
+    window._frDbg=function(){ if(!G) return null;
+      const out={s:G.s,d:G.d,v:G.v,cam:G.cam.position.toArray().map(n=>+n.toFixed(1))};
+      out.cars=G.cars.map(c=>{ const b=new THREE.Box3().setFromObject(c), sz=b.getSize(new THREE.Vector3());
+        return {pos:c.position.toArray().map(n=>+n.toFixed(1)), size:[+sz.x.toFixed(2),+sz.y.toFixed(2),+sz.z.toFixed(2)], dist:+c.position.distanceTo(G.cam.position).toFixed(1)}; });
+      return out; };
+    window._frSet=function(o){ if(!G||!o) return; if(typeof o.fico==='number') setFico(o.fico-G.fico); if(typeof o.s==='number') G.s=o.s; if(typeof o.lapDone==='number') G.prog=o.lapDone+G.s; };
+    cancelAnimationFrame(raf); G.last=performance.now(); raf=requestAnimationFrame(loop);
   }
 
-  /* ── Main loop ── */
-  function loop(now){
-    const wrap=document.getElementById('fr3dWrap');
-    if(!G||G.dead||!wrap){ cancelAnimationFrame(raf); return; }
-    const dt=Math.min(40,now-G.last)/1000; G.last=now;
-
-    if(G.phase==='play'){
-      // Shield timer
-      if(G.shieldActive){ G.shieldTimer-=dt; if(G.shieldTimer<=0) G.shieldActive=false; }
-      // Spinout
-      if(G.spinout>0){
-        G.spinout=Math.max(0,G.spinout-dt);
-        const ci=document.getElementById('frCar');
-        if(ci) ci.style.transform='translateX(calc(-50% + '+((G.lane-1)*23)+'vw)) rotate('+(Math.sin(now/55)*20)+'deg)';
-      }
-      // Update band from FICO
-      const newBand=getBand(G.fico);
-      if(newBand.name!==G.band.name){ G.band=newBand; updateBand(); }
-      if(G.fico<=0){ end(false); return; }   // elimination must fire even without a band change
-      const mv=G.speed*G.band.mult*dt;
-      G.dist+=mv*.85; G.lapDist+=mv*.85; G.raceDist+=mv*.85;
-      // AI movement
-      G.aiDists=G.aiDists.map((d,i)=>{
-        const ai=AI_RACERS[i]; let spd=G.aiSpeeds[i];
-        if(ai.strategy==='earlyfast') spd*=(1-Math.min(.3,G.dist/20000));
-        else if(ai.strategy==='steady') spd*=(1+Math.min(.12,G.dist/30000));
-        else if(ai.strategy==='random') spd*=(0.9+Math.sin(now/3000)*0.15);
-        return d+spd*.85*dt;
-      });
-      // Placement vs AI (1=leading)
-      const myDist=G.raceDist;
-      G.placement=1+G.aiDists.filter(d=>d>myDist).length;
-      updateAIBar();
-      // Lap check
-      if(G.lapDist>=LAP_DIST){
-        G.lapDist=0; G.lap++;
-        showLapFlash();
-        if(G.lap>G.totalLaps){ end(true); return; }
-      }
-      // Road scroll
-      G.dashes.forEach(d=>{ d.position.z+=mv; if(d.position.z>CARZ+6) d.position.z-=G.DASH_SPAN; });
-      G.rungs.forEach(r=>{ r.position.z+=mv; if(r.position.z>CARZ+6) r.position.z-=G.RUNG_SPAN; });
-      // AI car positions in 3D
-      G.aiMeshes.forEach((m,i)=>{
-        const dz=G.raceDist-G.aiDists[i];
-        m.position.z=Math.max(-200,Math.min(8,-(dz)*0.018+2));
-        m.position.y=0.45+Math.sin(now/800+i*1.3)*0.04;
-      });
-      // Spawn items
-      G.spawnT-=dt; if(G.spawnT<=0){ G.spawnT=Math.max(.4,.95-G.dist/12000); spawn(); }
-      // Items
-      for(const it of G.items){
-        it.mesh.position.z+=mv;
-        if(['coin','bigcoin','puddle'].includes(it.def.shape)) it.mesh.rotation.z+=dt*3;
-        else it.mesh.rotation.y+=it.spin*dt*2;
-        const inLane=it.lane===G.lane;
-        if(!it.hit && G.spinout===0 && Math.abs(it.mesh.position.z-CARZ)<1.6 && inLane){
-          it.hit=true; it.dead=1; collectItem(it.def);
-        } else if(it.mesh.position.z>KILLZ){ it.dead=1; }
-      }
-      G.items=G.items.filter(it=>{
-        if(it.dead){ G.scene.remove(it.mesh); it.mesh.geometry?.dispose(); (Array.isArray(it.mesh.material)?it.mesh.material:[it.mesh.material]).forEach(m=>m.dispose()); return false; }
-        return true;
-      });
-      // Camera shake
-      if(G.shake>0){ G.shake-=dt; G.cam.position.x=(Math.random()-.5)*G.shake*1.1; G.cam.position.y=3.6+(Math.random()-.5)*G.shake; }
-      else { G.cam.position.x*=0.82; G.cam.position.y=3.6; }
-      // Gate timer
-      G.gateT-=dt;
-      if(G.gateT<=0 && !G.gateOpen) openGate();
-      if(G.gateOpen){ G.gateTimer-=dt; updateGateTimer(); if(G.gateTimer<=0) closeGate(false,true); }
-      syncUI();
-    }
-    G.rndr.render(G.scene,G.cam);
-    raf=requestAnimationFrame(loop);
-  }
-
-  /* ── Update band visuals ── */
-  function updateBand(){
-    const b=G.band;
-    const ci=document.getElementById('frCar');
-    if(ci) ci.style.filter=b.filter;
-    const bl=document.getElementById('frBandLabel');
-    if(bl){ bl.textContent=b.label; bl.style.color=b.glow; }
-    flash(b.glow);
-  }
-
-  /* ── Collect pickup ── */
-  function collectItem(def){
-    if(def.type==='bad' && G.shieldActive){
-      G.shieldActive=false; G.shieldTimer=0;
-      flash('#10b981'); showFact('🛡️ Shield blocked the hit!',false); return;
-    }
-    G.fico=Math.max(0,Math.min(MAX_FICO, G.fico+(def.fico||0)));
-    G.cash=Math.max(0, G.cash+(def.cash||0));
-    G.debt=Math.max(0, G.debt+(def.debt||0));
-    G.util=Math.max(0,Math.min(100, G.util+(def.util||0)));
-    G.payHist=Math.max(0,Math.min(100, G.payHist+(def.phist||0)));
-    if(def.id==='payToken'||def.id==='blueCard') G.paymentsOnTime++;
-    if(def.id==='missedPay'||def.id==='redCard') G.missedPayments++;
-    if(def.shield){ G.shieldActive=true; G.shieldTimer=8; }
-    if(def.spinout && !G.shieldActive){ G.spinout=0.85; G.shake=0.65; flash('#f59e0b'); }
-    else if(def.type==='bad'){ G.shake=0.3; flash('#ef4444'); }
-    else { flash('#34d399'); }
-    showFact(def.fact, def.type==='bad');
-  }
-
-  /* ── Non-blocking Knowledge Gate ── */
-  function openGate(){
-    if(!G||G.phase!=='play'||G.gateOpen) return;
-    G.gateOpen=true; G.gateTimer=8;
-    const qi=G.gateIdx%G.quizBank.length; G.gateIdx++;
-    const src=G.quizBank[qi];
-    // shuffle the 3 lane options so the right answer isn't always Lane A
-    const order=[0,1,2].sort(()=>Math.random()-0.5);
-    const q={...src, opts:order.map(i=>src.opts[i]), ans:order.indexOf(src.ans||0)};
-    G.gateQ=q;
-    const opts=q.opts;
-    const hud=document.getElementById('frGateHUD'); if(!hud) return;
-    hud.style.display='block';
-    hud.innerHTML=`<div style="background:rgba(3,4,12,.88);border:1.5px solid #38bdf8;border-radius:16px;padding:14px 16px;backdrop-filter:blur(4px);box-shadow:0 0 30px rgba(56,189,248,.3)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.15em;color:#7dd3fc">🎯 KNOWLEDGE GATE</div>
-        <div id="frGateTmr" style="font-family:'Orbitron',sans-serif;font-size:.62rem;color:#fbbf24;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:6px;padding:2px 8px">8s</div>
-      </div>
-      <div style="font-size:.8rem;font-weight:600;color:#fff;margin-bottom:10px;line-height:1.4">${q.q}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-        ${opts.map((op,i)=>`<button onclick="frGateBtn(${i})" style="padding:8px 6px;border:1.5px solid rgba(56,189,248,${i===G.lane?.6:.25});border-radius:9px;background:rgba(10,16,40,${i===G.lane?.8:.5});color:#fff;font-size:.7rem;cursor:pointer;font-family:'Inter',sans-serif;transition:all .1s" onmouseover="this.style.borderColor='rgba(56,189,248,.7)'" onmouseout="this.style.borderColor='rgba(56,189,248,${i===G.lane?.6:.25})'"><span style="display:block;font-family:'Orbitron',sans-serif;font-size:.36rem;color:#38bdf8;margin-bottom:3px">LANE ${['A','B','C'][i]}</span>${op}</button>`).join('')}
-      </div>
-      <div style="margin-top:6px;font-size:.6rem;color:rgba(255,255,255,.35);text-align:center">Steer into the correct lane · Race continues!</div>
-    </div>`;
-  }
-
-  function updateGateTimer(){
-    const t=document.getElementById('frGateTmr');
-    if(t && G.gateTimer>0) t.textContent=Math.ceil(G.gateTimer)+'s';
-    // Highlight current lane button
-    const btns=document.querySelectorAll('#frGateHUD button');
-    btns.forEach((b,i)=>{
-      b.style.borderColor=i===G.lane?'rgba(56,189,248,.8)':'rgba(56,189,248,.2)';
-      b.style.background=i===G.lane?'rgba(56,189,248,.2)':'rgba(10,16,40,.5)';
-    });
-  }
-
-  function checkGateLane(){
-    if(!G||!G.gateQ||!G.gateOpen) return;
-    const q=G.gateQ;
-    const correct=G.lane===q.ans;
-    closeGate(true, false, correct, q);
-  }
-
-  window.frGateBtn=function(idx){
-    if(!G||!G.gateQ||!G.gateOpen) return;
-    const q=G.gateQ;
-    closeGate(true, false, idx===q.ans, q);
-  };
-
-  function closeGate(manual, timeout, correct, q){
-    if(!G||!G.gateOpen) return;
-    G.gateOpen=false; G.gateQ=null;
-    G.gateT=G.lv.gateInterval+(Math.random()*6-3);
-    const hud=document.getElementById('frGateHUD'); if(!hud) return;
-    if(timeout){
-      hud.innerHTML=`<div style="background:rgba(245,158,11,.1);border:1px solid #f59e0b;border-radius:12px;padding:10px 14px;text-align:center;font-size:.75rem;color:#fbbf24">⏰ Time's up! No boost earned.</div>`;
-    } else if(correct && q){
-      G.fico=Math.min(MAX_FICO, G.fico+(q.fico||30));
-      G.cash+=(q.cash||8);
-      G.bonusQuiz++;
-      hud.innerHTML=`<div style="background:rgba(52,211,153,.1);border:1px solid #34d399;border-radius:12px;padding:10px 14px;text-align:center;font-size:.75rem;color:#34d399">✅ Correct! +${q.fico||30} FICO · +$${q.cash||8} · Challenge Bonus!</div>`;
-      flash('#34d399');
-    } else if(!timeout && q){
-      G.fico=Math.max(0, G.fico-10);
-      hud.innerHTML=`<div style="background:rgba(239,68,68,.1);border:1px solid #ef4444;border-radius:12px;padding:10px 14px;text-align:center;font-size:.75rem;color:#ef4444">💪 Nice try! ${q.fact}</div>`;
-      flash('#ef4444');
-    }
-    setTimeout(()=>{ const h=document.getElementById('frGateHUD'); if(h){ h.style.display='none'; h.innerHTML=''; } }, correct||timeout?1500:2500);
-  }
-
-  /* ── AI race position bar ── */
-  function buildAIBar(){
-    const bar=document.getElementById('frAIbar'); if(!bar) return;
-    bar.innerHTML=AI_RACERS.map((ai,i)=>`
-      <div id="frAI${i}" style="display:flex;align-items:center;gap:5px;padding:4px 8px;border-radius:8px;background:rgba(10,16,40,.6);border:1px solid rgba(255,255,255,.1);font-size:.56rem">
-        <span>${ai.emoji}</span>
-        <span style="color:${ai.color};font-family:'Orbitron',sans-serif;font-size:.38rem">${ai.name.split(' ')[0]}</span>
-        <span id="frAIpos${i}" style="color:rgba(255,255,255,.5);font-size:.38rem">P2</span>
-      </div>`).join('');
-  }
-
-  function updateAIBar(){
+  /* ── helpers ── */
+  function msg(t,col){ const m=document.getElementById('frMsg'); if(!m||!G) return;
+    m.textContent=t; m.style.color=col||'#fbbf24'; m.style.opacity=1; G.msgT=1.4; }
+  function setFico(delta){
     if(!G) return;
-    const sorted=[{d:G.raceDist,ai:-1},...G.aiDists.map((d,i)=>({d,ai:i}))].sort((a,b)=>b.d-a.d);
-    AI_RACERS.forEach((_,i)=>{
-      const rank=sorted.findIndex(s=>s.ai===i)+1;
-      const el=document.getElementById('frAIpos'+i);
-      if(el) el.textContent='P'+rank;
-    });
-  }
-
-  /* ── UI sync ── */
-  function syncUI(){
-    const pct=Math.max(0,((G.fico-300)/550*100));
-    const fb=document.getElementById('frFicoBar'); if(fb) fb.style.width=pct+'%';
-    const ft=document.getElementById('frFicoTxt'); if(ft){ ft.textContent=Math.round(G.fico); ft.style.color=G.band.glow; }
-    setT('frCash','$'+Math.round(G.cash));
-    setT('frDebt','$'+Math.round(G.debt));
-    setT('frUtil',Math.round(G.util)+'%');
-    setT('frPhist',Math.round(G.payHist)+'%');
-    setT('frLapTxt','LAP '+Math.min(G.lap,G.totalLaps)+'/'+G.totalLaps);
-    const pt=document.getElementById('frPosTxt');
-    if(pt){ pt.textContent='P'+G.placement+'/5'; pt.style.color=G.placement===1?'#fbbf24':G.placement<=3?'#34d399':'#ef4444'; }
-    const ci=document.getElementById('frCar');
-    if(ci) ci.style.outline = G.shieldActive ? '2px solid #10b981' : 'none';
-  }
-
-  function updateCarDOM(dir){
-    if(G.spinout>0) return;
-    const c=document.getElementById('frCar'); if(!c||!G) return;
-    const off=(G.lane-1)*23;
-    c.style.transform='translateX(calc(-50% + '+off+'vw)) rotate('+(dir*10)+'deg)';
-    clearTimeout(G._carT); G._carT=setTimeout(()=>{ const c2=document.getElementById('frCar'); if(c2&&G&&G.spinout===0) c2.style.transform='translateX(calc(-50% + '+off+'vw)) rotate(0deg)'; },180);
-  }
-
-  /* ── Lap flash ── */
-  function showLapFlash(){
-    const el=document.getElementById('frLapFlash'); if(!el) return;
-    el.style.display='flex';
-    const lv=G.lv;
-    el.innerHTML=`<style>@keyframes frLA{0%{opacity:0;transform:scale(.5)}45%{opacity:1;transform:scale(1.15)}80%{opacity:1;transform:scale(1)}100%{opacity:0}}</style>
-      <div style="font-family:'Orbitron',sans-serif;font-size:2rem;color:${lv.color};text-shadow:0 0 30px ${lv.color}99;animation:frLA .9s ease forwards">${G.lap>G.totalLaps?'🏁 FINISH!':'LAP '+G.lap+' / '+G.totalLaps}</div>`;
-    setTimeout(()=>{ el.style.display='none'; el.innerHTML=''; },950);
-  }
-
-  /* ── End screen ── */
-  function end(win){
-    if(!G||G.phase==='over') return; G.phase='over';
-    if(window.state){
-      const _lvBases=[400,600,900]; const _lvPerf=[100,150,200]; const _lvColl=[50,100,150];
-      const _li=G.lv.id; const _isPerfect=win&&G.missedPayments===0;
-      const rw=(_lvBases[_li]||400)+((_isPerfect?_lvPerf[_li]:0)||0)+Math.min(G.bonusQuiz,5)*(_lvColl[_li]||50);
-      state.coins=(state.coins||0)+rw;
-      if(window.cvAddXP) cvAddXP(Math.round(rw/4),0);
-      if(window.cvSave) cvSave();
-      state.gamesDone=state.gamesDone||{};
-      state.gamesDone['credtech:0']=1;
+    G.fico=Math.max(0,Math.min(850,G.fico+delta));
+    const b=bandFor(G.fico);
+    if(b!==G.band){
+      G.band=b;
+      const bd=document.getElementById('frBand'); if(bd){ bd.textContent=b.label; bd.style.color=b.col; }
+      if(b.st>=4) msg('🔥 '+b.label+'!', '#ef4444');
+      else if(b.spd<1) msg('⚠ '+b.label+' — car slowed!', '#f87171');
+      if(b.spd===0 && !G.done) finishRace(false,'destroyed');
     }
-    const fi=Math.round(G.fico);
-    const ficoChange=fi-850; // started at 850
-    const band=getBand(fi);
-    const o=document.getElementById('frOver'); if(!o) return; o.style.display='flex';
-    const row=(lb,val,c='rgba(255,255,255,.85)')=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:.8rem"><span style="color:rgba(255,255,255,.5)">${lb}</span><span style="color:${c};font-weight:700">${val}</span></div>`;
-    const placeLabel=['','🥇 1st','🥈 2nd','🥉 3rd','4th','5th'][G.placement]||G.placement+'th';
-    const placeColor=G.placement===1?'#ffd700':G.placement===2?'#e5e7eb':G.placement===3?'#fb923c':'#94a3b8';
-    o.innerHTML=`<div style="max-width:460px;width:100%;text-align:center;padding:24px 20px;border:1.5px solid ${win?'#fbbf24':'#38bdf8'};border-radius:22px;background:linear-gradient(160deg,rgba(10,16,40,.97),rgba(3,4,12,.97));box-shadow:0 0 60px rgba(56,189,248,.25);overflow-y:auto;max-height:90vh">
-      <div style="font-size:2.4rem;margin-bottom:4px">${win?'🏁':'💥'}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:${win?'#fbbf24':'#94a3b8'};margin-bottom:6px">${win?'RACE COMPLETE!':'ELIMINATED'} — ${G.lv.name.toUpperCase()}</div>
-      <div style="font-family:'Anton',sans-serif;font-size:1.4rem;color:${band.glow};margin-bottom:4px">${band.label}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:1.1rem;color:${placeColor};margin-bottom:14px">${placeLabel} Place</div>
-      <div style="background:rgba(0,0,0,.3);border-radius:12px;padding:10px 14px;text-align:left;margin-bottom:14px">
-        ${row('FICO Score','850 → '+fi+(ficoChange>=0?' (+'+ficoChange+')':' ('+ficoChange+')'),fi>=700?'#34d399':fi>=500?'#fbbf24':'#ef4444')}
-        ${row('Cash Earned 💵','$'+Math.round(G.cash),'#34d399')}
-        ${row('Debt Accumulated 💸','$'+Math.round(G.debt),G.debt>0?'#ef4444':'#34d399')}
-        ${row('Credit Utilization 📊',Math.round(G.util)+'%',G.util<30?'#34d399':G.util<50?'#fbbf24':'#ef4444')}
-        ${row('Payment History ✅',Math.round(G.payHist)+'%',G.payHist>=80?'#34d399':G.payHist>=60?'#fbbf24':'#ef4444')}
-        ${row('Payments On Time',G.paymentsOnTime,G.paymentsOnTime>0?'#38bdf8':'rgba(255,255,255,.4)')}
-        ${row('Missed Payments',G.missedPayments,G.missedPayments===0?'#34d399':'#ef4444')}
-        ${row('Challenge Bonuses 🎯',G.bonusQuiz,G.bonusQuiz>0?'#fbbf24':'rgba(255,255,255,.4)')}
-        ${row('Laps Completed 🏁',Math.min(G.lap-(win?0:1),G.totalLaps)+'/'+G.totalLaps)}
+    const f=document.getElementById('frFico'); if(f){ f.textContent=Math.round(G.fico); f.style.color=b.col; }
+    const pin=document.getElementById('frFicoPin'); if(pin) pin.style.left=(G.fico/850*100)+'%';
+  }
+
+  /* ── gate handling ── */
+  function armGate(){
+    const g=G.gate;
+    const q0=G.quizBag[G.quizIdx%G.quizBag.length]; G.quizIdx++;
+    const order=[0,1,2].sort(()=>Math.random()-.5);
+    g.q={...q0, opts:order.map(i=>q0.opts[i]), ans:order.indexOf(q0.ans)};
+    g.s=((G.s+140/G.trackLen)%1+1)%1;
+    const u=g.s, p=G.curve.getPointAt(u), t=G.curve.getTangentAt(u);
+    g.node.position.set(p.x,0,p.z); g.node.rotation.y=Math.atan2(t.x,t.z);
+    g.node.visible=true;
+    g.lanes.forEach((ln,i)=>{
+      const tex=new THREE.CanvasTexture((()=>{ const c=document.createElement('canvas'); c.width=256; c.height=128;
+        const x=c.getContext('2d'); x.fillStyle='rgba(3,8,26,.92)';
+        x.beginPath(); if(x.roundRect) x.roundRect(0,0,256,128,22); else x.rect(0,0,256,128); x.fill();
+        x.strokeStyle='#38bdf8'; x.lineWidth=5; x.stroke();
+        x.fillStyle='#7dd3fc'; x.font='900 30px Arial'; x.textAlign='center'; x.fillText('LANE '+String.fromCharCode(65+i),128,40);
+        x.fillStyle='#fff'; x.font=(g.q.opts[i].length>14?'700 20px':'700 26px')+' Arial';
+        x.fillText(g.q.opts[i],128,86,236); return c; })());
+      ln.label.material.map=tex; ln.label.material.needsUpdate=true;
+      ln.panel.material.color.setHex(0x38bdf8); ln.panel.material.opacity=.42;
+    });
+    const qb=document.getElementById('frQBox'), qt=document.getElementById('frQTxt');
+    if(qb&&qt){ qt.textContent=g.q.q; qb.style.display='block'; }
+  }
+  function resolveGate(){
+    const g=G.gate;
+    const laneW=(G.W*2-1)/3;
+    const li=Math.max(0,Math.min(2,Math.floor((G.d+G.W-.5)/laneW)));
+    const ok=li===g.q.ans;
+    if(ok){ G.gatesRight++; setFico(g.q.fico); G.cash+=g.q.cash; G.boost=Math.min(1,G.boost+.5);
+      msg('✅ '+g.q.fact,'#34d399'); }
+    else { G.gatesWrong++; setFico(-18); msg('💫 NICE TRY! Lane '+String.fromCharCode(65+g.q.ans)+' — '+g.q.fact,'#f87171'); }
+    g.lanes.forEach((ln,i)=>{ ln.panel.material.color.setHex(i===g.q.ans?0x34d399:0xef4444); ln.panel.material.opacity=.6; });
+    const qb=document.getElementById('frQBox'); if(qb) qb.style.display='none';
+    g.answeredAt=performance.now();
+    setTimeout(()=>{ if(G&&G.gate){ G.gate.node.visible=false; G.gate.s=-1; } },900);
+    G.nextGateAt=G.prog*G.trackLen + G.L.gateEvery;
+  }
+
+  /* ══════════════ MAIN LOOP ══════════════ */
+  function loop(now){
+    if(!G || !document.getElementById('fr3dWrap') || !G.rndr.domElement.isConnected){ teardown(); return; }
+    raf=requestAnimationFrame(loop);
+    const dt=Math.min(.05,(now-G.last)/1000); G.last=now;
+    const L=G.L;
+
+    /* countdown */
+    if(G.phase==='count'){
+      G.countT-=dt;
+      const c=document.getElementById('frCount');
+      if(c){ const n=Math.ceil(G.countT-0.4);
+        c.textContent=G.countT>0.4?String(Math.max(1,n)):'GO!';
+        c.style.transform='scale('+(1+((G.countT%1)))+')';
+        if(G.countT<=0){ c.style.display='none'; G.phase='race'; } }
+      else if(G.countT<=0) G.phase='race';
+    }
+
+    const racing=G.phase==='race'&&!G.done;
+
+    /* ── player physics ── */
+    const baseSpd=27;
+    if(racing){
+      const b=G.band;
+      let steer=0;
+      if(b.steer && G.spin<=0){
+        if(G.keys['arrowleft']||G.keys['a']) steer-=1;
+        if(G.keys['arrowright']||G.keys['d']) steer+=1;
+        steer+=Math.max(-1,Math.min(1,G.dragX));
+      }
+      const wantBoost=(G.keys[' ']||G.keys['arrowup']||G.keys['w'])&&G.boost>0&&b.spd>=.5;
+      G.boosting=wantBoost?1:Math.max(0,G.boosting-dt*3);
+      if(wantBoost) G.boost=Math.max(0,G.boost-dt*.4);
+      G.offroad=Math.abs(G.d)>G.W-.9;
+      const target=baseSpd*b.spd*(wantBoost?1.5:1)*(G.offroad?.55:1)*(G.spin>0?.35:1);
+      G.v+=(target-G.v)*Math.min(1,dt*2.2);
+      G.d+=steer*dt*13*(G.v/baseSpd);
+      G.d=Math.max(-G.W-1.6,Math.min(G.W+1.6,G.d));
+      if(G.spin>0) G.spin-=dt;
+      G.s=((G.s+G.v*dt/G.trackLen)%1+1)%1;
+      const lastProg=G.prog;
+      G.prog=Math.floor(G.prog)+G.s;
+      if(G.s<.5 && (lastProg%1)>.5) G.prog=Math.floor(lastProg)+1+G.s;   // wrapped start line
+      if(Math.floor(G.prog)+1>G.lap){
+        G.lap=Math.floor(G.prog)+1;
+        if(G.lap>L.laps){ finishRace(true); }
+        else { msg('LAP '+G.lap+' / '+L.laps,'#7dd3fc');
+          const le=document.getElementById('frLap'); if(le) le.textContent='LAP '+G.lap+'/'+L.laps; }
+      }
+    } else if(G.phase==='count'){ G.v=0; }
+
+    /* visual: player car */
+    const yaw=(G.spin>0? now/40 : G.steerVis);
+    G.steerVis+=(((G.keys['arrowleft']||G.keys['a'])?-.28:((G.keys['arrowright']||G.keys['d'])?.28:Math.max(-1,Math.min(1,G.dragX))*.28))-G.steerVis)*Math.min(1,dt*8);
+    const pl=G.place(G.cars[0], G.s, G.d, G.spin>0? now/40 : G.steerVis);
+    G.wheels[0].forEach(w=>{ w.rotation.x+=G.v*dt*.9; });
+
+    /* damage FX by band */
+    if(G.band.st>=3 && Math.random()<(G.band.st>=4?.5:.22)) G.spawnPuff(G.cars[0].position, G.band.st>=4&&Math.random()<.5);
+    for(let i=G.puffs.length-1;i>=0;i--){ const p=G.puffs[i]; p.life-=dt; p.sp.position.y+=p.vy*dt;
+      p.sp.material.opacity=Math.max(0,p.life/p.max)*.6; p.sp.scale.multiplyScalar(1+dt*.7);
+      if(p.life<=0){ G.scene.remove(p.sp); p.sp.material.dispose(); G.puffs.splice(i,1); } }
+
+    /* ── AI ── */
+    G.ai.forEach((a,idx)=>{
+      if(!racing){ G.place(G.cars[idx+1], a.s, a.d, 0); return; }
+      const per=a.def.ai||{early:1,late:1};
+      const t01=Math.min(1,(now-G.startAt)/90000);
+      const pers=per.early+(per.late-per.early)*t01;
+      const rubber=1+Math.max(-0.08,Math.min(0.08,(G.prog-(a.prog||0))*.35));
+      const target=baseSpd*a.skill*pers*rubber*(a.spin>0?.35:1);
+      a.v=a.v===0?target:a.v+(target-a.v)*Math.min(1,dt*2);
+      if(a.spin>0) a.spin-=dt;
+      a.s=((a.s+a.v*dt/G.trackLen)%1+1)%1;
+      const lp=a.prog||0; a.prog=Math.floor(lp)+a.s;
+      if(a.s<.5&&(lp%1)>.5) a.prog=Math.floor(lp)+1+a.s;
+      // gentle racing line wobble + avoid player
+      const want=Math.sin(a.s*TAU*3+idx*2)* (G.W-3);
+      a.d+=(want-a.d)*Math.min(1,dt*.9);
+      const ds=(a.prog-G.prog)*G.trackLen;
+      if(Math.abs(ds)<4.6 && Math.abs(a.d-G.d)<2.0){
+        const push=(a.d>G.d?1:-1)*dt*6; a.d+=push; G.d-=push*.5;
+        if(Math.abs(ds)<2.4 && racing){ G.v*=.985; }
+      }
+      G.place(G.cars[idx+1], a.s, a.d, 0);
+      G.wheels[idx+1].forEach(w=>{ w.rotation.x+=a.v*dt*.9; });
+    });
+
+    /* position */
+    if(racing){
+      const rank=1+G.ai.filter(a=>(a.prog||0)>G.prog).length;
+      const pe=document.getElementById('frPos');
+      if(pe){ pe.textContent='P'+rank+'/4'; pe.style.color=rank===1?'#fbbf24':rank<=3?'#34d399':'#f87171'; }
+      G.rank=rank;
+    }
+
+    /* ── pickups ── */
+    if(racing) G.pickups.forEach(pk=>{
+      if(!pk.active){ if(now>=pk.respawnAt){ pk.active=true; pk.node.visible=true; } return; }
+      const u=pk.s, p=G.curve.getPointAt(u), t=G.curve.getTangentAt(u), n=new THREE.Vector3(-t.z,0,t.x);
+      pk.node.position.set(p.x+n.x*pk.d, 1.15+Math.sin(now/300+pk.d)*0.18, p.z+n.z*pk.d);
+      const ds=Math.abs(((pk.s-G.s+1.5)%1)-.5)*G.trackLen;
+      if(ds<2.6 && Math.abs(pk.d-G.d)<1.7){
+        pk.active=false; pk.node.visible=false; pk.respawnAt=now+20000;   // FicoScorePickup.respawnTime=20
+        const d=pk.def;
+        if(d.fico) setFico(d.fico);
+        if(d.cash){ G.cash+=d.cash; const ce=document.getElementById('frCash'); if(ce) ce.textContent='💰 $'+G.cash; }
+        if(d.boost) G.boost=Math.min(1,G.boost+d.boost);
+        if(d.k==='check') G.paysOnTime++;
+        if(d.k==='x') G.missed++;
+        if(!d.good){ G.spin=.8; }
+        msg((d.good?'':'💥 ')+d.msg, d.good?'#34d399':'#f87171');
+      }
+    });
+
+    /* ── knowledge gates ── */
+    if(racing){
+      const dist=G.prog*G.trackLen;
+      if(G.gate.s<0 && dist>=G.nextGateAt) armGate();
+      if(G.gate.s>=0 && G.gate.q){
+        const ds=((G.gate.s-G.s+1.5)%1)-.5;
+        if(ds<0 && ds>-.02) resolveGate();
+      }
+    }
+
+    /* ── HUD misc ── */
+    const bb=document.getElementById('frBoostBar'); if(bb) bb.style.height=(G.boost*100)+'%';
+    const sp=document.getElementById('frSpd'); if(sp) sp.textContent=Math.round(G.v*4.2)+' MPH';
+    if(G.msgT>0){ G.msgT-=dt; if(G.msgT<=0){ const m=document.getElementById('frMsg'); if(m) m.style.opacity=0; } }
+
+    /* ── chase camera (exp-decay follow: no trailing gap at speed) ── */
+    const camBack=8.8, camUp=4.6;
+    const t0=G.curve.getTangentAt(G.s);
+    const behind=new THREE.Vector3(G.cars[0].position.x - t0.x*camBack, camUp + (G.boosting?.35:0), G.cars[0].position.z - t0.z*camBack);
+    const ka=1-Math.exp(-9*dt);
+    G.camPos.lerp(behind, ka); G.cam.position.copy(G.camPos);
+    const look=new THREE.Vector3(G.cars[0].position.x + t0.x*3.5, 1.6, G.cars[0].position.z + t0.z*3.5);
+    G.camLook.lerp(look, 1-Math.exp(-12*dt)); G.cam.lookAt(G.camLook);
+    G.cam.fov=66+(G.boosting?9:0)+(G.v>20?3:0); G.cam.updateProjectionMatrix();
+    // AI name tags: only near the camera (avoid clutter across the infield)
+    for(let i=1;i<4;i++){ const tg=G.cars[i].userData.tag; if(tg) tg.visible=G.cars[i].position.distanceTo(G.cam.position)<55; }
+
+    G.rndr.render(G.scene, G.cam);
+  }
+
+  /* ══════════════ FINISH ══════════════ */
+  function finishRace(finished, why){
+    if(!G||G.done) return; G.done=true;
+    const L=G.L, rank=finished?(G.rank||4):4;
+    const win=finished && rank<=3;
+    const stars=!finished?0:(rank===1?3:rank===2?2:rank===3?1:0);   // podium only — P4 gets consolation, not flagship pay
+    let coins=0;
+    if(window.state){
+      state.gamesDone=state.gamesDone||{}; state.gamesDone['credtech:0']=1;
+      if(stars>=1 && window.cvAwardGame){
+        coins=cvAwardGame('game_ficoracer',{level:G.li+1,stars,badge:'Credit Champion',is3star:stars===3,isPerfect:stars===3&&G.fico>=800,isFlagship:true});
+        if(window.cvHubMeter) try{ cvHubMeter('credtech_trust', stars*4); }catch(e){}
+      } else {
+        coins=50; state.coins=(state.coins||0)+coins;
+        if(window.cvAddXP) cvAddXP(10,0); if(window.cvSave) cvSave();
+      }
+      // unlock next level on podium
+      if(win && window.cvAwardGame && G.li+1<LEVELS.length){
+        state.gameLevels=state.gameLevels||{};
+        if((state.gameLevels['game_ficoracer']||0)<G.li+1) state.gameLevels['game_ficoracer']=G.li+1;
+        if(window.cvSave) cvSave();
+      }
+    }
+    const ficoDelta=Math.round(G.fico-850);
+    const lesson= why==='destroyed' ? 'Your credit hit rock bottom and the car gave out. Dodge the red cards, grab on-time payments, and your ride stays fast!'
+      : G.gatesWrong>G.gatesRight ? 'Knowledge Gates are free FICO — read the question early and get in lane!'
+      : G.missed>0 ? 'Missed payments hurt the most. Payment history is 35% of your score!'
+      : 'Strong credit habits = a faster car. Keep utilization low and pay on time!';
+    const o=document.getElementById('frOver'); if(!o) return;
+    o.style.display='flex';
+    o.innerHTML=`<div style="max-width:520px;width:92%;text-align:center;padding:30px 26px;border:1.5px solid ${win?'#fbbf24':'#38bdf8'};border-radius:24px;background:linear-gradient(165deg,rgba(10,18,44,.98),rgba(3,6,20,.99));box-shadow:0 0 80px rgba(56,189,248,.35)">
+      <div style="font-size:3rem">${why==='destroyed'?'💥':win?['🏆','🥈','🥉'][rank-1]:'🏁'}</div>
+      <div style="font-family:'Anton',sans-serif;font-size:1.7rem;margin:6px 0;color:${win?'#fbbf24':'#7dd3fc'}">${why==='destroyed'?'CAR DESTROYED':win?'MISSION ACCOMPLISHED!':'RACE COMPLETE'}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.18em;color:rgba(255,255,255,.5);margin-bottom:14px">${L.name} · ${finished?('FINISHED P'+rank+'/4'):'DID NOT FINISH'}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+        ${[['FICO SCORE',Math.round(G.fico)+' <span style="font-size:.7rem;color:'+(ficoDelta>=0?'#34d399':'#f87171')+'">('+(ficoDelta>=0?'+':'')+ficoDelta+')</span>'],
+           ['CASH EARNED','$'+G.cash],['COINS','+'+coins+' 🪙'],
+           ['GATES','✅ '+G.gatesRight+' · ❌ '+G.gatesWrong],['ON-TIME PAYS',G.paysOnTime],['RATING','★'.repeat(stars)+'☆'.repeat(3-stars)]]
+          .map(r=>`<div style="background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.18);border-radius:12px;padding:9px 6px"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.45);margin-bottom:4px">${r[0]}</div><div style="font-family:'Anton',sans-serif;font-size:1.05rem;color:#fff">${r[1]}</div></div>`).join('')}
       </div>
-      <div style="padding:10px 14px;border:1px solid rgba(56,189,248,.2);border-radius:10px;background:rgba(56,189,248,.06);font-size:.72rem;color:#7dd3fc;margin-bottom:14px;text-align:left">
-        ${getLessonTip(fi,G.util,G.payHist,G.debt)}
-      </div>
-      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-        <button onclick="frRestart()" style="padding:11px 20px;border:none;border-radius:13px;background:linear-gradient(135deg,#38bdf8,#0284c7);color:#fff;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.1em;font-weight:900;cursor:pointer">▶ RACE AGAIN</button>
-        <button onclick="frChangeLv()" style="padding:11px 18px;border:1px solid rgba(251,191,36,.5);border-radius:13px;background:rgba(251,191,36,.08);color:#fbbf24;font-family:'Orbitron',sans-serif;font-size:.6rem;cursor:pointer">🏆 CHANGE LEVEL</button>
-        <button onclick="frExit()" style="padding:11px 18px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.6rem;cursor:pointer">← HUB</button>
-      </div>
+      <p style="font-size:.8rem;line-height:1.55;color:rgba(255,255,255,.8);margin:0 0 16px;padding:11px 13px;background:rgba(52,211,153,.07);border-left:3px solid #34d399;border-radius:9px;text-align:left">💡 ${lesson}</p>
+      <button onclick="frRestart()" style="padding:13px 24px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,#38bdf8,#0284c7);color:#02121f;font-family:'Orbitron',sans-serif;font-size:.7rem;letter-spacing:.1em;font-weight:900;cursor:pointer">▶ RACE AGAIN</button>
+      ${win&&G.li+1<LEVELS.length?`<button onclick="frStartNext()" style="padding:13px 24px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,#fbbf24,#d97706);color:#1a0d00;font-family:'Orbitron',sans-serif;font-size:.7rem;letter-spacing:.1em;font-weight:900;cursor:pointer">🔓 ${LEVELS[G.li+1].name} →</button>`:''}
+      <button onclick="frMenu()" style="padding:13px 24px;margin:4px;border:1px solid rgba(255,255,255,.25);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.7rem;letter-spacing:.1em;cursor:pointer">TRACKS</button>
+      <button onclick="frExit()" style="padding:13px 24px;margin:4px;border:1px solid rgba(255,255,255,.25);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.7rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
     </div>`;
   }
 
-  function getLessonTip(fico,util,phist,debt){
-    if(fico>=800) return '🌟 <strong>Legendary Credit!</strong> Keep making on-time payments and staying under 30% utilization.';
-    if(debt>100) return '💡 <strong>Next Goal:</strong> Reduce debt first — debt adds weight and slows your car (and financial future).';
-    if(util>50) return '💡 <strong>Next Goal:</strong> Lower credit utilization below 30%. High utilization is your second-biggest score killer.';
-    if(phist<70) return '💡 <strong>Next Goal:</strong> Set up autopay for all bills. Payment history is 35% of FICO — it\'s the biggest factor!';
-    if(fico<500) return '💡 <strong>Keep going!</strong> Recovery takes time. On-time payments and lower balances will rebuild your score.';
-    return '💡 <strong>Pro Tip:</strong> Mix on-time payments + low utilization + no new debt = FICO rising every month!';
-  }
-
-  /* ── Teardown ── */
+  /* ══════════════ teardown / controls ══════════════ */
   function teardown(){
-    if(!G) return; G.dead=true; cancelAnimationFrame(raf);
-    if(G.kd) window.removeEventListener('keydown',G.kd);
-    if(G.onResize) window.removeEventListener('resize',G.onResize);
-    if(G.cv){ if(G.cvTS) G.cv.removeEventListener('touchstart',G.cvTS); if(G.cvTE) G.cv.removeEventListener('touchend',G.cvTE); if(G.cvMD) G.cv.removeEventListener('mousedown',G.cvMD); }
+    cancelAnimationFrame(raf); raf=null;
+    if(!G) return;
+    if(G._cleanup) G._cleanup();
     try{
-      G.scene.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose()); } });
+      if(G.scene.background&&G.scene.background.dispose) G.scene.background.dispose();
+      G.scene.traverse(o=>{ if(o.geometry) o.geometry.dispose();
+        if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m.map&&m.map.userData&&m.map.userData.perRace) m.map.dispose(); m.dispose(); }); } });
       G.rndr.dispose();
-      if(G.rndr.forceContextLoss) G.rndr.forceContextLoss();   // actually release the WebGL context
-      if(G.rndr.domElement?.parentNode) G.rndr.domElement.parentNode.removeChild(G.rndr.domElement);
+      if(G.rndr.forceContextLoss) G.rndr.forceContextLoss();
+      if(G.rndr.domElement&&G.rndr.domElement.parentNode) G.rndr.domElement.parentNode.removeChild(G.rndr.domElement);
     }catch(e){}
     G=null;
   }
-
-  window.frRestart=function(){
-    const lv=G?G.lv:(window._frLevel||LEVELS[0]);
-    teardown();
-    const ui=document.getElementById('frUI'); if(!ui){ showLevelSelect(); return; }
-    ui.innerHTML=''; window._frLevel=lv;
-    frSelectLevel(lv.id);
-  };
-  window.frChangeLv=function(){
-    teardown();
-    showLevelSelect();
-  };
-  window.frExit=function(){
-    teardown();
-    if(window.state) state.viewingWorld=state._returnHub||'credtech';
-    goTo('credtech_hub');
-  };
-
-  /* ── Utilities ── */
-  function setT(id,v){ const e=document.getElementById(id); if(e) e.textContent=v; }
-  function flash(c){ const w=document.getElementById('fr3dWrap')||document.getElementById('frRoot'); if(!w) return; const f=document.createElement('div'); f.style.cssText='position:absolute;inset:0;pointer-events:none;background:'+c+';opacity:.18;transition:opacity .35s;z-index:2'; w.appendChild(f); requestAnimationFrame(()=>f.style.opacity='0'); setTimeout(()=>f.remove(),380); }
-  function showFact(txt,bad){
-    const el=document.getElementById('frFact'); if(!el||!txt) return;
-    el.style.display='block';
-    el.innerHTML=`<div style="background:rgba(3,4,12,.88);border:1px solid ${bad?'rgba(239,68,68,.6)':'rgba(52,211,153,.6)'};border-radius:12px;padding:8px 14px;font-size:.76rem;color:#fff;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.5)">${txt}</div>`;
-    clearTimeout(window._frFT); window._frFT=setTimeout(()=>{ const e=document.getElementById('frFact'); if(e) e.style.display='none'; },2200);
-  }
+  window.frRestart=function(){ const li=G?G.li:0; teardown(); const ui=document.getElementById('frUI'); if(ui) ui.innerHTML=''; frStart(li); };
+  window.frStartNext=function(){ const li=G?Math.min(G.li+1,LEVELS.length-1):0; teardown(); frStart(li); };
+  window.frMenu=function(){ teardown(); showLevelSelect(); };
+  window.frExit=function(){ teardown();
+    if(window.state){ state.viewingWorld=state._returnHub||'credtech'; }
+    goTo('hub'); };
 })();

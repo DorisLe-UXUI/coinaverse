@@ -4364,7 +4364,7 @@ video::-webkit-media-controls-play-button {
   let _splashTimer = null;
   SCREENS.splash = function() {
     if(_splashTimer) clearTimeout(_splashTimer);
-    _splashTimer = setTimeout(() => { _splashTimer=null; goTo('signin'); }, 10000);
+    _splashTimer = setTimeout(() => { _splashTimer=null; if(!state.currentScreen||state.currentScreen==='splash') goTo('signin'); }, 10000);
     return `
       <div class="v14-splash has-vid">
         ${vbg('splash','assets/bg/cosmic_main.jpeg')}
