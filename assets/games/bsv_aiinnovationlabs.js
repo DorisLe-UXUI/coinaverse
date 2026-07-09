@@ -29,7 +29,7 @@
     },
     incorrect: {
       id: 'incorrect',
-      label: 'INCORRECT DATA',
+      label: 'FALSE DATA',
       icon: '✗',
       color: '#ff1744',
       glow: '#ff1744',
@@ -82,6 +82,11 @@
     { type: 'spam',      title: 'WIN $1,000,000 NOW!!!',      desc: 'Promotional junk' },
     { type: 'spam',      title: 'Click here for free iPhone', desc: 'Clickbait content' },
     { type: 'spam',      title: 'asdf jkl; qwerty lol',      desc: 'Random keystrokes' },
+    { type: 'correct',   title: 'Water boils at 100°C',       desc: 'At sea-level pressure' },
+    { type: 'incorrect', title: 'The sun orbits Earth',       desc: 'It is the other way around' },
+    { type: 'biased',    title: 'Boys never cry',             desc: 'Emotion stereotype' },
+    { type: 'spam',      title: 'FREE ROBUX — click fast!!!', desc: 'Scam link bait' },
+    { type: 'spam',      title: 'You won a prize you never entered', desc: 'Classic scam notice' },
   ];
 
   /* Level 2 card data — subtle, requires scrutiny */
@@ -101,6 +106,35 @@
     { type: 'spam',      title: 'Top 10 AI secrets!!!',       desc: 'SEO bait, no substance' },
     { type: 'spam',      title: 'LOL haha random text xD',    desc: 'No informational value' },
     { type: 'spam',      title: 'Buy followers — real cheap', desc: 'Spam solicitation' },
+    { type: 'correct',   title: 'Honey never spoils',         desc: 'Verified food science' },
+    { type: 'incorrect', title: 'Great Wall visible from Moon', desc: 'Popular myth, false' },
+    { type: 'biased',    title: 'Left-handed people are clumsy', desc: 'Handedness stereotype ⚠' },
+    { type: 'spam',      title: 'Doctors HATE this trick!!!', desc: 'Clickbait ad copy' },
+    { type: 'spam',      title: 'FWD: FWD: chain letter',     desc: 'Forward-to-10-friends junk' },
+  ];
+
+  /* Level 3 card data — money myths & scam radar, sharpest scrutiny */
+  const CARDS_L3 = [
+    { type: 'correct',   title: 'Bitcoin supply cap: 21M',    desc: 'Fixed by protocol code' },
+    { type: 'correct',   title: 'S&P 500 long-run avg ≈10%/yr', desc: 'Historical market average' },
+    { type: 'correct',   title: 'Compound interest snowballs', desc: 'Interest earns interest' },
+    { type: 'correct',   title: 'Diversification lowers risk', desc: 'Eggs in many baskets' },
+    { type: 'correct',   title: 'US inflation 2023: 4.1%',    desc: 'Official CPI average' },
+    { type: 'incorrect', title: 'Stocks go up every year',    desc: 'Markets also fall some years' },
+    { type: 'incorrect', title: 'Bitcoin supply: unlimited',  desc: 'Cap is fixed at 21 million' },
+    { type: 'incorrect', title: 'Savings double overnight',   desc: 'No real account works this way' },
+    { type: 'incorrect', title: 'Banks keep your exact bills in a box', desc: 'Deposits are pooled & lent' },
+    { type: 'incorrect', title: 'A $2 bill is fake money',    desc: 'It is real US currency' },
+    { type: 'biased',    title: 'Kids can’t learn investing', desc: 'Age stereotype ⚠' },
+    { type: 'biased',    title: 'Girls are bad with money',   desc: 'Gender stereotype ⚠' },
+    { type: 'biased',    title: 'Rich people are always smart', desc: 'Wealth bias ⚠' },
+    { type: 'biased',    title: 'Artists never manage money well', desc: 'Job stereotype ⚠' },
+    { type: 'biased',    title: 'Only city kids understand tech', desc: 'Where-you-live bias ⚠' },
+    { type: 'spam',      title: 'Get rich quick — 1000% daily!!!', desc: 'Scam promotion' },
+    { type: 'spam',      title: 'Send 1 coin, get 10 back',   desc: 'Classic crypto scam' },
+    { type: 'spam',      title: 'Hot tip!!! Secret stock!!!', desc: 'Unverified hype' },
+    { type: 'spam',      title: 'FREE MONEY glitch found',    desc: 'Too good to be true' },
+    { type: 'spam',      title: 'zzz 123 buy buy buy',        desc: 'Junk text' },
   ];
 
   const LEVEL_CFG = [
@@ -129,6 +163,19 @@
       maxOnScreen: 6,
       speedMultiplier: 1,
       cards: CARDS_L2,
+    },
+    {
+      level: 3,
+      name: 'LEGEND MODE',
+      dur: 90,
+      scoreGoal3: 2200,
+      scoreGoal2: 1300,
+      iqWinThreshold: 85,
+      iqLoseThreshold: 8,
+      spawnInterval: 1400,
+      maxOnScreen: 8,
+      speedMultiplier: 1,
+      cards: CARDS_L3,
     },
   ];
 
@@ -216,6 +263,10 @@
           <button class="ailLvBtn" data-lv="1" style="width:100%;padding:14px 18px;border:1px solid ${GOLD};border-radius:10px;background:rgba(255,215,0,.06);color:${GOLD};font-size:.6rem;letter-spacing:.12em;cursor:pointer;font-weight:700;text-align:left">
             🔥 LEVEL 2 &mdash; MASTER MODE
             <div style="font-size:.44rem;color:rgba(255,255,255,.4);font-weight:400;margin-top:3px;letter-spacing:.06em">Subtle bias markers &bull; Fast flow &bull; 90 seconds</div>
+          </button>
+          <button class="ailLvBtn" data-lv="2" style="width:100%;padding:14px 18px;border:1px solid #ff4d9d;border-radius:10px;background:rgba(255,77,157,.07);color:#ff4d9d;font-size:.6rem;letter-spacing:.12em;cursor:pointer;font-weight:700;text-align:left">
+            👑 LEVEL 3 &mdash; LEGEND MODE
+            <div style="font-size:.44rem;color:rgba(255,255,255,.4);font-weight:400;margin-top:3px;letter-spacing:.06em">Money myths &amp; scam radar &bull; Sharpest scrutiny &bull; 90 seconds</div>
           </button>
         </div>
         <div style="font-size:.35rem;letter-spacing:.1em;color:rgba(255,255,255,.25);text-align:center;line-height:1.9">

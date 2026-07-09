@@ -1,13 +1,22 @@
 /* ════════════════════════════════════════════════════════════════
    G1 CREDIT CORE — CredTech Galaxy mini-game
    Sort + Catch mechanic. "What credit is & how it works."
-   20 items · 90-second session · Combo multiplier up to 8x
+   3 LEVELS · disjoint item pools per level · Combo multiplier up to 8x
    ════════════════════════════════════════════════════════════════ */
 (function(){
   let G = null, raf = null, _onKey = null, _onResize = null;
+  let curLevel = 1;
 
-  /* ── Item definitions ──────────────────────────────────────── */
-  const GOOD_ITEMS = [
+  /* ── Level configs: more items, less time per item, higher bars ─ */
+  const LEVELS = [
+    { n:1, name:'CADET',     time:90, itemDur:3.0, star3:1800, star2:1200 },
+    { n:2, name:'PILOT',     time:80, itemDur:2.3, star3:2200, star2:1500 },
+    { n:3, name:'COMMANDER', time:70, itemDur:1.8, star3:2600, star2:1800 },
+  ];
+
+  /* ── Item definitions — DISJOINT pool per level ─────────────── */
+  // LEVEL 1 · the basics (8 good + 8 bad)
+  const GOOD_L1 = [
     { e:'💳', label:'Credit Card',       sub:'Responsible use' },
     { e:'🏠', label:'Mortgage',           sub:'Builds equity' },
     { e:'🎓', label:'Student Loan',       sub:'Invests in future' },
@@ -17,7 +26,7 @@
     { e:'🛟', label:'Emergency Fund',     sub:'Financial safety net' },
     { e:'⏰', label:'On-Time Payment',   sub:'35% of FICO score' },
   ];
-  const BAD_ITEMS = [
+  const BAD_L1 = [
     { e:'⚠️', label:'Collections',       sub:'Serious damage' },
     { e:'🕐', label:'Late Payment',       sub:'Drops score fast' },
     { e:'💸', label:'Bankruptcy',         sub:'Stays 7-10 years' },
@@ -27,32 +36,87 @@
     { e:'📈', label:'High APR Debt',      sub:'Costs you more' },
     { e:'🦹', label:'Identity Theft',     sub:'Credit destroyer' },
   ];
+  // LEVEL 2 · smart habits vs sneaky traps (9 good + 9 bad)
+  const GOOD_L2 = [
+    { e:'💰', label:'Paying Full Balance',    sub:'Zero interest charged' },
+    { e:'📅', label:'Autopay Set Up',         sub:'Never miss a due date' },
+    { e:'🧾', label:'Reading Statements',     sub:'Catches errors early' },
+    { e:'🏦', label:'Keeping Old Account',    sub:'Long history helps' },
+    { e:'🎯', label:'Budget Before Buying',   sub:'Spend with a plan' },
+    { e:'🔍', label:'Free Credit Report',     sub:'Check it every year' },
+    { e:'🧮', label:'Paying Over Minimum',    sub:'Shrinks debt faster' },
+    { e:'🔒', label:'Strong Passwords',       sub:'Protects your identity' },
+    { e:'💳', label:'One Starter Card',       sub:'Easy to manage' },
+  ];
+  const BAD_L2 = [
+    { e:'🛒', label:'Impulse Spree',          sub:'Debt for forgotten stuff' },
+    { e:'📬', label:'Ignoring Bills',         sub:'Problems grow bigger' },
+    { e:'🃏', label:'5 New Cards At Once',    sub:'Too many hard checks' },
+    { e:'🎰', label:'Borrowing To Gamble',    sub:'Risky and costly' },
+    { e:'🫥', label:'Co-signing Blindly',     sub:'Their miss hurts you' },
+    { e:'🐌', label:'Minimum Pay Forever',    sub:'Interest piles up' },
+    { e:'🙈', label:'Never Checking Report',  sub:'Errors go unfixed' },
+    { e:'🏧', label:'Cash Advance Habit',     sub:'Fees start day one' },
+    { e:'🕳️', label:'Hiding Debt',           sub:'Small problems grow' },
+  ];
+  // LEVEL 3 · expert moves vs credit wreckers (10 good + 10 bad)
+  const GOOD_L3 = [
+    { e:'🧊', label:'Credit Freeze',          sub:'Blocks thieves fast' },
+    { e:'🧩', label:'Healthy Credit Mix',     sub:'Different loan types' },
+    { e:'🛡️', label:'Fraud Alerts On',       sub:'Extra protection' },
+    { e:'⛄', label:'Debt Snowball Plan',     sub:'Smallest debt first' },
+    { e:'🤝', label:'Trusted Authorized User',sub:'Learning wheels on' },
+    { e:'💼', label:'Secured Card Start',     sub:'Deposit builds trust' },
+    { e:'🗓️', label:'Paying Days Early',     sub:'Extra safe timing' },
+    { e:'📝', label:'Disputing Errors',       sub:'Fix report mistakes' },
+    { e:'🔎', label:'Reading Fine Print',     sub:'Know fees first' },
+    { e:'⚖️', label:'Borrowing Within Limits',sub:'Only what you can repay' },
+  ];
+  const BAD_L3 = [
+    { e:'🎣', label:'Clicking Phishing Links',sub:'Scammers steal data' },
+    { e:'🏎️', label:'Loan Beyond Budget',    sub:'Payments you cannot make' },
+    { e:'🧨', label:'Skipping Loan Payments', sub:'Default wrecks credit' },
+    { e:'🌀', label:'New Debt For Old Debt',  sub:'The debt spiral' },
+    { e:'🖊️', label:'Signing Without Reading',sub:'Hidden fees bite' },
+    { e:'👥', label:'Sharing Card Online',    sub:'Big fraud risk' },
+    { e:'🏚️', label:'Foreclosure',           sub:'Stays 7 years' },
+    { e:'📵', label:'Dodging Collector Calls',sub:'Problems never vanish' },
+    { e:'🏬', label:'Store Card Everywhere',  sub:'High APR traps' },
+    { e:'⌛', label:'Paying Only If Reminded',sub:'Late marks add up' },
+  ];
+  const POOLS = [
+    { good: GOOD_L1, bad: BAD_L1 },
+    { good: GOOD_L2, bad: BAD_L2 },
+    { good: GOOD_L3, bad: BAD_L3 },
+  ];
 
-  /* ── Build a shuffled 20-item queue (balanced) ──────────────── */
-  function buildQueue(){
-    const g=[...GOOD_ITEMS], b=[...BAD_ITEMS];
-    // shuffle helper
+  /* ── Build a shuffled queue — full pool, shuffle-bag, no repeats ─ */
+  function buildQueue(level){
+    const pool = POOLS[level-1] || POOLS[0];
     const sh=arr=>{ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; };
-    sh(g); sh(b);
-    // interleave: 10 good + 10 bad mixed
-    const pool=[];
-    for(let i=0;i<10;i++){ pool.push({...g[i%g.length],correct:'good'}); pool.push({...b[i%b.length],correct:'bad'}); }
-    sh(pool);
-    return pool;
+    const q = [
+      ...pool.good.map(it=>({...it,correct:'good'})),
+      ...pool.bad.map(it=>({...it,correct:'bad'})),
+    ];
+    return sh(q);
   }
 
   /* ── State factory ──────────────────────────────────────────── */
-  function newGame(){
+  function newGame(level){
+    const L = LEVELS[level-1] || LEVELS[0];
     return {
       phase:'play',
-      queue: buildQueue(),
+      level: L.n,
+      cfg: L,
+      queue: buildQueue(L.n),
       idx:0,
       score:0,
       combo:0,
       comboMult:1,
-      timeLeft:90,
+      timeLeft: L.time,
+      totalTime: L.time,
       itemTimer:0,
-      ITEM_DURATION:2.5,
+      ITEM_DURATION: L.itemDur,
       last:0,
       // flash animation state
       flashT:0,
@@ -64,6 +128,7 @@
   /* ── Screen entry point ────────────────────────────────────── */
   window.SCREENS.game_creditcore = function(){
     G = null;
+    curLevel = 1;
     setTimeout(initGame, 40);
     return `<div id="ccRoot" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
 
@@ -73,12 +138,14 @@
       <!-- Top bar -->
       <div style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;padding:14px 16px;gap:10px;background:linear-gradient(180deg,rgba(3,4,12,.9) 60%,transparent)">
         <button onclick="creditCoreExit()" style="padding:7px 13px;border:1px solid rgba(56,189,248,.35);border-radius:9px;background:rgba(56,189,248,.1);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;white-space:nowrap">← HUB</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.65rem;letter-spacing:.18em;color:#38bdf8;flex:1;text-align:center;text-shadow:0 0 12px rgba(56,189,248,.5)">💳 CREDIT CORE</div>
+        <div id="ccTitle" style="font-family:'Orbitron',sans-serif;font-size:.65rem;letter-spacing:.18em;color:#38bdf8;flex:1;text-align:center;text-shadow:0 0 12px rgba(56,189,248,.5)">💳 CREDIT CORE · LV 1</div>
         <div id="ccScoreDisplay" style="font-family:'Orbitron',sans-serif;font-size:.82rem;color:#fbbf24;min-width:70px;text-align:right;text-shadow:0 0 10px rgba(251,191,36,.4)">0</div>
       </div>
 
+      <div style="position:absolute;top:46px;left:0;right:0;z-index:10;text-align:center;font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.08em;color:rgba(56,189,248,.5)">💡 Sort each item: GOOD for credit, or BAD — tap a button or press ← →</div>
+
       <!-- Timer bar -->
-      <div style="position:absolute;top:54px;left:0;right:0;z-index:10;padding:0 16px">
+      <div style="position:absolute;top:64px;left:0;right:0;z-index:10;padding:0 16px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
           <div id="ccTimerTxt" style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;color:rgba(56,189,248,.8)">90s</div>
           <div id="ccProgress" style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.1em;color:rgba(255,255,255,.35)">0 / 20</div>
@@ -146,9 +213,10 @@
       }
     }
 
-    G = newGame();
+    G = newGame(curLevel);
     G.last = performance.now();
     G.itemTimer = G.ITEM_DURATION; // start with item visible
+    updateTitleBadge();
 
     const ctx = canvas.getContext('2d');
     function resize(){
@@ -422,16 +490,22 @@
   }
 
   /* ── End game ──────────────────────────────────────────────── */
+  function updateTitleBadge(){
+    const el = document.getElementById('ccTitle');
+    if(el) el.textContent = `💳 CREDIT CORE · LV ${curLevel}/3`;
+  }
+
   function endGame(){
     if(!G || G.phase === 'end') return;
     G.phase = 'end';
     cancelAnimationFrame(raf); raf = null;
 
     const score = G.score;
-    const stars = score >= 1800 ? 3 : score >= 1200 ? 2 : score >= 1 ? 1 : 0;
+    const cfg = G.cfg || LEVELS[0];
+    const stars = score >= cfg.star3 ? 3 : score >= cfg.star2 ? 2 : score >= 1 ? 1 : 0;
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_creditcore', { level: 1, stars, is3star, isPerfect: is3star, badge: 'Credit Master' })
+      ? cvAwardGame('game_creditcore', { level: G.level, stars, is3star, isPerfect: is3star, badge: 'Credit Master' })
       : (stars===3 ? 150 : stars===2 ? 100 : 50);
     if (stars >= 1 && window.cvHubMeter) cvHubMeter('credtech_trust', stars*4);
     if (stars < 1 && window.cvSave) cvSave();
@@ -445,7 +519,7 @@
     el.innerHTML = `
       <div style="max-width:360px;width:90%;text-align:center;padding:28px 24px;border:1px solid rgba(56,189,248,.3);border-radius:24px;background:linear-gradient(160deg,rgba(3,4,12,.95),rgba(14,30,50,.95));box-shadow:0 0 60px rgba(56,189,248,.15),inset 0 0 40px rgba(56,189,248,.04)">
 
-        <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.22em;color:#38bdf8;margin-bottom:10px;text-shadow:0 0 10px rgba(56,189,248,.5)">CREDIT CORE · COMPLETE</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.22em;color:#38bdf8;margin-bottom:10px;text-shadow:0 0 10px rgba(56,189,248,.5)">${curLevel>=3?'👑 ALL 3 LEVELS MASTERED!':`LEVEL ${curLevel} · COMPLETE`}</div>
 
         <div style="display:flex;justify-content:center;gap:6px;margin:10px 0 16px">${starHTML}</div>
 
@@ -462,12 +536,19 @@
           <div style="font-family:'Inter',sans-serif;font-size:.78rem;line-height:1.55;color:rgba(255,255,255,.75);font-style:italic">"Credit is a tool — used wisely, it builds wealth. Used carelessly, it creates debt."</div>
         </div>
 
+        ${stars>=1 && curLevel<3 ? `<button onclick="ccNextLevel()" style="width:100%;margin-bottom:10px;padding:13px;border:none;border-radius:13px;background:linear-gradient(90deg,#38bdf8,#0ea5e9);color:#031017;font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.1em;font-weight:900;cursor:pointer">LEVEL ${curLevel+1} ▶</button>` : ''}
         <div style="display:flex;gap:12px;justify-content:center">
-          <button onclick="ccPlayAgain()" style="flex:1;max-width:140px;padding:13px 10px;border:1px solid rgba(56,189,248,.5);border-radius:13px;background:rgba(56,189,248,.15);color:#38bdf8;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.1em;cursor:pointer">▶ PLAY AGAIN</button>
+          <button onclick="ccPlayAgain()" style="flex:1;max-width:140px;padding:13px 10px;border:1px solid rgba(56,189,248,.5);border-radius:13px;background:rgba(56,189,248,.15);color:#38bdf8;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.1em;cursor:pointer">↺ ${stars>=1 && curLevel<3 ? 'REPLAY' : 'PLAY AGAIN'}</button>
           <button onclick="creditCoreExit()" style="flex:1;max-width:140px;padding:13px 10px;border:1px solid rgba(251,191,36,.4);border-radius:13px;background:rgba(251,191,36,.1);color:#fbbf24;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
         </div>
       </div>`;
   }
+
+  window.ccNextLevel = function(){
+    if(curLevel>=3) return;
+    curLevel++;
+    ccPlayAgain();   // does the full canvas/loop restart; now reads the bumped curLevel
+  };
 
   /* ── Play again ────────────────────────────────────────────── */
   window.ccPlayAgain = function(){
@@ -475,10 +556,11 @@
 
     const el = document.getElementById('ccOver');
     if(el) el.style.display = 'none';
-    G = newGame();
+    G = newGame(curLevel);   // replay the level just finished, not a reset to Lv1
     G.last = performance.now();
     G.itemTimer = G.ITEM_DURATION;
     G.phase = 'play';
+    updateTitleBadge();
 
     // reset HUD
     const bar = document.getElementById('ccTimerBar');
@@ -501,6 +583,10 @@
   };
 
   /* ── Exit ──────────────────────────────────────────────────── */
+  /* ── QA debug hook ─────────────────────────────────────────── */
+  window._ccDbg = function(){ return G ? { curLevel, score: G.score, queueLen: G.queue.length, itemDur: G.ITEM_DURATION } : null; };
+  window._ccWin = function(score){ if(!G) return; G.score = score; endGame(); };
+
   window.creditCoreExit = function(){
     if(raf){ cancelAnimationFrame(raf); raf = null; }
     if(_onKey){ window.removeEventListener('keydown', _onKey); _onKey = null; }

@@ -18,9 +18,7 @@
   const CARD_BG  = '#130d26';
 
   /* ── game config ─────────────────────────────────────────────── */
-  const CONFUSION_MAX   = 4;   // wrong picks before run ends
-  const LVL1_TIME       = 90;  // seconds for level 1
-  const LVL2_TIME       = 120; // seconds for level 2
+  const CONFUSION_MAX   = 4;   // wrong picks before the run ends (shared across all 3 levels)
   const COMPLETE_BONUS  = 50;  // points for perfect brand match
   const SPEED_THRESHOLD = 8;   // seconds — fast pick bonus
 
@@ -146,6 +144,81 @@
     },
   ];
 
+  const BRANDS_L3 = [
+    {
+      business: 'Space Camp for Kids', icon: '🚀',
+      elements: {
+        logo:     { correct: 'Futuristic Rocket',              wrong: ['Classic & Formal', 'Elegant Serif', 'Retro & Vintage'] },
+        colors:   { correct: 'Galaxy Purple & Silver',         wrong: ['Muted Earth Tones', 'Red & Cream', 'Black & Gold'] },
+        voice:    { correct: 'Curious & Exciting',             wrong: ['Luxurious', 'Authoritative', 'Smart & Trustworthy'] },
+        audience: { correct: 'Curious Kids & Parents',         wrong: ['Business Executives', 'Seniors', 'Affluent Adults'] },
+        mascot:   { correct: 'Astro Pup',                      wrong: ['Corporate Person', 'Glam Avatar', 'Classic Cartoon Chef'] },
+        font:     { correct: 'Futuristic Display',             wrong: ['Thin Italic Serif', 'Classic Roman', 'Slab Serif'] },
+        social:   { correct: 'Rocket Builds + Science Facts',  wrong: ['Corporate Case Studies', 'Lifestyle Aesthetic', 'Meme Humour'] },
+      },
+      lesson: 'Adventure brands spark curiosity — discovery content keeps young explorers (and paying parents) coming back.',
+    },
+    {
+      business: 'Pet-Sitting Service', icon: '🐶',
+      elements: {
+        logo:     { correct: 'Friendly Paw Print',             wrong: ['Bold & Sharp', 'Elegant Serif', 'Minimal & Sleek'] },
+        colors:   { correct: 'Warm Orange & Sky Blue',         wrong: ['Black & Gold', 'Neon Colors', 'Deep Navy & Teal'] },
+        voice:    { correct: 'Caring & Dependable',            wrong: ['Bold & Edgy', 'Luxurious', 'Motivational'] },
+        audience: { correct: 'Busy Pet Owners',                wrong: ['Gamers & Gen Z', 'Kids Under 5', 'Business & Legal'] },
+        mascot:   { correct: 'Happy Golden Retriever',         wrong: ['Robot Bot', 'Glam Avatar', 'Athlete Character'] },
+        font:     { correct: 'Rounded Friendly',               wrong: ['Thin Italic Serif', 'Heavy Sans-Serif', 'Classic Roman'] },
+        social:   { correct: 'Happy Pet Updates + Care Tips',  wrong: ['Meme Humour', 'Corporate Case Studies', 'Before/After Challenges'] },
+      },
+      lesson: 'Service brands sell trust — customers pay for peace of mind, so every message must feel caring and reliable.',
+    },
+    {
+      business: 'Smoothie Stand', icon: '🥤',
+      elements: {
+        logo:     { correct: 'Fresh Fruit Splash',             wrong: ['Classic & Formal', 'Retro & Vintage', 'Elegant Serif'] },
+        colors:   { correct: 'Tropical Green & Mango',         wrong: ['Black & Gold', 'Navy & Gold', 'Pastel Pink & Rose Gold'] },
+        voice:    { correct: 'Fresh & Upbeat',                 wrong: ['Authoritative', 'Luxurious', 'Conscious & Calm'] },
+        audience: { correct: 'Health-Minded Snackers',         wrong: ['Business Executives', 'Nostalgia Seekers', 'Kids Under 5'] },
+        mascot:   { correct: 'Smiling Strawberry',             wrong: ['Wise Owl', 'Robot Bot', 'Corporate Person'] },
+        font:     { correct: 'Juicy Rounded Bold',             wrong: ['Classic Roman', 'Thin Italic Serif', 'Slab Serif'] },
+        social:   { correct: 'Recipe Reels + Fruit Facts',     wrong: ['Corporate Case Studies', 'Educational Infographics', 'Throwback Stories'] },
+      },
+      lesson: 'Food brands win with appetite appeal — bright colours and fresh energy turn passers-by into repeat buyers.',
+    },
+    {
+      business: 'Board Game Cafe', icon: '🎲',
+      elements: {
+        logo:     { correct: 'Playful Dice & Meeple',          wrong: ['Minimal & Sleek', 'Elegant Serif', 'Bold & Sharp'] },
+        colors:   { correct: 'Cozy Red & Warm Wood',           wrong: ['Neon Colors', 'Deep Navy & Teal', 'Galaxy Purple & Silver'] },
+        voice:    { correct: 'Welcoming & Fun',                wrong: ['Authoritative', 'Luxurious', 'Smart & Trustworthy'] },
+        audience: { correct: 'Friends & Families',             wrong: ['Business Executives', 'Seniors Only', 'Affluent Adults'] },
+        mascot:   { correct: 'Cheerful Game Master',           wrong: ['Robot Bot', 'Glam Avatar', 'Athlete Character'] },
+        font:     { correct: 'Chunky Game-Box Letters',        wrong: ['Thin Italic Serif', 'Clean Geometric Sans', 'Classic Roman'] },
+        social:   { correct: 'Game Nights + Tournament Invites', wrong: ['Corporate Case Studies', 'Before/After Challenges', 'Lifestyle Aesthetic'] },
+      },
+      lesson: 'Experience brands sell togetherness — a warm, playful identity fills tables again and again.',
+    },
+    {
+      business: 'Kids Coding Club', icon: '💻',
+      elements: {
+        logo:     { correct: 'Pixel Robot Badge',              wrong: ['Elegant Serif', 'Retro & Vintage', 'Classic & Formal'] },
+        colors:   { correct: 'Electric Teal & Pixel Purple',   wrong: ['Red & Cream', 'Muted Earth Tones', 'Black & Gold'] },
+        voice:    { correct: 'Encouraging & Clever',           wrong: ['Luxurious', 'Bold & Edgy', 'Casual & Friendly'] },
+        audience: { correct: 'Young Creators & Parents',       wrong: ['Seniors', 'Business & Legal', 'Nostalgia Seekers'] },
+        mascot:   { correct: 'Friendly Code-Bot',              wrong: ['Classic Cartoon Chef', 'Glam Avatar', 'Cute Animal'] },
+        font:     { correct: 'Clean Geometric Sans',           wrong: ['Slab Serif', 'Thin Italic Serif', 'Handwritten Script'] },
+        social:   { correct: 'Student Demos + Coding Tips',    wrong: ['Meme Humour', 'Lifestyle Aesthetic', 'Throwback Stories'] },
+      },
+      lesson: 'Education brands must convince two audiences at once — excite the kids AND reassure the parents who pay.',
+    },
+  ];
+
+  /* ── 3-level ladder: brand set + time budget for each level ───── */
+  const LEVELS = [
+    { n: 1, name: 'LEARN',  time: 90,  brands: BRANDS_L1 },
+    { n: 2, name: 'MASTER', time: 120, brands: BRANDS_L2 },
+    { n: 3, name: 'LEGEND', time: 100, brands: BRANDS_L3 },
+  ];
+
   const TREND_CARDS = [
     { text: '🔥 Viral Trend: "Silent Luxury" — understated branding is trending! Minimal scores +20 bonus!', bonus: 'Minimal & Sleek', bonusPts: 20 },
     { text: '🌍 Cultural Moment: Eco-conscious going mainstream! Earth tones score +20 today!', bonus: 'Muted Earth Tones', bonusPts: 20 },
@@ -259,6 +332,11 @@
   };
 
   /* ── exit ─────────────────────────────────────────────────────── */
+  /* ── QA debug hook ─────────────────────────────────────────── */
+  window._bdDbg = function () { return G ? { level: G.level, queueLen: G.brandQueue.length, timeLeft: G.timeLeft, done: G.done } : null; };
+  window._bdDrain = function () { if (G) { G.brandQueue = []; nextBrand(); } };
+  window._bdWin = function (score) { if (!G) return; G.score = score; G.done = false; endGame(); };
+
   window.ll_branding_districtExit = function () {
     if (G) {
       clearInterval(G.timerInterval);
@@ -363,7 +441,7 @@
       recognition: 0,
       totalBrands: 0,
       brandsDone: 0,
-      timeLeft: LVL1_TIME,
+      timeLeft: LEVELS[0].time,
       timerInterval: null,
       trendTimer: null,
       pickStartTime: 0,
@@ -378,7 +456,7 @@
     };
 
     // build queue
-    G.brandQueue = shuffle([...BRANDS_L1]);
+    G.brandQueue = shuffle([...LEVELS[0].brands]);
     G.totalBrands = G.brandQueue.length;
     G.timerInterval = setInterval(tickTimer, 1000);
 
@@ -401,16 +479,16 @@
   function nextBrand() {
     if (!G || G.done) return;
 
-    // check level advance
-    if (G.level === 1 && G.brandQueue.length === 0) {
-      // advance to level 2
-      G.level = 2;
-      G.brandQueue = shuffle([...BRANDS_L2]);
+    // check level advance (1→2→3, same continuous session — confusion count carries over)
+    if (G.level < 3 && G.brandQueue.length === 0) {
+      G.level++;
+      const lv = LEVELS[G.level - 1];
+      G.brandQueue = shuffle([...lv.brands]);
       G.totalBrands += G.brandQueue.length;
-      G.timeLeft = LVL2_TIME;
+      G.timeLeft = lv.time;
       const badge = document.getElementById('bd_level_badge');
-      if (badge) badge.textContent = 'LV 2 · MASTER';
-      showToast('LEVEL 2 UNLOCKED!', ACCENT, 1800);
+      if (badge) badge.textContent = 'LV ' + lv.n + ' · ' + lv.name;
+      showToast('LEVEL ' + lv.n + ' UNLOCKED!', ACCENT, 1800);
       // maybe show trend card
       if (Math.random() > .4) scheduleTrendCard();
     }

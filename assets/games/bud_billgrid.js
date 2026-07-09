@@ -2,8 +2,9 @@
    BILL MANAGEMENT GRID — Budgetron Base (Strategist Hub)
    Drag bill tiles from the sidebar onto the correct due-date
    calendar cell before the overdue timer expires.
-   Level 1: 6 bills, clear spacing. Level 2: 15 bills with
-   disruption events (holiday, weekend lock, paycheck delay).
+   Level 1: 6 bills, clear spacing. Level 2: 10 new bills with
+   disruption events (holiday, paycheck delay). Level 3: 14 new
+   bills, faster month, shorter grace, 3 disruptions.
    Scoring: Budget Health Score · Payment Streak bonus.
    ════════════════════════════════════════════════════════════════ */
 (function () {
@@ -43,19 +44,48 @@
     { id:'trash',        label:'Trash',        icon:'🗑️', color:'#a8a29e', amount:'$28',  dueDay:6  },
     { id:'medical',      label:'Medical',      icon:'🏥', color:'#fda4af', amount:'$75',  dueDay:25 },
     { id:'software',     label:'Software',     icon:'💻', color:'#67e8f9', amount:'$30',  dueDay:9  },
+    { id:'music',        label:'Music App',    icon:'🎵', color:'#f9a8d4', amount:'$11',  dueDay:27 },
+    /* Level 3 bill set — all-new household bills */
+    { id:'mortgage',     label:'Mortgage',     icon:'🏡', color:'#fdba74', amount:'$1,150', dueDay:1  },
+    { id:'heating',      label:'Heating',      icon:'🌡️', color:'#fb7185', amount:'$95',  dueDay:2  },
+    { id:'sewer',        label:'Sewer',        icon:'🚰', color:'#5eead4', amount:'$26',  dueDay:4  },
+    { id:'cabletv',      label:'Cable TV',     icon:'📺', color:'#93c5fd', amount:'$49',  dueDay:6  },
+    { id:'petcare',      label:'Pet Care',     icon:'🐶', color:'#fcd34d', amount:'$38',  dueDay:8  },
+    { id:'tuition',      label:'School Fees',  icon:'🎒', color:'#c4b5fd', amount:'$130', dueDay:10 },
+    { id:'buspass',      label:'Bus Pass',     icon:'🚌', color:'#fde047', amount:'$40',  dueDay:12 },
+    { id:'security',     label:'Security',     icon:'🚨', color:'#f87171', amount:'$32',  dueDay:14 },
+    { id:'lawn',         label:'Lawn Care',    icon:'🌱', color:'#86efac', amount:'$35',  dueDay:16 },
+    { id:'news',         label:'News Sub',     icon:'📰', color:'#d4d4d8', amount:'$15',  dueDay:18 },
+    { id:'daycare',      label:'Daycare',      icon:'🧸', color:'#f0abfc', amount:'$210', dueDay:20 },
+    { id:'dentist',      label:'Dentist',      icon:'🦷', color:'#e0f2fe', amount:'$85',  dueDay:22 },
+    { id:'piano',        label:'Piano Class',  icon:'🎹', color:'#a5b4fc', amount:'$60',  dueDay:24 },
+    { id:'sports',       label:'Team Fees',    icon:'⚽', color:'#6ee7b7', amount:'$50',  dueDay:28 },
   ];
 
-  /* Level 1: 6 bills. Level 2: all 15 */
+  /* Disjoint bill subsets — no bill repeats across levels */
   const LVL1_IDS = ['rent','electric','water','internet','phone','insurance'];
+  const LVL2_IDS = ['streaming','trash','cloud','software','gym','car','gas','credit','medical','music'];
+  const LVL3_IDS = ['mortgage','heating','sewer','cabletv','petcare','tuition','buspass','security','lawn','news','daycare','dentist','piano','sports'];
 
-  /* ── Disruption events (Level 2 only) ─────────────────────────
-     type: 'holiday'  → day X blocked (payment bounces, -8 sec grace)
+  /* ── Disruption events ─────────────────────────────────────────
+     type: 'holiday'  → day X blocked (payment bounces)
      type: 'weekend'  → days X,X+1 blocked from bank transfers
      type: 'paycheck' → bills after day Y get +2 days grace */
-  const DISRUPTIONS = [
-    { type:'holiday',  day:4,  label:'🎉 Holiday — banks closed today!',           affectDays:[4]     },
-    { type:'weekend',  day:21, label:'🏖️ Weekend — bank transfers blocked Sat–Sun!', affectDays:[21,22] },
-    { type:'paycheck', day:11, label:'💸 Paycheck delayed — arrives day 14!',       graceFrom:12, graceTo:30, bonusDays:2 },
+  const DISRUPTIONS_L2 = [
+    { type:'holiday',  day:6,  label:'🎉 Holiday — banks closed today!',            affectDays:[6]     },
+    { type:'paycheck', day:10, label:'💸 Paycheck delayed — arrives day 13!',       graceFrom:11, graceTo:30, bonusDays:2 },
+  ];
+  const DISRUPTIONS_L3 = [
+    { type:'holiday',  day:10, label:'🎉 Holiday — banks closed today!',            affectDays:[10]    },
+    { type:'paycheck', day:12, label:'💸 Paycheck delayed — arrives day 15!',       graceFrom:13, graceTo:30, bonusDays:2 },
+    { type:'weekend',  day:20, label:'🏖️ Weekend — bank transfers blocked Sat–Sun!', affectDays:[20,21] },
+  ];
+
+  /* ── Level configs: bills, pacing, grace, tolerance, stars ────── */
+  const LEVELS = [
+    { n:1, name:'LEARN',  ids:LVL1_IDS, monthSecs:45, graceSec:18, tolerance:0, disruptions:[],             lateAllow:0 },
+    { n:2, name:'MANAGE', ids:LVL2_IDS, monthSecs:55, graceSec:12, tolerance:1, disruptions:DISRUPTIONS_L2, lateAllow:2 },
+    { n:3, name:'MASTER', ids:LVL3_IDS, monthSecs:65, graceSec:9,  tolerance:1, disruptions:DISRUPTIONS_L3, lateAllow:3 },
   ];
 
   /* ── Game state ─────────────────────────────────────────────── */
@@ -71,6 +101,7 @@
       <div id="bbg_bar" style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:10px;padding:10px 16px 8px;background:linear-gradient(180deg,rgba(3,4,12,.95),rgba(3,4,12,.0));border-bottom:1px solid rgba(74,122,191,.18)">
         <button id="bbg_back" style="padding:6px 13px;border:1px solid rgba(74,122,191,.45);border-radius:8px;background:rgba(26,42,74,.6);color:${ACCENT_GL};font-family:Orbitron,sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;flex-shrink:0">← HUB</button>
         <div style="font-family:Orbitron,sans-serif;font-size:.68rem;letter-spacing:.18em;color:${ACCENT_GL};flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">BILL MANAGEMENT GRID</div>
+        <button onclick="bbgShowHelp()" title="How to play" style="padding:6px 10px;border:1px solid rgba(74,122,191,.45);border-radius:8px;background:rgba(26,42,74,.6);color:${ACCENT_GL};cursor:pointer;flex-shrink:0;font-size:.75rem">❓</button>
         <div style="display:flex;gap:8px;flex-shrink:0">
           <div style="text-align:center">
             <div style="font-family:Orbitron,sans-serif;font-size:.44rem;letter-spacing:.12em;color:rgba(255,255,255,.45)">HEALTH</div>
@@ -122,6 +153,17 @@
     </div>`;
   };
 
+  /* ── QA debug hook (module state is private; this is the read/probe surface) ── */
+  window._bbgDbg = function () {
+    return G ? { level: G.level, phase: G.phase, bills: G.bills.length, disruptions: G.disruptions.length,
+                 graceSec: G.bills[0] && G.bills[0].graceSec, onTime: G.onTime, late: G.late } : null;
+  };
+  window._bbgTest = function (action, arg) {
+    if (!G) return;
+    if (action === 'buildLevel') buildLevel(arg);
+    if (action === 'completeAll') { G.bills.forEach(b => { b.paid = true; }); G.onTime = arg; checkLevelComplete(); }
+  };
+
   /* ── Exit ────────────────────────────────────────────────────── */
   window.bud_billgridExit = function () {
     if (G && G.raf) { cancelAnimationFrame(G.raf); G.raf = null; }
@@ -140,7 +182,7 @@
 
     G = {
       level:         1,
-      phase:         'play',    // 'play' | 'between' | 'over'
+      phase:         'intro',   // 'intro' | 'play' | 'between' | 'over' — paused until START
       health:        100,
       streak:        0,
       bestStreak:    0,
@@ -163,12 +205,56 @@
     buildLevel(1);
     startDroneLoop();
     wireInput();
+    showHowToPlay();
 
     const backBtn = document.getElementById('bbg_back');
     if (backBtn) backBtn.onclick = window.bud_billgridExit;
   }
 
+  /* ── How-to-play intro (shown once at start) + ❓ re-open mid-game ──── */
+  function showHowToPlay() {
+    const over = document.getElementById('bbg_over');
+    if (!over) return;
+    over.style.display = 'flex';
+    over.style.flexDirection = 'column';
+    over.style.alignItems = 'center';
+    over.style.justifyContent = 'center';
+    over.innerHTML = `
+      <div style="max-width:340px;text-align:center">
+        <div style="font-family:Orbitron,sans-serif;font-size:.5rem;letter-spacing:.2em;color:${ACCENT_GL};margin-bottom:10px">HOW TO PLAY</div>
+        <div style="font-size:2rem;margin-bottom:8px">🧾</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:1rem;margin-bottom:14px">BILL MANAGEMENT GRID</div>
+        <div style="display:flex;gap:8px;margin-bottom:16px;text-align:left">
+          <div style="flex:1;background:rgba(255,255,255,.04);border-radius:9px;padding:9px 6px"><div style="font-size:1.1rem">👆</div><div style="font-size:.58rem;color:rgba(255,255,255,.6);margin-top:4px">Drag a bill from the sidebar</div></div>
+          <div style="flex:1;background:rgba(255,255,255,.04);border-radius:9px;padding:9px 6px"><div style="font-size:1.1rem">📅</div><div style="font-size:.58rem;color:rgba(255,255,255,.6);margin-top:4px">Drop it on its due-date cell</div></div>
+          <div style="flex:1;background:rgba(255,255,255,.04);border-radius:9px;padding:9px 6px"><div style="font-size:1.1rem">⏰</div><div style="font-size:.58rem;color:rgba(255,255,255,.6);margin-top:4px">Pay before the timer runs out!</div></div>
+        </div>
+        <p style="font-size:.78rem;color:rgba(255,255,255,.65);line-height:1.5;margin:0 0 18px">3 levels, each with more bills and real surprises — holidays, weekends and paycheck delays shift your due dates. Stay on time to protect your Budget Health.</p>
+        <button id="bbg_startbtn" style="padding:13px 30px;border:none;border-radius:11px;background:linear-gradient(135deg,${ACCENT_LT},${ACCENT_GL});color:#fff;font-family:Orbitron,sans-serif;font-size:.68rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${G.phase === 'intro' ? '▶ START' : '▶ RESUME'}</button>
+      </div>`;
+    const btn = document.getElementById('bbg_startbtn');
+    if (btn) btn.onclick = () => {
+      over.style.display = 'none'; over.innerHTML = '';
+      if (G && G.phase === 'paused' && _pauseStartTs) {
+        _levelStartTs += (Date.now() - _pauseStartTs);   // shift the clock — paused time doesn't burn grace periods
+        _pauseStartTs = null;
+      } else {
+        _levelStartTs = Date.now();   // first-time intro: the clock hasn't meaningfully started yet
+      }
+      if (G) G.phase = 'play';
+    };
+  }
+  let _pauseStartTs = null;
+  window.bbgShowHelp = function () {
+    if (!G || G.phase === 'over' || G.phase === 'between' || G.phase === 'intro') return;
+    _pauseStartTs = Date.now();
+    G.phase = 'paused';
+    showHowToPlay();
+  };
+
   /* ── Build a level ───────────────────────────────────────────── */
+  function curLevel() { return LEVELS[(G.level || 1) - 1] || LEVELS[0]; }
+
   function buildLevel(lvl) {
     G.level = lvl;
     G.placed = {};
@@ -177,8 +263,8 @@
     G.particles = [];
     G.activeDisrupt = null;
 
-    const ids = lvl === 1 ? LVL1_IDS : ALL_BILLS.map(b => b.id);
-    G.bills = ids.map(id => {
+    const lv = curLevel();
+    G.bills = lv.ids.map(id => {
       const def = ALL_BILLS.find(b => b.id === id);
       return {
         ...def,
@@ -186,12 +272,13 @@
         overdue: false,
         graceExtra: 0,  // extra days from paycheck delay event
         overdueTimerStart: null,
-        graceSec: lvl === 1 ? 18 : 10, // seconds before overdue
+        graceSec: lv.graceSec,
       };
     });
 
-    G.disruptions = lvl === 2 ? DISRUPTIONS.map(d => ({ ...d, triggered: false, active: false })) : [];
+    G.disruptions = lv.disruptions.map(d => ({ ...d, triggered: false, active: false }));
 
+    _levelStartTs = Date.now();
     updateLvlBadge();
     buildCalendar();
     renderBillList();
@@ -400,11 +487,11 @@
 
     // Effective due day (may be shifted by paycheck delay)
     const effectiveDue = bill.dueDay + bill.graceExtra;
-    const tolerance    = G.level === 1 ? 0 : 1; // level 2 allows 1 day early
+    const tolerance    = curLevel().tolerance; // levels 2-3 allow a day of slack
 
     // Correct drop?
     const isCorrect = (day === bill.dueDay) ||
-                      (G.level === 2 && day >= bill.dueDay - tolerance && day <= effectiveDue + tolerance);
+                      (tolerance > 0 && day >= bill.dueDay - tolerance && day <= effectiveDue + tolerance);
 
     // Also: is it too early (paying before it's due is fine; paying day 1 for a day-30 bill scores normally)
     const isLate = day > effectiveDue + tolerance;
@@ -609,10 +696,9 @@
     G.bills.forEach(bill => {
       if (bill.paid) return;
 
-      // When does the clock "reach" this bill's due date?
-      // We simulate time passing: 1 real second = ~0.5 game-days
-      // So at elapsed=0 we're at day 1; at elapsed=60 we've passed all 30 days
-      const gameDayNow = 1 + elapsed * (DAYS_IN_MONTH / (G.level === 1 ? 45 : 60));
+      // When does the clock "reach" this bill's due date? Each level has its
+      // own month length (monthSecs) — higher levels run faster.
+      const gameDayNow = 1 + elapsed * (DAYS_IN_MONTH / curLevel().monthSecs);
       const effectiveDue = bill.dueDay + bill.graceExtra;
 
       if (gameDayNow > effectiveDue && !bill.overdue) {
@@ -644,8 +730,8 @@
       const dayDisp = document.getElementById('bbg_day');
       if (dayDisp) dayDisp.textContent = Math.min(30, Math.ceil(gameDayNow));
 
-      // Trigger disruption events for level 2
-      if (G.level === 2) checkDisruptions(gameDayNow);
+      // Trigger disruption events (levels 2-3 both carry a disruption list)
+      if (G.disruptions.length) checkDisruptions(gameDayNow);
     });
   }
 
@@ -663,7 +749,7 @@
     if (timerEl) timerEl.style.display = 'none';
   }
 
-  /* ── Disruptions (Level 2) ───────────────────────────────────── */
+  /* ── Disruptions (Levels 2-3, each with its own event mix) ────── */
   function checkDisruptions(gameDayNow) {
     G.disruptions.forEach(ev => {
       if (ev.triggered) return;
@@ -755,7 +841,7 @@
 
   function updateLvlBadge() {
     const badge = document.getElementById('bbg_lvlbadge');
-    if (badge) badge.textContent = G.level === 1 ? 'LEVEL 1 — LEARN' : 'LEVEL 2 — MASTER';
+    if (badge) badge.textContent = `LEVEL ${G.level}/3 — ${curLevel().name}`;
   }
 
   function penalize(pts) {
@@ -775,19 +861,25 @@
     const unpaid = G.bills.filter(b => !b.paid);
     if (unpaid.length > 0) return;
 
-    if (G.level === 1) {
-      // Advance to level 2
+    if (G.level < 3) {
+      // Advance to the next level
       G.phase = 'between';
       setTimeout(() => showLevelTransition(), 400);
     } else {
-      // All done — win!
+      // All 3 levels done — win!
       triggerGameOver(true);
     }
   }
 
+  const TRANSITION_COPY = {
+    1: 'You mastered the basics. Now face 10 new bills with disruption events — a bank holiday and a paycheck delay!',
+    2: 'Nice adapting! Level 3 brings 14 new household bills, a faster month, tighter grace periods, and THREE disruptions in one run.',
+  };
+
   function showLevelTransition() {
     const trans = document.getElementById('bbg_lvltrans');
     if (!trans) return;
+    const justDone = G.level, next = justDone + 1;
     trans.style.display = 'flex';
     trans.style.flexDirection = 'column';
     trans.style.alignItems = 'center';
@@ -795,8 +887,8 @@
     trans.innerHTML = `
       <div style="text-align:center;max-width:320px">
         <div style="font-size:2.5rem;margin-bottom:12px">🎉</div>
-        <div style="font-family:Orbitron,sans-serif;font-size:1rem;color:${GREEN};letter-spacing:.15em;margin-bottom:8px">LEVEL 1 COMPLETE!</div>
-        <div style="color:rgba(255,255,255,.7);font-size:.8rem;margin-bottom:20px;line-height:1.6">You mastered the basics. Now face 15 bills with disruption events — holidays, bank weekends, and paycheck delays!</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:1rem;color:${GREEN};letter-spacing:.15em;margin-bottom:8px">LEVEL ${justDone} COMPLETE!</div>
+        <div style="color:rgba(255,255,255,.7);font-size:.8rem;margin-bottom:20px;line-height:1.6">${TRANSITION_COPY[justDone] || ''}</div>
         <div style="display:flex;gap:16px;justify-content:center;margin-bottom:16px">
           <div style="text-align:center">
             <div style="font-family:Orbitron,sans-serif;font-size:1.2rem;color:${GREEN}">${G.onTime}</div>
@@ -811,27 +903,30 @@
             <div style="font-size:.55rem;color:rgba(255,255,255,.5)">STREAK</div>
           </div>
         </div>
-        <button id="bbg_goL2" style="padding:12px 32px;font-family:Orbitron,sans-serif;font-size:.75rem;letter-spacing:.15em;border:none;border-radius:10px;background:linear-gradient(135deg,${ACCENT_LT},${ACCENT_GL});color:#fff;cursor:pointer;box-shadow:0 0 20px ${ACCENT_GL}55">ADVANCE TO LEVEL 2 →</button>
+        <button id="bbg_goL2" style="padding:12px 32px;font-family:Orbitron,sans-serif;font-size:.75rem;letter-spacing:.15em;border:none;border-radius:10px;background:linear-gradient(135deg,${ACCENT_LT},${ACCENT_GL});color:#fff;cursor:pointer;box-shadow:0 0 20px ${ACCENT_GL}55">ADVANCE TO LEVEL ${next} →</button>
       </div>`;
     const btn = document.getElementById('bbg_goL2');
     if (btn) btn.onclick = () => {
       trans.style.display = 'none';
       G.phase = 'play';
-      _levelStartTs = Date.now();
-      buildLevel(2);
+      buildLevel(next);   // buildLevel() sets _levelStartTs itself
       renderBillList();
       rewireAllBillDrags();
     };
   }
 
   /* ── Game over ───────────────────────────────────────────────── */
+  // Win only happens once ALL 3 levels are cleared (see checkLevelComplete),
+  // so stars are judged on the CUMULATIVE run across every level played.
+  const TOTAL_BILLS = LEVELS.reduce((s, l) => s + l.ids.length, 0);
+  const TOTAL_LATE_OK = LEVELS.reduce((s, l) => s + l.lateAllow, 0);
+
   function triggerGameOver(won) {
     if (!G || G.phase === 'over') return;
     G.phase = 'over';
 
-    const lateOk  = G.level === 1 ? 0 : 3; // L2 allows 3 late
-    const perfWin  = G.late === 0 && G.onTime >= (G.level === 1 ? 6 : 15);
-    const goodWin  = G.late <= lateOk && won;
+    const perfWin  = G.late === 0 && G.onTime >= TOTAL_BILLS;
+    const goodWin  = G.late <= TOTAL_LATE_OK && won;
     const stars    = perfWin ? 3 : (goodWin ? 2 : (won ? 1 : 0));
     const finalStars = Math.max(1, stars); // at least 1 if they finish
     endGame(won ? finalStars : 0, won);
@@ -841,7 +936,7 @@
     if (!G) return;
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_bud_billgrid', { level: 1, stars, badge: 'Bill Master', is3star, isPerfect: is3star })
+      ? cvAwardGame('game_bud_billgrid', { level: G.level, stars, badge: 'Bill Master', is3star, isPerfect: is3star })
       : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
     if (stars < 1 && window.cvSave) cvSave();
 
