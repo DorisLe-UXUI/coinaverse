@@ -9787,6 +9787,141 @@ video::-webkit-media-controls-play-button {
       q=(q||'').toLowerCase();
       document.querySelectorAll('.cn-ep-card').forEach(c=>{ c.style.display=!q||(c.dataset.t||'').includes(q)?'':'none'; });
     };
+
+    /* ══ COINAVERSE DAILY (Kabria's "Coinaverse Network News Articles" doc) ══ */
+    const DAILY=[
+      {tag:'BREAKING NEWS',tc:'#dc2626',icon:'🚀',art:'assets/daily/art_open.png',
+       title:'The Coinaverse Has Officially Opened!',sub:'A new era of financial adventure begins today',
+       body:['Citizens of the Coinaverse… the wait is finally over! 🎉','Today is a HUGE day because the Coinaverse has officially opened its doors to players everywhere!','Kids from all over are creating avatars, completing missions, earning Coinaverse Coins, and learning amazing money skills while having fun.','Each realm teaches something different. Visit CredTech Galaxy to learn about credit. Travel to Investopia to discover investing. Explore SaveScape Orbit to become a savings champion. Fix your debt in Debt Detox. Build your own business in Launch Lab Realm. Master budgeting in Budgetron Base. And discover the future of digital money in Bitstream Valley.','The adventure has just begun, and every mission helps you become a Financial Champion.','Welcome to your new world!'],
+       call:{h:'⭐ DID YOU KNOW?',t:'Every mission you complete earns XP and Coinaverse Coins.',c:'#16a34a'},
+       quiz:{q:'Which realm would you visit to learn how to build your credit score?',opts:['Investopia','CredTech Galaxy','Bitstream Valley'],ans:1}},
+      {tag:'CINEMA GRAND OPENING',tc:'#7c3aed',icon:'🎬',art:'assets/daily/art_cinema.png',
+       title:'Coincept Cinema Is Now Showing!',sub:'Heroes, villains and money experts hit the big screen',
+       body:['Grab your popcorn because Coincept Cinema is officially open!','Inside the theater you’ll meet heroes, villains, inventors, investors, and financial experts from all across the Coinaverse.','Every episode teaches something new. Watch exciting adventures. Learn real money skills. Unlock challenges. Earn Coinaverse Coins.','The more you watch… the smarter and stronger your Financial Champion becomes.','Don’t forget to check back often because new episodes are always arriving.'],
+       call:{h:'🍿 FUN FACT',t:'Watching videos can unlock bonus rewards and surprise missions.',c:'#7c3aed'},
+       quiz:{q:'What do you earn by finishing an episode challenge?',opts:['Nothing','Coinaverse Coins & badges','Homework'],ans:1}},
+      {tag:'NEWS FLASH',tc:'#16a34a',icon:'🌎',art:'assets/daily/art_realms.png',
+       title:'Every Realm Is Ready For Adventure',sub:'Seven worlds. Seven superpowers. Where will you go first?',
+       body:['There is something exciting happening in every corner of the Coinaverse.','Want to become a business owner? Visit Launch Lab Realm. Want your money to grow? Explore Investopia.','Want to become a savings expert? Head to SaveScape Orbit. Need help learning about credit? CredTech Galaxy is waiting.','Want to become a budgeting master? Budgetron Base is ready. Interested in technology and digital money? Bitstream Valley has lots to discover. Need to fix your debt? Debt Detox has you covered.','Where will your next adventure begin?'],
+       call:{h:'🏆 TODAY’S CHALLENGE',t:'Visit three different realms and complete one activity in each.',c:'#d97706',challenge:true},
+       quiz:{q:'Where would a future business owner start?',opts:['Launch Lab Realm','Debt Detox','The couch'],ans:0}},
+      {tag:'MONEY SMARTS',tc:'#0e7a3a',icon:'💡',art:'assets/daily/art_needs.png',
+       title:'Needs Come Before Wants',sub:'One question makes you a smarter spender',
+       body:['Sometimes we see something we really, really want. But before spending our coins, we should ask ourselves one question:','“Is this something I NEED or something I WANT?”','Needs are things we must have to stay healthy and safe — like food, a home, electricity and clothes.','Wants are things that are fun but can wait — like a new game, candy, toys or headphones.','When you learn the difference, you’ll make smarter money decisions every day.'],
+       call:{h:'🪙 COIN CHALLENGE',t:'Can you name three things you NEED and three things you WANT?',c:'#0e7a3a'},
+       quiz:{q:'Which one is a NEED?',opts:['New headphones','Food & water','A new game'],ans:1}},
+      {tag:'SAVINGS SECRETS',tc:'#2563eb',icon:'💎',art:'assets/daily/art_dreams.png',
+       title:'Small Coins Can Become Big Dreams',sub:'One coin → piggy bank → treasure chest → your dreams',
+       body:['Saving doesn’t mean putting away hundreds of dollars all at once.','Even one coin at a time can make a big difference.','When you save a little today… and a little tomorrow… your savings continue to grow.','Soon you’ll have enough for something you’ve been dreaming about.','Great savers don’t become successful overnight. They simply keep saving, one coin at a time.'],
+       call:{h:'⭐ DID YOU KNOW?',t:'If you save just a little every week, you’ll be surprised how quickly your savings grow!',c:'#2563eb'},
+       quiz:{q:'How do great savers win?',opts:['Save it all in one day','A little at a time, every time','Never save'],ans:1}},
+    ];
+    window.CN_DAILY=DAILY;
+    const WOTD=[['BUDGET','A plan for your money.'],['INVEST','Putting money to work so it grows.'],['CREDIT','Borrowing power you build by keeping promises.'],['SAVE','Keeping coins today for something bigger tomorrow.'],['EARN','Getting money for the work and value you create.']];
+    window.cnWotd=WOTD[Math.floor(Date.now()/864e5)%WOTD.length];
+    window.cnNewsReward=function(key,amount,msg){
+      const map=(window.state&&(state.cinemaSeenMap=state.cinemaSeenMap||{}))||{};
+      if(map[key]){ cineToast('✓ Already collected — keep exploring!'); return false; }
+      map[key]=1;
+      if(window.state){ state.coins=(state.coins||0)+amount; if(window.cvAddXP)cvAddXP(Math.round(amount/2),0); if(window.cvSave)cvSave(); }
+      cineToast(msg||('🪙 +'+amount+' Coinaverse Coins!'));
+      return true;
+    };
+    window.cnHiddenCoin=function(el){
+      if(cnNewsReward('hiddencoin',15,'🎉 You found the Hidden Coin! +15 🪙')){ if(el){ el.style.transform='scale(1.6)'; el.style.opacity='0'; setTimeout(()=>el.remove(),400); } }
+    };
+    window.cnQuizAnswer=function(i,k){
+      const a=DAILY[i]; if(!a) return;
+      const box=document.getElementById('cnQz'+i);
+      if(k===a.quiz.ans){
+        const first=cnNewsReward('newsq'+i,50,'✅ Correct! +50 Coinaverse Coins');
+        if(box) box.innerHTML='<div style="padding:10px;border-radius:10px;background:rgba(22,163,74,.15);border:1px solid rgba(22,163,74,.4);color:#166534;font-size:.82rem;font-weight:700">✅ MISSION ACCOMPLISHED! '+(first?'+50 🪙':'Already collected ✓')+'</div>';
+      } else {
+        cineToast('💫 NICE TRY! Power up and try again.');
+        if(box){ const bs=box.querySelectorAll('button'); if(bs[k]) bs[k].style.opacity='.35'; }
+      }
+    };
+    window.cnClaimChallenge=function(){
+      const visited=Object.keys((window.state&&state.hubsVisited)||{}).length;
+      if(visited<3){ cineToast('🌎 Visit 3 different realms first — you’ve explored '+visited+'/3!'); return; }
+      cnNewsReward('challenge100',100,'🏆 CHALLENGE COMPLETE! +100 Bonus Coins');
+      cnOpenNews(2);
+    };
+    window.cnListen=function(i){
+      try{
+        if(window.speechSynthesis){
+          if(speechSynthesis.speaking){ speechSynthesis.cancel(); cineToast('🔇 Stopped reading'); return; }
+          const a=DAILY[i]; const u=new SpeechSynthesisUtterance(a.title+'. '+a.body.join(' '));
+          u.rate=.95; u.pitch=1.05; speechSynthesis.speak(u);
+          cineToast('🔊 Reading aloud — tap again to stop');
+        } else cineToast('🔊 Read-aloud not available on this device');
+      }catch(e){ cineToast('🔊 Read-aloud not available'); }
+    };
+    window.cnCloseNews=function(){ try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){} if(window.closeVideo) closeVideo(); };
+    window.cnPrint=function(){
+      let o=document.getElementById('cvVideo');
+      if(!o){ o=document.createElement('div'); o.id='cvVideo'; o.className='cv-video-ov'; document.body.appendChild(o); o.addEventListener('click',ev=>{ if(ev.target===o) cnCloseNews(); }); }
+      o.innerHTML='<div style="position:relative;width:min(560px,94vw);max-height:92vh;overflow-y:auto;background:#0d0a22;border-radius:16px;border:1px solid rgba(74,222,128,.35);padding:10px">'
+        +'<button onclick="cnCloseNews()" style="position:sticky;top:4px;float:right;width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.55);color:#fff;cursor:pointer;z-index:3">✕</button>'
+        +'<img src="assets/daily/print_p1.jpg" style="width:100%;border-radius:10px;display:block;margin-bottom:10px">'
+        +'<img src="assets/daily/print_p2.jpg" style="width:100%;border-radius:10px;display:block">'
+        +'</div>';
+    };
+    window.cnOpenNews=function(i){
+      const a=DAILY[i]; if(!a) return;
+      const map=(window.state&&state.cinemaSeenMap)||{};
+      const today=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+      let o=document.getElementById('cvVideo');
+      if(!o){ o=document.createElement('div'); o.id='cvVideo'; o.className='cv-video-ov'; document.body.appendChild(o); o.addEventListener('click',ev=>{ if(ev.target===o) cnCloseNews(); }); }
+      const visited=Object.keys((window.state&&state.hubsVisited)||{}).length;
+      o.innerHTML=`<div style="position:relative;width:min(760px,94vw);max-height:92vh;overflow-y:auto;background:#f4f4ec;border-radius:18px;color:#111;font-family:'Inter',sans-serif">
+        <div style="position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(90deg,#04120a,#0a2a14);border-bottom:2px solid #4ade80">
+          <button onclick="cnCloseNews()" style="padding:7px 12px;border:1px solid rgba(74,222,128,.5);border-radius:9px;background:rgba(74,222,128,.1);color:#4ade80;font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.1em;cursor:pointer">← BACK TO CINEMA NEWS</button>
+          <div style="flex:1;text-align:center;font-family:'Anton',sans-serif;color:#fff;letter-spacing:.04em">COINAVERSE <span style="color:#4ade80">DAILY</span></div>
+          <div style="font-family:'Orbitron',sans-serif;font-size:.44rem;color:#fbbf24;text-align:right">ISSUE #001<br><span style="color:rgba(255,255,255,.55)">READ TIME 3 MIN</span></div>
+        </div>
+        <div style="padding:18px 22px 8px">
+          <span style="display:inline-block;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;background:${a.tc};color:#fff;padding:4px 12px;border-radius:999px">${a.icon} ${a.tag}</span>
+          <h1 style="font-family:'Anton',sans-serif;font-size:clamp(1.4rem,4vw,2.1rem);margin:10px 0 2px;color:#0a2a14">${a.title}</h1>
+          <div style="color:#7c3aed;font-weight:700;font-size:.85rem;margin-bottom:10px">${a.sub}</div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid #ddd;border-bottom:1px solid #ddd">
+            <div style="width:30px;height:30px;border-radius:50%;background:#0a2a14;display:flex;align-items:center;justify-content:center;color:#4ade80;font-weight:900">C</div>
+            <div style="font-size:.68rem;color:#333"><b>BY COINAVERSE NEWS TEAM</b><br>${today} · 3 MIN READ</div>
+            <div style="margin-left:auto;display:flex;gap:7px">
+              <button onclick="cineToast('🔖 Saved to your library!')" style="padding:6px 11px;border:1px solid #bbb;border-radius:8px;background:#fff;font-size:.66rem;cursor:pointer">🔖 Save</button>
+              <button onclick="cineToast('🔗 Link copied — share with your squad!')" style="padding:6px 11px;border:1px solid #bbb;border-radius:8px;background:#fff;font-size:.66rem;cursor:pointer">↗ Share</button>
+              <button onclick="cnListen(${i})" style="padding:6px 11px;border:1px solid #bbb;border-radius:8px;background:#fff;font-size:.66rem;cursor:pointer">🔊 Listen</button>
+            </div>
+          </div>
+        </div>
+        <img src="${a.art}" onerror="this.style.display='none'" style="display:block;width:calc(100% - 44px);margin:12px 22px;border-radius:14px;border:1px solid #ddd">
+        <div style="padding:0 22px;font-size:.95rem;line-height:1.75;color:#222">
+          ${a.body.map(p=>`<p style="margin:0 0 12px">${p}</p>`).join('')}
+        </div>
+        <div style="margin:6px 22px 14px;padding:13px 15px;border-radius:13px;background:${a.call.c}14;border:1.5px solid ${a.call.c}55">
+          <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.14em;color:${a.call.c};margin-bottom:4px">${a.call.h}</div>
+          <div style="font-size:.85rem;color:#222">${a.call.t}</div>
+          ${a.call.challenge?`<button onclick="cnClaimChallenge()" style="margin-top:9px;padding:9px 16px;border:none;border-radius:9px;background:${map['challenge100']?'#9ca3af':'linear-gradient(90deg,#16a34a,#4ade80)'};color:#fff;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.1em;font-weight:900;cursor:pointer">${map['challenge100']?'✓ CLAIMED':'🏆 CLAIM 100 BONUS COINS ('+Math.min(visited,3)+'/3 REALMS)'}</button>`:''}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin:0 22px 14px">
+          <div style="border-radius:13px;padding:13px;background:#ece9f7;border:1px solid #d6cff0">
+            <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:#7c3aed;margin-bottom:5px">📖 WORD OF THE DAY</div>
+            <div style="font-family:'Anton',sans-serif;font-size:1.25rem;color:#2d1b69">${cnWotd[0]}</div>
+            <div style="font-size:.74rem;color:#555;margin-top:2px">${cnWotd[1]}</div>
+          </div>
+          <div id="cnQz${i}" style="border-radius:13px;padding:13px;background:#e9f7ec;border:1px solid #cfe9d6">
+            <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:#16a34a;margin-bottom:5px">❓ QUICK QUIZ · +50 🪙</div>
+            <div style="font-size:.8rem;font-weight:700;color:#143;margin-bottom:7px">${a.quiz.q}</div>
+            ${a.quiz.opts.map((op,k)=>`<button onclick="cnQuizAnswer(${i},${k})" style="display:block;width:100%;text-align:left;margin-bottom:5px;padding:7px 11px;border-radius:9px;border:1px solid #b5d9bf;background:#fff;font-size:.76rem;cursor:pointer"><b style="color:#16a34a">${String.fromCharCode(65+k)}</b> · ${op}</button>`).join('')}
+          </div>
+        </div>
+        <div style="margin:0 22px 18px;text-align:center">
+          <button onclick="cnNewsReward('newsr${i}',50,'📰 Story complete! +50 Coinaverse Coins');cnOpenNews(${i})" style="padding:13px 22px;border:none;border-radius:12px;background:${map['newsr'+i]?'#9ca3af':'linear-gradient(90deg,#fbbf24,#f59e0b)'};color:#1a0d00;font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.1em;font-weight:900;cursor:pointer">${map['newsr'+i]?'✓ REWARD COLLECTED':'🪙 I READ IT ALL — COLLECT 50 COINS'}</button>
+          <div style="margin-top:10px;font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.2em;color:#0a2a14">LEARN. PLAY. GROW. <span style="color:#d97706">BECOME A FINANCIAL CHAMPION!</span></div>
+        </div>
+      </div>`;
+      o.scrollTop=0;
+    };
     const tab=window._cineTab||'home';
     const coins=(window.state||{}).coins||0;
     const seen=(window._cvSeen&&window._cvSeen.size)||0;
@@ -10059,7 +10194,49 @@ video::-webkit-media-controls-play-button {
         <div class="cn-sect">📅 MORE PREMIERES</div>
         <div class="cn-cards">${PREMIERES.map((p,pi)=>`<div class="cn-tile"><div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><div style="font-size:2rem">${p.e}</div><div><div style="font-family:'Anton',sans-serif;font-size:1.1rem">${p.t}</div><div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.12em;color:#fbbf24">${premFmt(nextPrem(5+pi*14)).toUpperCase()}</div></div></div><p style="font-size:.82rem;color:rgba(255,255,255,.6);margin:0 0 12px">${p.d}</p><button class="cn-btn red" onclick="cnRemind('p${pi}','${p.t}')">${window._cnRemind['p'+pi]?'✓ Reminder Set':'🔔 Set Reminder'}</button></div>`).join('')}</div></div>`;
     } else if(tab==='news'){
-      body=`<div class="nf-body" style="padding-top:14px"><div class="cn-sect">📰 NEWS & UPDATES</div><div class="cn-cards">${NEWS.map(n=>`<div class="cn-tile"><div class="cn-tag">${n.tag}</div><div style="font-size:1rem;font-weight:700;margin-bottom:6px">${n.t}</div><p style="font-size:.82rem;color:rgba(255,255,255,.6);margin:0">${n.d}</p></div>`).join('')}</div></div>`;
+      const nmap=(window.state&&state.cinemaSeenMap)||{};
+      const ndate=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}).toUpperCase();
+      const readBadge=(i)=>nmap['newsr'+i]?'<span style="position:absolute;top:8px;right:8px;font-family:Orbitron,sans-serif;font-size:.4rem;letter-spacing:.1em;background:#16a34a;color:#fff;padding:3px 8px;border-radius:5px;z-index:2">✓ READ</span>':'';
+      const artCard=(i,big)=>{const a=DAILY[i];return `<div onclick="cnOpenNews(${i})" style="position:relative;border-radius:16px;overflow:hidden;cursor:pointer;background:#f4f4ec;border:1px solid rgba(74,222,128,.25);transition:transform .18s" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='none'">
+          ${readBadge(i)}
+          ${i===0&&!nmap['hiddencoin']?`<div onclick="event.stopPropagation();cnHiddenCoin(this)" title="?" style="position:absolute;bottom:${big?'86':'70'}px;right:10px;z-index:3;font-size:1rem;opacity:.55;cursor:pointer;transition:.3s;filter:drop-shadow(0 0 4px #fbbf24)">🪙</div>`:''}
+          <div style="height:${big?'190':'120'}px;background-image:url('${a.art}');background-size:cover;background-position:center"></div>
+          <div style="padding:11px 13px;background:#f4f4ec">
+            <span style="display:inline-block;font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;background:${a.tc};color:#fff;padding:3px 9px;border-radius:999px;margin-bottom:6px">${a.icon} ${a.tag}</span>
+            <div style="font-family:'Anton',sans-serif;font-size:${big?'1.35rem':'1rem'};color:#0a2a14;line-height:1.15">${a.title}</div>
+            <div style="font-size:.72rem;color:#555;margin-top:3px">${a.sub}</div>
+          </div>
+        </div>`;};
+      body=`<div class="nf-body" style="padding-top:14px;max-width:1080px;margin:0 auto">
+        <div style="border-radius:18px;overflow:hidden;border:1.5px solid rgba(74,222,128,.4);background:linear-gradient(90deg,#04120a,#0a2a14 60%,#04120a);padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <div style="width:52px;height:52px;border-radius:50%;background:radial-gradient(circle,#123c1e,#04120a);border:2.5px solid #4ade80;display:flex;align-items:center;justify-content:center;font-family:'Anton',sans-serif;font-size:1.5rem;color:#4ade80">C</div>
+          <div style="flex:1;min-width:200px">
+            <div style="font-family:'Anton',sans-serif;font-size:clamp(1.5rem,4vw,2.2rem);color:#fff;line-height:1">COINAVERSE <span style="color:#4ade80">DAILY</span></div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.2em;color:#fbbf24;margin-top:4px">⭐ OFFICIAL NEWS FROM AROUND THE COINAVERSE ⭐</div>
+            <div style="display:inline-block;margin-top:6px;padding:3px 12px;border-radius:999px;background:rgba(74,222,128,.14);border:1px solid rgba(74,222,128,.4);font-family:'Orbitron',sans-serif;font-size:.46rem;letter-spacing:.16em;color:#4ade80">🪙 LEARN • PLAY • GROW</div>
+          </div>
+          <div style="text-align:right;font-family:'Orbitron',sans-serif">
+            <div style="font-size:.52rem;letter-spacing:.12em;color:#fff">${ndate}</div>
+            <div style="font-size:.6rem;letter-spacing:.14em;color:#fbbf24;margin-top:3px">ISSUE #001</div>
+            <button class="cn-see" style="margin-top:6px;border:1px solid rgba(167,139,250,.4);border-radius:8px;padding:5px 10px" onclick="cnPrint()">📄 PRINT EDITION</button>
+          </div>
+        </div>
+        <div class="nf-row" style="padding:12px 2px 4px">
+          ${[['chip_realm.png',`state.viewingWorld='investor';goTo('hub')`],['chip_game.png',`playDistrictGame('credtech',0)`],['chip_hero.png',`playEp(${CINE.length-1})`],['chip_villain.png',`cineToast('⚠ Madam Moneyspinner spotted — dodge her overspending deals!')`],['chip_tip.png',`cnOpenNews(4)`]]
+            .map(c=>`<div onclick="${c[1]}" style="flex:0 0 auto;width:150px;height:117px;border-radius:13px;overflow:hidden;cursor:pointer;border:1px solid rgba(255,255,255,.14);transition:transform .18s" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='none'"><img src="assets/daily/${c[0]}" style="width:100%;height:100%;object-fit:cover;object-position:top;display:block"></div>`).join('')}
+        </div>
+        <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:12px;padding:8px 2px">
+          <div>${artCard(0,true)}</div>
+          <div style="display:flex;flex-direction:column;gap:12px">${artCard(1,false)}${artCard(2,false)}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:4px 2px">${artCard(3,false)}${artCard(4,false)}</div>
+        <div class="cn-strip" style="margin:14px 2px 26px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+          <div onclick="cnOpenNews(0)"><div style="font-size:1.6rem">📖</div><div><div style="font-size:.74rem;font-weight:800;color:#a78bfa">Word of the Day: ${cnWotd[0]}</div><div style="font-size:.6rem;color:rgba(255,255,255,.55)">${cnWotd[1]}</div></div></div>
+          <div onclick="cnOpenNews(0)"><div style="font-size:1.6rem">❓</div><div><div style="font-size:.74rem;font-weight:800;color:#4ade80">Quick Quiz</div><div style="font-size:.6rem;color:rgba(255,255,255,.55)">Answer inside each story to earn +50 🪙</div></div></div>
+          <div onclick="cnOpenNews(0)"><div style="font-size:1.6rem">🪙</div><div><div style="font-size:.74rem;font-weight:800;color:#fbbf24">Bonus Reward</div><div style="font-size:.6rem;color:rgba(255,255,255,.55)">Read a full article → collect 50 Coins!</div></div></div>
+          <div onclick="cineToast('🔎 Look closely at the front page… a golden coin is hiding!')"><div style="font-size:1.6rem">🔎</div><div><div style="font-size:.74rem;font-weight:800;color:#7dd3fc">Find the Hidden Coin</div><div style="font-size:.6rem;color:rgba(255,255,255,.55)">${nmap['hiddencoin']?'Found! ✓ Check back next issue':'Tap it for a surprise!'}</div></div></div>
+        </div>
+      </div>`;
     } else { // rewards / parent mode
       const arch=(window.state&&state.archetype)||'guardian';
       const pName=(window.state&&state.playerName&&state.playerName!=='Hero')?state.playerName:'Hero';
@@ -10757,59 +10934,59 @@ window.playDistrictGame = function(token, i) {
 
   </script>
   <!-- Real playable games (canvas) — loaded after main script, override the stub SCREENS.game_* -->
-  <script src="assets/games/lessonspecs.js"></script>
-  <script src="assets/games/lessondeck.js"></script>
-  <script src="assets/games/moneycatcher.js"></script>
-  <script src="assets/games/goalquest.js"></script>
-  <script src="assets/games/stocksurge.js"></script>
-  <script src="assets/games/bizop.js"></script>
-  <script src="assets/games/blockbuilder.js"></script>
-  <script src="assets/games/debtsurv.js"></script>
-  <script src="assets/games/ficoracer.js"></script>
-  <script src="assets/games/creditcore.js"></script>
-  <script src="assets/games/scoretower.js"></script>
-  <script src="assets/games/borrowingbay.js"></script>
-  <script src="assets/games/trustexchange.js"></script>
-  <script src="assets/games/repaymentrunway.js"></script>
-  <script src="assets/games/creditlimitlab.js"></script>
-  <script src="assets/games/reportobservatory.js"></script>
-  <script src="assets/games/inv_academy.js"></script>
-  <script src="assets/games/inv_assetrealm.js"></script>
-  <script src="assets/games/inv_dividend.js"></script>
-  <script src="assets/games/inv_portfolio.js"></script>
-  <script src="assets/games/inv_research.js"></script>
-  <script src="assets/games/inv_riskcontrol.js"></script>
-  <script src="assets/games/inv_stockarena.js"></script>
-  <script src="assets/games/bud_billgrid.js"></script>
-  <script src="assets/games/bud_cashflow.js"></script>
-  <script src="assets/games/bud_efflab.js"></script>
-  <script src="assets/games/bud_goaltower.js"></script>
-  <script src="assets/games/bud_needswants.js"></script>
-  <script src="assets/games/bud_plaza.js"></script>
-  <script src="assets/games/bud_vault.js"></script>
-  <script src="assets/games/bsv_aiinnovationlabs.js"></script>
-  <script src="assets/games/bsv_bitstreammarket.js"></script>
-  <script src="assets/games/bsv_blockchainblvd.js"></script>
-  <script src="assets/games/bsv_cryptocrossing.js"></script>
-  <script src="assets/games/bsv_futuretrendscmd.js"></script>
-  <script src="assets/games/bsv_nftnexus.js"></script>
-  <script src="assets/games/bsv_volatilityvortex.js"></script>
-  <script src="assets/games/ll_branding_district.js"></script>
-  <script src="assets/games/ll_idea_incubator.js"></script>
-  <script src="assets/games/ll_investor_pitch.js"></script>
-  <script src="assets/games/ll_marketing_metropolis.js"></script>
-  <script src="assets/games/ll_product_dev_lab.js"></script>
-  <script src="assets/games/ll_scaling_center.js"></script>
-  <script src="assets/games/ll_startup_street.js"></script>
-  <script src="assets/games/ddt_discovery.js"></script>
-  <script src="assets/games/ddt_gym.js"></script>
-  <script src="assets/games/ddt_habits.js"></script>
-  <script src="assets/games/ddt_lab.js"></script>
-  <script src="assets/games/ddt_plaza.js"></script>
-  <script src="assets/games/ddt_rebuild.js"></script>
-  <script src="assets/games/ddt_resilience.js"></script>
-  <script src="assets/games/arccfg.js"></script>
-  <script src="assets/games/arcade.js"></script>
-  <script src="assets/games/capstones.js"></script>
+  <script src="assets/games/lessonspecs.js?v=35"></script>
+  <script src="assets/games/lessondeck.js?v=35"></script>
+  <script src="assets/games/moneycatcher.js?v=35"></script>
+  <script src="assets/games/goalquest.js?v=35"></script>
+  <script src="assets/games/stocksurge.js?v=35"></script>
+  <script src="assets/games/bizop.js?v=35"></script>
+  <script src="assets/games/blockbuilder.js?v=35"></script>
+  <script src="assets/games/debtsurv.js?v=35"></script>
+  <script src="assets/games/ficoracer.js?v=35"></script>
+  <script src="assets/games/creditcore.js?v=35"></script>
+  <script src="assets/games/scoretower.js?v=35"></script>
+  <script src="assets/games/borrowingbay.js?v=35"></script>
+  <script src="assets/games/trustexchange.js?v=35"></script>
+  <script src="assets/games/repaymentrunway.js?v=35"></script>
+  <script src="assets/games/creditlimitlab.js?v=35"></script>
+  <script src="assets/games/reportobservatory.js?v=35"></script>
+  <script src="assets/games/inv_academy.js?v=35"></script>
+  <script src="assets/games/inv_assetrealm.js?v=35"></script>
+  <script src="assets/games/inv_dividend.js?v=35"></script>
+  <script src="assets/games/inv_portfolio.js?v=35"></script>
+  <script src="assets/games/inv_research.js?v=35"></script>
+  <script src="assets/games/inv_riskcontrol.js?v=35"></script>
+  <script src="assets/games/inv_stockarena.js?v=35"></script>
+  <script src="assets/games/bud_billgrid.js?v=35"></script>
+  <script src="assets/games/bud_cashflow.js?v=35"></script>
+  <script src="assets/games/bud_efflab.js?v=35"></script>
+  <script src="assets/games/bud_goaltower.js?v=35"></script>
+  <script src="assets/games/bud_needswants.js?v=35"></script>
+  <script src="assets/games/bud_plaza.js?v=35"></script>
+  <script src="assets/games/bud_vault.js?v=35"></script>
+  <script src="assets/games/bsv_aiinnovationlabs.js?v=35"></script>
+  <script src="assets/games/bsv_bitstreammarket.js?v=35"></script>
+  <script src="assets/games/bsv_blockchainblvd.js?v=35"></script>
+  <script src="assets/games/bsv_cryptocrossing.js?v=35"></script>
+  <script src="assets/games/bsv_futuretrendscmd.js?v=35"></script>
+  <script src="assets/games/bsv_nftnexus.js?v=35"></script>
+  <script src="assets/games/bsv_volatilityvortex.js?v=35"></script>
+  <script src="assets/games/ll_branding_district.js?v=35"></script>
+  <script src="assets/games/ll_idea_incubator.js?v=35"></script>
+  <script src="assets/games/ll_investor_pitch.js?v=35"></script>
+  <script src="assets/games/ll_marketing_metropolis.js?v=35"></script>
+  <script src="assets/games/ll_product_dev_lab.js?v=35"></script>
+  <script src="assets/games/ll_scaling_center.js?v=35"></script>
+  <script src="assets/games/ll_startup_street.js?v=35"></script>
+  <script src="assets/games/ddt_discovery.js?v=35"></script>
+  <script src="assets/games/ddt_gym.js?v=35"></script>
+  <script src="assets/games/ddt_habits.js?v=35"></script>
+  <script src="assets/games/ddt_lab.js?v=35"></script>
+  <script src="assets/games/ddt_plaza.js?v=35"></script>
+  <script src="assets/games/ddt_rebuild.js?v=35"></script>
+  <script src="assets/games/ddt_resilience.js?v=35"></script>
+  <script src="assets/games/arccfg.js?v=35"></script>
+  <script src="assets/games/arcade.js?v=35"></script>
+  <script src="assets/games/capstones.js?v=35"></script>
 </body>
 </html>
