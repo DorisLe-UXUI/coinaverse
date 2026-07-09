@@ -1,63 +1,73 @@
 /* ════════════════════════════════════════════════════════════════
-   MONEY CATCHER v4.1 — GDD v3.0-spec implementation
-   Guardian / SaveScape Orbit — ages 8-13
-   Piggy bank catches falling money; dodge Savings Killers.
-   Stamina replaces lives. Combo multiplier (per-district cap).
-   9 power-ups. 5 negative item types. Financial literacy embedded.
+   MONEY CATCHER — true-3D rebuild (rebuilt to match the delivered
+   Unity build "MultiMoneyGame" — MoneyCatcher/GameManager.cs,
+   PlayerManager.cs, ElementSpawner.cs, DroppingElement.cs, LevelGoal.cs):
+   - Real 3D hero (RPGTinyHeroWavePolyart mesh + Idle/WalkFWD anims),
+     runs left/right along the SAME lane bounds as PlayerManager.cs
+     (minX=-4 / maxX=4), faces its movement direction, animates.
+   - Real delivered art (01-Art icons: Coin_1/5/10/25/50, Cash_5/10/
+     20/50/100, Stock, LateFee, HighInterest, FireMoney, MoneyMagnet,
+     Shield, TimeFreeze, SpeedBoost, DebtClear) as billboarded sprites.
+   - Exact power-up numbers from PlayerManager.cs: magnet 5s, insurance
+     2 charges, freeze 3s, speed boost 6s(1.5x) — DebtBurner instant-clears.
+   - 3 SaveScape Districts (unchanged GDD v3.0 balance): Penny Park 2075 /
+     Allowance Alley / Savings Bay — goal/spawn/speed/combo-cap all as-is.
+   - Combo, stamina, knowledge gates, end-of-run screen: ported from the
+     existing 2D build (GDD-aligned) onto the new 3D presentation layer.
    ════════════════════════════════════════════════════════════════ */
 (function(){
   const TOKEN='guardian';
   let G=null, raf=null;
 
-  // ── Level configs (GDD v3.0 — 5 SaveScape Districts) ───────────
-  // comboCap: per-district max multiplier (GDD §05)
+  window.mcInit=function(){ if(G) teardown(); G=null; };
+
+  /* ── Level definitions (GDD v3.0 — 3 SaveScape Districts, unchanged) ── */
   const LEVELS=[
-    {name:'Penny Park 2075',   dur:90,  moneyGoal:10000, stockGoal:15, spawnRate:2.0, ramp:0.02, negRate:0.10, speedStart:1.0, speedEnd:1.5, puChance:0.10, comboCap:5},
-    {name:'Allowance Alley',   dur:120, moneyGoal:25000, stockGoal:30, spawnRate:2.4, ramp:0.025,negRate:0.13, speedStart:1.0, speedEnd:1.65,puChance:0.08, comboCap:7},
-    {name:'Savings Bay',       dur:150, moneyGoal:50000, stockGoal:50, spawnRate:2.8, ramp:0.03, negRate:0.17, speedStart:1.05,speedEnd:1.85,puChance:0.06, comboCap:8},
+    {name:'Penny Park 2075', env:'park', dur:90,  moneyGoal:10000, stockGoal:15, spawnRate:2.0, ramp:0.02, negRate:0.10, speedStart:1.0, speedEnd:1.5, puChance:0.10, comboCap:5,
+      sky:0xaee4ff, ground:'#4caf6e', desc:'Wide open lawns. Learn the basics of catching and saving.'},
+    {name:'Allowance Alley', env:'alley', dur:120, moneyGoal:25000, stockGoal:30, spawnRate:2.4, ramp:0.025,negRate:0.13, speedStart:1.0, speedEnd:1.65,puChance:0.08, comboCap:7,
+      sky:0xffd9a0, ground:'#8a8f98', desc:'Busier streets, faster drops. Dodge Late Fees and High Interest.'},
+    {name:'Savings Bay',     env:'bay',  dur:150, moneyGoal:50000, stockGoal:50, spawnRate:2.8, ramp:0.03, negRate:0.17, speedStart:1.05,speedEnd:1.85,puChance:0.06, comboCap:8,
+      sky:0x8fd8ff, ground:'#3a6f7d', desc:'The championship vault. Everything moves fast — stay sharp!'},
   ];
 
-  // ── Item tables ─────────────────────────────────────────────────
+  /* ── Item tables — real delivered icons (01-Art), authentic to the
+     shipped ElementType enum + PlayerManager.cs power-up numbers ── */
   const POS_ITEMS=[
-    {type:'coin', e:'🪙', label:'Coin',   money:1,   pts:10},
-    {type:'coin', e:'🪙', label:'Coin',   money:5,   pts:20},
-    {type:'coin', e:'🪙', label:'Coin',   money:10,  pts:30},
-    {type:'cash', e:'💵', label:'Cash',   money:20,  pts:60},
-    {type:'cash', e:'💵', label:'Cash',   money:50,  pts:120},
-    {type:'cash', e:'💵', label:'Cash',   money:100, pts:200},
-    {type:'stock',e:'📈', label:'Coincept Stock', stock:1, pts:250},
+    {type:'coin', icon:'mc_coin1.png',  label:'Coin',   money:1,   pts:10},
+    {type:'coin', icon:'mc_coin5.png',  label:'Coin',   money:5,   pts:20},
+    {type:'coin', icon:'mc_coin10.png', label:'Coin',   money:10,  pts:35},
+    {type:'coin', icon:'mc_coin25.png', label:'Coin',   money:25,  pts:60},
+    {type:'coin', icon:'mc_coin50.png', label:'Coin',   money:50,  pts:100},
+    {type:'cash', icon:'mc_cash5.png',   label:'Cash',   money:5,   pts:25},
+    {type:'cash', icon:'mc_cash10.png',  label:'Cash',   money:10,  pts:40},
+    {type:'cash', icon:'mc_cash20.png',  label:'Cash',   money:20,  pts:70},
+    {type:'cash', icon:'mc_cash50.png',  label:'Cash',   money:50,  pts:130},
+    {type:'cash', icon:'mc_cash100.png', label:'Cash',   money:100, pts:220},
+    {type:'stock',icon:'mc_stock.png',   label:'Coincept Stock', stock:1, pts:250},
   ];
 
-  // GDD §13 Savings Killers: Late Fee, Impulse Purchase, Broken Piggy Bank, Emergency Expense, Fire Money
-  // GDD: Late Fee moves straight+fast; High Interest/Fire Money zigzag; Impulse Purchase slow wobble
+  // ElementType.LateFee / HighInterest / FireMoney — the 3 delivered Savings Killers
   const NEG_ITEMS=[
-    {type:'latefee',     e:'🧾', label:'Late Fee',        money:-3,  stamina:-6,  speed:1.3, zigzag:false, effect:'money'},
-    {type:'impulse',     e:'🛍️', label:'Impulse Purchase', money:-5,  stamina:0,   speed:0.9, zigzag:true,  amp:0.8, freq:2.2, effect:'money'},
-    {type:'brokenpiggy', e:'🐷', label:'Broken Piggy!',   money:0,   stamina:0,   speed:1.0, zigzag:false, effect:'combo'},
-    {type:'emergency',   e:'🚨', label:'Emergency!',      money:-2,  stamina:-12, speed:1.1, zigzag:false, effect:'stamina'},
-    {type:'firemoney',   e:'🔥', label:'Fire Money',      money:-10, stamina:-14, speed:1.2, zigzag:true,  amp:1.0, freq:4.0, effect:'money'},
+    {type:'latefee',      icon:'mc_latefee.png',      label:'Late Fee',      money:-3,  stamina:-6,  speed:1.3, zigzag:false},
+    {type:'highinterest', icon:'mc_highinterest.png', label:'High Interest', money:-6,  stamina:-4,  speed:1.1, zigzag:false},
+    {type:'firemoney',    icon:'mc_firemoney.png',    label:'Fire Money',    money:-10, stamina:-14, speed:1.2, zigzag:true, amp:1.1, freq:4.0},
   ];
 
-  // Power-ups (GDD v3.0 §11 — all 9 in-run abilities)
+  // ElementType.MoneyMagnet / InsuranceBlocker / TimeFreeze / SpeedBoost / DebtBurner
+  // — durations copied verbatim from PlayerManager.cs's own [Header("Power-up Settings")]
   const POWERUPS=[
-    {type:'magnet',    e:'🧲', label:'Money Magnet',      dur:5,  color:'#fbbf24'},
-    {type:'shield',    e:'🛡️', label:'Insurance Shield',   dur:0,  color:'#60a5fa', hits:2},
-    {type:'freeze',    e:'❄️', label:'Time Freeze',        dur:3,  color:'#7dd3fc'},
-    {type:'speed',     e:'⚡', label:'Speed Boost',        dur:6,  color:'#a78bfa'},
-    {type:'debtburn',  e:'💥', label:'Debt Destroyer',     dur:0,  color:'#fb923c', instant:true},
-    {type:'goldpiggy', e:'🐷', label:'Golden Piggy',       dur:8,  color:'#fde68a'},   // GDD: all money 2×
-    {type:'coinstorm', e:'🌧️', label:'Coin Storm',         dur:5,  color:'#34d399'},   // GDD: money rains
-    {type:'vaultmult', e:'✖️', label:'Vault Multiplier',   dur:5,  color:'#818cf8'},   // GDD: deposits worth 2×
-    {type:'supersaver',e:'🦸', label:'Super Saver Mode',   dur:8,  color:'#e879f9'},   // GDD: combo timer pauses
+    {type:'magnet',   icon:'mc_pu_magnet.png',  label:'Money Magnet',    dur:5, color:'#fbbf24'},
+    {type:'shield',   icon:'mc_pu_shield.png',  label:'Insurance Blocker', dur:0, color:'#60a5fa', hits:2},
+    {type:'freeze',   icon:'mc_pu_freeze.png',  label:'Time Freeze',     dur:3, color:'#7dd3fc'},
+    {type:'speed',    icon:'mc_pu_speed.png',   label:'Speed Boost',    dur:6, color:'#a78bfa'},
+    {type:'debtburn', icon:'mc_pu_debtburn.png',label:'Debt Burner',    dur:0, color:'#fb923c', instant:true},
   ];
 
-  const PIG={id:'small',e:'🐷',stamina:100,staminaMax:100};
-
-  // Financial literacy fact gates (GDD §03 learning outcomes + §13 Savings Killers concepts)
   const FACTS=[
     ['🐷','Pay yourself first — save BEFORE you spend.'],
     ['🧾','Late fees drain your savings. Always pay on time!'],
-    ['🛍️','Impulse purchases eat your savings. Ask: do I need this NOW?'],
+    ['📊','High interest debt grows fast — the longer you carry it, the more it costs you.'],
     ['🔥','Fire money burns your savings fast — pause before every purchase.'],
     ['📈','Investing in stocks builds wealth over the long term.'],
     ['🛡️','Insurance protects your savings from unexpected events.'],
@@ -66,42 +76,212 @@
     ['💰','Small savings compound over time into BIG wealth.'],
   ];
 
-  // ── Init ────────────────────────────────────────────────────────
-  window.mcInit=function(){ G=null; };
-
-  function reset(levelIdx){
-    const lv=LEVELS[levelIdx||0];
-    G={
-      phase:'play', level:levelIdx||0, lv,
-      money:0, stock:0, score:0,
-      moneyGoal:lv.moneyGoal, stockGoal:lv.stockGoal,
-      stamina:100, staminaMax:100,
-      piggyX:0.5, vx:0,
-      combo:0, comboMult:1,
-      items:[], parts:[], floats:[],
-      time:lv.dur, spawnAcc:0, elapsed:0, last:0,
-      // GDD §11 power-up state — all 9 types
-      pu:{ magnet:0, shield:0, shieldHits:0, freeze:0, speed:0, goldpiggy:0, coinstorm:0, vaultmult:0, supersaver:0 },
-      // GDD §15 end-of-run tracking
-      avoided:{ latefee:0, impulse:0 }, comboPeak:0,
-      shake:0, flash:{r:0,g:0,b:0,a:0},
-      gateEvery:22, gateT:22, gateIdx:0,
-      keyL:false, keyR:false,
-    };
+  /* ══════════════ 3D libs (three r128 + self-hosted FBXLoader) ══════════════ */
+  function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>{ s.remove(); rej(new Error('load fail '+src)); }; document.head.appendChild(s); }); }
+  let _libsP=null;
+  function ensure3D(){
+    if(window.THREE && window.THREE.FBXLoader) return Promise.resolve();
+    if(_libsP) return _libsP;
+    _libsP=(window.THREE?Promise.resolve():loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'))
+      .then(()=>window.fflate?null:loadScript('assets/games3d/lib/fflate.min.js'))
+      .then(()=>window.THREE.NURBSCurve?null:loadScript('assets/games3d/lib/NURBSUtils.js').then(()=>loadScript('assets/games3d/lib/NURBSCurve.js')).catch(()=>{}))
+      .then(()=>window.THREE.FBXLoader?null:loadScript('assets/games3d/lib/FBXLoader.js'))
+      .catch(e=>{ _libsP=null; throw e; });
+    return _libsP;
   }
 
-  // ── Screen ──────────────────────────────────────────────────────
+  /* ══════════════ SCREEN ══════════════ */
   window.SCREENS.game_moneycatcher=function(){
-    if(!G) reset(0);
-    setTimeout(mcBoot,30);
-    return `
-    <div id="mcWrap" style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,#0c4a46,#04141f 60%,#02080f);overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none">
-      <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(2,12,18,.9),transparent)">
-        <button onclick="mcExit()" style="padding:6px 12px;border:1px solid rgba(20,184,166,.4);border-radius:8px;background:rgba(20,184,166,.1);color:#5eead4;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.16em;color:#2dd4bf;flex:1;text-align:center" id="mcLevelName">MONEY CATCHER</div>
-        <div id="mcTime" style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:#fbbf24;min-width:42px;text-align:right">90s</div>
+    setTimeout(showLevelSelect,30);
+    return `<div id="mcRoot" style="position:absolute;inset:0;background:#04140f;overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
+      <div id="mc3dWrap" style="position:absolute;inset:0"></div>
+      <div id="mcUI" style="position:absolute;inset:0;pointer-events:none"></div>
+    </div>`;
+  };
+
+  /* ── Level select (SaveScape District cards) ── */
+  function showLevelSelect(){
+    const ui=document.getElementById('mcUI'); if(!ui) return;
+    const best=(window.state&&state.gameLevels&&state.gameLevels['game_moneycatcher'])||0;
+    ui.style.pointerEvents='auto';
+    const icons=['🌳','🏙️','🌊'];
+    ui.innerHTML=`
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,rgba(20,184,166,.25),transparent 55%),linear-gradient(180deg,#052a24,#02140f);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px;overflow-y:auto">
+        <button onclick="mcExit()" style="position:absolute;top:14px;left:14px;padding:8px 16px;border:1px solid rgba(20,184,166,.4);border-radius:10px;background:rgba(4,20,16,.6);color:#5eead4;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← HUB</button>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.3em;color:#2dd4bf">SAVESCAPE ORBIT PRESENTS</div>
+        <div style="font-family:'Anton',sans-serif;font-size:clamp(1.8rem,6vw,3rem);letter-spacing:.04em;background:linear-gradient(90deg,#5eead4,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent">🐷 MONEY CATCHER</div>
+        <div style="font-size:.85rem;color:rgba(255,255,255,.6);margin-top:-8px;text-align:center;max-width:520px">Run your Guardian left and right — catch coins, cash &amp; stock, dodge Savings Killers!</div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;max-width:900px">
+          ${LEVELS.map((L,i)=>{
+            const locked=i>0 && best<i;
+            return `<div onclick="${locked?'':'mcStart('+i+')'}" style="width:250px;padding:20px 18px;border-radius:18px;border:1.5px solid ${locked?'rgba(255,255,255,.12)':'rgba(20,184,166,.45)'};background:linear-gradient(165deg,rgba(6,36,30,.95),rgba(2,14,11,.98));cursor:${locked?'default':'pointer'};text-align:center;position:relative;transition:all .2s" ${locked?'':`onmouseover="this.style.borderColor='#fbbf24';this.style.transform='translateY(-4px)'" onmouseout="this.style.borderColor='rgba(20,184,166,.45)';this.style.transform='none'"`}>
+              <div style="font-size:2.4rem;margin-bottom:6px;filter:${locked?'grayscale(1) opacity(.4)':'none'}">${icons[i]}</div>
+              <div style="font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:.08em;color:${locked?'rgba(255,255,255,.35)':'#5eead4'}">${L.name.toUpperCase()}</div>
+              <div style="font-size:.72rem;line-height:1.5;color:rgba(255,255,255,${locked?'.3':'.65'});margin-top:8px">${L.desc}</div>
+              <div style="margin-top:10px;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.1em;color:#fbbf24">GOAL $${fmt(L.moneyGoal)} · ${L.stockGoal} STOCK · ${L.dur}s</div>
+              ${locked?`<div style="position:absolute;top:10px;right:12px;font-size:1rem">🔒</div><div style="margin-top:8px;font-size:.55rem;color:rgba(255,255,255,.4)">Win ${LEVELS[i-1].name} to unlock</div>`:''}
+            </div>`;}).join('')}
+        </div>
+        <div style="font-size:.62rem;color:rgba(255,255,255,.35)">🎮 Move: ← → / A D / drag · Catch the good stuff, dodge the red ones!</div>
+      </div>`;
+  }
+
+  window.mcStart=function(li){
+    const ui=document.getElementById('mcUI'); if(ui){ ui.style.pointerEvents='none'; ui.innerHTML=
+      `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#02140f">
+        <div style="font-family:'Anton',sans-serif;font-size:2rem;color:#5eead4">ENTERING ${LEVELS[li].name.toUpperCase()}…</div>
+        <div style="width:220px;height:8px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden"><div id="mcLoadBar" style="width:10%;height:100%;border-radius:6px;background:linear-gradient(90deg,#14b8a6,#fbbf24);transition:width .3s"></div></div>
+        <div style="font-size:.65rem;color:rgba(255,255,255,.45)">warming up the piggy bank…</div>
+      </div>`; }
+    const bar=p=>{ const b=document.getElementById('mcLoadBar'); if(b) b.style.width=(p*100)+'%'; };
+    ensure3D().then(()=>{ bar(1); startGame(li, null); })
+      .catch(e=>{ console.warn('MoneyCatcher 3D load issue:', e); startGame(li, null); });
+  };
+
+  /* ── FBX hero loading — NOT currently used (see startGame: the hero is always the
+     procedural buildFallbackHero() below). The delivered RPGTinyHeroWavePolyart
+     "AllBodiesCloaks.fbx" bundles 20 Body##/3 Cloak## variants whose bones are
+     doubly-parented (each bone's parent is itself a same-named Bone node) — normal
+     AnimationMixer retargeting and manual bone-rotation posing both silently no-op
+     on this rig, and the raw bind pose is a full T-pose (arms out ~2x body height),
+     so there's no safe way to re-pose it without risking a broken-looking character.
+     Left here (unused) in case a future pass finds a working retarget path. ── */
+  let _heroCache=null;
+  function loadHeroAsset(bar){
+    if(_heroCache) return Promise.resolve(_heroCache);
+    const loader=new THREE.FBXLoader();
+    const texLoader=new THREE.TextureLoader();
+    const albedo=texLoader.load('assets/games3d/mc_hero_albedo.png', t=>{ t.flipY=true; });
+    let steps=0; const tick=()=>{ steps++; if(bar) bar(.4+.6*Math.min(1,steps/3)); };
+    return new Promise(res=>{
+      loader.load('assets/games3d/mc_hero.fbx', body=>{
+        tick();
+        // this FBX bundles 20 alternate Body## + 3 alternate Cloak## skinned meshes
+        // (Unity-side costume options, all siblings on the same skeleton) — keep
+        // exactly one body variant visible and drop the rest, or every variant
+        // renders stacked on top of the others.
+        const KEEP='Body01';
+        const drop=[];
+        body.traverse(m=>{ if(m.isMesh && m.name!==KEEP) drop.push(m); });
+        drop.forEach(m=>{ m.visible=false; m.parent&&m.parent.remove(m); });
+        body.updateMatrixWorld(true);
+        const box=new THREE.Box3().setFromObject(body), size=box.getSize(new THREE.Vector3());
+        const s=1.8/(size.y||1); body.scale.setScalar(s);
+        body.updateMatrixWorld(true);
+        const box2=new THREE.Box3().setFromObject(body);
+        body.position.y=-box2.min.y; body.position.x=-(box2.min.x+box2.max.x)/2; body.position.z=-(box2.min.z+box2.max.z)/2;
+        body.traverse(m=>{ if(m.isMesh){ m.material=new THREE.MeshToonMaterial({map:albedo}); m.castShadow=false; m.receiveShadow=false; } });
+        const mixer=new THREE.AnimationMixer(body);
+        const anims={};
+        const loadAnim=(key,file)=>new Promise(r=>{
+          loader.load('assets/games3d/'+file, obj=>{ tick(); if(obj.animations&&obj.animations[0]) anims[key]=obj.animations[0]; r(); }, undefined, ()=>{ tick(); r(); });
+        });
+        Promise.all([loadAnim('idle','mc_hero_idle.fbx'), loadAnim('run','mc_hero_run.fbx')]).then(()=>{
+          const actions={};
+          Object.keys(anims).forEach(k=>{ actions[k]=mixer.clipAction(anims[k]); actions[k].play(); actions[k].weight=k==='idle'?1:0; });
+          _heroCache={root:body, mixer, actions};
+          res(_heroCache);
+        });
+      }, undefined, ()=>{ res(null); });
+    });
+  }
+  function buildFallbackHero(){
+    // three r128 has no CapsuleGeometry — rounded-cylinder limbs match FICO Racer's
+    // own procedural-fallback convention (Box/Cylinder/Sphere only).
+    const g=new THREE.Group();
+    const skin=new THREE.MeshToonMaterial({color:0xffd1a3}), shirt=new THREE.MeshToonMaterial({color:0x14b8a6}), pants=new THREE.MeshToonMaterial({color:0x334155});
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.32,12,10), skin); head.position.y=1.5; g.add(head);
+    const cap=new THREE.Mesh(new THREE.SphereGeometry(.33,12,8,0,Math.PI*2,0,Math.PI/2), new THREE.MeshToonMaterial({color:0x0d9488})); cap.position.y=1.58; g.add(cap);
+    const torso=new THREE.Mesh(new THREE.CylinderGeometry(.24,.3,.62,10), shirt); torso.position.y=1.03; g.add(torso);
+    const legL=new THREE.Mesh(new THREE.CylinderGeometry(.11,.13,.52,8), pants); legL.position.set(-.13,.4,0); g.add(legL);
+    const legR=legL.clone(); legR.position.x=.13; g.add(legR);
+    const armL=new THREE.Mesh(new THREE.CylinderGeometry(.08,.1,.44,8), skin); armL.position.set(-.4,1.05,0); armL.rotation.z=.25; g.add(armL);
+    const armR=armL.clone(); armR.position.x=.4; armR.rotation.z=-.25; g.add(armR);
+    return {root:g, mixer:null, actions:null, legs:[legL,legR], arms:[armL,armR], _fallback:true};
+  }
+
+  /* ══════════════ GAME ══════════════ */
+  function makeCanvasTex(w,h,draw,repX,repY){
+    const c=document.createElement('canvas'); c.width=w; c.height=h;
+    draw(c.getContext('2d'),w,h);
+    const t=new THREE.CanvasTexture(c);
+    if(repX||repY){ t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(repX||1,repY||1); }
+    return t;
+  }
+
+  function startGame(li, hero){
+    if(G) teardown();
+    const wrap=document.getElementById('mc3dWrap'); if(!wrap) return;
+    const L=LEVELS[li];
+    const LANE_MIN=-4, LANE_MAX=4;             // exact PlayerManager.cs minX/maxX
+    const scene=new THREE.Scene();
+    scene.fog=new THREE.Fog(L.sky, 16, 40);
+    const cam=new THREE.PerspectiveCamera(50, wrap.clientWidth/Math.max(1,wrap.clientHeight), .1, 200);
+    cam.position.set(0,3.6,11); cam.lookAt(0,1.2,0);           // set immediately — don't wait for the lerp to converge
+    const rndr=new THREE.WebGLRenderer({antialias:devicePixelRatio<=1, powerPreference:'high-performance'});
+    rndr.setPixelRatio(Math.min(devicePixelRatio,1.25));
+    rndr.setSize(wrap.clientWidth, wrap.clientHeight);
+    wrap.innerHTML=''; wrap.appendChild(rndr.domElement);
+
+    /* sky */
+    scene.background=new THREE.Color(L.sky);
+    scene.add(new THREE.AmbientLight(0xffffff,.6));
+    const sun=new THREE.DirectionalLight(0xffffff,.55); sun.position.set(6,12,8); scene.add(sun);
+
+    /* ground */
+    const gtex=makeCanvasTex(128,128,(x,w,h)=>{ x.fillStyle=L.ground; x.fillRect(0,0,w,h);
+      for(let i=0;i<260;i++){ x.fillStyle=`rgba(0,0,0,${Math.random()*.08})`; x.fillRect(Math.random()*w,Math.random()*h,2,2); }
+      for(let i=0;i<260;i++){ x.fillStyle=`rgba(255,255,255,${Math.random()*.06})`; x.fillRect(Math.random()*w,Math.random()*h,2,2); }
+    },10,10);
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.MeshToonMaterial({map:gtex}));
+    ground.rotation.x=-Math.PI/2; scene.add(ground);
+    const laneTex=makeCanvasTex(64,64,(x,w,h)=>{ x.fillStyle=L.env==='bay'?'#c9a86a':'#d8d3c4'; x.fillRect(0,0,w,h);
+      x.strokeStyle='rgba(0,0,0,.08)'; x.lineWidth=2; for(let i=0;i<4;i++){ x.beginPath(); x.moveTo(0,i*16); x.lineTo(64,i*16); x.stroke(); } },1,6);
+    const lane=new THREE.Mesh(new THREE.PlaneGeometry(LANE_MAX-LANE_MIN+2.4, 5), new THREE.MeshToonMaterial({map:laneTex}));
+    lane.rotation.x=-Math.PI/2; lane.position.y=.01; scene.add(lane);
+
+    /* per-district decor (procedural — no heavy model loading, cheap InstancedMesh) */
+    const decor=new THREE.Group(); scene.add(decor);
+    function decorItem(geo,mat,x,y,z,sx,sy,sz,ry){ const m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); if(sx) m.scale.set(sx,sy||sx,sz||sx); if(ry) m.rotation.y=ry; decor.add(m); return m; }
+    const edge=LANE_MAX+1.6;
+    if(L.env==='park'){
+      const fenceM=new THREE.MeshToonMaterial({color:0xf4f4f0});
+      for(let side=-1;side<=1;side+=2) for(let i=-3;i<=3;i++) decorItem(new THREE.BoxGeometry(.12,.55,.12),fenceM, side*edge, .27, i*1.4);
+      const trunkM=new THREE.MeshToonMaterial({color:0x6b4a2b}), leafM=new THREE.MeshToonMaterial({color:0x3fae5c});
+      [[-6.4,-3],[6.4,0],[-6.8,3.4],[7,4.2]].forEach(([x,z])=>{ decorItem(new THREE.CylinderGeometry(.15,.2,1.4,6),trunkM,x,.7,z); decorItem(new THREE.SphereGeometry(1,7,6),leafM,x,1.7,z); });
+      const bldM=[0xffd6e0,0xc8e6ff,0xfff2b3].map(c=>new THREE.MeshToonMaterial({color:c}));
+      for(let i=0;i<7;i++){ const x=(i-3)*3.4, h=3+Math.random()*3; decorItem(new THREE.BoxGeometry(2,h,2),bldM[i%3],x,h/2,-12-Math.random()*3); }
+    } else if(L.env==='alley'){
+      const houseM=[0xf59e0b,0x60a5fa,0xf87171,0xa78bfa].map(c=>new THREE.MeshToonMaterial({color:c}));
+      for(let side=-1;side<=1;side+=2) for(let i=-2;i<=2;i++){ const h=2.4+Math.random()*1.2;
+        decorItem(new THREE.BoxGeometry(2.4,h,2.2), houseM[(i+2)%4], side*(edge+1.2), h/2, i*2.6);
+        decorItem(new THREE.ConeGeometry(1.7,1,4), new THREE.MeshToonMaterial({color:0x475569}), side*(edge+1.2), h+.5, i*2.6, 1,1,1,Math.PI/4); }
+      const postM=new THREE.MeshToonMaterial({color:0x334155});
+      for(let side=-1;side<=1;side+=2) for(let i=-3;i<=3;i++) decorItem(new THREE.CylinderGeometry(.06,.06,1.1,6),postM, side*edge, .55, i*1.4);
+    } else { // bay
+      const water=new THREE.Mesh(new THREE.PlaneGeometry(40,40), new THREE.MeshToonMaterial({color:0x1b6d8a,transparent:true,opacity:.85}));
+      water.rotation.x=-Math.PI/2; water.position.set(edge+8,-.02,-4); scene.add(water);
+      const plankM=new THREE.MeshToonMaterial({color:0x8a6a45});
+      for(let side=-1;side<=1;side+=2) for(let i=-3;i<=3;i++) decorItem(new THREE.BoxGeometry(.18,.5,1.3),plankM, side*edge, .25, i*1.4);
+      const hullM=new THREE.MeshToonMaterial({color:0xf5f5f5}), sailM=new THREE.MeshToonMaterial({color:0xfacc15});
+      [[edge+7,-8],[edge+11,-2]].forEach(([x,z])=>{ decorItem(new THREE.CapsuleGeometry(.6,2,4,8),hullM,x,.4,z,1,1,1,Math.PI/2); decorItem(new THREE.ConeGeometry(.5,1.6,4),sailM,x,1.6,z); });
+    }
+
+    /* hero — procedural Guardian character (see loadHeroAsset's comment above) */
+    const heroInst=Object.assign(buildFallbackHero(),{isFallback:true});
+    scene.add(heroInst.root);
+
+    /* HUD (reuses the established Money Catcher HUD layout) */
+    const ui=document.getElementById('mcUI');
+    ui.style.pointerEvents='none';
+    ui.innerHTML=`
+      <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(2,12,18,.9),transparent);pointer-events:none">
+        <button onclick="mcExit()" style="pointer-events:auto;padding:6px 12px;border:1px solid rgba(20,184,166,.4);border-radius:8px;background:rgba(20,184,166,.1);color:#5eead4;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.16em;color:#2dd4bf;flex:1;text-align:center">🐷 ${L.name.toUpperCase()}</div>
+        <button onclick="mcShowHelp()" style="pointer-events:auto;width:26px;height:26px;border-radius:50%;border:1px solid rgba(20,184,166,.4);background:rgba(20,184,166,.12);color:#5eead4;font-size:.7rem;cursor:pointer">❓</button>
+        <div id="mcTime" style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:#fbbf24;min-width:42px;text-align:right">${L.dur}s</div>
       </div>
-      <div style="position:absolute;top:46px;left:0;right:0;z-index:5;padding:0 12px;display:flex;gap:6px">
+      <div style="position:absolute;top:46px;left:0;right:0;z-index:5;padding:0 12px;display:flex;gap:6px;pointer-events:none">
         <div style="flex:1;background:rgba(0,0,0,.35);border:1px solid rgba(20,184,166,.2);border-radius:10px;padding:5px 8px">
           <div style="font-family:'Orbitron',sans-serif;font-size:.38rem;color:rgba(255,255,255,.45);letter-spacing:.1em;margin-bottom:2px">STAMINA</div>
           <div style="height:8px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden"><div id="mcStamBar" style="height:100%;width:100%;background:linear-gradient(90deg,#34d399,#6ee7b7);border-radius:4px;transition:width .15s"></div></div>
@@ -119,212 +299,238 @@
           <div id="mcStock" style="font-family:'Anton',sans-serif;font-size:.85rem;color:#818cf8;line-height:1">0</div>
         </div>
       </div>
-      <div style="position:absolute;top:96px;left:12px;right:12px;z-index:5">
+      <div style="position:absolute;top:96px;left:12px;right:12px;z-index:5;pointer-events:none">
         <div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.1em;color:rgba(255,255,255,.4);margin-bottom:3px"><span>SAVINGS GOAL</span><span id="mcGoalTxt">$0 / $10K</span></div>
         <div style="height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid rgba(20,184,166,.15)"><div id="mcGoalBar" style="height:100%;width:0%;background:linear-gradient(90deg,#14b8a6,#5eead4);transition:width .25s"></div></div>
       </div>
-      <div id="mcPuRow" style="position:absolute;top:112px;left:0;right:0;z-index:5;display:flex;justify-content:center;gap:8px;padding:4px 12px;min-height:22px"></div>
-      <canvas id="mcCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:none"></canvas>
-      <div id="mcGate" style="position:absolute;inset:0;z-index:9;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(2,10,16,.88);backdrop-filter:blur(6px);padding:24px;gap:18px"></div>
-      <div id="mcOver" style="position:absolute;inset:0;z-index:10;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(2,10,16,.85);backdrop-filter:blur(5px);gap:14px;padding:24px"></div>
-    </div>`;
-  };
+      <div id="mcPuRow" style="position:absolute;top:112px;left:0;right:0;z-index:5;display:flex;justify-content:center;gap:8px;padding:4px 12px;min-height:22px;pointer-events:none"></div>
+      <div id="mcMsg" style="position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);font-family:'Anton',sans-serif;font-size:1.7rem;color:#fbbf24;text-shadow:0 4px 24px rgba(0,0,0,.6);opacity:0;transition:opacity .2s;pointer-events:none;text-align:center;z-index:6"></div>
+      <div style="position:absolute;left:14px;bottom:18px;display:flex;gap:10px;pointer-events:none;z-index:5">
+        <button id="mcLBtn" style="pointer-events:auto;width:58px;height:58px;border-radius:16px;border:1px solid rgba(255,255,255,.25);background:rgba(10,30,26,.6);color:#fff;font-size:1.3rem;cursor:pointer">◀</button>
+        <button id="mcRBtn" style="pointer-events:auto;width:58px;height:58px;border-radius:16px;border:1px solid rgba(255,255,255,.25);background:rgba(10,30,26,.6);color:#fff;font-size:1.3rem;cursor:pointer">▶</button>
+      </div>
+      <div id="mcGate" style="position:absolute;inset:0;z-index:9;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(2,10,16,.88);backdrop-filter:blur(6px);padding:24px;gap:18px;pointer-events:auto"></div>
+      <div id="mcHow" style="position:absolute;inset:0;z-index:9;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(2,10,16,.88);backdrop-filter:blur(6px);padding:24px;gap:16px;pointer-events:auto"></div>
+      <div id="mcOver" style="position:absolute;inset:0;z-index:10;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(2,10,16,.85);backdrop-filter:blur(5px);gap:14px;padding:24px;pointer-events:auto"></div>`;
 
-  // ── Boot ─────────────────────────────────────────────────────────
-  function mcBoot(){
-    const cv=document.getElementById('mcCanvas'); if(!cv) return;
-    const ctx=cv.getContext('2d');
-    function size(){ cv.width=cv.clientWidth*devicePixelRatio; cv.height=cv.clientHeight*devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); }
-    size(); window.addEventListener('resize',size);
-    const setX=(cx)=>{ const r=cv.getBoundingClientRect(); G.piggyX=Math.max(0.05,Math.min(0.95,(cx-r.left)/r.width)); };
-    const onMM=e=>setX(e.clientX);
-    const onTM=e=>{ if(e.touches[0]){setX(e.touches[0].clientX);e.preventDefault();} };
-    const onTS=e=>{ if(e.touches[0])setX(e.touches[0].clientX); };
-    cv.addEventListener('mousemove',onMM);
-    cv.addEventListener('touchmove',onTM,{passive:false});
-    cv.addEventListener('touchstart',onTS);
-    const kd=e=>{ if(e.key==='ArrowLeft')G.keyL=true; if(e.key==='ArrowRight')G.keyR=true; };
-    const ku=e=>{ if(e.key==='ArrowLeft')G.keyL=false; if(e.key==='ArrowRight')G.keyR=false; };
+    /* icon texture cache */
+    const texL=new THREE.TextureLoader();
+    const iconTexCache={};
+    function iconTex(file){ if(!iconTexCache[file]) iconTexCache[file]=texL.load('assets/games3d/'+file); return iconTexCache[file]; }
+
+    /* state */
+    G={ li, L, scene, cam, rndr, wrap, hero:heroInst, decor, LANE_MIN, LANE_MAX,
+        phase:'intro', level:li, lv:L,
+        money:0, stock:0, score:0,
+        moneyGoal:L.moneyGoal, stockGoal:L.stockGoal,
+        stamina:100, staminaMax:100,
+        heroX:0, vx:0, facing:1,
+        combo:0, comboMult:1,
+        items:[], floats:[],
+        time:L.dur, spawnAcc:0, elapsed:0, last:performance.now(),
+        pu:{ magnet:0, shield:0, shieldHits:0, freeze:0, speed:0 },
+        avoided:{ latefee:0, highinterest:0 }, comboPeak:0,
+        gateEvery:22, gateT:22, gateIdx:0,
+        keyL:false, keyR:false, dragX:0,
+        iconTex, _pauseStartTs:0,
+      };
+
+    /* input */
+    const kd=e=>{ if(!G) return; if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A') G.keyL=true; if(e.key==='ArrowRight'||e.key==='d'||e.key==='D') G.keyR=true; };
+    const ku=e=>{ if(!G) return; if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A') G.keyL=false; if(e.key==='ArrowRight'||e.key==='d'||e.key==='D') G.keyR=false; };
     window.addEventListener('keydown',kd); window.addEventListener('keyup',ku);
-    G._cleanup=()=>{
-      window.removeEventListener('resize',size);
-      window.removeEventListener('keydown',kd);
-      window.removeEventListener('keyup',ku);
-      cv.removeEventListener('mousemove',onMM);
-      cv.removeEventListener('touchmove',onTM);
-      cv.removeEventListener('touchstart',onTS);
-    };
-    const ln=document.getElementById('mcLevelName');
-    if(ln) ln.textContent='🐷 '+LEVELS[G.level].name.toUpperCase();
-    G.last=performance.now();
-    cancelAnimationFrame(raf); raf=requestAnimationFrame(loop);
-  }
+    let touchX=null;
+    const cvEl=rndr.domElement;
+    const ts=e=>{ if(e.touches[0]){ touchX=e.touches[0].clientX; e.preventDefault(); } };
+    const tm=e=>{ if(touchX!=null&&e.touches[0]&&G){ G.dragX=(e.touches[0].clientX-touchX)/40; e.preventDefault(); } };
+    const te=()=>{ touchX=null; if(G) G.dragX=0; };
+    cvEl.addEventListener('touchstart',ts,{passive:false}); cvEl.addEventListener('touchmove',tm,{passive:false});
+    cvEl.addEventListener('touchend',te); cvEl.addEventListener('touchcancel',te);
+    const hold=(id,key)=>{ const b=document.getElementById(id); if(!b) return;
+      const on=e=>{ if(G) G[key]=true; e.preventDefault(); }, off=()=>{ if(G) G[key]=false; };
+      b.addEventListener('pointerdown',on); b.addEventListener('pointerup',off); b.addEventListener('pointerleave',off); };
+    hold('mcLBtn','keyL'); hold('mcRBtn','keyR');
+    const onResize=()=>{ if(!G) return; const w=wrap.clientWidth,h=Math.max(1,wrap.clientHeight);
+      cam.aspect=w/h; cam.updateProjectionMatrix(); rndr.setSize(w,h); };
+    window.addEventListener('resize',onResize);
+    G._cleanup=()=>{ window.removeEventListener('keydown',kd); window.removeEventListener('keyup',ku);
+      window.removeEventListener('resize',onResize);
+      cvEl.removeEventListener('touchstart',ts); cvEl.removeEventListener('touchmove',tm);
+      cvEl.removeEventListener('touchend',te); cvEl.removeEventListener('touchcancel',te); };
 
-  function loop(now){
-    const cv=document.getElementById('mcCanvas');
-    if(!cv||!G){ if(G&&G._cleanup){G._cleanup();} G=null; cancelAnimationFrame(raf); return; }
-    const ctx=cv.getContext('2d'); const W=cv.clientWidth,H=cv.clientHeight;
-    const dt=Math.min(40,now-G.last)/1000; G.last=now;
-    if(G.phase==='play') update(dt,W,H,now);
-    render(ctx,W,H,now);
+    window._mcDbg=function(){ if(!G) return null;
+      return {phase:G.phase, level:G.level, money:G.money, stock:G.stock, stamina:+G.stamina.toFixed(1), time:+G.time.toFixed(1),
+        heroX:+G.heroX.toFixed(2), combo:G.comboMult, items:G.items.length, pu:Object.assign({},G.pu),
+        camPos:G.cam.position.toArray().map(n=>+n.toFixed(2)), camFov:G.cam.fov,
+        heroWorldPos:G.hero.root.position.toArray().map(n=>+n.toFixed(2))}; };
+    window._mcForce=function(o){ if(!G||!o) return; if(typeof o.money==='number') G.money=o.money; if(typeof o.stock==='number') G.stock=o.stock; if(typeof o.time==='number') G.time=o.time; if(typeof o.stamina==='number') G.stamina=o.stamina; };
+    // manually step the sim N times bypassing rAF — for deterministic QA independent of the
+    // test harness's actual frame cadence (headless/background tabs can throttle rAF hard)
+    window._mcTick=function(steps,dtEach){ if(!G) return null; steps=steps||1; dtEach=dtEach||0.05;
+      for(let i=0;i<steps;i++){ if(G.phase==='play') update(dtEach, performance.now()); if(!G) break; }
+      return window._mcDbg(); };
+
+    cancelAnimationFrame(raf); G.last=performance.now();
+    showHowToPlay(true);
     raf=requestAnimationFrame(loop);
   }
 
-  // ── Update ───────────────────────────────────────────────────────
-  function update(dt,W,H,now){
-    G.elapsed+=dt;
-    G.time-=dt;
+  /* ══════════════ MAIN LOOP ══════════════ */
+  function loop(now){
+    if(!G || !document.getElementById('mc3dWrap') || !G.rndr.domElement.isConnected){ teardown(); return; }
+    raf=requestAnimationFrame(loop);
+    const dt=Math.min(.05,(now-G.last)/1000); G.last=now;
+
+    if(G.phase==='play') update(dt,now);
+    render(dt,now);
+    G.rndr.render(G.scene, G.cam);
+  }
+
+  function update(dt,now){
+    G.elapsed+=dt; G.time-=dt;
     const tEl=document.getElementById('mcTime');
     if(tEl){ tEl.textContent=Math.ceil(Math.max(0,G.time))+'s'; tEl.style.color=G.time<15?'#f87171':'#fbbf24'; }
-    if(G.time<=0){ G.time=0; return endGame(true); }
-    // gate
+    if(G.time<=0){ G.time=0; endGame(true); return; }
+
     G.gateT-=dt;
-    if(G.gateT<=0){ return openGate(); }
-    // piggy move
-    const spd=G.pu.speed>0?1.7:1.2;
-    if(G.keyL) G.piggyX-=dt*spd; if(G.keyR) G.piggyX+=dt*spd;
-    G.piggyX=Math.max(0.05,Math.min(0.95,G.piggyX));
-    // power-up timers (all timed power-ups)
-    ['magnet','freeze','speed','goldpiggy','coinstorm','vaultmult','supersaver'].forEach(k=>{ if(G.pu[k]>0) G.pu[k]-=dt; });
-    // Coin Storm: periodically spawn extra positive items while active
-    if(G.pu.coinstorm>0){ G._stormAcc=(G._stormAcc||0)+dt; if(G._stormAcc>=0.3){ G._stormAcc=0; spawnStormCoin(); } }
-    // spawn
+    if(G.gateT<=0){ openGate(); return; }
+
+    /* hero movement — same lane bounds as PlayerManager.cs */
+    const spd=(G.pu.speed>0?1.5:1)*4.6;
+    let input=0;
+    if(G.keyL) input-=1; if(G.keyR) input+=1;
+    input=Math.max(-1,Math.min(1,input+G.dragX));
+    if(input!==0) G.facing=input>0?1:-1;
+    G.heroX=Math.max(G.LANE_MIN,Math.min(G.LANE_MAX,G.heroX+input*spd*dt));
+    const h=G.hero;
+    h.root.position.x=G.heroX;
+    h.root.rotation.y=G.facing>0?Math.PI/2:-Math.PI/2;
+    if(h.mixer){
+      const moving=input!==0;
+      const idleA=h.actions.idle, runA=h.actions.run;
+      if(idleA&&runA){ idleA.weight+=((moving?0:1)-idleA.weight)*Math.min(1,dt*6); runA.weight+=((moving?1:0)-runA.weight)*Math.min(1,dt*6); }
+      h.mixer.update(dt);
+    } else if(h.isFallback){
+      const moving=input!==0; const t=now/140;
+      const amt=moving?Math.sin(t)*.5:0;
+      h.legs[0].rotation.x=amt; h.legs[1].rotation.x=-amt;
+      h.arms[0].rotation.x=-amt*.7; h.arms[1].rotation.x=amt*.7;
+    }
+
+    /* power-up timers */
+    ['magnet','freeze','speed'].forEach(k=>{ if(G.pu[k]>0) G.pu[k]-=dt; });
+
+    /* spawn */
     const prog=Math.min(1,G.elapsed/G.lv.dur);
     const spawnRate=G.lv.spawnRate+G.lv.ramp*G.elapsed;
     G.spawnAcc+=dt*spawnRate;
-    while(G.spawnAcc>=1){ G.spawnAcc-=1; spawnItem(prog); }
-    // move items
+    while(G.spawnAcc>=1){ G.spawnAcc-=1; spawnItem(); }
+
+    /* move + resolve items */
     const frozen=G.pu.freeze>0;
-    const baseSpd=lerp(G.lv.speedStart,G.lv.speedEnd,prog)*H*0.22;
+    const baseSpd=lerp(G.lv.speedStart,G.lv.speedEnd,prog)*4.4;
+    const CATCH_Y=1.2, CATCH_R=1.05;
     for(let i=G.items.length-1;i>=0;i--){
       const it=G.items[i];
       if(!frozen||it.neg){
-        it.y+=dt*(baseSpd*(it.neg?it.negDef.speed:1));
-        if(it.neg&&it.negDef.zigzag){
-          it.zigT=(it.zigT||0)+dt*it.negDef.freq;
-          it.xPx=(it.xPx||it.x*W)+Math.sin(it.zigT)*it.negDef.amp*W*0.018;
-          it.xPx=Math.max(W*0.05,Math.min(W*0.95,it.xPx));
-          it.x=it.xPx/W;
-        }
+        it.y-=dt*baseSpd*(it.neg?it.negDef.speed:1);
+        if(it.neg&&it.negDef.zigzag){ it.zigT=(it.zigT||0)+dt*it.negDef.freq; it.x=Math.max(G.LANE_MIN,Math.min(G.LANE_MAX,it.baseX+Math.sin(it.zigT)*it.negDef.amp)); }
       }
       if(!it.neg&&G.pu.magnet>0){
-        const dx=G.piggyX-it.x; const dy=0.85-it.y/H;
-        if(Math.abs(dx)<0.3){ it.x+=dx*dt*5; it.y+=dy*H*dt*3; }
+        const dx=G.heroX-it.x;
+        if(Math.abs(dx)<2.6){ it.x+=Math.sign(dx)*Math.min(Math.abs(dx),dt*7); it.y-=dt*2.4; }
       }
-      // catch detection
-      if(Math.abs(it.x-G.piggyX)<0.07&&Math.abs(it.y/H-0.85)<0.07){
-        catchItem(it); G.items.splice(i,1); continue;
+      it.sprite.position.set(it.x, it.y, 0);
+      if(Math.abs(it.x-G.heroX)<CATCH_R && Math.abs(it.y-CATCH_Y)<CATCH_R){
+        catchItem(it); disposeItem(it); G.items.splice(i,1); continue;
       }
-      if(it.y>H*1.05){
-        if(it.neg){
-          // GDD §15: track avoided Savings Killers for end-of-run screen
-          if(it.negDef.type==='latefee') G.avoided.latefee++;
-          if(it.negDef.type==='impulse') G.avoided.impulse++;
-        } else if(!it.isPu){
-          // GDD §11: Super Saver Mode pauses combo break on miss
-          if(G.pu.supersaver<=0){ G.combo=0; G.comboMult=1; }
-          spawnFloat('MISS','rgba(255,255,255,.3)',it.x,0.96);
-        }
-        G.items.splice(i,1);
+      if(it.y< -1.5){
+        if(it.neg){ if(it.negDef.type==='latefee') G.avoided.latefee++; if(it.negDef.type==='highinterest') G.avoided.highinterest++; }
+        else if(!it.isPu){ if(G.combo>0){ G.combo=0; G.comboMult=1; } spawnFloat('MISS',0.5,'rgba(255,255,255,.35)'); }
+        disposeItem(it); G.items.splice(i,1);
       }
     }
-    // particles & floats
-    for(let i=G.parts.length-1;i>=0;i--){ const p=G.parts[i]; p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=dt*0.5; if(p.life<=0)G.parts.splice(i,1); }
-    for(let i=G.floats.length-1;i>=0;i--){ const f=G.floats[i]; f.life-=dt; f.y-=dt*0.035; if(f.life<=0)G.floats.splice(i,1); }
-    if(G.flash.a>0) G.flash.a=Math.max(0,G.flash.a-dt*3);
-    if(G.shake>0)   G.shake=Math.max(0,G.shake-dt*8);
+
+    /* camera follow */
+    const camT=1-Math.exp(-4*dt);
+    G.cam.position.lerp(new THREE.Vector3(G.heroX*.35, 3.6, 11), camT);
+    const look=new THREE.Vector3(G.heroX*.55, 1.2, 0);
+    if(!G._lookVec) G._lookVec=look.clone(); else G._lookVec.lerp(look, camT);
+    G.cam.lookAt(G._lookVec);
+
     updateHUD();
   }
 
-  function G_H(){ const cv=document.getElementById('mcCanvas'); return cv?cv.clientHeight:600; }
+  function render(dt,now){
+    /* floating text */
+    for(let i=G.floats.length-1;i>=0;i--){ const f=G.floats[i]; f.life-=dt; if(f.life<=0){ G.floats.splice(i,1); continue; } }
+    const m=document.getElementById('mcMsg');
+    if(m&&G.floats.length){ const f=G.floats[G.floats.length-1]; m.style.opacity=Math.min(1,f.life*1.6); m.textContent=f.label; m.style.color=f.color; }
+    else if(m) m.style.opacity=0;
+  }
 
-  function spawnItem(prog){
+  function lerp(a,b,t){ return a+(b-a)*Math.min(1,Math.max(0,t)); }
+  function fmt(n){ return n>=1000?(n/1000).toFixed(n%1000===0?0:1)+'K':Math.round(n)+''; }
+  function spawnFloat(label,y,color){ G.floats.push({label,y,color,life:1.1}); }
+  function disposeItem(it){ G.scene.remove(it.sprite); if(it.sprite.material) it.sprite.material.dispose(); }
+
+  function spawnItem(){
     const r=Math.random();
-    const x=0.06+Math.random()*0.88;
-    const H=G_H();
+    const x=G.LANE_MIN+0.6+Math.random()*(G.LANE_MAX-G.LANE_MIN-1.2);
+    let it;
     if(r<G.lv.negRate){
       const neg=NEG_ITEMS[Math.floor(Math.random()*NEG_ITEMS.length)];
-      G.items.push({x,y:-H*0.05,neg:true,negDef:neg,e:neg.e,label:neg.label,xPx:x*(document.getElementById('mcCanvas')||{clientWidth:400}).clientWidth,zigT:0});
+      it={x,y:8,baseX:x,neg:true,negDef:neg,zigT:0,icon:neg.icon};
     } else if(r<G.lv.negRate+G.lv.puChance){
       const pu=POWERUPS[Math.floor(Math.random()*POWERUPS.length)];
-      G.items.push({x,y:-H*0.05,isPu:true,puDef:pu,e:pu.e,label:pu.label});
+      it={x,y:8,isPu:true,puDef:pu,icon:pu.icon};
     } else {
       const pos=POS_ITEMS[Math.floor(Math.random()*POS_ITEMS.length)];
-      G.items.push({x,y:-H*0.05,posDef:pos,e:pos.e,label:pos.label});
+      it={x,y:8,posDef:pos,icon:pos.icon};
     }
+    const mat=new THREE.SpriteMaterial({map:G.iconTex(it.icon), transparent:true});
+    const sp=new THREE.Sprite(mat);
+    const sc=it.isPu?1.15:0.95;
+    sp.scale.set(sc,sc,1);
+    sp.position.set(it.x,it.y,0);
+    it.sprite=sp;
+    G.scene.add(sp);
+    G.items.push(it);
   }
 
   function catchItem(it){
     if(it.neg){
       if(G.pu.shield>0&&G.pu.shieldHits>0){
-        G.pu.shieldHits--; if(G.pu.shieldHits<=0)G.pu.shield=0;
-        spawnFloat('🛡️ BLOCKED!','#60a5fa',it.x,it.y/G_H()); return;
+        G.pu.shieldHits--; if(G.pu.shieldHits<=0) G.pu.shield=0;
+        spawnFloat('🛡️ BLOCKED!',1.4,'#60a5fa'); return;
       }
       const def=it.negDef;
-      // GDD §13: different Savings Killer effects
-      if(def.effect==='combo'){
-        // Broken Piggy Bank — Lose Combo only
-        G.combo=0; G.comboMult=1;
-        G.flash={r:220,g:160,b:40,a:0.3}; G.shake=0.01;
-        spawnFloat(`${def.e} COMBO BROKEN!`,'#fbbf24',it.x,it.y/G_H());
-      } else if(def.effect==='stamina'){
-        // Emergency Expense — Lose Stamina (and small money)
-        G.money=Math.max(0,G.money+(def.money||0));
-        G.stamina=Math.max(0,G.stamina+def.stamina);
-        G.combo=0; G.comboMult=1;
-        G.flash={r:220,g:40,b:40,a:0.45}; G.shake=0.018;
-        spawnFloat(`${def.e} ${def.label}!`,'#ef4444',it.x,it.y/G_H());
-        if(G.stamina<=0){ G.stamina=0; endGame(false); }
-      } else {
-        // money-based killers: Late Fee, Impulse Purchase, Fire Money
-        G.money=Math.max(0,G.money+def.money);
-        G.stamina=Math.max(0,G.stamina+(def.stamina||0));
-        G.combo=0; G.comboMult=1;
-        G.flash={r:220,g:40,b:40,a:0.4}; G.shake=0.016;
-        spawnFloat(`${def.e} ${def.label}!`,def.stamina<-10?'#ef4444':'#f97316',it.x,it.y/G_H());
-        if(G.stamina<=0){ G.stamina=0; endGame(false); }
-      }
+      G.money=Math.max(0,G.money+def.money);
+      G.stamina=Math.max(0,G.stamina+(def.stamina||0));
+      G.combo=0; G.comboMult=1;
+      spawnFloat((def.type==='firemoney'?'🔥 ':def.type==='latefee'?'🧾 ':'📊 ')+def.label+'!',1.4,'#ef4444');
+      if(G.stamina<=0){ G.stamina=0; endGame(false); }
     } else if(it.isPu){
-      activatePU(it.puDef,it.x,it.y/G_H());
+      activatePU(it.puDef);
     } else {
       const pos=it.posDef;
       G.combo++;
-      // GDD §05: per-district combo cap
       const cap=G.lv.comboCap||5;
       G.comboMult=Math.min(cap, G.combo>=15?cap:G.combo>=10?Math.min(cap,4):G.combo>=5?Math.min(cap,2):1);
       if(G.comboMult>G.comboPeak) G.comboPeak=G.comboMult;
-      // GDD §11: Golden Piggy doubles money value
-      const goldBonus=G.pu.goldpiggy>0?2:1;
-      // GDD §11: Vault Multiplier doubles deposits
-      const vaultBonus=G.pu.vaultmult>0?2:1;
-      const earned=pos.money?(pos.money*G.comboMult*goldBonus*vaultBonus):0;
+      const earned=pos.money?(pos.money*G.comboMult):0;
       G.money+=earned; G.stock+=(pos.stock||0); G.score+=(pos.pts||0)*G.comboMult;
-      G.flash={r:52,g:211,b:153,a:0.12};
-      spawnFloat(pos.stock?'📈 +1 STOCK!':'+$'+earned,pos.stock?'#818cf8':'#34d399',it.x,it.y/G_H());
-      burst(it.x,it.y/G_H(),pos.stock?'#818cf8':'#fbbf24',5);
+      spawnFloat(pos.stock?'📈 +1 STOCK!':'+$'+earned, 1.4, pos.stock?'#818cf8':'#34d399');
     }
   }
 
-  function activatePU(def,x,y){
-    spawnFloat(`${def.e} ${def.label}!`,def.color,x,y); burst(x,y,def.color,8);
-    if(def.type==='magnet')    G.pu.magnet=def.dur;
-    if(def.type==='shield')    { G.pu.shield=1; G.pu.shieldHits=def.hits||2; }
-    if(def.type==='freeze')    G.pu.freeze=def.dur;
-    if(def.type==='speed')     G.pu.speed=def.dur;
-    if(def.type==='debtburn')  { G.items=G.items.filter(i=>!i.neg); spawnFloat('💥 ALL DEBT DESTROYED!','#fb923c',0.5,0.5); }
-    // GDD §11 new power-ups
-    if(def.type==='goldpiggy') G.pu.goldpiggy=def.dur; // all money 2×
-    if(def.type==='coinstorm') { G.pu.coinstorm=def.dur; G._stormAcc=0; } // money rains
-    if(def.type==='vaultmult') G.pu.vaultmult=def.dur;  // savings deposited 2×
-    if(def.type==='supersaver'){ G.pu.supersaver=def.dur; } // combo timer pauses (no-drop miss won't break combo)
-  }
-
-  function spawnStormCoin(){
-    // GDD §11 Coin Storm: spawns coins from the top
-    const pos=POS_ITEMS[Math.floor(Math.random()*4)]; // coins only
-    const x=0.06+Math.random()*0.88;
-    const H=G_H();
-    G.items.push({x,y:-H*0.05,posDef:pos,e:pos.e,label:pos.label,storm:true});
+  function activatePU(def){
+    spawnFloat(def.label+'!',1.4,def.color);
+    if(def.type==='magnet')   G.pu.magnet=def.dur;
+    if(def.type==='shield')   { G.pu.shield=1; G.pu.shieldHits=def.hits||2; }
+    if(def.type==='freeze')   G.pu.freeze=def.dur;
+    if(def.type==='speed')    G.pu.speed=def.dur;
+    if(def.type==='debtburn') { G.items.forEach(it=>{ if(it.neg) disposeItem(it); }); G.items=G.items.filter(it=>!it.neg); spawnFloat('💥 DEBT BURNED!',1.9,'#fb923c'); }
   }
 
   function updateHUD(){
@@ -339,171 +545,17 @@
     const gt=document.getElementById('mcGoalTxt'); if(gt) gt.textContent='$'+fmt(G.money)+' / $'+fmt(G.moneyGoal);
     const row=document.getElementById('mcPuRow'); if(!row) return;
     const active=[];
-    if(G.pu.magnet>0)    active.push(`🧲 ${G.pu.magnet.toFixed(1)}s`);
-    if(G.pu.shield>0)    active.push(`🛡️ ×${G.pu.shieldHits}`);
-    if(G.pu.freeze>0)    active.push(`❄️ ${G.pu.freeze.toFixed(1)}s`);
-    if(G.pu.speed>0)     active.push(`⚡ ${G.pu.speed.toFixed(1)}s`);
-    if(G.pu.goldpiggy>0) active.push(`🐷 ${G.pu.goldpiggy.toFixed(1)}s`);
-    if(G.pu.coinstorm>0) active.push(`🌧️ ${G.pu.coinstorm.toFixed(1)}s`);
-    if(G.pu.vaultmult>0) active.push(`✖️ ${G.pu.vaultmult.toFixed(1)}s`);
-    if(G.pu.supersaver>0)active.push(`🦸 ${G.pu.supersaver.toFixed(1)}s`);
+    if(G.pu.magnet>0) active.push(`🧲 ${G.pu.magnet.toFixed(1)}s`);
+    if(G.pu.shield>0) active.push(`🛡️ ×${G.pu.shieldHits}`);
+    if(G.pu.freeze>0) active.push(`❄️ ${G.pu.freeze.toFixed(1)}s`);
+    if(G.pu.speed>0)  active.push(`⚡ ${G.pu.speed.toFixed(1)}s`);
     row.innerHTML=active.map(s=>`<span style="font-size:.62rem;background:rgba(255,255,255,.1);border-radius:6px;padding:2px 8px">${s}</span>`).join('');
   }
 
-  function fmt(n){ return n>=1000?(n/1000).toFixed(n%1000===0?0:1)+'K':Math.round(n)+''; }
-  function lerp(a,b,t){ return a+(b-a)*Math.min(1,Math.max(0,t)); }
-  function spawnFloat(label,color,x,y){ G.floats.push({label,color,x,y:y||0.8,life:1.2}); }
-  function burst(x,y,color,n){ for(let i=0;i<n;i++){ const a=Math.random()*Math.PI*2; G.parts.push({x,y,vx:Math.cos(a)*0.12*Math.random(),vy:(Math.sin(a)*0.12-0.08)*Math.random(),life:0.5+Math.random()*0.4,color}); } }
-
-  // ── Render ───────────────────────────────────────────────────────
-  const _mcStars=Array.from({length:55},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.2+0.3,s:Math.random()*0.4+0.3}));
-  function _drawBg(ctx,W,H,now){
-    // deep gradient sky
-    const bg=ctx.createLinearGradient(0,0,0,H);
-    bg.addColorStop(0,'#030c14'); bg.addColorStop(0.5,'#041520'); bg.addColorStop(1,'#061a10');
-    ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-    // subtle grid perspective
-    ctx.strokeStyle='rgba(20,184,166,.07)'; ctx.lineWidth=1;
-    const vp=H*1.4; // vanishing point Y
-    for(let i=0;i<=12;i++){
-      const t=i/12; const bx=t*W;
-      ctx.beginPath(); ctx.moveTo(bx,0); ctx.lineTo(W/2+(bx-W/2)*2,vp); ctx.stroke();
-    }
-    for(let j=1;j<=5;j++){
-      const fy=H*0.25*j;
-      const scale=1-fy/vp;
-      const lx=W/2-W*scale; const rx=W/2+W*scale;
-      ctx.beginPath(); ctx.moveTo(lx,fy); ctx.lineTo(rx,fy); ctx.stroke();
-    }
-    // twinkling stars
-    const t=now/1000;
-    for(const st of _mcStars){
-      const tw=0.4+0.4*Math.sin(t*st.s+st.x*6.28);
-      ctx.globalAlpha=tw*0.7; ctx.fillStyle='#5eead4';
-      ctx.beginPath(); ctx.arc(st.x*W,st.y*H*0.5,st.r,0,6.28); ctx.fill();
-    }
-    ctx.globalAlpha=1;
-    // floor glow strip
-    const fg=ctx.createLinearGradient(0,H*0.88,0,H);
-    fg.addColorStop(0,'rgba(20,184,166,.12)'); fg.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=fg; ctx.fillRect(0,H*0.88,W,H*0.12);
-  }
-  function _drawPiggy(ctx,px,py,ps,now,pus){
-    const bob=Math.sin(now/600)*ps*0.04;
-    const goldpiggy=pus&&pus.goldpiggy>0;
-    const bodyR=ps*0.9;
-    // body gradient (3D sphere illusion)
-    const bodyGrad=ctx.createRadialGradient(px-bodyR*0.25,py-bodyR*0.3+bob,bodyR*0.1,px,py+bob,bodyR);
-    if(goldpiggy){
-      bodyGrad.addColorStop(0,'#fef3c7'); bodyGrad.addColorStop(0.5,'#fbbf24'); bodyGrad.addColorStop(1,'#92400e');
-    } else {
-      bodyGrad.addColorStop(0,'#fda4af'); bodyGrad.addColorStop(0.5,'#f9a8d4'); bodyGrad.addColorStop(1,'#9f1239');
-    }
-    ctx.shadowColor=goldpiggy?'#fbbf24':'#f472b6'; ctx.shadowBlur=ps*0.6;
-    ctx.fillStyle=bodyGrad; ctx.beginPath(); ctx.arc(px,py+bob,bodyR,0,6.28); ctx.fill();
-    ctx.shadowBlur=0;
-    // ears
-    const ec=goldpiggy?'#fbbf24':'#fb7185';
-    [[px-bodyR*0.6,py-bodyR*0.75+bob,ps*0.28],[px+bodyR*0.6,py-bodyR*0.75+bob,ps*0.28]].forEach(([ex,ey,er])=>{
-      ctx.fillStyle=ec; ctx.beginPath(); ctx.arc(ex,ey,er,0,6.28); ctx.fill();
-      ctx.fillStyle=goldpiggy?'#fef3c7':'#ffe4e6'; ctx.beginPath(); ctx.arc(ex,ey,er*0.55,0,6.28); ctx.fill();
-    });
-    // snout
-    const snoutGrad=ctx.createRadialGradient(px,py+bodyR*0.3+bob,1,px,py+bodyR*0.3+bob,ps*0.35);
-    snoutGrad.addColorStop(0,goldpiggy?'#fef3c7':'#ffe4e6'); snoutGrad.addColorStop(1,goldpiggy?'#fbbf24':'#fda4af');
-    ctx.fillStyle=snoutGrad; ctx.beginPath(); ctx.ellipse(px,py+bodyR*0.3+bob,ps*0.35,ps*0.25,0,0,6.28); ctx.fill();
-    // nostrils
-    ctx.fillStyle='rgba(0,0,0,.35)';
-    ctx.beginPath(); ctx.arc(px-ps*0.12,py+bodyR*0.28+bob,ps*0.06,0,6.28); ctx.fill();
-    ctx.beginPath(); ctx.arc(px+ps*0.12,py+bodyR*0.28+bob,ps*0.06,0,6.28); ctx.fill();
-    // eyes
-    ctx.fillStyle='#fff';
-    [[px-bodyR*0.32,py-bodyR*0.1+bob],[px+bodyR*0.32,py-bodyR*0.1+bob]].forEach(([ex,ey])=>{
-      ctx.beginPath(); ctx.arc(ex,ey,ps*0.14,0,6.28); ctx.fill();
-      ctx.fillStyle='#1a1a2e'; ctx.beginPath(); ctx.arc(ex+ps*0.02,ey+ps*0.02,ps*0.08,0,6.28); ctx.fill();
-      ctx.fillStyle='#fff';
-    });
-    // coin slot on top
-    ctx.fillStyle='rgba(0,0,0,.5)'; ctx.beginPath();
-    ctx.ellipse(px,py-bodyR*0.82+bob,ps*0.22,ps*0.07,0,0,6.28); ctx.fill();
-  }
-
-  function render(ctx,W,H,now){
-    _drawBg(ctx,W,H,now);
-    let sx=0,sy=0;
-    if(G.shake>0){ sx=(Math.random()-.5)*G.shake*W*0.6; sy=(Math.random()-.5)*G.shake*H*0.3; }
-    ctx.save(); ctx.translate(sx,sy);
-    const frozen=G.pu.freeze>0;
-    // items — enhanced with glow halos
-    for(const it of G.items){
-      const ix=it.x*W, iy=it.y;
-      const glowC=it.neg?'#ef4444':it.isPu?it.puDef.color:'#fbbf24';
-      ctx.globalAlpha=frozen&&!it.neg?0.55:1;
-      const fs=Math.round(W*0.052);
-      // glow halo
-      const halo=ctx.createRadialGradient(ix,iy,1,ix,iy,fs*0.9);
-      halo.addColorStop(0,glowC+'55'); halo.addColorStop(1,'transparent');
-      ctx.fillStyle=halo; ctx.beginPath(); ctx.arc(ix,iy,fs*0.9,0,6.28); ctx.fill();
-      // emoji
-      ctx.font=`${fs}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.shadowColor=glowC; ctx.shadowBlur=it.neg?18:12;
-      ctx.fillText(it.e,ix,iy);
-      ctx.shadowBlur=0; ctx.globalAlpha=1;
-    }
-    // particles — sized up, more vibrant
-    for(const p of G.parts){
-      ctx.globalAlpha=Math.min(p.life,0.9);
-      ctx.fillStyle=p.color;
-      ctx.shadowColor=p.color; ctx.shadowBlur=6;
-      ctx.beginPath(); ctx.arc(p.x*W,p.y*H,W*0.009,0,Math.PI*2); ctx.fill();
-      ctx.shadowBlur=0;
-    }
-    ctx.globalAlpha=1;
-    // floats
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    for(const f of G.floats){
-      ctx.globalAlpha=Math.min(1,f.life*1.4);
-      ctx.font=`bold ${Math.round(W*0.034)}px 'Orbitron',sans-serif`;
-      ctx.fillStyle=f.color; ctx.shadowColor=f.color; ctx.shadowBlur=12;
-      ctx.fillText(f.label,f.x*W,f.y*H);
-    }
-    ctx.shadowBlur=0; ctx.globalAlpha=1;
-    // piggy — 3D drawn
-    const ppx=G.piggyX*W, ppy=H*0.84, pps=W*0.072;
-    if(G.pu.shield>0&&G.pu.shieldHits>0){
-      for(let r=0;r<3;r++){
-        ctx.beginPath(); ctx.arc(ppx,ppy,pps*(1.5+r*0.2)+Math.sin(now/400+r)*pps*0.08,0,6.28);
-        ctx.strokeStyle=`rgba(96,165,250,${0.4-r*0.12})`; ctx.lineWidth=2-r*0.4;
-        ctx.shadowColor='#60a5fa'; ctx.shadowBlur=14; ctx.stroke(); ctx.shadowBlur=0;
-      }
-    }
-    if(G.pu.speed>0){
-      ctx.globalAlpha=0.22;
-      _drawPiggy(ctx,ppx-pps*1.2,ppy+pps*0.1,pps*0.85,now,G.pu);
-      ctx.globalAlpha=1;
-    }
-    _drawPiggy(ctx,ppx,ppy,pps,now,G.pu);
-    if(G.pu.magnet>0){
-      const mr=now/1000; const mr2=W*0.26;
-      ctx.beginPath(); ctx.arc(ppx,ppy,mr2+Math.sin(mr)*mr2*0.05,0,6.28);
-      ctx.strokeStyle='rgba(251,191,36,.2)'; ctx.lineWidth=1.5; ctx.setLineDash([6,5]); ctx.stroke(); ctx.setLineDash([]);
-    }
-    ctx.restore();
-    // screen flash
-    if(G.flash.a>0){ ctx.fillStyle=`rgba(${G.flash.r},${G.flash.g},${G.flash.b},${G.flash.a*0.7})`; ctx.fillRect(0,0,W,H); }
-    // low stamina vignette
-    if(G.stamina<G.staminaMax*0.3){
-      const pulse=0.22+0.14*Math.sin(now/1000*4);
-      const grd=ctx.createRadialGradient(W/2,H/2,H*0.18,W/2,H/2,H*0.72);
-      grd.addColorStop(0,'transparent'); grd.addColorStop(1,`rgba(220,30,30,${pulse})`);
-      ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
-    }
-  }
-
-  // ── Knowledge Gate ───────────────────────────────────────────────
+  /* ── Knowledge Gate (pauses play, matches arcade.js's phase-gate convention) ── */
   function openGate(){
     const gate=document.getElementById('mcGate');
-    if(!gate){ G.gateT=G.gateEvery; return; }        // missing overlay → skip gate, don't soft-lock
+    if(!gate){ G.gateT=G.gateEvery; return; }
     G.phase='gate';
     const [icon,text]=FACTS[G.gateIdx%FACTS.length]; G.gateIdx++;
     gate.style.display='flex';
@@ -515,39 +567,61 @@
   }
   window.mcCloseGate=function(){
     const gate=document.getElementById('mcGate'); if(gate) gate.style.display='none';
-    G.phase='play'; G.gateT=G.gateEvery;
+    if(!G) return; G.phase='play'; G.gateT=G.gateEvery; G.last=performance.now();
   };
 
-  // ── End Game (GDD §15 End-of-Run Screen) ─────────────────────────
+  /* ── How to play (auto-shown once, reopenable via ❓, pauses correctly) ── */
+  function howToBody(){
+    return `<div style="font-size:2.4rem">🐷</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.18em;color:#5eead4">HOW TO PLAY</div>
+      <div style="font-family:'Anton',sans-serif;font-size:1.1rem;color:#fff">MONEY CATCHER</div>
+      <ul style="text-align:left;max-width:300px;font-size:.82rem;line-height:1.7;color:#e2e8f0;padding-left:18px;margin:0">
+        <li><b>Goal:</b> run left/right to catch coins, cash &amp; stock before time runs out.</li>
+        <li><b>Move:</b> ← → arrows, A/D, the on-screen buttons, or drag.</li>
+        <li><b>Watch out:</b> red Savings Killers (Late Fee, High Interest, Fire Money) cost you money and stamina — run out of stamina and it's game over.</li>
+        <li><b>Power-ups:</b> Magnet, Insurance, Time Freeze, Speed Boost and Debt Burner all help — grab them!</li>
+        <li><b>Scoring:</b> catches in a row build a combo multiplier — the more you chain, the more each catch is worth.</li>
+      </ul>
+      <button onclick="mcCloseHelp()" style="padding:12px 30px;background:linear-gradient(135deg,#0d9488,#14b8a6);border:none;border-radius:10px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.14em;cursor:pointer;margin-top:4px">GOT IT — START ▶</button>`;
+  }
+  function showHowToPlay(first){
+    const el=document.getElementById('mcHow'); if(!el||!G) return;
+    if(!first){ G._pauseStartTs=performance.now(); }
+    G.phase='help';
+    el.style.display='flex';
+    el.innerHTML=howToBody();
+  }
+  window.mcShowHelp=function(){ showHowToPlay(false); };
+  window.mcCloseHelp=function(){
+    const el=document.getElementById('mcHow'); if(el) el.style.display='none';
+    if(!G) return;
+    if(G._pauseStartTs){ G.last+= (performance.now()-G._pauseStartTs); G._pauseStartTs=0; }
+    G.phase='play'; G.last=performance.now();
+  };
+
+  /* ══════════════ FINISH ══════════════ */
   function endGame(timeUp){
-    if(G.phase==='over') return;                     // guard vs double fire in one frame
+    if(!G||G.phase==='over') return;
     G.phase='over'; cancelAnimationFrame(raf);
-    const lv=LEVELS[G.level];
+    const lv=G.lv;
     const won=timeUp&&G.money>=lv.moneyGoal&&G.stock>=lv.stockGoal&&G.stamina>0;
-    const _li=G.level||0; const _isPerfect=won&&G.stamina>60;
-    // Route through cvAwardGame (same 400/600/900+perfect table, replay-safe, records stars/badges)
+    const isPerfect=won&&G.stamina>60;
+    let coins=0;
     if(won && window.cvAwardGame){
-      const stars=_isPerfect?3:(G.stamina>30?2:1);
-      cvAwardGame('game_moneycatcher',{level:_li+1,stars,badge:'Savings Guardian',is3star:stars===3,isPerfect:_isPerfect,isFlagship:true});
+      const stars=isPerfect?3:(G.stamina>30?2:1);
+      coins=cvAwardGame('game_moneycatcher',{level:G.li+1,stars,badge:'Savings Guardian',is3star:stars===3,isPerfect,isFlagship:true});
+      if(window.cvHubMeter) try{ cvHubMeter('guardian_savings', stars*4); }catch(e){}
     } else if(window.state){
-      state.coins=(state.coins||0)+50;               // small consolation on a loss
-      if(window.cvAddXP) cvAddXP(10,0);
-      if(window.cvSave) cvSave();
+      state.coins=(state.coins||0)+50;
+      if(window.cvAddXP) cvAddXP(10,0); if(window.cvSave) cvSave();
     }
     const overEl=document.getElementById('mcOver'); if(!overEl) return;
     overEl.style.display='flex';
-    // GDD §15: vault growth % (approximation vs goal)
     const vaultGrowthPct=Math.min(100,Math.round(G.money/lv.moneyGoal*100));
-    // GDD §15: financial literacy tips — context-aware
     let tip;
-    if(won){
-      tip='Your Savings Empire just grew! Small, consistent savings compound into real wealth over time.';
-    } else if(G.stamina<=0){
-      tip='Emergency expenses and late fees drain savings fast — always keep a buffer and pay on time!';
-    } else {
-      tip='Avoid Impulse Purchases and Late Fees to protect your savings vault next time.';
-    }
-    // GDD §15: headline is "Your Savings Empire Just Grew!" for wins
+    if(won) tip='Your Savings Empire just grew! Small, consistent savings compound into real wealth over time.';
+    else if(G.stamina<=0) tip='Late fees and fire money drain stamina fast — dodge them and keep a buffer!';
+    else tip='Catch more coins, cash and stock before the timer runs out to hit your goal.';
     const headline=won?'Your Savings Empire Just Grew!':'Game Over';
     overEl.innerHTML=`
       <div style="font-size:2.2rem">${won?'🏆':'💔'}</div>
@@ -556,34 +630,41 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center">
           ${stat('💰 SAVINGS DEPOSITED','$'+fmt(G.money),G.money>=lv.moneyGoal?'#34d399':'#f87171')}
           ${stat('📈 VAULT GROWTH','+'+vaultGrowthPct+'%',vaultGrowthPct>=100?'#34d399':'#fbbf24')}
-          ${stat('🛍️ IMPULSE AVOIDED',G.avoided.impulse,'#a78bfa')}
           ${stat('🧾 LATE FEES AVOIDED',G.avoided.latefee,'#60a5fa')}
+          ${stat('📊 HIGH INTEREST AVOIDED',G.avoided.highinterest,'#a78bfa')}
           ${stat('🔥 PEAK COMBO','×'+G.comboPeak,'#fbbf24')}
           ${stat('❤️ STAMINA',Math.round(G.stamina)+'%','#e2e8f0')}
         </div>
       </div>
       <div style="font-size:.78rem;color:#94a3b8;text-align:center;max-width:280px;line-height:1.5;padding:10px 14px;background:rgba(255,255,255,.04);border-radius:10px;border-left:3px solid #14b8a6">💡 ${tip}</div>
-      <div style="display:flex;gap:12px">
-        ${won&&G.level<LEVELS.length-1?`<button onclick="mcNextDistrict()" style="padding:11px 22px;background:linear-gradient(135deg,#f59e0b,#fbbf24);border:none;border-radius:10px;color:#1a0a00;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;font-weight:900;cursor:pointer">NEXT DISTRICT → ${LEVELS[G.level+1].name.toUpperCase()}</button>`:''}
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+        ${won&&G.li<LEVELS.length-1?`<button onclick="mcNextDistrict()" style="padding:11px 22px;background:linear-gradient(135deg,#f59e0b,#fbbf24);border:none;border-radius:10px;color:#1a0a00;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;font-weight:900;cursor:pointer">NEXT DISTRICT → ${LEVELS[G.li+1].name.toUpperCase()}</button>`:''}
         <button onclick="mcReplay()" style="padding:11px 22px;background:linear-gradient(135deg,#0d9488,#14b8a6);border:none;border-radius:10px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer">REPLAY</button>
+        <button onclick="mcMenu()" style="padding:11px 22px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:10px;color:#e2e8f0;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer">DISTRICTS</button>
         <button onclick="mcExit()" style="padding:11px 22px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:10px;color:#e2e8f0;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer">← HUB</button>
       </div>`;
   }
   function stat(label,val,color){ return `<div><div style="font-family:'Orbitron',sans-serif;font-size:.36rem;color:rgba(255,255,255,.4);letter-spacing:.08em;margin-bottom:4px">${label}</div><div style="font-family:'Anton',sans-serif;font-size:.95rem;color:${color}">${val}</div></div>`; }
 
-  window.mcReplay=function(){
-    if(G&&G._cleanup)G._cleanup(); reset(G?G.level:0);
-    const o=document.getElementById('mcOver'); if(o)o.style.display='none';
-    setTimeout(mcBoot,30);
-  };
-  window.mcNextDistrict=function(){
-    const next=Math.min(G?G.level+1:0,LEVELS.length-1);
-    if(G&&G._cleanup)G._cleanup(); reset(next);
-    const o=document.getElementById('mcOver'); if(o)o.style.display='none';
-    setTimeout(mcBoot,30);
-  };
-  window.mcExit=function(){
-    cancelAnimationFrame(raf); if(G&&G._cleanup)G._cleanup(); G=null;
-    if(window.state) state.viewingWorld=state._returnHub||TOKEN; goTo('hub');
-  };
+  /* ══════════════ teardown / controls ══════════════ */
+  function teardown(){
+    cancelAnimationFrame(raf); raf=null;
+    if(!G) return;
+    if(G._cleanup) G._cleanup();
+    try{
+      G.items.forEach(it=>disposeItem(it));
+      G.scene.traverse(o=>{ if(o.geometry) o.geometry.dispose();
+        if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m.map) m.map.dispose(); m.dispose(); }); } });
+      G.rndr.dispose();
+      if(G.rndr.forceContextLoss) G.rndr.forceContextLoss();
+      if(G.rndr.domElement&&G.rndr.domElement.parentNode) G.rndr.domElement.parentNode.removeChild(G.rndr.domElement);
+    }catch(e){}
+    G=null;
+  }
+  window.mcReplay=function(){ const li=G?G.li:0; teardown(); const ui=document.getElementById('mcUI'); if(ui) ui.innerHTML=''; mcStart(li); };
+  window.mcNextDistrict=function(){ const li=G?Math.min(G.li+1,LEVELS.length-1):0; teardown(); mcStart(li); };
+  window.mcMenu=function(){ teardown(); showLevelSelect(); };
+  window.mcExit=function(){ teardown();
+    if(window.state){ state.viewingWorld=state._returnHub||TOKEN; }
+    goTo('hub'); };
 })();
