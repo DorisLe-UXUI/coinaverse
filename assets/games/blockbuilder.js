@@ -146,8 +146,9 @@
           const mult=1+Math.floor(G.combo/4);
           const gain=12*mult*(G.validator>0?2:1);
           G.score+=gain; G.fills++;
-          burst(it.x,it.y,'#22d3ee',12); floatTxt(it.x,it.y,'+'+gain,'#a5f3fc');
-          if(G.combo%4===0){ G.flash=0.3; G.flashColor='#38bdf8'; floatTxt(0.5,0.42,'STREAK x'+mult,'#38bdf8'); }
+          // burst grows with combo depth — a long streak should visibly pop harder
+          burst(it.x,it.y,'#22d3ee',12+Math.min(14,G.combo)); floatTxt(it.x,it.y,'+'+gain,'#a5f3fc');
+          if(G.combo%4===0){ G.flash=0.3; G.flashColor='#38bdf8'; floatTxt(0.5,0.42,'🔥 STREAK x'+mult,'#38bdf8'); burst(0.5,0.42,'#38bdf8',20); G.shake=Math.max(G.shake||0,0.2); }
           it.dead=1;
           if(G.fills>=TXN_PER_BLOCK) mineBlock();
         } else { // fraud tapped
@@ -165,7 +166,7 @@
   function mineBlock(){
     G.fills=0; G.blocks++;
     const bonus=80+G.combo*4;
-    G.score+=bonus; G.mineGlow=1; G.flash=0.5; G.flashColor='#38bdf8'; G.shake=0.18;
+    G.score+=bonus; G.mineGlow=1; G.flash=0.5; G.flashColor='#38bdf8'; G.shake=0.32;
     floatTxt(0.5,0.5,'⛏️ BLOCK MINED +'+bonus,'#7dd3fc');
     G.integrity=Math.min(100,G.integrity+6);
     // add a chain link visual + celebratory burst at the stack
@@ -466,8 +467,14 @@
           ? '<button onclick="bbRestart()" style="'+GH+'">↺ REPLAY L3</button><button onclick="bbExit()" style="'+P+'">← HUB</button>'
           : '<button onclick="bbNextLevel()" style="'+P+'">LEVEL '+(lvl+1)+' ▶</button><button onclick="bbRestart()" style="'+GH+'">↺ REPLAY</button><button onclick="bbExit()" style="'+GH+'">← HUB</button>')
       : '<button onclick="bbRestart()" style="'+P+'">↺ TRY AGAIN</button><button onclick="bbExit()" style="'+GH+'">← HUB</button>';
-    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:34px 28px;border:1px solid ${won?'#38bdf8':(survived?'#7dd3fc':'#ef4444')};border-radius:22px;background:linear-gradient(160deg,rgba(5,30,48,.97),rgba(3,16,25,.97));box-shadow:0 0 60px rgba(56,189,248,.4)">
-      <div style="font-size:3rem;margin-bottom:8px">${won?(isFinal?'👑':'⛓️'):(survived?'🧊':'💥')}</div>
+    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:34px 28px;border:1px solid ${won?'#38bdf8':(survived?'#7dd3fc':'#ef4444')};border-radius:22px;background:linear-gradient(160deg,rgba(5,30,48,.97),rgba(3,16,25,.97));box-shadow:0 0 ${won?'90px rgba(56,189,248,.6)':'60px rgba(56,189,248,.4)'};animation:${won?(isFinal?'bbMasterPop .6s cubic-bezier(.2,1.4,.4,1)':'bbWinPop .5s cubic-bezier(.2,1.4,.4,1)'):'bbFadeIn .3s ease'}">
+      <style>
+        @keyframes bbWinPop{0%{transform:scale(.7) rotate(3deg);opacity:0}60%{transform:scale(1.06) rotate(-1deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+        @keyframes bbMasterPop{0%{transform:scale(.6) rotate(6deg);opacity:0}55%{transform:scale(1.1) rotate(-2deg);opacity:1}75%{transform:scale(.97) rotate(1deg)}100%{transform:scale(1) rotate(0)}}
+        @keyframes bbFadeIn{0%{transform:scale(.94);opacity:0}100%{transform:scale(1);opacity:1}}
+        @keyframes bbIconPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+      </style>
+      <div style="font-size:3rem;margin-bottom:8px${won?';animation:bbIconPulse 1.1s ease-in-out infinite':''}">${won?(isFinal?'👑':'⛓️'):(survived?'🧊':'💥')}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#fbbf24':(survived?'#7dd3fc':'#ef4444')};margin-bottom:6px">${title}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:8px">${sub}</div>
       <h1 style="font-family:'Anton',sans-serif;font-size:2rem;margin:0 0 6px">${score} pts</h1>

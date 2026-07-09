@@ -215,10 +215,11 @@
     c.state='served'; c.served=1; c.leave=0;
     // fly coins toward the revenue readout (top)
     flyCoins(c.tx, QY-0.04, 3+Math.floor(patFrac*3));
-    burst(c.tx, QY-0.05, '#34d399', 9);
+    // burst grows with combo depth — serve #1 and serve #10 in a streak should feel different
+    burst(c.tx, QY-0.05, '#34d399', 9+Math.min(12,G.combo));
     floatTxt(c.tx, QY-0.09, '+$'+gain, patFrac>0.55?'#fde68a':'#a7f3d0');
     if(tip>0 && patFrac>0.6) floatTxt(c.tx, QY-0.15, 'NICE TIP!', '#fbbf24');
-    if(G.combo>1 && G.combo%3===0){ G.flash=0.35; floatTxt(0.5,0.34,'COMBO x'+G.combo,'#c084fc'); }
+    if(G.combo>1 && G.combo%3===0){ G.flash=0.35; floatTxt(0.5,0.34,'🔥 COMBO x'+G.combo,'#c084fc'); burst(0.5,0.34,'#c084fc',16); G.shake=Math.max(G.shake||0,0.18); }
     if(G.stock<=2) G.restockPulse=0.6;
   }
 
@@ -439,8 +440,14 @@
           ? '<button onclick="boRestart()" style="'+GH+'">↺ REPLAY L3</button><button onclick="boExit()" style="'+P+'">← HUB</button>'
           : '<button onclick="boNextLevel()" style="'+P+'">LEVEL '+(lvl+1)+' ▶</button><button onclick="boRestart()" style="'+GH+'">↺ REPLAY</button><button onclick="boExit()" style="'+GH+'">← HUB</button>')
       : '<button onclick="boRestart()" style="'+P+'">↺ TRY AGAIN</button><button onclick="boExit()" style="'+GH+'">← HUB</button>';
-    o.innerHTML=`<div style="max-width:430px;text-align:center;padding:34px 28px;border:1px solid ${won?'#fbbf24':'#a855f7'};border-radius:22px;background:linear-gradient(160deg,rgba(45,27,78,.97),rgba(26,16,48,.97));box-shadow:0 0 60px rgba(168,85,247,.45)">
-      <div style="font-size:3rem;margin-bottom:8px">${won?(isFinal?'👑':'🏆'):'💼'}</div>
+    o.innerHTML=`<div style="max-width:430px;text-align:center;padding:34px 28px;border:1px solid ${won?'#fbbf24':'#a855f7'};border-radius:22px;background:linear-gradient(160deg,rgba(45,27,78,.97),rgba(26,16,48,.97));box-shadow:0 0 ${won?'90px rgba(251,191,36,.55)':'60px rgba(168,85,247,.45)'};animation:${won?(isFinal?'boMasterPop .6s cubic-bezier(.2,1.4,.4,1)':'boWinPop .5s cubic-bezier(.2,1.4,.4,1)'):'boFadeIn .3s ease'}">
+      <style>
+        @keyframes boWinPop{0%{transform:scale(.7) rotate(-3deg);opacity:0}60%{transform:scale(1.06) rotate(1deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+        @keyframes boMasterPop{0%{transform:scale(.6) rotate(-6deg);opacity:0}55%{transform:scale(1.1) rotate(2deg);opacity:1}75%{transform:scale(.97) rotate(-1deg)}100%{transform:scale(1) rotate(0)}}
+        @keyframes boFadeIn{0%{transform:scale(.94);opacity:0}100%{transform:scale(1);opacity:1}}
+        @keyframes boIconPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+      </style>
+      <div style="font-size:3rem;margin-bottom:8px${won?';animation:boIconPulse 1.1s ease-in-out infinite':''}">${won?(isFinal?'👑':'🏆'):'💼'}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#fbbf24':'#c084fc'};margin-bottom:6px">${title}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:8px">${sub}</div>
       <h1 style="font-family:'Anton',sans-serif;font-size:2.2rem;margin:0 0 6px;color:#fff">$${score}</h1>

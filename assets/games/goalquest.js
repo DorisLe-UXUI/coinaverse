@@ -196,10 +196,16 @@
       G.score += gain;
       G.goal = Math.min(L().goal, G.goal + Math.round(base/2)*(G.x2>0?2:1));
       G.health = Math.min(100, G.health + (it.kind==='save'?5:3));
-      ring(it.x,it.y,BIN_COL[bi]); burst(it.x,it.y,BIN_COL[bi],11);
+      // burst intensity scales with combo depth — a 10-streak should visibly pop
+      // harder than the first catch, not just show a bigger number
+      const comboPop = Math.min(1, G.combo/12);
+      ring(it.x,it.y,BIN_COL[bi]); burst(it.x,it.y,BIN_COL[bi],11+Math.round(comboPop*14));
       floatTxt(it.x,it.y,'+'+gain,'#fde68a');
-      G.flash=0.25; G.flashC=BIN_COL[bi];
-      if(G.combo>1 && G.combo%4===0){ floatTxt(0.5,0.42,'COMBO x'+(1+Math.floor(G.combo/4)),'#60a5fa'); }
+      G.flash=0.25+comboPop*0.15; G.flashC=BIN_COL[bi];
+      if(G.combo>1 && G.combo%4===0){
+        floatTxt(0.5,0.42,'🔥 COMBO x'+(1+Math.floor(G.combo/4)),'#60a5fa');
+        burst(0.5,0.42,'#60a5fa',18); G.shake=Math.max(G.shake||0,0.22);
+      }
     } else {
       G.combo=0; G.health=Math.max(0,G.health-14); G.shake=0.42;
       burst(it.x,it.y,'#f87171',13);
@@ -233,7 +239,7 @@
     // fall/spawn multipliers + item-mix odds make each level feel different
     G.spawnT-=dt;
     if(G.spawnT<=0){
-      G.spawnT=Math.max(0.4,(1.25-prog*0.7)*L().spawn);
+      G.spawnT=Math.max(0.3,(0.92-prog*0.5)*L().spawn);
       const roll=Math.random(), M=L().mix, F=L().fall;
       if(roll<M.power){ // power-up (rarer on higher levels)
         const p=POWERS[Math.floor(Math.random()*POWERS.length)];
@@ -461,8 +467,13 @@
           ? '<button onclick="gqRestart()" style="'+GH+'">↺ REPLAY L3</button><button onclick="gqExit()" style="'+P+'">← HUB</button>'
           : '<button onclick="gqNextLevel()" style="'+P+'">LEVEL '+(lvl+1)+' ▶</button><button onclick="gqRestart()" style="'+GH+'">↺ REPLAY</button><button onclick="gqExit()" style="'+GH+'">← HUB</button>')
       : '<button onclick="gqRestart()" style="'+P+'">↺ TRY AGAIN</button><button onclick="gqExit()" style="'+GH+'">← HUB</button>';
-    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:34px 28px;border:1px solid ${won?'#fbbf24':'#3b82f6'};border-radius:22px;background:linear-gradient(160deg,rgba(30,41,59,.97),rgba(7,13,24,.97));box-shadow:0 0 60px rgba(59,130,246,.4)">
-      <div style="font-size:3rem;margin-bottom:8px">${won?(isFinal?'👑':'🏆'):G.health<=0?'💸':'⏱'}</div>
+    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:34px 28px;border:1px solid ${won?'#fbbf24':'#3b82f6'};border-radius:22px;background:linear-gradient(160deg,rgba(30,41,59,.97),rgba(7,13,24,.97));box-shadow:0 0 ${won?'90px rgba(251,191,36,.55)':'60px rgba(59,130,246,.4)'};animation:${won?(isFinal?'gqMasterPop .6s cubic-bezier(.2,1.4,.4,1)':'gqWinPop .5s cubic-bezier(.2,1.4,.4,1)'):'gqGateIn .3s ease'}">
+      <style>
+        @keyframes gqWinPop{0%{transform:scale(.7) rotate(-4deg);opacity:0}60%{transform:scale(1.06) rotate(1deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+        @keyframes gqMasterPop{0%{transform:scale(.6) rotate(-8deg);opacity:0}55%{transform:scale(1.1) rotate(2deg);opacity:1}75%{transform:scale(.97) rotate(-1deg)}100%{transform:scale(1) rotate(0)}}
+        @keyframes gqCrownSpin{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.15) rotate(-6deg)}}
+      </style>
+      <div style="font-size:3rem;margin-bottom:8px${won?';animation:gqCrownSpin 1.1s ease-in-out infinite':''}">${won?(isFinal?'👑':'🏆'):G.health<=0?'💸':'⏱'}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#fbbf24':'#60a5fa'};margin-bottom:6px">${title}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:8px">${sub}</div>
       <h1 style="font-family:'Anton',sans-serif;font-size:2rem;margin:0 0 6px">${score} pts</h1>

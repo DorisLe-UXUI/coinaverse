@@ -181,6 +181,8 @@
       flashGood: 0,
       flashBad: 0,
       wobbleGlobal: 0,
+      streakPulse: 0,       // purely cosmetic combo-milestone celebration (no scoring effect)
+      bestCombo: 0,
       tokens: { time: tuning.tokens, money: tuning.tokens },
       setbackT: tuning.setbackT,
       setbackActive: null,
@@ -457,6 +459,17 @@
     const ms = gs.def.milestones[gs.needed];
     const correct = card.goalId === gs.def.id && card.ms.id === ms.id;
 
+    // locate the actual tower on screen so feedback lands where the action
+    // happened instead of always piling up at fixed screen-center (matters
+    // once 3-4 towers are active side by side on levels 2-3).
+    const cvEl = document.getElementById('gtCanvas');
+    const W = cvEl ? cvEl.clientWidth : 0;
+    const H = cvEl ? cvEl.clientHeight : 0;
+    const towers = (W && H) ? getTowerLayout(W, H) : null;
+    const tw = towers ? towers[goalIdx] : null;
+    const nx = tw ? (tw.x + tw.w / 2) / W : 0.5;
+    const ny = tw ? (tw.y + tw.h * 0.3) / H : 0.35;
+
     // remove from hand
     G.hand.splice(handIdx, 1);
     dealCards();
@@ -466,20 +479,29 @@
       gs.needed++;
       gs.glow = 1.2;
       G.combo++;
+      if (G.combo > G.bestCombo) G.bestCombo = G.combo;
       G.perfectPlacements++;
       const pts = 100 + G.combo * 20;
       G.score += pts;
-      floatTxt(0.5, 0.5, '+' + pts, GOLD);
-      burst(0.5, 0.3, VIOLET_LT, 14);
+      floatTxt(nx, ny, '+' + pts, GOLD);
+      burst(nx, Math.max(0.08, ny - 0.05), VIOLET_LT, 14);
       G.flashGood = 0.3;
+
+      // purely cosmetic streak celebration at 5/10/15+ in a row — does NOT
+      // touch score/goal math, which is already handled by `pts` above.
+      if (G.combo > 0 && G.combo % 5 === 0) {
+        G.streakPulse = 1;
+        floatTxt(0.5, 0.22, '🔥 ' + G.combo + ' STREAK!', GOLD);
+        burst(0.5, 0.22, GOLD, 26);
+      }
 
       if (gs.needed >= gs.def.milestones.length) {
         gs.complete = true;
         gs.trophyGlow = 2;
         gs.trophyBounce = 1;
         G.score += 200;
-        floatTxt(0.5, 0.4, 'GOAL COMPLETE! +200', GOLD);
-        burst(0.5, 0.35, GOLD, 22);
+        floatTxt(nx, Math.max(0.1, ny - 0.1), 'GOAL COMPLETE! +200', GOLD);
+        burst(nx, Math.max(0.08, ny - 0.05), GOLD, 22);
         checkWin();
       }
     } else {
@@ -490,8 +512,8 @@
       G.wrongPlacements++;
       G.time = Math.max(5, G.time - 8);
       G.flashBad = 0.35;
-      floatTxt(0.5, 0.45, 'OOPS — OUT OF SEQUENCE! -8s', DANGER);
-      burst(0.5, 0.45, DANGER, 10);
+      floatTxt(nx, ny, 'OOPS — OUT OF SEQUENCE! -8s', DANGER);
+      burst(nx, ny, DANGER, 10);
 
       // knock back: if goal has a placed milestone, remove last one
       if (gs.placed.length > 0) {
@@ -500,7 +522,7 @@
         // put it back into the shuffle (re-add a card for it)
         G.cards.push({ goalId: gs.def.id, ms: knocked });
         shuffle(G.cards);
-        floatTxt(0.5, 0.52, gs.def.name + ': step knocked back!', '#fca5a5');
+        floatTxt(nx, Math.min(0.9, ny + 0.08), gs.def.name + ': step knocked back!', '#fca5a5');
       }
 
       // put the card back in hand
@@ -562,6 +584,7 @@
     G.flashGood = Math.max(0, G.flashGood - dt * 2);
     G.flashBad = Math.max(0, G.flashBad - dt * 2);
     G.wobbleGlobal = Math.max(0, G.wobbleGlobal - dt * 3);
+    G.streakPulse = Math.max(0, G.streakPulse - dt * 0.7);
 
     for (const gs of G.goals) {
       gs.wobble = Math.max(0, gs.wobble - dt * 2.5);
@@ -600,6 +623,16 @@
     }
     if (G && G.flashBad > 0) {
       ctx.fillStyle = `rgba(239,68,68,${G.flashBad * 0.22})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    // purely cosmetic streak-milestone glow (combo % 5 === 0) — a soft gold
+    // edge vignette so it reads as a celebration without covering gameplay.
+    if (G && G.streakPulse > 0) {
+      const pv = G.streakPulse;
+      const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.7);
+      vg.addColorStop(0, 'rgba(251,191,36,0)');
+      vg.addColorStop(1, `rgba(251,191,36,${pv * 0.35})`);
+      ctx.fillStyle = vg;
       ctx.fillRect(0, 0, W, H);
     }
 
@@ -674,12 +707,13 @@
       if (!isPlaced) {
         ctx.fillStyle = 'rgba(26,42,74,0.3)';
         ctx.fillRect(towerX + 1, fy + 1, towerW - 2, floorH - 2);
-        // slot label
+        // slot label — shrink-to-fit so labels like "Calculate 3-Month
+        // Costs" never bleed past the floor into a neighboring tower on
+        // level 2/3's narrower columns.
         ctx.fillStyle = 'rgba(167,139,250,0.25)';
-        ctx.font = `bold ${Math.floor(floorH * 0.28)}px Inter`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(ms[fi].label, towerX + towerW / 2, fy + floorH / 2);
+        fitText(ctx, ms[fi].label, `bold %Fpx Inter`, Math.floor(floorH * 0.28), 6, towerW - 6, towerX + towerW / 2, fy + floorH / 2);
       }
     }
 
@@ -713,13 +747,14 @@
         ctx.shadowBlur = 0;
       }
 
-      // floor label
+      // floor label — shrink-to-fit, same overflow guard as the ghost slot
+      // label above (this is the more visible one since it's the placed,
+      // glowing floor, so it especially shouldn't spill into a neighbor).
       const placed = gs.placed[fi];
       ctx.fillStyle = '#fff';
-      ctx.font = `bold ${Math.floor(floorH * 0.3)}px Inter`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(placed.icon + ' ' + placed.label, towerX + towerW / 2, fy + floorH / 2);
+      fitText(ctx, placed.icon + ' ' + placed.label, `bold %Fpx Inter`, Math.floor(floorH * 0.3), 6, towerW - 6, towerX + towerW / 2, fy + floorH / 2);
     }
 
     // ground platform
@@ -732,12 +767,13 @@
     ctx.lineWidth = 1.5;
     ctx.strokeRect(towerX - 6, groundY, towerW + 12, 10);
 
-    // building name
+    // building name — shrink-to-fit so long names ("Build Emergency Fund")
+    // never overflow a narrow tower column on level 2/3 (up to 4 towers
+    // side by side can squeeze towerW well under 100px on mobile widths).
     ctx.fillStyle = gs.def.color;
-    ctx.font = `bold ${Math.min(12, towerW * 0.11)}px 'Orbitron', sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
-    ctx.fillText(gs.def.icon + ' ' + gs.def.name, towerX + towerW / 2, y + h - 2);
+    fitText(ctx, gs.def.icon + ' ' + gs.def.name, `bold %Fpx 'Orbitron', sans-serif`, Math.min(12, towerW * 0.11), 6.5, towerW + 8, towerX + towerW / 2, y + h - 2);
 
     // trophy at top
     const topY = groundY - totalFloors * floorH;
@@ -754,14 +790,15 @@
       ctx.fillText('🏆', towerX + towerW / 2, topY - 4 + bounce);
       ctx.shadowBlur = 0;
     } else {
-      // next milestone indicator
+      // next milestone indicator — shrink-to-fit (same overflow guard as
+      // the floor/building labels above) so longer milestone names still
+      // fit above narrow level-2/3 tower columns.
       if (gs.needed < ms.length) {
         const nextMs = ms[gs.needed];
         ctx.fillStyle = 'rgba(167,139,250,0.5)';
-        ctx.font = `${Math.min(13, towerW * 0.11)}px Inter`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText('▲ ' + nextMs.label, towerX + towerW / 2, topY - 4);
+        fitText(ctx, '▲ ' + nextMs.label, `%Fpx Inter`, Math.min(13, towerW * 0.11), 7, towerW + 6, towerX + towerW / 2, topY - 4);
       }
     }
 
@@ -954,6 +991,21 @@
     ctx.lineTo(x, y + r);
     ctx.quadraticCurveTo(x, y, x + r, y);
     ctx.closePath();
+  }
+
+  // Draws single-line text that shrinks to fit maxW instead of overflowing —
+  // used anywhere a tower column can get narrow (levels 2-3 pack 3-4 towers
+  // side by side) so goal/milestone labels never bleed into a neighbor.
+  // fontTemplate must contain a literal "%F" placeholder for the size, e.g.
+  // "bold %Fpx Inter". Assumes textAlign/textBaseline are already set by caller.
+  function fitText(ctx, text, fontTemplate, startSize, minSize, maxW, x, y) {
+    let size = startSize;
+    ctx.font = fontTemplate.replace('%F', size);
+    while (size > minSize && ctx.measureText(text).width > maxW) {
+      size -= 0.5;
+      ctx.font = fontTemplate.replace('%F', size);
+    }
+    ctx.fillText(text, x, y);
   }
 
   function wrapText(ctx, text, x, y, maxW, lineH) {
