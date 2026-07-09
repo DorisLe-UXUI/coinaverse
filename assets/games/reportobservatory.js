@@ -153,6 +153,10 @@
       found: {},
       // penalty flash items {id, t}
       flashItems: {},
+      // cosmetic-only streak of consecutive correct finds (no clean-item taps between them).
+      // Purely a visual celebration layer — does NOT add score or change goal math.
+      streak: 0,
+      bestStreak: 0,
       last: 0,
       timerId: null,
     };
@@ -353,6 +357,9 @@
       <!-- TOAST -->
       <div id="roToast"></div>
 
+      <!-- STREAK BANNER (cosmetic-only celebration, no score effect) -->
+      <div id="roStreak" style="position:absolute;top:96px;left:50%;transform:translateX(-50%) scale(.7);z-index:45;pointer-events:none;font-family:'Orbitron',sans-serif;font-size:.85rem;letter-spacing:.1em;color:#fde047;text-shadow:0 0 18px rgba(253,224,71,.8),0 2px 8px rgba(0,0,0,.6);white-space:nowrap;opacity:0;transition:opacity .25s,transform .25s"></div>
+
     </div>`;
   };
 
@@ -549,6 +556,10 @@
       G.errorsFound++;
       G.score = Math.max(0, G.score + 150);
 
+      // Cosmetic-only streak tracking — no effect on score/goal, just a celebration layer.
+      G.streak++;
+      if(G.streak > G.bestStreak) G.bestStreak = G.streak;
+
       el.classList.remove('error-item');
       el.classList.add('ro-flash-found','ro-found');
 
@@ -567,13 +578,21 @@
         el.appendChild(hint);
       }
 
-      showToast('ERROR FOUND! +150', '#34d399', '#052e16');
+      // Streak celebration banner — only pops on 3+ consecutive finds (goals are 6-8 total
+      // errors, so thresholds stay small: 3 and every 3 after feels earned, not rare).
+      if(G.streak >= 3 && G.streak % 3 === 0){
+        showStreakBanner(G.streak);
+        showToast(`🔥 ${G.streak} STREAK! +150`, '#fbbf24', '#3f1d05');
+      } else {
+        showToast('ERROR FOUND! +150', '#34d399', '#052e16');
+      }
       updateUI();
       if(G.errorsFound >= G.goal){ G._endTimer = setTimeout(() => endGame(), 500); }
     } else {
-      // Wrong tap — penalty
+      // Wrong tap — penalty. Also breaks any active streak (cosmetic reset only).
       G.wrongTaps++;
       G.score = Math.max(0, G.score - 50);
+      G.streak = 0;
       el.classList.add('ro-penalty');
       setTimeout(() => el.classList.remove('ro-penalty'), 600);
       showToast('-50 PTS', '#ef4444', '#450a0a');
@@ -583,6 +602,21 @@
       if(sd){ sd.style.animation='none'; void sd.offsetWidth; sd.style.animation='roShakeScore .3s ease'; }
     }
   };
+
+  /* ─── STREAK BANNER — pure visual celebration, no score/goal impact ─── */
+  function showStreakBanner(n){
+    const el = document.getElementById('roStreak');
+    if(!el) return;
+    el.textContent = `🔥 ${n} STREAK!`;
+    el.style.transition = 'none';
+    el.style.opacity = '1';
+    el.style.transform = 'translateX(-50%) scale(1.25)';
+    void el.offsetWidth;
+    el.style.transition = 'opacity .25s, transform .35s cubic-bezier(.34,1.56,.64,1)';
+    el.style.transform = 'translateX(-50%) scale(1)';
+    clearTimeout(el._tid);
+    el._tid = setTimeout(() => { el.style.opacity = '0'; }, 1000);
+  }
 
   /* ─── UI UPDATE ─────────────────────────────────────────────── */
   function updateUI(){
@@ -607,23 +641,47 @@
     t._tid = setTimeout(() => { t.style.opacity = '0'; }, 1100);
   }
 
-  /* ─── STAR CANVAS ───────────────────────────────────────────── */
+  /* ─── STAR CANVAS — gently twinkling/drifting so the observatory backdrop
+     behind the scrolling report doc isn't a dead, motionless field ──────── */
+  let _roStarField = null, _roStarRaf = null;
   function drawStars(){
     const cv = document.getElementById('roStars');
     if(!cv) return;
     cv.width  = cv.clientWidth;
     cv.height = cv.clientHeight;
-    const ctx = cv.getContext('2d');
+    _roStarField = [];
     for(let i=0;i<120;i++){
-      const x = Math.random()*cv.width;
-      const y = Math.random()*cv.height;
-      const r = Math.random()*1.2;
-      const a = Math.random()*.7+.15;
-      ctx.beginPath();
-      ctx.arc(x,y,r,0,Math.PI*2);
-      ctx.fillStyle = `rgba(221,214,254,${a})`;
-      ctx.fill();
+      _roStarField.push({
+        x: Math.random()*cv.width,
+        y: Math.random()*cv.height,
+        r: Math.random()*1.2+0.3,
+        baseA: Math.random()*.6+.15,
+        tw: Math.random()*2+0.6,     // twinkle speed
+        phase: Math.random()*Math.PI*2,
+        drift: (Math.random()-0.5)*3,  // slow vertical drift px/s
+      });
     }
+    if(_roStarRaf) cancelAnimationFrame(_roStarRaf);
+    const start = performance.now();
+    (function animate(now){
+      _roStarRaf = requestAnimationFrame(animate);
+      if(!G || G.phase !== 'play'){ return; }
+      const cv2 = document.getElementById('roStars');
+      if(!cv2){ cancelAnimationFrame(_roStarRaf); _roStarRaf=null; return; }
+      const ctx = cv2.getContext('2d');
+      const t = (now - start) / 1000;
+      ctx.clearRect(0,0,cv2.width,cv2.height);
+      for(const s of _roStarField){
+        s.y += s.drift * (1/60);
+        if(s.y < -4) s.y = cv2.height+4;
+        if(s.y > cv2.height+4) s.y = -4;
+        const a = s.baseA + Math.sin(t*s.tw + s.phase) * s.baseA * 0.5;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(221,214,254,${Math.max(0,a)})`;
+        ctx.fill();
+      }
+    })(start);
   }
 
   /* ─── END GAME ──────────────────────────────────────────────── */
@@ -725,6 +783,7 @@
   window.roExit = function(){
     if(G){ clearInterval(G.timerId); clearTimeout(G._endTimer); }
     G = null;
+    if(_roStarRaf){ cancelAnimationFrame(_roStarRaf); _roStarRaf = null; }
     if(window.state) state.viewingWorld = 'credtech';
     goTo('credtech_hub');
   };

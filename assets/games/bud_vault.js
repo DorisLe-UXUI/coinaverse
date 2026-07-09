@@ -11,9 +11,11 @@
   /* ─── CONSTANTS ─────────────────────────────────────────────── */
   const ACCENT='#1a2a4a', GOLD='#f59e0b', SHIELD='#38bdf8', RED='#ef4444', GREEN='#22c55e';
   const LEVELS=[
-    { label:'LEVEL 1 — STARTER',  goal:500,   duration:90,  tokenRate:1.8, emergencyRate:18, maxActive:1 },
-    { label:'LEVEL 2 — MASTERY',  goal:3000,  duration:120, tokenRate:1.4, emergencyRate:12, maxActive:3 },
-    { label:'LEVEL 3 — GUARDIAN', goal:6500,  duration:150, tokenRate:1.1, emergencyRate:9,  maxActive:4 }
+    // tokenRate tightened ~1.35x vs earlier tuning (1.8→1.35, 1.4→1.05, 1.1→0.82) so the
+    // falling zone isn't sparse on tall canvases — same goal/duration, just denser flow.
+    { label:'LEVEL 1 — STARTER',  goal:500,   duration:90,  tokenRate:1.35, emergencyRate:18, maxActive:1 },
+    { label:'LEVEL 2 — MASTERY',  goal:3000,  duration:120, tokenRate:1.05, emergencyRate:12, maxActive:3 },
+    { label:'LEVEL 3 — GUARDIAN', goal:6500,  duration:150, tokenRate:0.82, emergencyRate:9,  maxActive:4 }
   ];
   const TOKENS=[
     { kind:'coin',  emoji:'🪙', value:15,   color:'#f59e0b', prob:0.42 },
@@ -175,6 +177,7 @@
       tokens:[],
       particles:[],
       floats:[],              // floating text
+      ambient:[],             // idle background motes (purely cosmetic, fills dead vault space)
       emergencies:[],         // active emergency cards
       emgQueue:[],
       emgTimer:0,
@@ -186,6 +189,8 @@
       factIdx:0,
       shieldPct:0,
       emgHandled:0,           // emergencies handled with pay (no depletion)
+      catchStreak:0,          // consecutive catches with no miss (cosmetic only — does not affect score/goal)
+      bestStreak:0,
       started:false
     };
 
@@ -201,6 +206,28 @@
     if(!root) return;
     canvas.width=root.clientWidth;
     canvas.height=root.clientHeight-122;
+  }
+
+  /* ─── AMBIENT MOTES ──────────────────────────────────────────
+     Purely cosmetic slow-rising sparks behind the vault. The vault
+     graphic occupies a large static chunk of the canvas (bottom ~45%)
+     that otherwise never moves except for the shield glow — this gives
+     that space ambient life without touching any gameplay numbers. ── */
+  function seedAmbient(){
+    if(!canvas) return;
+    const W=canvas.width, H=canvas.height;
+    const n=16;
+    G.ambient=[];
+    for(let i=0;i<n;i++){
+      G.ambient.push({
+        x:Math.random()*W, y:Math.random()*H,
+        r:0.8+Math.random()*1.8,
+        spd:6+Math.random()*10,
+        wf:0.3+Math.random()*0.5, wa:8+Math.random()*10,
+        color:Math.random()<0.5?'#38bdf8':(Math.random()<0.5?'#22c55e':'#f59e0b'),
+        alpha:0.12+Math.random()*0.22
+      });
+    }
   }
 
   /* ─── LEVEL SELECT OVERLAY ──────────────────────────────────── */
@@ -238,6 +265,7 @@
     G.tokens=[];
     G.particles=[];
     G.floats=[];
+    G.ambient=[];
     G.emergencies=[];
     G.emgQueue=[];
     G.emgTimer=LEVELS[lvIdx].emergencyRate*0.5; // first emergency comes early
@@ -247,7 +275,10 @@
     G.factTimer=20;
     G.factIdx=0;
     G.emgHandled=0;
+    G.catchStreak=0;
+    G.bestStreak=0;
     G.started=true;
+    seedAmbient();
 
     updateHUD();
     updateGoalLabel();
@@ -348,6 +379,13 @@
     // floats
     G.floats=G.floats.filter(f=>{ f.y-=55*dt; f.life-=dt; return f.life>0; });
 
+    // ambient motes (purely cosmetic drift — fills the static vault area with life)
+    G.ambient.forEach(a=>{
+      a.y-=a.spd*dt;
+      a.x+=Math.sin((a.t=(a.t||0)+dt*a.wf))*a.wa*dt;
+      if(a.y< -10){ a.y=H+10; a.x=Math.random()*W; }
+    });
+
     // emergency timer
     G.emgTimer-=dt;
     if(G.emgTimer<=0){
@@ -422,12 +460,23 @@
       spawnParticles(t.x,t.y,t.color,8);
       addFloat(t.x,t.y,`+$${val}`,'#22c55e',0.8);
     }
+
+    // catch streak — purely cosmetic celebration, never touches savings/score math
+    G.catchStreak++;
+    if(G.catchStreak>G.bestStreak) G.bestStreak=G.catchStreak;
+    if(G.catchStreak>0 && G.catchStreak%5===0){
+      spawnParticles(t.x,t.y,'#f59e0b',16);
+      addFloat(canvas.width/2,canvas.height*0.22,`🔥 ${G.catchStreak} STREAK!`,'#f59e0b',1.3);
+      G.shakeT=Math.max(G.shakeT,0.12);
+    }
   }
 
   function missedToken(t){
-    // small penalty: lose a token but no savings deduction
-    // just a visual puff
-    spawnParticles(t.x,canvas.height-30,'#ef4444',4);
+    // small penalty: lose a token but no savings deduction — break the streak
+    // and give it a visible (not silent) beat so misses actually register
+    G.catchStreak=0;
+    spawnParticles(t.x,canvas.height-30,'#ef4444',6);
+    addFloat(t.x,canvas.height-40,'MISSED','#ef4444',0.6);
   }
 
   /* ─── EMERGENCY SYSTEM ──────────────────────────────────────── */
@@ -628,6 +677,16 @@
       ctx.fillRect(0,0,W,H);
       ctx.globalAlpha=1;
     }
+
+    // ambient motes (behind vault/tokens — fills otherwise-static space)
+    G.ambient.forEach(a=>{
+      ctx.globalAlpha=a.alpha;
+      ctx.fillStyle=a.color;
+      ctx.beginPath();
+      ctx.arc(a.x,a.y,a.r,0,Math.PI*2);
+      ctx.fill();
+    });
+    ctx.globalAlpha=1;
 
     // draw vault
     drawVault(W,H);
@@ -910,6 +969,12 @@
 
     const mainColor=won?'#22c55e':'#ef4444';
     const mainLabel=won?'FUND SECURED':'VAULT DEPLETED';
+    // cosmetic-only streak callout — does not affect stars/coins/score math above
+    const streakHTML = G.bestStreak>=5 ? `
+      <div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:10px;padding:8px 14px;margin-bottom:14px;display:inline-block">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.44rem;letter-spacing:.12em;color:#f59e0b">BEST CATCH STREAK</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.95rem;color:#f59e0b">🔥 ${G.bestStreak}x</div>
+      </div>` : '';
 
     end.innerHTML=`
       <div style="font-size:2.6rem;margin-bottom:4px">${won?'🏦':'💸'}</div>
@@ -929,6 +994,7 @@
           <div style="font-family:'Orbitron',sans-serif;font-size:1rem;color:#f59e0b">+${stars>0?coins:0}</div>
         </div>
       </div>
+      ${streakHTML}
       <div style="background:rgba(26,42,74,.6);border:1px solid rgba(56,189,248,.2);border-radius:12px;padding:14px 18px;max-width:320px;margin-bottom:20px;font-size:.75rem;color:#94a3b8;line-height:1.7;text-align:left">
         <span style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.12em;color:#38bdf8;display:block;margin-bottom:6px">LESSON</span>
         An emergency fund is not optional — it is the wall between a bad day and a financial crisis. Even a small cushion of $500 can prevent debt spirals. Start saving before the emergency happens, because it always happens.

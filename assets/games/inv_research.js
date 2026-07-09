@@ -286,6 +286,8 @@
       timerId: null,
       feedback: null,          // {text, ok, t}
       startTime: Date.now(),
+      streak: 0,               // consecutive correct ratings — VISUAL ONLY, does not affect scoring
+      maxStreak: 0,            // best streak this run, shown on end screen
     };
   }
 
@@ -536,7 +538,7 @@
 
     main.innerHTML = `
       <!-- HOLOGRAPHIC REPORT CARD -->
-      <div style="background:${PANEL_BG};border:1.5px solid ${PANEL_BOR};border-radius:12px;overflow:hidden;box-shadow:0 0 20px #00C85318;">
+      <div id="rc_card" style="background:${PANEL_BG};border:1.5px solid ${PANEL_BOR};border-radius:12px;overflow:hidden;box-shadow:0 0 20px #00C85318;transition:transform 0.18s ease-out;transform:scale(1);">
         <!-- Card header -->
         <div style="background:linear-gradient(135deg,#060e18,#0a1a0e);padding:14px 16px;border-bottom:1px solid ${PANEL_BOR};display:flex;align-items:center;justify-content:space-between;">
           <div>
@@ -605,17 +607,27 @@
   }
 
   /* ─── RATE HANDLER ───────────────────────────────────────────── */
+  // Streak thresholds are purely cosmetic milestones for the celebration
+  // banner/burst below — they do NOT feed into the score formula.
+  const STREAK_MILESTONES = [3, 5];
+
   window._rcRate = function (rating) {
     if (!G || G.phase !== 'play') return;
     const co = G.companies[G.current];
     const isCorrect = rating === co.correct;
 
-    // Points: base per company
+    // Points: base per company (UNCHANGED — streak adds zero points, visual only)
     const timeBonus = Math.floor(G.timeLeft / 10);
     const pts = isCorrect ? (20 + timeBonus) : 0;
 
     G.score += pts;
-    if (isCorrect) G.correct++;
+    if (isCorrect) {
+      G.correct++;
+      G.streak++;
+      if (G.streak > G.maxStreak) G.maxStreak = G.streak;
+    } else {
+      G.streak = 0;
+    }
 
     G.answers.push({ company: co.name, rating, isCorrect });
 
@@ -629,6 +641,18 @@
 
     // Highlight the tapped button briefly
     flashButton(rating, isCorrect);
+
+    // Floating "+N" popup near the tapped button (correct only — cosmetic, no score change)
+    if (isCorrect) spawnFloatingPoints(rating, pts);
+
+    // Scale-pulse the whole report card so every rating feels impactful,
+    // not just the button strip (fires on BOTH correct and incorrect).
+    pulseCard(isCorrect);
+
+    // Streak celebration burst at tuned milestones (3, 5+) — visual only.
+    if (isCorrect && STREAK_MILESTONES.includes(G.streak)) {
+      showStreakBanner(G.streak);
+    }
 
     // Advance after a beat
     setTimeout(function () {
@@ -665,6 +689,72 @@
     t.style.opacity = '1';
     clearTimeout(t._tid);
     t._tid = setTimeout(function () { t.style.opacity = '0'; }, 1500);
+  }
+
+  /* ─── JUICE: floating "+N" popup ─────────────────────────────── */
+  // Lightweight, self-contained: one absolutely-positioned div, a CSS
+  // transition on transform/opacity, removed via setTimeout. Same
+  // lightweight-DOM-effect style already used by showToast()/flashButton().
+  function spawnFloatingPoints(rating, pts) {
+    const btn = q('#rc_btn_' + rating);
+    const root = q('#rc_root');
+    if (!btn || !root) return;
+    const bRect = btn.getBoundingClientRect();
+    const rRect = root.getBoundingClientRect();
+
+    const el = document.createElement('div');
+    el.textContent = '+' + pts;
+    el.style.cssText = 'position:absolute;left:' + (bRect.left - rRect.left + bRect.width / 2) + 'px;'
+      + 'top:' + (bRect.top - rRect.top) + 'px;'
+      + 'transform:translate(-50%,0) scale(0.8);opacity:0;'
+      + 'color:' + BUY_COL + ';font-family:"Orbitron","Inter",sans-serif;font-size:16px;font-weight:700;'
+      + 'pointer-events:none;z-index:150;transition:transform 0.7s ease-out,opacity 0.7s ease-out;';
+    root.appendChild(el);
+
+    // Kick the transition on the next frame so the initial state paints first.
+    requestAnimationFrame(function () {
+      el.style.transform = 'translate(-50%,-38px) scale(1.1)';
+      el.style.opacity = '1';
+      setTimeout(function () { el.style.opacity = '0'; }, 380);
+    });
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 750);
+  }
+
+  /* ─── JUICE: report-card scale-pulse ─────────────────────────── */
+  // CSS-transition based (transform:scale), consistent with the file's
+  // inline-style approach — fires on both correct and incorrect answers.
+  function pulseCard(ok) {
+    const card = q('#rc_card');
+    if (!card) return;
+    card.style.transform = ok ? 'scale(1.03)' : 'scale(0.98)';
+    setTimeout(function () { if (card) card.style.transform = 'scale(1)'; }, 180);
+  }
+
+  /* ─── JUICE: streak celebration banner ───────────────────────── */
+  // Purely visual milestone popup — does not touch G.score. Injects one
+  // shared @keyframes block (guarded by id, same idiom used elsewhere in
+  // the codebase for one-time style injection).
+  function ensureStreakStyle() {
+    if (q('#rc_streak_style')) return;
+    const s = document.createElement('style');
+    s.id = 'rc_streak_style';
+    s.textContent = '@keyframes rcStreakPop{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}20%{opacity:1;transform:translate(-50%,-50%) scale(1.12)}35%{transform:translate(-50%,-50%) scale(1)}78%{opacity:1}100%{opacity:0;transform:translate(-50%,-62%) scale(1.05)}}';
+    document.head.appendChild(s);
+  }
+
+  function showStreakBanner(streak) {
+    const root = q('#rc_root');
+    if (!root) return;
+    ensureStreakStyle();
+
+    const el = document.createElement('div');
+    el.textContent = '🔥 ' + streak + ' STREAK!';
+    el.style.cssText = 'position:absolute;left:50%;top:38%;'
+      + 'color:' + HOLD_COL + ';font-family:"Orbitron","Inter",sans-serif;font-size:20px;font-weight:700;'
+      + 'letter-spacing:1px;text-shadow:0 0 12px ' + HOLD_COL + '88;pointer-events:none;z-index:160;'
+      + 'animation:rcStreakPop 1.1s ease-out forwards;white-space:nowrap;';
+    root.appendChild(el);
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 1150);
   }
 
   /* ─── END GAME ───────────────────────────────────────────────── */

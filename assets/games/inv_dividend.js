@@ -250,7 +250,12 @@
   function buildPlots(n) {
     const arr = [];
     for (let i = 0; i < n; i++) {
-      arr.push({ idx: i, treeType: null, level: 0, el: null, payout: null, pendingPay: 0, glowing: false });
+      // cyclePhaseMs staggers each plot's payout cadence so bubbles trickle in
+      // one-by-one rather than every planted tree popping in perfect unison —
+      // this does NOT change $/month income (computeTotalIncome sums basePay
+      // regardless of collection timing), it only spreads out WHEN the
+      // collectible bubbles visually appear, closing the long dead gaps.
+      arr.push({ idx: i, treeType: null, level: 0, el: null, payout: null, pendingPay: 0, glowing: false, cyclePhaseMs: Math.floor(Math.random() * 1800) });
     }
     return arr;
   }

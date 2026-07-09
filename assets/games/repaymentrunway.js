@@ -66,6 +66,22 @@
     container.appendChild(canvas);
     const ctx = canvas.getContext('2d');
 
+    /* ── persistent HUB exit button (DOM overlay — canvas has no in-play exit) ── */
+    const exitBtn = document.createElement('button');
+    exitBtn.textContent = '← HUB';
+    exitBtn.style.cssText = 'position:absolute;top:14px;left:14px;z-index:5;padding:7px 14px;'
+      + 'border:1px solid rgba(251,191,36,.45);border-radius:9px;background:rgba(13,13,43,.75);'
+      + 'backdrop-filter:blur(6px);color:#fbbf24;font:700 .68rem/1 sans-serif;letter-spacing:.06em;'
+      + 'cursor:pointer;';
+    exitBtn.onmouseenter = () => { exitBtn.style.background = 'rgba(251,191,36,.18)'; };
+    exitBtn.onmouseleave = () => { exitBtn.style.background = 'rgba(13,13,43,.75)'; };
+    exitBtn.addEventListener('click', () => goHub());
+    container.appendChild(exitBtn);
+    function syncExitBtn() {
+      // hidden on TITLE (its own layout) and END (end-screen already has a HUB button)
+      exitBtn.style.display = (screen === SCREENS.PLAYING || screen === SCREENS.PAUSED) ? 'block' : 'none';
+    }
+
     let W, H, GROUND_Y;
     function resize() {
       W = canvas.width  = container.clientWidth  || 800;
@@ -513,9 +529,84 @@
     }
 
     /* ── Draw helpers ────────────────────────────────────────────────────── */
+    /* ── ambient decor (generated once, purely cosmetic — CredTech Galaxy skyline) ── */
+    let stars = null, skylineFar = null, skylineNear = null, dataStreaks = null;
+    function initDecor() {
+      stars = Array.from({ length: 70 }, () => ({
+        x: Math.random() * W, y: Math.random() * GROUND_Y * 0.92,
+        r: 0.6 + Math.random() * 1.6, phase: Math.random() * Math.PI * 2, spd: 0.6 + Math.random() * 1.2,
+      }));
+      const mkSkyline = (count, baseH) => {
+        let x = 0; const arr = [];
+        for (let i = 0; i < count; i++) {
+          const w = baseH * (0.5 + Math.random() * 0.7), h = baseH * (0.6 + Math.random() * 1.1);
+          arr.push({ x, w, h, lit: Math.random() < 0.4 });
+          x += w + baseH * 0.15;
+        }
+        arr._period = x;
+        return arr;
+      };
+      skylineFar  = mkSkyline(14, GROUND_Y * 0.22);
+      skylineNear = mkSkyline(9,  GROUND_Y * 0.34);
+      dataStreaks = Array.from({ length: 5 }, () => ({
+        y: GROUND_Y * (0.15 + Math.random() * 0.7), x: Math.random() * W, len: 40 + Math.random() * 70, spd: 3 + Math.random() * 4,
+      }));
+    }
+
+    function drawSkylineLayer(layer, scrollX, color, alpha) {
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = color;
+      const period = layer._period;
+      const startI = Math.floor(scrollX / period) - 1;
+      for (let rep = startI; rep <= startI + 2; rep++) {
+        for (const b of layer) {
+          const bx = b.x + rep * period - scrollX;
+          if (bx + b.w < 0 || bx > W) continue;
+          ctx.fillRect(bx, GROUND_Y - b.h, b.w, b.h);
+          if (b.lit) {
+            ctx.fillStyle = 'rgba(251,191,36,.5)';
+            ctx.fillRect(bx + b.w * 0.3, GROUND_Y - b.h * 0.7, b.w * 0.14, b.w * 0.14);
+            ctx.fillStyle = color;
+          }
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
     function drawBackground() {
-      ctx.fillStyle = COLORS.sky;
+      if (!stars) initDecor();
+
+      // gradient sky instead of a flat fill — real depth, not a void
+      const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+      sky.addColorStop(0, '#050514');
+      sky.addColorStop(0.6, COLORS.sky);
+      sky.addColorStop(1, '#1a1450');
+      ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, H);
+
+      // twinkling stars — fills the "dead void" above the runway with ambient life
+      const t = Date.now() / 1000;
+      for (const s of stars) {
+        ctx.globalAlpha = 0.25 + 0.5 * (0.5 + 0.5 * Math.sin(t * s.spd + s.phase));
+        ctx.fillStyle = '#c7d2fe';
+        ctx.fillRect(s.x, s.y, s.r, s.r);
+      }
+      ctx.globalAlpha = 1;
+
+      // parallax CredTech Galaxy skyline — two depths, scroll tied to run speed
+      const scroll = (Date.now() / 1000) * (typeof speed === 'number' ? speed * 2 : 4);
+      drawSkylineLayer(skylineFar,  scroll * 0.35, '#241b5c', 0.55);
+      drawSkylineLayer(skylineNear, scroll * 0.7,  '#1a1442', 0.8);
+
+      // drifting data-stream light streaks (futuristic economy motif)
+      for (const d of dataStreaks) {
+        d.x -= d.spd;
+        if (d.x + d.len < 0) d.x = W + Math.random() * 100;
+        const g = ctx.createLinearGradient(d.x, d.y, d.x + d.len, d.y);
+        g.addColorStop(0, 'transparent'); g.addColorStop(0.5, 'rgba(99,102,241,.4)'); g.addColorStop(1, 'transparent');
+        ctx.strokeStyle = g; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x + d.len, d.y); ctx.stroke();
+      }
 
       // scrolling grid
       const gridSpacing = W / 10;
@@ -1206,6 +1297,7 @@
 
       if (screen === SCREENS.PLAYING && !startTime) startTime = now;
 
+      syncExitBtn();
       update(now, dt);
 
       /* draw */
@@ -1234,6 +1326,7 @@
       ro.disconnect();
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keyup',   onKeyUp);
+      if (exitBtn.parentNode) exitBtn.parentNode.removeChild(exitBtn);
     }
 
     // expose cleanup in case hub needs it

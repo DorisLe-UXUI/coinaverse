@@ -308,15 +308,19 @@
       const hasBill  = !!bill;
       const isWknd   = isDayWeekend(day);
       const dotColor = hasBill ? bill.color : 'transparent';
+      // Ambient life for empty cells (no bill due) — a faint drifting spark keeps the
+      // mostly-blank calendar (as low as ~19% filled on Level 1) from reading as dead/broken.
+      const ambientDelay = ((day * 37) % 43) / 10; // pseudo-random 0-4.2s stagger, no Math.random() needed per render
       cells += `<div id="bbg_cell_${day}"
         data-day="${day}"
-        style="min-height:52px;border-radius:6px;padding:4px 3px;position:relative;
+        style="min-height:52px;border-radius:6px;padding:4px 3px;position:relative;overflow:hidden;
                background:${isWknd ? 'rgba(26,42,74,.15)' : 'rgba(14,24,50,.55)'};
                border:1px solid ${hasBill ? `rgba(74,122,191,.45)` : 'rgba(74,122,191,.12)'};
                box-sizing:border-box;cursor:default;transition:border-color .2s,background .2s">
           <div style="font-family:Orbitron,sans-serif;font-size:.5rem;color:rgba(255,255,255,.45);text-align:right;line-height:1">${day}</div>
           ${hasBill ? `<div class="bbg_due_dot" style="width:6px;height:6px;border-radius:50%;background:${dotColor};margin:2px auto 0;box-shadow:0 0 6px ${dotColor}"></div>
-          <div id="bbg_celllabel_${day}" style="font-size:.45rem;color:rgba(255,255,255,.35);text-align:center;margin-top:1px;line-height:1.1">${bill.icon}</div>` : ''}
+          <div id="bbg_celllabel_${day}" style="font-size:.45rem;color:rgba(255,255,255,.35);text-align:center;margin-top:1px;line-height:1.1">${bill.icon}</div>` :
+          `<div class="bbg_ambient_spark" style="width:3px;height:3px;border-radius:50%;background:${ACCENT_GL};margin:6px auto 0;opacity:0;animation:bbg_ambient ${5.5 + (day%3)}s ease-in-out ${ambientDelay}s infinite"></div>`}
           <div id="bbg_cellbill_${day}" style="margin-top:2px"></div>
           <div id="bbg_timer_${day}" style="display:none;position:absolute;top:2px;left:3px;font-family:Orbitron,sans-serif;font-size:.42rem;color:${ORANGE};font-variant-numeric:tabular-nums"></div>
         </div>`;
@@ -369,6 +373,8 @@
       st.textContent = `
         @keyframes bbg_pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
         @keyframes bbg_glow  { 0%,100%{box-shadow:0 0 8px ${ACCENT_GL}} 50%{box-shadow:0 0 22px ${ACCENT_GL}} }
+        @keyframes bbg_ambient { 0%,100%{opacity:0;transform:scale(.6)} 50%{opacity:.55;transform:scale(1.3)} }
+        @keyframes bbg_streak_pop { 0%{transform:translate(-50%,-50%) scale(.4);opacity:0} 55%{transform:translate(-50%,-50%) scale(1.12);opacity:1} 100%{transform:translate(-50%,-50%) scale(1);opacity:1} }
         @keyframes bbg_drone_fly { 0%{opacity:0;transform:translateY(8px)} 10%{opacity:1} 90%{opacity:1} 100%{opacity:0;transform:translateY(-8px)} }
         @keyframes bbg_flash_green { 0%,100%{background:rgba(34,197,94,.0)} 30%{background:rgba(34,197,94,.35)} }
         @keyframes bbg_flash_red { 0%,100%{background:rgba(239,68,68,.0)} 30%{background:rgba(239,68,68,.35)} }
@@ -538,6 +544,8 @@
       showCellFlash(day, 'green');
       showFloatText(day, `+${pts} ON TIME!`, GREEN);
       launchDrone(bill, day);
+      // Cosmetic-only streak celebration — no score/goal impact, just a bigger "moment" every 5 in a row
+      if (G.streak > 0 && G.streak % 5 === 0) showStreakCelebration(G.streak);
     }
 
     renderCellBill(day, bill, late);
@@ -802,6 +810,30 @@
     void cell.offsetWidth;
     cell.style.animation = `bbg_flash_${type} .5s ease`;
     setTimeout(() => { if (cell) cell.style.animation = ''; }, 600);
+  }
+
+  /* ── Streak celebration banner (purely cosmetic — no score/goal effect of its own;
+       the underlying streak bonus math in placeBill() is unchanged) ──────────────── */
+  function showStreakCelebration(streak) {
+    const root = document.getElementById('bbg_root');
+    if (!root) return;
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position:absolute;top:40%;left:50%;z-index:26;pointer-events:none;
+      text-align:center;white-space:nowrap;
+      animation:bbg_streak_pop .5s cubic-bezier(.2,.9,.3,1.3) both;
+    `;
+    el.innerHTML = `
+      <div style="font-size:2rem;line-height:1">🔥</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:.85rem;letter-spacing:.12em;color:${GOLD};text-shadow:0 0 16px ${GOLD};font-weight:900">${streak} STREAK!</div>
+    `;
+    root.appendChild(el);
+    spawnParticles(window.innerWidth / 2, window.innerHeight * 0.4, GOLD);
+    setTimeout(() => {
+      el.style.transition = 'opacity .35s ease';
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 400);
+    }, 900);
   }
 
   /* ── Float text ──────────────────────────────────────────────── */

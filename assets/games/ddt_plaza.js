@@ -113,6 +113,10 @@
       pendingEvent: null,
       showHint:     null,
       hintTimer:    null,
+      // payoffStreak: purely cosmetic counter of consecutive debts fully paid
+      // off without an unpaid debt slipping through a turn. Does NOT feed into
+      // score/turns/stars — celebration only, so existing star thresholds hold.
+      payoffStreak: 0,
     };
   }
 
@@ -602,12 +606,23 @@
     G.budgetUsed += pay;
     G.turnPayments[debt.id] = (G.turnPayments[debt.id] || 0) + pay;
 
+    // Impact juice on every coin landing — small pulse + coin-burst so a drop
+    // never just silently updates a number (cosmetic only, no score/turn effect).
+    coinImpact(debtId, pay);
+
     if (debt.balance <= 0) {
       debt.balance = 0;
       debt.paid    = true;
       debt.litUp   = true;
       floatText(debtId, '🎉 PAID OFF!', '#06D6A0');
       checkStratHint(debt);
+      payoffBurst(debtId);
+
+      // Cosmetic payoff streak — consecutive debts fully cleared without a
+      // wasted turn in between. Purely a celebration overlay; does not touch
+      // score, turns-to-win, or star thresholds in any way.
+      G.payoffStreak++;
+      if (G.payoffStreak >= 3) showStreakBanner(G.payoffStreak);
     } else {
       floatText(debtId, '-$' + pay, '#A78BFA');
     }
@@ -626,6 +641,90 @@
     checkWin();
   }
 
+  /* ── Payment impact juice ──────────────────────────────────────────────── */
+  function coinImpact(debtId, amount) {
+    const card = document.getElementById('card_' + debtId);
+    if (!card) return;
+    card.style.animation = 'none';
+    void card.offsetWidth; // restart animation
+    card.style.animation = 'ddtCardHit .35s ease';
+
+    // small coin-spark burst at the card center
+    const layer = document.getElementById('ddtFloats');
+    const rootEl = document.getElementById('ddtRoot');
+    if (!layer || !rootEl) return;
+    const rect = card.getBoundingClientRect();
+    const rootRect = rootEl.getBoundingClientRect();
+    const cx = rect.left - rootRect.left + rect.width / 2;
+    const cy = rect.top - rootRect.top + rect.height / 2;
+    const sparkCount = amount >= 100 ? 8 : 5;
+    for (let i = 0; i < sparkCount; i++) {
+      const spark = document.createElement('div');
+      const angle = Math.random() * Math.PI * 2;
+      const dist  = 26 + Math.random() * 24;
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist;
+      spark.style.cssText = `
+        position:absolute;left:${cx}px;top:${cy}px;
+        width:6px;height:6px;border-radius:50%;
+        background:#FFD166;box-shadow:0 0 8px rgba(255,209,102,.9);
+        pointer-events:none;
+        --dx:${dx}px;--dy:${dy}px;
+        animation:ddtSpark .55s ease-out forwards;
+      `;
+      layer.appendChild(spark);
+      setTimeout(() => spark.remove(), 600);
+    }
+  }
+
+  function payoffBurst(debtId) {
+    const card = document.getElementById('card_' + debtId);
+    const layer = document.getElementById('ddtFloats');
+    const rootEl = document.getElementById('ddtRoot');
+    if (!card || !layer || !rootEl) return;
+    const rect = card.getBoundingClientRect();
+    const rootRect = rootEl.getBoundingClientRect();
+    const cx = rect.left - rootRect.left + rect.width / 2;
+    const cy = rect.top - rootRect.top + rect.height / 2;
+
+    // bigger confetti-style burst for a full payoff
+    for (let i = 0; i < 14; i++) {
+      const spark = document.createElement('div');
+      const angle = Math.random() * Math.PI * 2;
+      const dist  = 40 + Math.random() * 50;
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist - 20;
+      const col = Math.random() > 0.5 ? '#06D6A0' : '#FFD166';
+      spark.style.cssText = `
+        position:absolute;left:${cx}px;top:${cy}px;
+        width:7px;height:7px;border-radius:${Math.random() > 0.5 ? '50%' : '2px'};
+        background:${col};box-shadow:0 0 10px ${col};
+        pointer-events:none;
+        --dx:${dx}px;--dy:${dy}px;
+        animation:ddtSpark .75s ease-out forwards;
+      `;
+      layer.appendChild(spark);
+      setTimeout(() => spark.remove(), 800);
+    }
+  }
+
+  function showStreakBanner(streak) {
+    const rootEl = document.getElementById('ddtRoot');
+    if (!rootEl) return;
+    const banner = document.createElement('div');
+    banner.style.cssText = `
+      position:absolute;top:22%;left:50%;transform:translate(-50%,-50%) scale(.8);
+      z-index:70;pointer-events:none;text-align:center;
+      font-family:Orbitron,sans-serif;font-weight:900;
+      color:#FFD166;text-shadow:0 0 20px rgba(255,209,102,.8),0 0 40px rgba(255,209,102,.4);
+      animation:ddtStreakPop 1.4s ease-out forwards;
+      white-space:nowrap;
+    `;
+    banner.innerHTML = `<div style="font-size:1.3rem;letter-spacing:.08em">🔥 ${streak} STREAK!</div>`;
+    rootEl.appendChild(banner);
+    setTimeout(() => banner.remove(), 1450);
+  }
+
   function checkStratHint(debt) {
     const snowFirst = G.snowballOrder[0] === debt.id || debt.origBal === Math.min(...G.debts.filter(d=>!d.paid).map(d=>d.origBal));
     const avaFirst  = G.avalancheOrder[0] === debt.id || debt.apr === Math.max(...G.debts.filter(d=>!d.paid).map(d=>d.apr));
@@ -642,6 +741,10 @@
   window.ddtEndTurn = function () {
     if (!G || G.phase !== 'play') return;
 
+    // Track whether ANY debt got fully paid off this turn — used only to
+    // reset the cosmetic payoff streak below (no effect on turns/score/stars).
+    let payoffThisTurn = false;
+
     // Apply min payments if budget allows (auto), then add monthly interest
     G.debts.forEach(debt => {
       if (debt.balance <= 0) return;
@@ -657,6 +760,7 @@
           if (debt.balance <= 0) { debt.balance = 0; debt.paid = true; debt.litUp = true; }
         }
       }
+      if (debt.balance <= 0 && (G.turnPayments[debt.id] || 0) > 0) payoffThisTurn = true;
 
       // Add monthly interest (happens after payments each turn)
       if (debt.balance > 0) {
@@ -665,6 +769,10 @@
         G.totalInterestPaid += interestCharge;
       }
     });
+
+    // A quiet turn (no debt cleared) breaks the cosmetic payoff streak so it
+    // genuinely reflects "clearing a debt every turn," not a lifetime total.
+    if (!payoffThisTurn) G.payoffStreak = 0;
 
     // Check for events
     const ev = G.eventQueue.find(e => e.turn === G.turn);
@@ -982,6 +1090,22 @@
       @keyframes ddtPulse {
         0%,100% { box-shadow: 0 0 16px rgba(75,45,143,.4); }
         50%      { box-shadow: 0 0 28px rgba(75,45,143,.8); }
+      }
+      @keyframes ddtCardHit {
+        0%   { transform: scale(1); }
+        35%  { transform: scale(1.045); box-shadow: 0 0 24px rgba(255,209,102,.6); }
+        100% { transform: scale(1); }
+      }
+      @keyframes ddtSpark {
+        0%   { transform: translate(0,0) scale(1); opacity: 1; }
+        100% { transform: translate(var(--dx),var(--dy)) scale(.3); opacity: 0; }
+      }
+      @keyframes ddtStreakPop {
+        0%   { opacity: 0; transform: translate(-50%,-50%) scale(.6); }
+        18%  { opacity: 1; transform: translate(-50%,-50%) scale(1.18); }
+        32%  { transform: translate(-50%,-50%) scale(1); }
+        78%  { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+        100% { opacity: 0; transform: translate(-50%,-50%) scale(.92) translateY(-24px); }
       }
       .ddt-coin:hover {
         transform: scale(1.1) !important;

@@ -64,7 +64,15 @@
   window.SCREENS['game_bsv_blockchainblvd'] = function () {
     G = null;
     setTimeout(initGame, 40);
-    return `<div id="bsv_bb_root" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff;touch-action:none">
+    return `<style>
+      @keyframes bsvPulse { 0%{transform:scale(1)} 40%{transform:scale(1.045)} 100%{transform:scale(1)} }
+      .bsv_pulse { animation:bsvPulse .32s ease; }
+      @keyframes bsvStreakIn { 0%{transform:translateX(-50%) scale(.6);opacity:0} 55%{transform:translateX(-50%) scale(1.08);opacity:1} 100%{transform:translateX(-50%) scale(1);opacity:1} }
+      @keyframes bsvStreakOut { 0%{opacity:1} 100%{opacity:0;transform:translateX(-50%) translateY(-14px)} }
+      .bsv_streak_banner { animation:bsvStreakIn .3s ease forwards; }
+      .bsv_streak_banner.bsv_out { animation:bsvStreakOut .5s ease forwards; }
+    </style>
+    <div id="bsv_bb_root" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff;touch-action:none">
       <!-- Top Bar -->
       <div id="bsv_topbar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent);border-bottom:1px solid rgba(0,255,255,.15)">
         <button id="bsv_back" style="padding:6px 13px;border:1px solid rgba(0,255,255,.35);border-radius:8px;background:rgba(0,255,255,.08);color:${ACCENT};font-family:Inter,sans-serif;font-size:.7rem;letter-spacing:.06em;cursor:pointer">← HUB</button>
@@ -202,6 +210,9 @@
       rejected: 0,
       badAdmitted: 0,     // fakes that slipped into chain
       score: 0,
+      streak: 0,          // consecutive successful seals (cosmetic only — no score effect)
+      bestStreak: 0,
+      streakMilestoneHit: 0, // last milestone (5/10/20) already celebrated, so it doesn't refire
       time: tune.time,
       timeLeft: tune.time,
       maxCorrupted: tune.maxCorrupted,

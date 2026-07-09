@@ -181,6 +181,7 @@
       sorted:      0,
       correct:     0,
       total:       0,
+      streak:      0,         // consecutive correct sorts — cosmetic only, does not affect score/wealth math
       wealthPeak:  500,
       time:        ROUND_TIME,
       timerHandle: null,
@@ -351,8 +352,11 @@
 
     // buildings
     G.buildings.forEach(b => {
-      // lerp h toward hTarget
-      b.h += (b.hTarget - b.h) * 0.04;
+      // lerp h toward hTarget — sped up from the original .04 so the skyline's
+      // reaction to a choice is actually visible within the (now shorter)
+      // feedback pause, instead of resolving invisibly after the player has
+      // already moved on to the next card.
+      b.h += (b.hTarget - b.h) * 0.07;
 
       const bx  = b.x * W;
       const bw  = b.w * W;
@@ -632,6 +636,10 @@
     G.sorted++;
     if (correct) G.correct++;
 
+    // streak tracking — cosmetic only (see streakCelebration()); never touches
+    // score/wealth math below, so existing tuned goal numbers stay valid.
+    if (correct) G.streak++; else G.streak = 0;
+
     // score delta — strictly harder-scoring each level, both directions
     const pts = correct
       ? (G.level === 1 ? 20 : G.level === 2 ? 30 : 45)
@@ -648,16 +656,130 @@
 
     pulseBuildings(correct);
     showToast(correct, asset, buyChoice);
+    punchCard(correct);
+    spawnBurst(correct);
+    if (correct && (G.streak === 5 || G.streak === 10 || G.streak === 20)) streakCelebration(G.streak);
     updateHUD();
 
-    // advance card
+    // advance card — trimmed pause so the wait between cards feels snappy
+    // rather than sluggish; toast is still legible, just shorter dead air.
     G.cardIdx++;
     setTimeout(() => {
       if (!G || G.phase !== 'play') return;
       G.waiting = false;
       clearToast();
       showCard();
-    }, CARD_DELAY + 300);
+    }, CARD_DELAY + 100);
+  }
+
+  /* ── card punch — quick scale pulse on the card itself for correct/wrong feedback ── */
+  function punchCard(correct) {
+    const card = document.getElementById('arCard');
+    if (!card) return;
+    const scale = correct ? 1.06 : 0.95;
+    card.animate([
+      { transform: 'scale(1)' },
+      { transform: `scale(${scale})` },
+      { transform: 'scale(1)' },
+    ], { duration: 260, easing: 'ease-out' });
+    if (!correct) {
+      // tiny shake on a wrong sort — cheap, reads instantly as "miss"
+      const zone = document.getElementById('arCardZone');
+      if (zone) {
+        zone.animate([
+          { transform: 'translateX(0)' },
+          { transform: 'translateX(-8px)' },
+          { transform: 'translateX(8px)' },
+          { transform: 'translateX(-4px)' },
+          { transform: 'translateX(0)' },
+        ], { duration: 300, easing: 'ease-out' });
+      }
+    }
+  }
+
+  /* ── particle burst on choice — reuses the confetti-piece look at small scale ── */
+  function spawnBurst(correct) {
+    const zone = document.getElementById('arCardZone');
+    if (!zone) return;
+    const rect = zone.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const cvs = document.createElement('canvas');
+    cvs.style.cssText = 'position:fixed;left:0;top:0;pointer-events:none;z-index:25';
+    cvs.width  = window.innerWidth;
+    cvs.height = window.innerHeight;
+    document.body.appendChild(cvs);
+    const ctx = cvs.getContext('2d');
+    const color = correct ? ACCENT : RED;
+    const count = correct ? 14 : 8;
+    const pieces = Array.from({ length: count }, () => {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 60 + Math.random() * 100;
+      return {
+        x: cx, y: cy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 40,
+        r: 2 + Math.random() * 3,
+        life: 0.5 + Math.random() * 0.3,
+        maxLife: 0.8,
+        c: Math.random() > 0.7 ? GOLD : color,
+      };
+    });
+    let last = performance.now();
+    function draw(now) {
+      const dt = (now - last) / 1000;
+      last = now;
+      ctx.clearRect(0, 0, cvs.width, cvs.height);
+      let anyAlive = false;
+      pieces.forEach(p => {
+        if (p.life <= 0) return;
+        anyAlive = true;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 220 * dt;
+        p.life -= dt;
+        const a = Math.max(0, p.life / p.maxLife);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = p.c;
+        ctx.globalAlpha = a;
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+      if (anyAlive) requestAnimationFrame(draw);
+      else cvs.remove();
+    }
+    requestAnimationFrame(draw);
+  }
+
+  /* ── streak celebration — PURELY VISUAL, fires at 5/10/20 in a row.
+     Does not touch G.score or G.wealth: existing tuned goal/star thresholds
+     stay exactly as they were before this pass. ── */
+  function streakCelebration(streak) {
+    const zone = document.getElementById('arCardZone');
+    if (zone) {
+      for (let i = 0; i < 3; i++) setTimeout(() => spawnBurst(true), i * 90);
+    }
+    const banner = document.createElement('div');
+    banner.textContent = `🔥 ${streak} STREAK!`;
+    banner.style.cssText = `
+      position:fixed;top:38%;left:50%;transform:translate(-50%,-50%) scale(0.6);
+      z-index:26;font-family:Orbitron,sans-serif;font-size:1.1rem;font-weight:900;
+      letter-spacing:.12em;color:${GOLD};background:rgba(3,4,12,.85);
+      border:2px solid ${GOLD};border-radius:14px;padding:12px 26px;
+      pointer-events:none;box-shadow:0 0 30px rgba(255,214,0,.5);opacity:0;
+      transition:transform .3s cubic-bezier(.34,1.56,.64,1),opacity .3s;
+    `;
+    document.body.appendChild(banner);
+    requestAnimationFrame(() => {
+      banner.style.opacity = '1';
+      banner.style.transform = 'translate(-50%,-50%) scale(1)';
+    });
+    setTimeout(() => {
+      banner.style.opacity = '0';
+      banner.style.transform = 'translate(-50%,-50%) scale(0.85)';
+      setTimeout(() => banner.remove(), 350);
+    }, 900);
   }
 
   /* ── feedback toast ──────────────────────────────────────────── */

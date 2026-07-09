@@ -1541,4 +1541,102 @@
     if (G) G._toastTimer = setTimeout(() => { t.style.opacity = '0'; }, 2200);
   }
 
+  /* ═══════════════════════════════════════════════════════════════
+     TASK-COMPLETE JUICE — every task run used to silently tick the
+     score number in the topbar with zero visual event. These helpers
+     add a floating "+N" and a small particle burst at the processing
+     icon's position, plus a purely cosmetic streak celebration
+     (never touches score/goal math beyond what already existed).
+  ═══════════════════════════════════════════════════════════════ */
+  function spawnEfFloat(x, y, text, color) {
+    const root = document.getElementById('ef_root');
+    if (!root) return;
+    const div = document.createElement('div');
+    div.textContent = text;
+    div.style.cssText = `
+      position:absolute;left:${x}px;top:${y}px;
+      transform:translate(-50%,-50%);
+      color:${color};font-family:Orbitron,sans-serif;font-size:.95rem;font-weight:900;
+      text-shadow:0 0 10px ${color}aa;
+      pointer-events:none;z-index:75;
+      animation:ef_float_up .9s ease forwards;
+    `;
+    if (!document.getElementById('ef_float_style')) {
+      const s = document.createElement('style');
+      s.id = 'ef_float_style';
+      s.textContent = '@keyframes ef_float_up{0%{opacity:0;transform:translate(-50%,-40%) scale(.7)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}30%{transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-140%) scale(1)}}';
+      document.head.appendChild(s);
+    }
+    root.appendChild(div);
+    setTimeout(() => { if (div.parentNode) div.parentNode.removeChild(div); }, 950);
+  }
+
+  function spawnEfBurst(x, y, color, n) {
+    const root = document.getElementById('ef_root');
+    if (!root) return;
+    if (!document.getElementById('ef_burst_style')) {
+      const s = document.createElement('style');
+      s.id = 'ef_burst_style';
+      s.textContent = '@keyframes ef_burst_fly{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--bx),var(--by)) scale(.3)}}';
+      document.head.appendChild(s);
+    }
+    for (let i = 0; i < n; i++) {
+      const angle = (Math.PI * 2 * i) / n + Math.random() * 0.5;
+      const dist = 26 + Math.random() * 30;
+      const bx = Math.cos(angle) * dist, by = Math.sin(angle) * dist;
+      const p = document.createElement('div');
+      p.style.cssText = `
+        position:absolute;left:${x}px;top:${y}px;width:5px;height:5px;border-radius:50%;
+        background:${color};box-shadow:0 0 6px ${color};pointer-events:none;z-index:74;
+        --bx:${bx}px;--by:${by}px;
+        animation:ef_burst_fly .55s ease-out forwards;
+      `;
+      root.appendChild(p);
+      setTimeout(() => { if (p.parentNode) p.parentNode.removeChild(p); }, 580);
+    }
+  }
+
+  function efShakeScreen() {
+    const root = document.getElementById('ef_root');
+    if (!root) return;
+    root.style.animation = 'none';
+    // eslint-disable-next-line no-unused-expressions
+    root.offsetHeight; // force reflow so re-triggering the animation works
+    root.style.animation = 'ef_shake .3s ease';
+  }
+
+  // Cosmetic-only streak: fires an extra celebratory burst + banner every
+  // 3/6/10 tasks completed in a row. Resets on level restart/advance.
+  // Does NOT add to G.score beyond the existing +100/+120 per-task points.
+  const EF_STREAK_MILE = [3, 6, 10];
+  function efBumpStreak() {
+    if (!G) return;
+    G.taskStreak = (G.taskStreak || 0) + 1;
+    if (EF_STREAK_MILE.indexOf(G.taskStreak) >= 0) {
+      showEfStreakBanner(G.taskStreak);
+    }
+  }
+
+  function showEfStreakBanner(n) {
+    const root = document.getElementById('ef_root');
+    if (!root) return;
+    const div = document.createElement('div');
+    div.textContent = `🔥 ${n} TASK STREAK!`;
+    div.style.cssText = `
+      position:absolute;top:32%;left:50%;transform:translate(-50%,-50%) scale(.7);
+      color:${GOLD};font-family:Orbitron,sans-serif;font-size:1rem;font-weight:900;
+      letter-spacing:.1em;text-shadow:0 0 16px ${GOLD}aa;
+      pointer-events:none;z-index:76;
+      animation:ef_streak_pop .9s cubic-bezier(.2,1.6,.4,1) forwards;
+    `;
+    if (!document.getElementById('ef_streak_style')) {
+      const s = document.createElement('style');
+      s.id = 'ef_streak_style';
+      s.textContent = '@keyframes ef_streak_pop{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}18%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}30%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%) scale(1.05)}}';
+      document.head.appendChild(s);
+    }
+    root.appendChild(div);
+    setTimeout(() => { if (div.parentNode) div.parentNode.removeChild(div); }, 950);
+  }
+
 })();

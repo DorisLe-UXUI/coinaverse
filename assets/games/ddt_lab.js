@@ -192,6 +192,7 @@
       animHandle: null,
       canvas: null,
       ctx: null,
+      goodMonthStreak: 0,  // cosmetic-only: consecutive under-cap months, for streak banner
     };
     G.capDebt    = G.startDebt * cfg.capPct;
     G.dangerDebt = G.capDebt * 1.08;
@@ -493,6 +494,18 @@
     const budEl = document.getElementById('ddt_budgetval');
     if (budEl) { budEl.textContent = '$' + G.budgetLeft; budEl.style.color = G.budgetLeft < 50 ? RED : CYAN; }
     renderActionRow();
+
+    /* juice: quick pulse on the panel that was just picked, so a selection
+       feels like an event rather than a silent style swap */
+    const panelEl = document.getElementById(`ddt_loanpanel_${loanId}`);
+    if (panelEl) {
+      const pulseColor = opt === OPT_XTRA ? GREEN : opt === OPT_MIN ? ORANGE : RED;
+      panelEl.animate([
+        { boxShadow: `0 0 0px ${pulseColor}00`, transform: 'scale(1)' },
+        { boxShadow: `0 0 16px ${pulseColor}88`, transform: 'scale(1.015)' },
+        { boxShadow: `0 0 0px ${pulseColor}00`, transform: 'scale(1)' },
+      ], { duration: 320, easing: 'ease-out' });
+    }
   };
 
   function prevPayCost(loan, opt) {
@@ -619,6 +632,25 @@
     renderLoans();
     showResultFeedback(alarm, debt);
     renderActionRow();
+
+    /* ── juice: cosmetic-only good-month streak + screen reaction ──
+       This never touches monthScore/G.score — purely visual celebration
+       layered on top of the existing tuned scoring. */
+    const debtMeterEl = document.getElementById('ddt_debtval');
+    const goodMonth = !alarm && debt < G.capDebt;
+    if (goodMonth) {
+      G.goodMonthStreak = (G.goodMonthStreak || 0) + 1;
+      if (debtMeterEl) {
+        burstConfetti(debtMeterEl, GREEN, 10);
+        floatText(debtMeterEl, `+${Math.max(0, monthScore)} PTS`, GOLD);
+      }
+      if (G.goodMonthStreak >= 3 && G.goodMonthStreak % 3 === 0) {
+        showStreakBanner(G.goodMonthStreak);
+      }
+    } else {
+      G.goodMonthStreak = 0;
+      if (alarm) shakeScreen();
+    }
 
     /* check lose */
     if (debt >= G.dangerDebt) {
@@ -819,13 +851,14 @@
     overlay.style.cssText = `
       position:absolute;inset:0;background:rgba(3,4,12,0.95);
       display:flex;flex-direction:column;align-items:center;justify-content:center;
-      gap:18px;padding:28px;box-sizing:border-box;z-index:99;overflow-y:auto
+      gap:18px;padding:28px;box-sizing:border-box;z-index:99;overflow-y:auto;
+      opacity:0;transform:scale(.92);transition:opacity .35s ease-out,transform .35s cubic-bezier(.34,1.56,.64,1);
     `;
     overlay.innerHTML = `
       <div style="font-family:'Orbitron',monospace;font-size:clamp(20px,5vw,32px);color:${won ? GOLD : RED};text-align:center;text-shadow:0 0 24px ${won ? GOLD : RED}">
         ${won ? '🎉 MISSION ACCOMPLISHED!' : '💀 DEBT OVERFLOW'}
       </div>
-      <div style="font-size:clamp(28px,8vw,48px)">${starStr}</div>
+      <div id="ddt_end_stars" style="font-size:clamp(28px,8vw,48px)">${starStr}</div>
       <div style="background:${DARK};border:1px solid ${ACCENT};border-radius:14px;padding:18px 24px;text-align:center;max-width:360px;width:100%">
         <div style="font-family:'Orbitron',monospace;font-size:13px;color:${GOLD};margin-bottom:4px">SCORE</div>
         <div style="font-family:'Orbitron',monospace;font-size:28px;color:#fff;font-weight:700">${G.score.toLocaleString()}</div>
@@ -846,12 +879,123 @@
     `;
     root.appendChild(overlay);
 
+    /* juice: entrance pop + celebratory burst on a win, shake on a loss —
+       purely presentational, doesn't touch stars/coins/score math above */
+    requestAnimationFrame(() => {
+      overlay.style.opacity = '1';
+      overlay.style.transform = 'scale(1)';
+      if (won) {
+        const starsEl = document.getElementById('ddt_end_stars');
+        if (starsEl) burstConfetti(starsEl, GOLD, 18 + stars * 6);
+      } else {
+        shakeScreen();
+      }
+    });
+
     window._ddtPlayAgain = function () {
       if (G && G.animHandle) { cancelAnimationFrame(G.animHandle); G.animHandle = null; }
       G = null;
       const r = document.getElementById('ddt_root');
       if (r) renderLevelSelect(r);
     };
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     JUICE HELPERS — screen shake, confetti burst, floating +pts
+  ════════════════════════════════════════════════════════════ */
+  function showStreakBanner(streak) {
+    const root = document.getElementById('ddt_root');
+    if (!root) return;
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position:absolute;top:18%;left:50%;transform:translate(-50%,0) scale(.7);
+      z-index:90;pointer-events:none;opacity:0;
+      background:linear-gradient(135deg,${ACCENT},${ACCENT2});
+      border:2px solid ${GOLD};border-radius:14px;padding:10px 22px;
+      font-family:'Orbitron',monospace;font-size:15px;font-weight:800;color:${GOLD};
+      letter-spacing:1px;box-shadow:0 0 30px ${GLOW}aa;white-space:nowrap;
+      transition:opacity .25s ease-out,transform .25s cubic-bezier(.34,1.56,.64,1);
+    `;
+    el.textContent = `🔥 ${streak} MONTH STREAK!`;
+    root.appendChild(el);
+    requestAnimationFrame(() => {
+      el.style.opacity = '1';
+      el.style.transform = 'translate(-50%,0) scale(1)';
+    });
+    setTimeout(() => {
+      el.style.opacity = '0';
+      el.style.transform = 'translate(-50%,-14px) scale(.9)';
+    }, 1500);
+    setTimeout(() => el.remove(), 1800);
+  }
+
+  function shakeScreen() {
+    const root = document.getElementById('ddt_root');
+    if (!root) return;
+    root.animate([
+      { transform: 'translateX(-5px)' },
+      { transform: 'translateX(5px)' },
+      { transform: 'translateX(-4px)' },
+      { transform: 'translateX(4px)' },
+      { transform: 'translateX(-2px)' },
+      { transform: 'translateX(0)' },
+    ], { duration: 340, easing: 'ease-out' });
+  }
+
+  function burstConfetti(anchorEl, color, count) {
+    const root = document.getElementById('ddt_root');
+    if (!root || !anchorEl) return;
+    const r = anchorEl.getBoundingClientRect();
+    const rootR = root.getBoundingClientRect();
+    const cx = r.left + r.width / 2 - rootR.left;
+    const cy = r.top + r.height / 2 - rootR.top;
+    const n = count || 12;
+    for (let i = 0; i < n; i++) {
+      const s = document.createElement('div');
+      const angle = (i / n) * Math.PI * 2 + Math.random() * 0.5;
+      const dist = 26 + Math.random() * 38;
+      const tx = Math.cos(angle) * dist;
+      const ty = Math.sin(angle) * dist;
+      s.style.cssText = `
+        position:absolute;left:${cx}px;top:${cy}px;
+        width:6px;height:6px;border-radius:50%;
+        background:${color};pointer-events:none;z-index:80;
+        transform:translate(-50%,-50%);
+        box-shadow:0 0 6px ${color};
+        transition:transform .65s cubic-bezier(.2,.6,.3,1),opacity .65s ease-out;
+      `;
+      root.appendChild(s);
+      requestAnimationFrame(() => {
+        s.style.transform = `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px))`;
+        s.style.opacity = '0';
+      });
+      setTimeout(() => s.remove(), 700);
+    }
+  }
+
+  function floatText(anchorEl, text, color) {
+    const root = document.getElementById('ddt_root');
+    if (!root || !anchorEl) return;
+    const r = anchorEl.getBoundingClientRect();
+    const rootR = root.getBoundingClientRect();
+    const cx = r.left + r.width / 2 - rootR.left;
+    const cy = r.top - rootR.top;
+    const el = document.createElement('div');
+    el.textContent = text;
+    el.style.cssText = `
+      position:absolute;left:${cx}px;top:${cy}px;z-index:85;
+      transform:translate(-50%,0);pointer-events:none;
+      font-family:'Orbitron',monospace;font-size:15px;font-weight:800;
+      color:${color};text-shadow:0 0 10px ${color};
+      transition:transform .9s ease-out,opacity .9s ease-out;
+      white-space:nowrap;
+    `;
+    root.appendChild(el);
+    requestAnimationFrame(() => {
+      el.style.transform = 'translate(-50%,-38px)';
+      el.style.opacity = '0';
+    });
+    setTimeout(() => el.remove(), 950);
   }
 
   /* ════════════════════════════════════════════════════════════

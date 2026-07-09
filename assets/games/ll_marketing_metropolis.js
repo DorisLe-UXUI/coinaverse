@@ -30,8 +30,8 @@
       duration:     90,
       targetFollowers: 500,
       laneCount:    2,
-      spawnInterval:1200,
-      itemSpeed:    2.2,
+      spawnInterval:850,
+      itemSpeed:    2.6,
       repDrain:     0,
       badChance:    .28,
       scandalChance:0,
@@ -202,6 +202,9 @@
   <!-- TREND BANNER -->
   <div id="mmTrend" style="position:absolute;top:130px;left:0;right:0;z-index:16;display:none;text-align:center;padding:6px;font-family:Orbitron,sans-serif;font-size:.45rem;letter-spacing:.12em;background:linear-gradient(90deg,transparent,${ACC}55,transparent)"></div>
 
+  <!-- STREAK CELEBRATION BANNER (purely cosmetic — no score impact) -->
+  <div id="mmStreak" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:26;display:none;pointer-events:none;text-align:center;font-family:Orbitron,sans-serif;font-size:1.05rem;font-weight:900;letter-spacing:.1em;color:${GOLD};text-shadow:0 0 24px ${GOLD},0 0 6px #fff;white-space:nowrap"></div>
+
   <!-- BOTTOM LANES INDICATOR -->
   <div id="mmLaneBar" style="position:absolute;bottom:30px;left:12px;right:12px;z-index:9;display:flex;gap:4px;justify-content:center;align-items:center;pointer-events:none"></div>
 
@@ -341,6 +344,7 @@
       paused:     false,
       combo:      1,
       comboTimer: null,
+      streak:     0,    /* cosmetic-only counter for streak celebration banner — never read by scoring math */
       playerX:    W / 2,
       playerW:    68,
       playerSpeed:6,
@@ -616,6 +620,12 @@
       @keyframes mm_catch { 0%{transform:translate(-50%,-50%) scale(1);opacity:1} 100%{transform:translate(-50%,-50%) scale(2.2);opacity:0} }
       @keyframes mm_feedout { 0%{opacity:1;transform:translate(-50%,-50%) scale(1)} 100%{opacity:0;transform:translate(-50%,-80%) scale(.8)} }
       @keyframes mm_scandalPulse { 0%,100%{border-color:${DANGER}} 50%{border-color:#FF8888} }
+      @keyframes mm_streakPop {
+        0%   { transform:translate(-50%,-50%) scale(.4) rotate(-6deg); opacity:0; }
+        35%  { transform:translate(-50%,-50%) scale(1.25) rotate(3deg); opacity:1; }
+        60%  { transform:translate(-50%,-50%) scale(1) rotate(0deg); opacity:1; }
+        100% { transform:translate(-50%,-65%) scale(.92) rotate(0deg); opacity:0; }
+      }
     `;
     document.head.appendChild(s);
   })();
@@ -758,6 +768,15 @@
       clearTimeout(G.comboTimer);
       G.comboTimer = setTimeout(() => { if (G) G.combo = 1; }, 3000);
 
+      /* cosmetic streak celebration — purely visual counter, independent of
+         G.combo's ×score multiplier (which stays capped at 8 and unaffected
+         by this). Every 5th consecutive good catch pops an extra burst +
+         banner; does not change followers/score math in any way. */
+      G.streak++;
+      if (G.streak > 0 && G.streak % 5 === 0) {
+        showStreakBanner(G.streak);
+      }
+
       /* scandal repair */
       if (G.scandal && item.def.id === G.scandal.targetId) {
         resolveScandal(true);
@@ -780,6 +799,7 @@
       } else {
         G.reputation = Math.max(0, G.reputation - dmg);
         G.combo = 1;
+        G.streak = 0;
         clearTimeout(G.comboTimer);
         updateScoreUI();
         showFeedback(`${item.def.emoji} ${item.def.label}!`, DANGER);
@@ -973,6 +993,21 @@
     setTimeout(() => {
       if (el) { el.style.background = `${ACC}44`; el.style.boxShadow = 'none'; }
     }, 400);
+  }
+
+  /* ── streak celebration (cosmetic only — reads G.streak, never writes
+     followers/reputation/combo). Fires every 5th consecutive good catch. ── */
+  function showStreakBanner (n) {
+    const el = document.getElementById('mmStreak');
+    if (!el) return;
+    el.textContent   = `🔥 ${n} STREAK!`;
+    el.style.display = 'block';
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = 'mm_streakPop .9s ease forwards';
+    setTimeout(() => { if (el) el.style.display = 'none'; }, 900);
+    /* small extra flourish: pulse every lane briefly for a fuller-screen pop */
+    for (let i = 0; i < (G ? G.laneCount : 0); i++) flashLane(i, GOLD);
   }
 
   /* ── feedback text ───────────────────────────────────────────── */

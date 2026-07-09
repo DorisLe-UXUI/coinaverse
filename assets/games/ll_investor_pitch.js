@@ -523,6 +523,8 @@
       currentQ: null,
       answered: false,
       questionsDone: 0,
+      bestStreak: 0,        // consecutive BEST answers — cosmetic only, never touches confDelta/stars
+      maxBestStreak: 0,
     };
 
     /* hide level select */
@@ -721,6 +723,7 @@
       const penalty = cfg.penaltyOnWrong;
       G.totalConf = Math.max(0, G.totalConf - penalty / 2);
       updateInvestorConf(-20);
+      G.bestStreak = 0; /* cosmetic streak resets on timeout same as a weak answer */
       showFeedback('⏰ TIME OUT!', `Too slow! Investors lose confidence.`, DANGER, `-${Math.floor(penalty/2)}`, null);
       return;
     }
@@ -734,21 +737,33 @@
       btn.classList.add('selected-best');
       updateInvestorConf(+25, prefTags);
       emitConfetti(btn);
+      G.bestStreak++;
+      if (G.bestStreak > G.maxBestStreak) G.maxBestStreak = G.bestStreak;
     } else if (score >= 1) {
       /* ok answer */
       confDelta = 25 + Math.floor(timeBonus / 2);
       btn.classList.add('selected-ok');
       updateInvestorConf(+8, prefTags);
+      G.bestStreak = 0;
     } else {
       /* wrong answer */
       confDelta = -cfg.penaltyOnWrong;
       btn.classList.add('selected-bad');
       updateInvestorConf(-35, prefTags);
+      G.bestStreak = 0;
     }
 
     G.totalConf = Math.max(0, G.totalConf + confDelta);
     G.questionsDone++;
     updateConfUI();
+
+    /* cosmetic-only streak celebration at 3, 5, and every +3 consecutive BEST
+       answers after that — purely visual, does not touch confDelta/totalConf/
+       star math above. */
+    const hitStreakMilestone = G.bestStreak === 3 || G.bestStreak === 5 ||
+      (G.bestStreak > 5 && (G.bestStreak - 5) % 3 === 0);
+    if (hitStreakMilestone) emitStreakBurst();
+    const streakBanner = G.bestStreak >= 3 ? `🔥 ${G.bestStreak} IN A ROW!` : '';
 
     const label = score >= 3 ? `+${confDelta} pts 🎯 STRONG ANSWER!`
                 : score >= 1 ? `+${confDelta} pts — Decent answer`
@@ -767,7 +782,8 @@
       q.lesson,
       color,
       label,
-      correctText
+      correctText,
+      streakBanner
     );
   }
 

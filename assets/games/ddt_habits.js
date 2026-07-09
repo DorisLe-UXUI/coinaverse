@@ -1166,7 +1166,20 @@
     const strengthEl = document.getElementById('ddt_strength');
     const errorsEl = document.getElementById('ddt_errors');
     if (scoreEl)    scoreEl.textContent = G.score.toLocaleString();
-    if (streakEl)   { streakEl.textContent = G.streak; streakEl.style.color = G.streak >= 3 ? GOLD : GOLD; }
+    if (streakEl) {
+      const streakChanged = streakEl.textContent !== String(G.streak);
+      streakEl.textContent = G.streak;
+      // escalating color: bigger streaks glow hotter, so the number itself
+      // communicates "you're on a roll" instead of always looking the same
+      streakEl.style.color = G.streak >= 10 ? '#ff8a3d' : G.streak >= 3 ? GOLD : GOLD2;
+      streakEl.style.textShadow = G.streak >= 3 ? `0 0 8px ${G.streak >= 10 ? '#ff8a3d' : GOLD}` : 'none';
+      if (streakChanged && G.streak > 0) {
+        streakEl.animate([
+          { transform: 'scale(1.5)' },
+          { transform: 'scale(1)' },
+        ], { duration: 260, easing: 'ease-out' });
+      }
+    }
     if (coinsEl)    coinsEl.textContent = G.coinsEarned;
     if (strengthEl) { strengthEl.textContent = `Lv.${G.strength}`; }
     if (errorsEl)   { errorsEl.textContent = `${G.errors}/${MAX_ERRORS}`; errorsEl.style.color = G.errors >= MAX_ERRORS - 1 ? RED : (G.errors > 0 ? '#f97316' : RED); }
@@ -1230,6 +1243,33 @@
     document.getElementById('ddt_hub').addEventListener('click', () => {
       window.ddt_habitsExit();
     });
+  }
+
+  /* ── streak milestone banner (purely cosmetic — no score/goal impact) ── */
+  function showStreakMilestone(streak) {
+    const root = document.getElementById('ddt_root');
+    if (!root) return;
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position:absolute;top:32%;left:50%;transform:translate(-50%,0) scale(.7);
+      z-index:70;pointer-events:none;opacity:0;
+      background:linear-gradient(135deg,${ACCENT},${PURPLE});
+      border:2px solid ${GOLD};border-radius:14px;padding:10px 22px;
+      font-family:'Orbitron',monospace;font-size:16px;font-weight:900;color:${GOLD};
+      letter-spacing:1px;box-shadow:0 0 30px rgba(251,191,36,.5);white-space:nowrap;
+      transition:opacity .25s ease-out,transform .25s cubic-bezier(.34,1.56,.64,1);
+    `;
+    el.textContent = `🔥 ${streak} STREAK!`;
+    root.appendChild(el);
+    requestAnimationFrame(() => {
+      el.style.opacity = '1';
+      el.style.transform = 'translate(-50%,0) scale(1)';
+    });
+    setTimeout(() => {
+      el.style.opacity = '0';
+      el.style.transform = 'translate(-50%,-14px) scale(.9)';
+    }, 1100);
+    setTimeout(() => el.remove(), 1400);
   }
 
   /* ── visual helpers ──────────────────────────────────────────── */

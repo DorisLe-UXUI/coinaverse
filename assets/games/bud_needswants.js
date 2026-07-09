@@ -490,13 +490,15 @@
     const el = document.getElementById('nw_carts');
     if (!el) return;
     el.innerHTML = '';
-    const cartEmojis = ['🛒', '🛍️', '🚚'];
-    for (let i = 0; i < 3; i++) {
+    // 5 carts (was 3) at staggered heights within the strip + slightly higher opacity —
+    // the district footer read as near-empty at 3 sparse, faint, single-row sprites.
+    const cartEmojis = ['🛒', '🛍️', '🚚', '📦', '🛒'];
+    for (let i = 0; i < 5; i++) {
       const cart = document.createElement('div');
       cart.style.cssText = `
-        position:absolute;top:0;font-size:.9rem;opacity:.35;
-        animation:nw_cart ${6 + i * 3}s linear ${i * -2}s infinite;
-        filter:hue-rotate(${i * 40}deg);
+        position:absolute;top:${(i % 3) * 9}px;font-size:${.85 + (i % 2) * 0.15}rem;opacity:.45;
+        animation:nw_cart ${6 + i * 2.4}s linear ${i * -1.6}s infinite;
+        filter:hue-rotate(${i * 32}deg);
       `;
       cart.textContent = cartEmojis[i % cartEmojis.length];
       el.appendChild(cart);
@@ -541,6 +543,11 @@
         @keyframes nw_speed_tick {
           0%   { width:100%; }
           100% { width:0%;   }
+        }
+        @keyframes nw_streak_pop {
+          0%   { transform:translate(-50%,-50%) scale(.4); opacity:0; }
+          55%  { transform:translate(-50%,-50%) scale(1.15); opacity:1; }
+          100% { transform:translate(-50%,-50%) scale(1);    opacity:1; }
         }
       `;
       document.head.appendChild(st);
@@ -823,6 +830,9 @@
       updateHealth(8);
       updateDot(G.currentIdx, true);
       showToast(speedBonus ? `⚡ +${pts} FAST!` : `✅ +${pts}`, TEAL);
+      // Cosmetic-only streak celebration at 5/10/15... in a row — no score/goal impact,
+      // the streakBonus math above already handles the real reward escalation.
+      if (G.streak > 0 && G.streak % 5 === 0) showStreakCelebration(G.streak);
       if (choice === 'need') { G.needCount++; }
       else { G.wantCount++; }
     } else {
@@ -907,6 +917,30 @@
       t.style.opacity = '0';
       t.style.transform = 'translate(-50%,-50%) scale(.8)';
     }, 900);
+  }
+
+  /* ── streak celebration (purely cosmetic — does not touch G.score/streakBonus math,
+       which already escalates via streakBonus in handleDecision) ──────────────────── */
+  function showStreakCelebration(streak) {
+    const root = document.getElementById('nw_root');
+    if (!root) return;
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position:absolute;top:30%;left:50%;z-index:55;pointer-events:none;
+      text-align:center;white-space:nowrap;
+      transform:translate(-50%,-50%);
+      animation:nw_streak_pop .55s cubic-bezier(.2,.9,.3,1.3) both;
+    `;
+    el.innerHTML = `
+      <div style="font-size:2.1rem;line-height:1">🔥</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:.9rem;letter-spacing:.12em;color:${GOLD};text-shadow:0 0 16px ${GOLD};font-weight:900">${streak} STREAK!</div>
+    `;
+    root.appendChild(el);
+    setTimeout(() => {
+      el.style.transition = 'opacity .35s ease';
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 400);
+    }, 850);
   }
 
   /* ── screen shake ─────────────────────────────────────────────── */

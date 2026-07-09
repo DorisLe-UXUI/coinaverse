@@ -366,6 +366,7 @@
       cardTimer:    null,
       startTime:    0,
       coinsEarned:  null,
+      streak:       0,    // purely-cosmetic consecutive-correct counter (never touches score/goal math)
     };
   }
 
@@ -784,6 +785,12 @@
       gs.score = Math.max(0, gs.score - PTS_WRONG);
     }
 
+    // streak tracking + decision juice (stamp/flash/shake) — purely visual,
+    // fires BEFORE the card slides away so the verdict never lands silently
+    if (correct) { gs.streak = (gs.streak || 0) + 1; } else { gs.streak = 0; }
+    showDecisionStamp(result, correct ? PTS_CORRECT : (isTimeout ? 0 : -PTS_WRONG));
+    if (correct && [3, 5, 8].indexOf(gs.streak) >= 0) showStreakBanner(gs.streak);
+
     // animate card exit
     animateCardExit(choice, () => {
       gs.cardIndex++;
@@ -832,6 +839,71 @@
     renderStage();
     updateHUD();
     resetCardTimer();
+  }
+
+  /* ─────────────────────────────────────────────
+     13b. DECISION JUICE — stamp / flash / shake / streak banner
+     (fixes the flat "score silently updates a number" gap: every
+     correct/wrong/timeout decision now gets an immediate, unmissable
+     visual verdict stamped onto the card before it slides away.)
+  ───────────────────────────────────────────── */
+  function showDecisionStamp(result, ptsDelta) {
+    const card = document.getElementById('bb-card');
+    const root = document.getElementById('bb-root');
+    if (!card) return;
+
+    const cfgByResult = {
+      correct: { text: 'APPROVED RIGHT +' + ptsDelta, color: '#34d399' },
+      wrong:   { text: 'OOPS — MISREAD ' + ptsDelta,   color: '#ef4444' },
+      timeout: { text: 'TOO SLOW!',                     color: '#fbbf24' },
+    };
+    const c = cfgByResult[result] || cfgByResult.wrong;
+
+    const stamp = document.createElement('div');
+    stamp.className = 'bb-stamp';
+    stamp.style.color = c.color;
+    stamp.style.background = c.color === '#34d399' ? 'rgba(52,211,153,0.14)' : c.color === '#ef4444' ? 'rgba(239,68,68,0.14)' : 'rgba(251,191,36,0.14)';
+    stamp.textContent = c.text;
+    card.appendChild(stamp);
+    setTimeout(() => { if (stamp.parentNode) stamp.parentNode.removeChild(stamp); }, 700);
+
+    if (result === 'wrong') {
+      card.classList.add('bb-shake');
+      setTimeout(() => card.classList.remove('bb-shake'), 420);
+    }
+
+    // full-viewport edge flash so the verdict registers peripherally too
+    if (root) {
+      const flash = document.createElement('div');
+      flash.className = 'bb-flash';
+      flash.style.background = result === 'correct'
+        ? 'radial-gradient(ellipse at center, transparent 55%, rgba(52,211,153,0.35) 100%)'
+        : result === 'wrong'
+          ? 'radial-gradient(ellipse at center, transparent 55%, rgba(239,68,68,0.35) 100%)'
+          : 'radial-gradient(ellipse at center, transparent 55%, rgba(251,191,36,0.3) 100%)';
+      root.appendChild(flash);
+      setTimeout(() => { if (flash.parentNode) flash.parentNode.removeChild(flash); }, 520);
+    }
+
+    // score number pulses so it doesn't just silently swap value
+    const sc = document.getElementById('bb-score-val');
+    if (sc) {
+      sc.classList.remove('bb-pulse');
+      void sc.offsetWidth; // restart animation
+      sc.style.transition = 'transform .18s ease';
+      sc.style.transform = 'scale(1.35)';
+      setTimeout(() => { sc.style.transform = 'scale(1)'; }, 180);
+    }
+  }
+
+  function showStreakBanner(streak) {
+    const stage = document.getElementById('bb-stage');
+    if (!stage) return;
+    const banner = document.createElement('div');
+    banner.className = 'bb-streak-banner';
+    banner.textContent = '🔥 ' + streak + ' STREAK!';
+    stage.appendChild(banner);
+    setTimeout(() => { if (banner.parentNode) banner.parentNode.removeChild(banner); }, 1150);
   }
 
   /* ─────────────────────────────────────────────
@@ -1437,6 +1509,75 @@
     @keyframes bbPulse {
       0%, 100% { opacity: 1; }
       50%       { opacity: 0.5; }
+    }
+
+    /* decision stamp — punchy per-card verdict so a decision never just
+       silently updates a number (fixes flat correct/wrong feedback) */
+    .bb-stamp {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%,-50%) scale(1.6) rotate(-8deg);
+      z-index: 20;
+      font-family: 'Orbitron', monospace, sans-serif;
+      font-weight: 900;
+      font-size: 15px;
+      letter-spacing: 2px;
+      padding: 10px 22px;
+      border-radius: 10px;
+      border: 3px solid currentColor;
+      pointer-events: none;
+      opacity: 0;
+      white-space: nowrap;
+      animation: bbStampPop 0.65s cubic-bezier(.2,1.4,.4,1) forwards;
+    }
+    @keyframes bbStampPop {
+      0%   { opacity: 0; transform: translate(-50%,-50%) scale(2.2) rotate(-8deg); }
+      35%  { opacity: 1; transform: translate(-50%,-50%) scale(0.92) rotate(-8deg); }
+      55%  { opacity: 1; transform: translate(-50%,-50%) scale(1.05) rotate(-8deg); }
+      100% { opacity: 0; transform: translate(-50%,-50%) scale(1.05) rotate(-8deg); }
+    }
+    .bb-shake { animation: bbShake 0.4s ease; }
+    @keyframes bbShake {
+      0%,100% { transform: translateX(0); }
+      20%     { transform: translateX(-8px); }
+      40%     { transform: translateX(8px); }
+      60%     { transform: translateX(-5px); }
+      80%     { transform: translateX(5px); }
+    }
+    /* screen-edge flash so a decision registers even out of the corner of your eye */
+    .bb-flash {
+      position: fixed; inset: 0; z-index: 30;
+      pointer-events: none;
+      opacity: 0;
+      animation: bbFlashFade 0.5s ease-out forwards;
+    }
+    @keyframes bbFlashFade {
+      0%   { opacity: 0.28; }
+      100% { opacity: 0; }
+    }
+    /* streak banner — purely cosmetic, never touches score/goal math */
+    .bb-streak-banner {
+      position: absolute;
+      top: 46%; left: 50%;
+      transform: translate(-50%,-50%) scale(0.4);
+      z-index: 25;
+      font-family: 'Orbitron', monospace, sans-serif;
+      font-weight: 900;
+      font-size: 20px;
+      letter-spacing: 1px;
+      color: #fbbf24;
+      text-shadow: 0 0 18px rgba(251,191,36,.8), 0 0 40px rgba(251,191,36,.4);
+      pointer-events: none;
+      opacity: 0;
+      white-space: nowrap;
+      animation: bbStreakPop 1.1s cubic-bezier(.2,1.6,.3,1) forwards;
+    }
+    @keyframes bbStreakPop {
+      0%   { opacity: 0; transform: translate(-50%,-50%) scale(0.3) rotate(-4deg); }
+      25%  { opacity: 1; transform: translate(-50%,-50%) scale(1.15) rotate(2deg); }
+      40%  { opacity: 1; transform: translate(-50%,-50%) scale(1) rotate(0deg); }
+      80%  { opacity: 1; transform: translate(-50%,-50%) scale(1) rotate(0deg); }
+      100% { opacity: 0; transform: translate(-50%,-50%) scale(1.1) rotate(0deg) translateY(-20px); }
     }
 
     @media (max-width: 420px) {

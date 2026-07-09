@@ -238,8 +238,18 @@
     return `
 <div id="bd_root" style="position:absolute;inset:0;background:${DARK_BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff">
 
+  <style>
+    @keyframes bd_pop_correct { 0%{transform:scale(1)} 35%{transform:scale(1.06)} 100%{transform:scale(1)} }
+    @keyframes bd_shake_wrong { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+    @keyframes bd_float_up { 0%{opacity:1;transform:translate(-50%,-50%) scale(1)} 100%{opacity:0;transform:translate(-50%,-140%) scale(1.25)} }
+    @keyframes bd_burst_particle { 0%{opacity:1;transform:translate(-50%,-50%) scale(.4)} 100%{opacity:0;transform:translate(calc(-50% + var(--px)),calc(-50% + var(--py))) scale(1)} }
+    @keyframes bd_streak_banner { 0%{opacity:0;transform:translate(-50%,-40%) scale(.8)} 18%{opacity:1;transform:translate(-50%,-50%) scale(1.08)} 78%{opacity:1;transform:translate(-50%,-50%) scale(1)} 100%{opacity:0;transform:translate(-50%,-60%) scale(.92)} }
+  </style>
+
   <!-- city backdrop canvas -->
   <canvas id="bd_city" style="position:absolute;inset:0;width:100%;height:100%;opacity:.6"></canvas>
+  <!-- ambient overlay: twinkling stars + pulsing billboard glow (keeps the static city art alive) -->
+  <canvas id="bd_city_fx" style="position:absolute;inset:0;width:100%;height:100%;opacity:.6;pointer-events:none"></canvas>
 
   <!-- gradient overlays -->
   <div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 100%,rgba(124,58,237,.18) 0%,transparent 70%);pointer-events:none"></div>
@@ -347,6 +357,7 @@
       if (G.trendTimer) clearTimeout(G.trendTimer);
     }
     G = null;
+    stopAmbientCity();
     if (window.state) state.viewingWorld = 'risktaker';
     goTo('hub');
   };
@@ -432,11 +443,66 @@
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(b.text, bx + bw / 2, by + bh / 2);
     });
+
+    // cache billboard rects for the ambient overlay pass (avoids recompute every frame)
+    G_cityBillboards = billboards.map(b => ({ x: b.x * W, y: b.y * H, w: b.w * W, h: b.h * H, color: b.color }));
+    G_cityStars = [];
+    for (let i = 0; i < 70; i++) {
+      G_cityStars.push({ x: Math.random() * W, y: Math.random() * H * .65, r: Math.random() * 1.1 + .3, phase: Math.random() * Math.PI * 2, speed: .8 + Math.random() * 1.4 });
+    }
+  }
+
+  /* ── ambient overlay: twinkling stars + pulsing billboard glow ───
+     Cheap per-frame pass on a SEPARATE small canvas layered above the
+     static city art — avoids re-running the expensive building/window
+     draw every frame. Fills the otherwise-static backdrop with subtle
+     life instead of a frozen screenshot behind the whole game. ── */
+  let G_cityBillboards = [];
+  let G_cityStars = [];
+  let _bdAmbientRaf = null;
+  function startAmbientCity() {
+    const canvas = document.getElementById('bd_city_fx');
+    if (!canvas) return;
+    const back = document.getElementById('bd_city');
+    const W = back ? back.offsetWidth : canvas.offsetWidth;
+    const H = back ? back.offsetHeight : canvas.offsetHeight;
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    let t0 = performance.now();
+
+    function frame(now) {
+      _bdAmbientRaf = requestAnimationFrame(frame);
+      if (!G || G.done) return;
+      const t = (now - t0) / 1000;
+      ctx.clearRect(0, 0, W, H);
+
+      // twinkling stars — gentle opacity oscillation, no movement (cheap, non-distracting)
+      G_cityStars.forEach(s => {
+        const tw = .35 + .45 * (0.5 + 0.5 * Math.sin(t * s.speed + s.phase));
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${tw})`;
+        ctx.fill();
+      });
+
+      // billboard glow pulse — reinforces the "living city" feel behind the game
+      G_cityBillboards.forEach((b, i) => {
+        const pulse = 0.5 + 0.5 * Math.sin(t * 1.6 + i * 2.1);
+        ctx.strokeStyle = b.color + Math.round(90 + pulse * 100).toString(16).padStart(2, '0');
+        ctx.lineWidth = 1.5 + pulse * 1.2;
+        ctx.strokeRect(b.x, b.y, b.w, b.h);
+      });
+    }
+    _bdAmbientRaf = requestAnimationFrame(frame);
+  }
+  function stopAmbientCity() {
+    if (_bdAmbientRaf) { cancelAnimationFrame(_bdAmbientRaf); _bdAmbientRaf = null; }
   }
 
   /* ── init game ────────────────────────────────────────────────── */
   function initGame() {
     drawCity();
+    startAmbientCity();
 
     G = {
       level: 1,
@@ -445,6 +511,7 @@
       recognition: 0,
       totalBrands: 0,
       brandsDone: 0,
+      streak: 0,        // consecutive correct picks — purely cosmetic, never affects score/goal math
       timeLeft: LEVELS[0].time,
       timerInterval: null,
       trendTimer: null,
@@ -687,6 +754,12 @@
       updateMeters();
 
       flashCorrect(opt, true);
+      burstAtOption(opt, '+' + pts, GREEN);
+
+      // cosmetic streak — never touches score/goal math, just a fun celebration layer
+      G.streak++;
+      if (G.streak === 5 || G.streak === 10 || G.streak === 20) showStreakBanner(G.streak);
+
       G.pickStartTime = Date.now();
 
       G.currentStep++;
@@ -713,6 +786,9 @@
       }
     } else {
       flashCorrect(opt, false);
+      burstAtOption(opt, 'OOPS', RED);
+      shakeGameArea();
+      G.streak = 0; // cosmetic streak resets on a miss
       G.confusion++;
       updateMeters();
       if (G.confusion >= CONFUSION_MAX) {
@@ -731,10 +807,74 @@
       if (btn.textContent.trim() === opt) {
         btn.style.background = correct ? 'rgba(16,185,129,.35)' : 'rgba(239,68,68,.35)';
         btn.style.borderColor = correct ? GREEN : RED;
+        btn.style.animation = correct ? 'bd_pop_correct .3s ease' : 'bd_shake_wrong .35s ease';
       }
       btn.disabled = true;
       btn.style.cursor = 'default';
     });
+  }
+
+  /* ── per-pick juice: particle burst + floating text at the clicked
+     button's position. Previously a correct/wrong pick only recolored
+     the button silently — this gives every single tap a satisfying,
+     lightweight visual payoff without touching scoring. ── */
+  function burstAtOption(opt, label, color) {
+    const btns = document.querySelectorAll('[id^="bd_opt_"]');
+    let target = null;
+    btns.forEach(btn => { if (btn.textContent.trim() === opt) target = btn; });
+    /* append to bd_root (fixed, full-screen, no overflow clipping) using
+       viewport-relative coordinates — bd_game scrolls and clips overflow,
+       so particles that fly upward would get cut off if parented there. */
+    const root = document.getElementById('bd_root');
+    if (!target || !root) return;
+    const bRect = target.getBoundingClientRect();
+    const rRect = root.getBoundingClientRect();
+    const cx = bRect.left + bRect.width / 2 - rRect.left;
+    const cy = bRect.top + bRect.height / 2 - rRect.top;
+
+    // floating label
+    const txt = document.createElement('div');
+    txt.textContent = label;
+    txt.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;z-index:70;pointer-events:none;
+      font-family:Orbitron,sans-serif;font-size:.85rem;font-weight:900;letter-spacing:.06em;
+      color:${color};text-shadow:0 0 10px ${color}aa;white-space:nowrap;
+      animation:bd_float_up .75s ease forwards;`;
+    root.appendChild(txt);
+    setTimeout(() => txt.remove(), 780);
+
+    // small particle burst (6 dots) — cheap DOM/CSS animation, no canvas needed
+    for (let i = 0; i < 6; i++) {
+      const p = document.createElement('div');
+      const angle = (Math.PI * 2 * i) / 6 + Math.random() * 0.4;
+      const dist = 26 + Math.random() * 14;
+      p.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;z-index:69;pointer-events:none;
+        width:6px;height:6px;border-radius:50%;background:${color};
+        --px:${Math.cos(angle) * dist}px;--py:${Math.sin(angle) * dist}px;
+        animation:bd_burst_particle .55s ease-out forwards;`;
+      root.appendChild(p);
+      setTimeout(() => p.remove(), 570);
+    }
+  }
+
+  function shakeGameArea() {
+    const area = document.getElementById('bd_game');
+    if (!area) return;
+    area.style.animation = 'bd_shake_wrong .35s ease';
+    setTimeout(() => { area.style.animation = ''; }, 380);
+  }
+
+  /* ── cosmetic streak banner — pure celebration, no score/goal impact ── */
+  function showStreakBanner(n) {
+    const root = document.getElementById('bd_root');
+    if (!root) return;
+    const el = document.createElement('div');
+    el.textContent = `🔥 ${n} STREAK!`;
+    el.style.cssText = `position:absolute;top:40%;left:50%;z-index:80;pointer-events:none;
+      font-family:Orbitron,sans-serif;font-size:1.3rem;font-weight:900;letter-spacing:.1em;
+      color:${GOLD};text-shadow:0 0 20px ${GOLD}cc,0 0 40px ${PINK}88;white-space:nowrap;
+      animation:bd_streak_banner 1.3s ease forwards;`;
+    root.appendChild(el);
+    setTimeout(() => el.remove(), 1320);
   }
 
   /* ── trend cards (level 2) ────────────────────────────────────── */
@@ -793,6 +933,7 @@
     if (!G || G.done) return;
     G.done = true;
     clearInterval(G.timerInterval);
+    stopAmbientCity();
 
     const score = G.score;
     const stars = score >= 700 ? 3 : score >= 400 ? 2 : score > 0 ? 1 : 0;

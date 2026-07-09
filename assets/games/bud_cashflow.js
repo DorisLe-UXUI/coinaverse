@@ -190,6 +190,9 @@
       gateT: 22,
       gateIdx: 0,
       redFlash: 0,
+      streak: 0,           // consecutive correct drops (cosmetic only — no score math changes)
+      streakFlash: 0,
+      ambientParticles: [],// gentle drifting motes so idle canvas areas aren't dead-empty
       _raf: null,
     };
 
@@ -376,6 +379,7 @@
 
       G.score += 80;
       spawnFloat(tile.el, `+80`, GRN);
+      bumpStreak();
       updateHUD();
     } else {
       // Wrong column — wiggle and snap back
@@ -384,9 +388,44 @@
       setTimeout(()=>{ if(tile.el){ tile.el.style.transform = ''; } }, 160);
       G.score = Math.max(0, G.score - 20);
       spawnFloat(tile.el, '-20', RED);
+      G.streak = 0;
       snapBack(tile);
       updateHUD();
     }
+  }
+
+  /* ── Cosmetic drop streak (never changes score math beyond the same
+     +80/tile that already existed — just celebrates doing it repeatedly) ── */
+  const STREAK_MILE = [3, 5, 8];
+  function bumpStreak(){
+    if(!G) return;
+    G.streak = (G.streak||0) + 1;
+    if(STREAK_MILE.indexOf(G.streak) >= 0){
+      G.streakFlash = 1;
+      spawnStreakBanner(G.streak);
+    }
+  }
+
+  function spawnStreakBanner(n){
+    const wrap = document.getElementById('bcWrap');
+    if(!wrap) return;
+    const div = document.createElement('div');
+    div.textContent = `🔥 ${n} STREAK!`;
+    div.style.cssText = `
+      position:absolute;top:34%;left:50%;transform:translate(-50%,-50%) scale(.7);
+      color:${GOLD};font-family:'Orbitron',monospace;font-size:1.1rem;font-weight:900;
+      letter-spacing:.1em;text-shadow:0 0 18px rgba(245,200,66,.8);
+      pointer-events:none;z-index:210;
+      animation:bcStreakPop .9s cubic-bezier(.2,1.6,.4,1) forwards;
+    `;
+    if(!document.getElementById('bcStreakStyle')){
+      const s = document.createElement('style');
+      s.id = 'bcStreakStyle';
+      s.textContent = '@keyframes bcStreakPop{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}18%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}30%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%) scale(1.05)}}';
+      document.head.appendChild(s);
+    }
+    wrap.appendChild(div);
+    setTimeout(()=>{ if(div.parentNode) div.parentNode.removeChild(div); }, 950);
   }
 
   function snapBack(tile){
@@ -552,6 +591,51 @@
     ctx.textAlign = 'left';
   }
 
+  /* ── Ambient data-motes ── purely decorative drifting glow specks so
+     the large empty grid regions (esp. Level 1's calm 60s with zero
+     shocks) never read as a static/dead screen. Colors match the
+     existing navy/green/gold palette already used across the HUD. */
+  const AMBIENT_COLORS = [GRN, GOLD, '#5a7fc0'];
+  function ensureAmbientParticles(W, H){
+    if(G.ambientParticles.length > 0) return;
+    const count = Math.round(Math.max(W,H) / 55); // scales gently with screen size
+    for(let i=0;i<count;i++){
+      G.ambientParticles.push(spawnAmbientParticle(W, H, true));
+    }
+  }
+  function spawnAmbientParticle(W, H, randomY){
+    return {
+      x: Math.random()*W,
+      y: randomY ? Math.random()*H : H + 10,
+      vy: -(6 + Math.random()*10),
+      vx: (Math.random()-0.5)*4,
+      r: 1 + Math.random()*1.6,
+      color: AMBIENT_COLORS[Math.floor(Math.random()*AMBIENT_COLORS.length)],
+      alpha: 0.15 + Math.random()*0.25,
+      phase: Math.random()*Math.PI*2,
+    };
+  }
+  function updateAmbientParticles(dt, W, H){
+    ensureAmbientParticles(W, H);
+    for(const p of G.ambientParticles){
+      p.y += p.vy * dt;
+      p.x += p.vx * dt;
+      p.phase += dt;
+      if(p.y < -10){
+        Object.assign(p, spawnAmbientParticle(W, H, false));
+      }
+    }
+  }
+  function drawAmbientParticles(ctx){
+    for(const p of G.ambientParticles){
+      const flicker = 0.7 + 0.3*Math.sin(p.phase*1.6);
+      ctx.beginPath();
+      ctx.fillStyle = hexA(p.color, p.alpha * flicker);
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
   /* ── Budget meter HUD ───────────────────────────────────────── */
   function updateHUD(){
     const net = G.placedIncome - G.placedExpense;
@@ -600,7 +684,14 @@
         const ctx = cv.getContext('2d');
         ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
         drawBg(ctx, cv.clientWidth, cv.clientHeight);
+        updateAmbientParticles(dt, cv.clientWidth, cv.clientHeight);
+        drawAmbientParticles(ctx);
         drawReactorLive(ctx, cv.clientWidth, cv.clientHeight);
+        if(G.streakFlash > 0){
+          G.streakFlash -= dt * 1.2;
+          ctx.fillStyle = `rgba(245,200,66,${Math.max(0,G.streakFlash) * 0.10})`;
+          ctx.fillRect(0, 0, cv.clientWidth, cv.clientHeight);
+        }
       }
 
       // Accumulate green/red time only after all income tiles placed
@@ -736,10 +827,20 @@
     if(banner){
       banner.textContent = shock.icon + ' ' + shock.msg + ' (-$' + shock.extraAmt + ')';
       banner.style.display = 'block';
+      banner.style.animation = 'bcShockBannerPop .3s ease';
       setTimeout(()=>{ if(banner) banner.style.display='none'; }, 3500);
+    }
+    if(!document.getElementById('bcShockBannerStyle')){
+      const s = document.createElement('style');
+      s.id = 'bcShockBannerStyle';
+      s.textContent = '@keyframes bcShockBannerPop{0%{transform:translateX(-50%) scale(.85);opacity:0}100%{transform:translateX(-50%) scale(1);opacity:1}}';
+      document.head.appendChild(s);
     }
 
     G.score = Math.max(0, G.score - 30);
+    G.streak = 0;
+    G.redFlash = Math.max(G.redFlash, 0.6);
+    spawnFloat(banner || document.getElementById('bcWrap'), '-30', RED);
   }
 
   function injectShockTile(shock){

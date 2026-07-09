@@ -38,7 +38,7 @@
     {
       level: 1, title: 'LEARN', subtitle: 'Simple Corrections',
       threatCount: 6, simultaneousMax: 1,
-      intervalMs: 5000, responseWindow: 6000,
+      intervalMs: 3200, responseWindow: 6000,
       threatPool: ['correction','inflation','geo','volatility','liquidity','correction'],
       growthPerDefend: 3, growthPerBestAction: 5,
     },
@@ -471,6 +471,7 @@
       activeThreats:  [],
       resolved:       0,
       bestActions:    0,
+      bestStreak:     0,
       missedThreats:  0,
       spawnTimer:     null,
       checkTimer:     null,
@@ -689,10 +690,19 @@
     const points = (isBest ? 100 : 40) + speedBonus;
     G.score += points;
     G.resolved++;
-    if (isBest) G.bestActions++;
+    if (isBest) {
+      G.bestActions++;
+      G.bestStreak++;
+    } else {
+      G.bestStreak = 0;
+    }
 
     pulseButton(actionId, true);
-    showFeedback(isBest ? '✓ OPTIMAL' : '✓ DEFENDED', isBest ? AC : WARN);
+    if (isBest && STREAK_MILESTONES.includes(G.bestStreak)) {
+      showStreakCelebration(G.bestStreak);
+    } else {
+      showFeedback(isBest ? '✓ OPTIMAL' : '✓ DEFENDED', isBest ? AC : WARN);
+    }
     setTip(isBest ? `Perfect! ${targetThreat.tip}` : `Defended, but ${ACTIONS.find(a=>a.id===targetThreat.bestAction)?.label} was optimal.`);
 
     updateHUD();

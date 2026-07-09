@@ -631,9 +631,10 @@
     const card = document.getElementById('nn-nft-card');
     if (!card) return;
 
-    // Scan animation — runs for 1.8s then reveals card
+    // Scan animation — runs for 1.1s then reveals card (was 1.8s — trimmed so
+    // players spend more time deciding/dragging and less time watching a bar fill)
     let scanStart = null;
-    const scanDur = 1800;
+    const scanDur = 1100;
 
     function scanStep(ts) {
       if (!G || G.ended) return;
@@ -759,6 +760,7 @@
         pointsDelta = 100 + comboBonus + Math.floor(G.timeLeft * 1.5);
         label = G.combo > 1 ? `+${pointsDelta} COMBO x${G.combo}!` : `+${pointsDelta} VERIFIED!`;
         G.correct++;
+        maybeStreakBanner(G.combo);
       } else if (targetOwner === 'REJECT') {
         // Rejected a real NFT
         G.combo = 0;
@@ -828,7 +830,7 @@
     setTimeout(() => {
       if (!G || G.ended) return;
       showCurrentCard();
-    }, 650);
+    }, 480);
   }
 
   // ── Floating text ─────────────────────────────────────────────
@@ -865,10 +867,13 @@
   }
 
   // ── Ambient particles ─────────────────────────────────────────
+  // Density raised from 28 → 46 (~1.6x) — the card area is a big mostly-empty
+  // band around a single centered card, so a livelier data-stream backdrop
+  // helps sell "scanning the blockchain" instead of reading as empty space.
   let _particles = [];
   function initParticles(W, H) {
     _particles = [];
-    for (let i = 0; i < 28; i++) {
+    for (let i = 0; i < 46; i++) {
       _particles.push({
         x: Math.random() * W,
         y: Math.random() * H,

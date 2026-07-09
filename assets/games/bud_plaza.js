@@ -774,6 +774,9 @@
       const pts = 100 + comboBonus;
       G.score += pts;
       floatText(`+${pts}`, correct ? TEAL : RED_ERR, chosenIdx);
+      // Cosmetic-only combo celebration at 5-in-a-row — no score/goal impact of its own;
+      // the comboBonus math above already carries the real reward escalation.
+      if (G.combo > 0 && G.combo % 5 === 0) showComboCelebration(G.combo);
     } else {
       G.combo = 0;
       G.score = Math.max(0, G.score - 20);
