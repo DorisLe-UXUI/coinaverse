@@ -130,7 +130,11 @@
     G = null;
     curLevel = 1;
     setTimeout(initGame, 40);
-    return `<div id="ccRoot" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
+    return `<style>
+      @keyframes ccWinPop{0%{transform:scale(.7) translateY(14px);opacity:0}60%{transform:scale(1.05) translateY(-4px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}
+      @keyframes ccFadeIn{0%{opacity:0;transform:translateY(6px)}100%{opacity:1;transform:translateY(0)}}
+    </style>
+    <div id="ccRoot" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
 
       <!-- Stars background -->
       <canvas id="ccStars" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.6"></canvas>
@@ -469,15 +473,17 @@
     const pts = 100 * G.comboMult;
     G.score += pts;
 
-    // flash green
+    // flash green — glow duration/intensity scales with combo tier (visual only,
+    // does not touch itemTimer/timeLeft) so a x8 streak reads far punchier than a x1 hit
     G.flashColor = '#34d399';
-    G.flashT = 0.35;
+    G.flashT = 0.35 + (G.comboMult - 1) * 0.03;
 
-    // floating text
+    // floating text — size scales smoothly with combo tier instead of a flat on/off bump
     const W = document.getElementById('ccCanvas')?.clientWidth || 320;
     const H = document.getElementById('ccCanvas')?.clientHeight || 600;
     const comboText = G.comboMult > 1 ? `+${pts} x${G.comboMult} COMBO!` : `+${pts}`;
-    G.floats.push({ text: comboText, x: W/2, y: H*0.44 - 90, color:'#34d399', alpha:1, t:0.9, size: G.comboMult > 1 ? 17 : 14 });
+    const floatSize = 14 + Math.min(G.comboMult - 1, 7) * 1.4;
+    G.floats.push({ text: comboText, x: W/2, y: H*0.44 - 90, color:'#34d399', alpha:1, t:0.9, size: floatSize });
 
     // pulse button
     pulseBtn('ccBtnGood');
@@ -515,7 +521,11 @@
     if(G.comboMult > 1){
       el.textContent = `${G.comboMult}x COMBO`;
       el.style.opacity = '1';
-      el.style.transform = 'scale(1.15)';
+      /* pop scale + color both escalate with combo tier (up to 8x) so the badge
+         reads hotter deeper into a streak instead of looking the same at x2 and x8 */
+      const popScale = 1.15 + Math.min(G.comboMult - 1, 7) * 0.025;
+      el.style.color = G.comboMult >= 6 ? '#fb923c' : G.comboMult >= 3 ? '#fbbf24' : '#facc15';
+      el.style.transform = `scale(${popScale})`;
       setTimeout(()=>{ if(el){ el.style.transform='scale(1)'; } }, 150);
     } else {
       el.style.opacity = '0';
@@ -557,8 +567,11 @@
     const el = document.getElementById('ccOver');
     if(!el) return;
     el.style.display = 'flex';
+    /* win (>=1 star) gets a punchy overshoot pop entrance; a true 0-star result gets a
+       plain, subdued fade — so the end card actually feels different, not just re-texted */
+    const endAnim = stars >= 1 ? 'ccWinPop .5s cubic-bezier(.34,1.56,.64,1)' : 'ccFadeIn .4s ease';
     el.innerHTML = `
-      <div style="max-width:360px;width:90%;text-align:center;padding:28px 24px;border:1px solid rgba(56,189,248,.3);border-radius:24px;background:linear-gradient(160deg,rgba(3,4,12,.95),rgba(14,30,50,.95));box-shadow:0 0 60px rgba(56,189,248,.15),inset 0 0 40px rgba(56,189,248,.04)">
+      <div style="max-width:360px;width:90%;text-align:center;padding:28px 24px;border:1px solid rgba(56,189,248,.3);border-radius:24px;background:linear-gradient(160deg,rgba(3,4,12,.95),rgba(14,30,50,.95));box-shadow:0 0 60px rgba(56,189,248,.15),inset 0 0 40px rgba(56,189,248,.04);animation:${endAnim}">
 
         <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.22em;color:#38bdf8;margin-bottom:10px;text-shadow:0 0 10px rgba(56,189,248,.5)">${curLevel>=3?'👑 ALL 3 LEVELS MASTERED!':`LEVEL ${curLevel} · COMPLETE`}</div>
 

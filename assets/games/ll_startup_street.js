@@ -269,6 +269,9 @@
       @keyframes ssShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
       @keyframes ssSlideIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
       @keyframes ssBlink{0%,100%{opacity:1}50%{opacity:.4}}
+      @keyframes ssCardHitGood{0%{box-shadow:0 0 0 0 rgba(34,211,165,.6),inset 0 0 0 0 rgba(34,211,165,0)}30%{box-shadow:0 0 22px 4px rgba(34,211,165,.55),inset 0 0 18px 0 rgba(34,211,165,.12)}100%{box-shadow:0 0 0 0 rgba(34,211,165,0),inset 0 0 0 0 rgba(34,211,165,0)}}
+      @keyframes ssCardHitBad{0%{box-shadow:0 0 0 0 rgba(239,68,68,.6),inset 0 0 0 0 rgba(239,68,68,0)}30%{box-shadow:0 0 22px 4px rgba(239,68,68,.55),inset 0 0 18px 0 rgba(239,68,68,.12)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0),inset 0 0 0 0 rgba(239,68,68,0)}}
+      @keyframes ssWinPop{0%{opacity:0;transform:scale(.55) rotate(-8deg)}55%{opacity:1;transform:scale(1.08) rotate(2deg)}80%{transform:scale(.97) rotate(-1deg)}100%{opacity:1;transform:scale(1) rotate(0deg)}}
       .ss-slider::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:${ACCENT_L};border:2.5px solid #fff;box-shadow:0 0 10px ${ACCENT}88;cursor:pointer}
       .ss-slider::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:${ACCENT_L};border:2.5px solid #fff;cursor:pointer}
       .ss-slider{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:3px;background:rgba(255,255,255,.12);outline:none;cursor:pointer}
@@ -424,7 +427,7 @@
       const pColor = locProfit  > 60 ? GRN : locProfit  > 30 ? AMBER : RED;
       const hColor = locHappy   > 60 ? GRN : locHappy   > 30 ? AMBER : RED;
       const cardClass = locProfit < 30 || locHappy < 30 ? 'ss-loc-card danger' : (locProfit < 60 || locHappy < 60 ? 'ss-loc-card warning' : 'ss-loc-card');
-      html += `<div class="${cardClass}">
+      html += `<div id="ss-loc-card-${i}" class="${cardClass}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <div style="display:flex;align-items:center;gap:6px">
             <span style="font-size:1.1rem">${loc.emoji}</span>
@@ -535,11 +538,13 @@
       return;
     }
 
-    /* evaluate each location */
-    G.locationStates.forEach((loc, i) => {
+    /* evaluate each location — remember net delta per location so the
+       card feedback can show WHICH location moved and which direction */
+    const netDeltas = G.locationStates.map((loc, i) => {
       const result = evaluateLocation(loc);
       loc.profit    = Math.max(0, Math.min(100, loc.profit    + result.profitDelta));
       loc.happiness = Math.max(0, Math.min(100, loc.happiness + result.happyDelta));
+      return result.profitDelta + result.happyDelta;
     });
 
     /* global meters = average of locations */
@@ -552,9 +557,13 @@
     const roundScore = Math.round((avgProfit + avgHappy) * 2);
     G.score += roundScore;
 
-    showPopup(`+${roundScore} pts`, ACCENT_L);
+    /* popup scales with round quality instead of always looking the same */
+    const roundQuality = avgProfit + avgHappy; // 0-200
+    const popupColor = roundQuality >= 150 ? GRN : roundQuality >= 100 ? ACCENT_L : roundQuality >= 60 ? AMBER : RED;
+    const popupPrefix = roundQuality >= 150 ? '🔥 ' : roundQuality >= 100 ? '' : roundQuality >= 60 ? '⚠ ' : '📉 ';
+    showPopup(`${popupPrefix}+${roundScore} pts`, popupColor, roundQuality >= 150);
     renderHUD();
-    updateLocationBars();
+    updateLocationBars(netDeltas);
 
     /* check lose condition */
     if (G.profit <= 0 || G.happiness <= 0) {
@@ -775,19 +784,30 @@
     if (happPct) { happPct.textContent = G.happiness + '%'; happPct.style.color = hColor; }
   }
 
-  function updateLocationBars() {
+  function updateLocationBars(netDeltas) {
     if (!G) return;
     G.locationStates.forEach((loc, i) => {
       const pEl   = document.getElementById(`ss-loc-p-${i}`);
       const hEl   = document.getElementById(`ss-loc-h-${i}`);
       const pbEl  = document.getElementById(`ss-locbar-p-${i}`);
       const hbEl  = document.getElementById(`ss-locbar-h-${i}`);
+      const cardEl = document.getElementById(`ss-loc-card-${i}`);
       const pCol  = loc.profit    > 60 ? GRN : loc.profit    > 30 ? AMBER : RED;
       const hCol  = loc.happiness > 60 ? GRN : loc.happiness > 30 ? AMBER : RED;
       if (pEl)  { pEl.textContent = loc.profit + '%';    pEl.style.color = pCol; }
       if (hEl)  { hEl.textContent = loc.happiness + '%'; hEl.style.color = hCol; }
       if (pbEl) { pbEl.style.width = loc.profit    + '%'; pbEl.style.background = pCol; }
       if (hbEl) { hbEl.style.width = loc.happiness + '%'; hbEl.style.background = hCol; }
+
+      /* per-card hit flash: each location card visibly reacts to ITS OWN
+         result instead of numbers silently updating — direction (good/bad
+         glow) is tied to that specific card's net delta, not a global cue */
+      if (cardEl && netDeltas && netDeltas[i] !== undefined) {
+        const anim = netDeltas[i] >= 0 ? 'ssCardHitGood' : 'ssCardHitBad';
+        cardEl.style.animation = 'none';
+        void cardEl.offsetWidth; // force reflow so repeated same-direction hits still restart the animation
+        cardEl.style.animation = `${anim} .6s ease-out`;
+      }
     });
   }
 
@@ -824,7 +844,11 @@
     if (!overEl) return;
     overEl.style.display = 'flex';
 
-    overEl.innerHTML = `<div style="max-width:90%;width:340px;text-align:center;animation:ssSlideIn .5s ease">
+    /* win moments get a bouncy scale+rotate pop-in; bankruptcy keeps the
+       plain slide-in fade so the two outcomes feel distinctly different */
+    const endAnim = bankrupt ? 'ssSlideIn .5s ease' : 'ssWinPop .55s cubic-bezier(.22,1.4,.4,1)';
+
+    overEl.innerHTML = `<div style="max-width:90%;width:340px;text-align:center;animation:${endAnim}">
       <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.18em;color:${ACCENT_L};margin-bottom:10px">
         ${bankrupt ? 'BUSINESS COLLAPSED' : 'PERIOD COMPLETE'}
       </div>
@@ -877,12 +901,13 @@
   /* ══════════════════════════════════════════════════════════════
      HELPERS
   ══════════════════════════════════════════════════════════════ */
-  function showPopup(msg, color) {
+  function showPopup(msg, color, big) {
     const root = document.getElementById('ssRoot');
     if (!root) return;
     const el = document.createElement('div');
     el.textContent = msg;
-    el.style.cssText = `position:absolute;top:45%;left:50%;transform:translate(-50%,-50%);z-index:55;font-family:Orbitron,sans-serif;font-size:.9rem;letter-spacing:.12em;color:${color};background:rgba(3,4,12,.9);padding:8px 20px;border-radius:10px;border:1.5px solid ${color};pointer-events:none;animation:ssPop .85s ease forwards;white-space:nowrap`;
+    const fontSize = big ? '1.15rem' : '.9rem';
+    el.style.cssText = `position:absolute;top:45%;left:50%;transform:translate(-50%,-50%);z-index:55;font-family:Orbitron,sans-serif;font-size:${fontSize};letter-spacing:.12em;color:${color};background:rgba(3,4,12,.9);padding:8px 20px;border-radius:10px;border:1.5px solid ${color};pointer-events:none;animation:ssPop .85s ease forwards;white-space:nowrap;box-shadow:${big ? `0 0 30px ${color}88` : 'none'}`;
     root.appendChild(el);
     setTimeout(() => el.remove(), 900);
   }

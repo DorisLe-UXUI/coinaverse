@@ -159,6 +159,7 @@
       activeEvent: null,
       eventTimer: 0,
       rebalanceBonus: 0,
+      rebalanceStreak: 0,   // consecutive rebalances with no missed/failed event in between — visual escalation only, does not change the flat +25 score
       _eventTimerStartedAt: null,   // wall-clock ms when the active event's response window began
       _eventPausedRemainMs: null,   // ms remaining on that window, saved while help is open
 
@@ -233,9 +234,11 @@
       // for whatever real time was actually LEFT on the response window, not
       // the full original duration (that would grant free time) and not 0
       // (that would unfairly snap-dismiss it the instant help closes).
+      // Same as the primary auto-dismiss timeout: this only fires on genuine unsolved
+      // expiry (a successful rebalance clears it first), so reset the streak here too.
       if (G.activeEvent && G._eventPausedRemainMs != null) {
         G._eventTimerStartedAt = Date.now();
-        G._eventDismissTimeout = setTimeout(() => dismissEvent(), G._eventPausedRemainMs);
+        G._eventDismissTimeout = setTimeout(() => { if (G) G.rebalanceStreak = 0; dismissEvent(); }, G._eventPausedRemainMs);
         G._eventPausedRemainMs = null;
       }
     }
@@ -339,7 +342,7 @@
       if (!G || G.dragging !== id) return;
       G.dragging = null;
       track.style.cursor = 'grab';
-      checkRebalanceBonus();
+      checkRebalanceBonus(id);
     };
 
     track.addEventListener('mousedown', e => { startDrag(e.clientX); e.preventDefault(); });
@@ -363,7 +366,7 @@
       } else if (relX < rect.width * 0.4) {
         applyAlloc(id, (G.allocs[id] || 0) - 5);
       }
-      checkRebalanceBonus();
+      checkRebalanceBonus(id);
     });
   }
 
@@ -527,28 +530,51 @@
   }
 
   /* ── check rebalance bonus (did player fix something?) ────────── */
-  function checkRebalanceBonus() {
+  /* assetId identifies which specific slider the player just released/tapped, so the
+     "+25 REBALANCE!" credit can appear next to THAT card instead of always dead-center —
+     with 4-7 sliders on screen at once, dead-center gave no clue which fix earned the bonus. */
+  function checkRebalanceBonus(assetId) {
     if (!G) return;
     if (G.activeEvent && isInGreenZone()) {
       G.rebalanceBonus += 25;
       G.score += 25;
+      G.rebalanceStreak++;
       updateScoreDisplay();
-      flashBonus('+25 REBALANCE!');
+      // visual celebration scales with consecutive rebalance streak — score bonus itself stays a flat +25
+      const label = G.rebalanceStreak >= 2 ? `+25 REBALANCE! ×${G.rebalanceStreak}` : '+25 REBALANCE!';
+      flashBonus(label, assetId, G.rebalanceStreak);
       dismissEvent();
     }
   }
 
-  function flashBonus(msg) {
+  function flashBonus(msg, anchorId, streak) {
     const el = document.createElement('div');
     el.textContent = msg;
-    el.style.cssText = `position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:50;font-family:Orbitron,sans-serif;font-size:1rem;letter-spacing:.15em;color:${ACCENT};background:rgba(3,4,12,.9);padding:10px 22px;border-radius:10px;border:1.5px solid ${ACCENT};pointer-events:none;animation:phqPop .8s ease forwards`;
+    /* anchor near the specific slider card that earned this bonus when we know which one;
+       otherwise (level-up banners) fall back to dead-center, which is correct for a global event */
+    const anchorCard = anchorId ? document.getElementById(`phq_card_${anchorId}`) : null;
+    const root = document.getElementById('phqRoot');
+    let posCss;
+    if (anchorCard && root) {
+      const cardRect = anchorCard.getBoundingClientRect();
+      const rootRect = root.getBoundingClientRect();
+      const cx = cardRect.left - rootRect.left + cardRect.width / 2;
+      const cy = cardRect.top - rootRect.top + cardRect.height / 2;
+      posCss = `position:absolute;top:${cy}px;left:${cx}px;transform:translate(-50%,-50%);`;
+    } else {
+      posCss = `position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);`;
+    }
+    // font size / glow scale with consecutive rebalance streak (visual only — the +25 score never changes)
+    const streakScale = Math.min(1 + Math.max(0, (streak||1) - 1) * 0.14, 1.7);
+    const fontSize = (1 * streakScale).toFixed(2);
+    const glowSize = Math.round(streakScale * 10);
+    el.style.cssText = `${posCss}z-index:50;font-family:Orbitron,sans-serif;font-size:${fontSize}rem;letter-spacing:.15em;color:${ACCENT};background:rgba(3,4,12,.9);padding:10px 22px;border-radius:10px;border:1.5px solid ${ACCENT};box-shadow:0 0 ${glowSize}px ${ACCENT}aa;pointer-events:none;animation:phqPop .8s ease forwards;white-space:nowrap;max-width:90vw`;
     if (!document.getElementById('phqPopStyle')) {
       const s = document.createElement('style');
       s.id = 'phqPopStyle';
       s.textContent = `@keyframes phqPop{0%{opacity:0;transform:translate(-50%,-60%)}20%{opacity:1;transform:translate(-50%,-50%)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,-40%)}}`;
       document.head.appendChild(s);
     }
-    const root = document.getElementById('phqRoot');
     if (root) { root.appendChild(el); setTimeout(() => el.remove(), 900); }
   }
 
@@ -574,9 +600,13 @@
       banner.style.display = 'block';
       /* auto-dismiss after eventTimer — track the wall-clock start so a
          mid-event pause (❓ help) can correctly compute remaining time
-         instead of restarting the full window or losing the timeout entirely */
+         instead of restarting the full window or losing the timeout entirely.
+         This callback only ever fires when the event expired UNSOLVED — a successful
+         rebalance calls dismissEvent() directly from checkRebalanceBonus(), which clears
+         this timeout first, so it never reaches here. That makes this the correct place
+         to reset the rebalance streak (visual escalation only, no score change). */
       G._eventTimerStartedAt = Date.now();
-      G._eventDismissTimeout = setTimeout(() => dismissEvent(), G.eventTimer * 1000);
+      G._eventDismissTimeout = setTimeout(() => { if (G) G.rebalanceStreak = 0; dismissEvent(); }, G.eventTimer * 1000);
     }
 
     /* market impact: apply the event's affect deltas to holdings */
@@ -787,11 +817,25 @@
     const divScore = getDivScore();
     const perfBonus = divScore >= 0.8 ? '<div style="margin-top:6px;font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.12em;color:#fbbf24">🏆 PERFECT BALANCE BONUS!</div>' : '';
 
+    // end card had zero entrance animation previously (win or otherwise) — a strong finish (3-star)
+    // now gets a bouncy overshoot entrance, weaker finishes (1-2 star) get a plain calm fade,
+    // so a great run visibly feels more celebratory than a middling one instead of both looking identical.
+    if (!document.getElementById('phqEndAnimStyle')) {
+      const s = document.createElement('style');
+      s.id = 'phqEndAnimStyle';
+      s.textContent = `
+        @keyframes phqWinCardIn{0%{opacity:0;transform:scale(.6) rotate(-6deg) translateY(20px)}55%{opacity:1;transform:scale(1.08) rotate(2deg) translateY(-4px)}80%{transform:scale(.97) rotate(-1deg)}100%{opacity:1;transform:scale(1) rotate(0) translateY(0)}}
+        @keyframes phqCalmCardIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+      `;
+      document.head.appendChild(s);
+    }
+    const endCardAnim = is3star ? 'phqWinCardIn .6s cubic-bezier(.22,1.4,.36,1) both' : 'phqCalmCardIn .4s ease both';
+
     const overEl = document.getElementById('phqOver');
     if (!overEl) return;
     overEl.style.display = 'flex';
     overEl.innerHTML = `
-      <div style="max-width:340px;width:90%;text-align:center;padding:28px 22px;border:1.5px solid ${ACCENT};border-radius:20px;background:rgba(3,4,12,.97)">
+      <div style="max-width:340px;width:90%;text-align:center;padding:28px 22px;border:1.5px solid ${ACCENT};border-radius:20px;background:rgba(3,4,12,.97);animation:${endCardAnim}">
         <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.2em;color:${ACCENT};margin-bottom:8px">PORTFOLIO HQ · RESULT</div>
         <div style="font-size:2rem;margin:10px 0">${starsHTML}</div>
         <div style="font-family:Orbitron,sans-serif;font-size:2rem;color:${ACCENT};font-weight:700">${finalScore}</div>
@@ -830,6 +874,7 @@
       activeEvent: null,
       eventTimer: 0,
       rebalanceBonus: 0,
+      rebalanceStreak: 0,
       allocs: { stocks: 40, realestate: 20, cash: 15, gold: 15, etfs: 0, crypto: 0 },
       activeAssets: ['stocks', 'realestate', 'cash', 'gold'],
       dragging: null,

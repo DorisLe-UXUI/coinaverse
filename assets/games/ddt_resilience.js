@@ -565,6 +565,16 @@
       from{ opacity:0; transform:translateY(-8px); }
       to  { opacity:1; transform:translateY(0); }
     }
+    @keyframes rh_win_card_in {
+      0%   { opacity:0; transform:scale(.55) rotate(-8deg) translateY(24px); }
+      55%  { opacity:1; transform:scale(1.1) rotate(3deg) translateY(-6px); }
+      80%  { transform:scale(.96) rotate(-1deg); }
+      100% { opacity:1; transform:scale(1) rotate(0) translateY(0); }
+    }
+    @keyframes rh_lose_card_in {
+      from { opacity:0; transform:translateY(12px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
     .rh_opt_btn {
       width:100%;text-align:left;
       background:rgba(255,255,255,.04);
@@ -933,6 +943,7 @@
     const timeBonus = G.speedWindow;   // answered in first half
 
     let pts = 0;
+    let comboScale = 1;
     if (opt.pts > 0) {
       pts = opt.pts;
       if (timeBonus) pts += 8;
@@ -940,7 +951,9 @@
       G.combo++;
       if (G.combo > G.bestCombo) G.bestCombo = G.combo;
       animateMeterChange(isCalm ? METER_GAIN : METER_GAIN * 0.5);
-      flashScreen(GOLD, 0.12);
+      // flash brightens as the streak builds so hit #1 doesn't look identical to hit #8 (visual only, scoring untouched)
+      comboScale = Math.min(1 + G.combo * 0.12, 1.9);
+      flashScreen(GOLD, Math.min(0.12 + G.combo * 0.025, 0.32));
       G.pillarsLit = Math.min(G.pillarsLit + 1, TOTAL_PILLARS);
     } else {
       pts = 0;
@@ -966,10 +979,10 @@
       }
     });
 
-    /* floating bonus */
+    /* floating bonus — text grows with combo depth (see comboScale above) so a long streak visibly escalates */
     if (pts > 0) {
       const label = timeBonus ? `⚡+${pts}` : `+${pts}`;
-      showFloatingBonus(label, timeBonus ? TEAL : GOLD);
+      showFloatingBonus(label, timeBonus ? TEAL : GOLD, comboScale);
     } else {
       showFloatingBonus('−RESILIENCE', CRIMSON);
     }
@@ -1243,6 +1256,9 @@
       animation:rh_card_in .4s ease both;
     `;
 
+    // win gets a bouncy overshooting entrance so it reads as more celebratory than a loss's plain fade
+    const endCardAnim = won ? 'rh_win_card_in .65s cubic-bezier(.22,1.4,.36,1) both' : 'rh_lose_card_in .4s ease both';
+
     overlay.innerHTML = `
       <div style="
         width:min(380px,92vw);
@@ -1252,6 +1268,7 @@
         text-align:center;
         box-shadow:0 0 60px rgba(75,45,143,.25),0 20px 60px rgba(0,0,0,.8);
         position:relative;overflow:hidden;
+        animation:${endCardAnim};
       ">
         <div style="position:absolute;top:0;left:0;right:0;height:2px;
           background:linear-gradient(90deg,transparent,${VIOLET},transparent)"></div>
@@ -1410,6 +1427,10 @@
       wrap.style.display = 'flex';
       val.textContent = `×${G.combo}`;
       val.style.color = G.combo >= 4 ? GOLD : TEAL;
+      // keep escalating visually past the gold threshold so combo 10 doesn't look identical to combo 4
+      const growScale = Math.min(1 + Math.max(0, G.combo - 4) * 0.06, 1.5);
+      val.style.transform = `scale(${growScale})`;
+      val.style.textShadow = `0 0 ${Math.round(8*growScale)}px ${(G.combo >= 4 ? GOLD : TEAL)}aa`;
     } else {
       wrap.style.display = 'none';
     }
@@ -1430,15 +1451,16 @@
     setTimeout(() => { stage.style.animation = ''; }, 320);
   }
 
-  function showFloatingBonus(text, color) {
+  function showFloatingBonus(text, color, scale) {
     const root = document.getElementById('rh_root');
     if (!root) return;
+    const sz = 1.1 * (scale || 1);   // combo depth bumps font size so a long streak reads as a bigger deal
     const el = document.createElement('div');
     el.style.cssText = `
       position:absolute;top:50%;left:50%;
       transform:translate(-50%,-50%);
-      font-family:Orbitron,sans-serif;font-size:1.1rem;font-weight:700;
-      color:${color};text-shadow:0 0 12px ${color}88;
+      font-family:Orbitron,sans-serif;font-size:${sz}rem;font-weight:700;
+      color:${color};text-shadow:0 0 ${Math.round(12*(scale||1))}px ${color}88;
       pointer-events:none;z-index:90;white-space:nowrap;
       animation:rh_bonus_float .9s ease-out forwards;
     `;

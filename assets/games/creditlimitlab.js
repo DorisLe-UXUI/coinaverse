@@ -9,6 +9,7 @@
   const TOKEN = 'credtech';
   let G = null, raf = null;
   let curLevel = 1;   // 1|2|3 — chosen on level-select screen, advances via game-over screen
+  let _cllFreshEntry = true; // true only for the very first cllBoot() after a hub entry; consumed on use
 
   /* ─── LEVEL CONFIGS — harder/faster/bigger each level ────────── */
   const LEVELS = [
@@ -99,13 +100,19 @@
   window.SCREENS.game_creditlimitlab = function(){
     G = null;
     curLevel = 1;   // fresh hub entry always starts the campaign at Level 1
+    _cllFreshEntry = true; // gate the auto-tutorial to this one boot, not replays/next-level
     setTimeout(cllBoot, 40);
-    return `<div id="cllWrap" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none">
+    return `<style>
+      @keyframes cllWinPop{0%{transform:scale(.7) translateY(14px);opacity:0}60%{transform:scale(1.05) translateY(-4px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}
+      @keyframes cllFadeIn{0%{opacity:0;transform:translateY(6px)}100%{opacity:1;transform:translateY(0)}}
+    </style>
+    <div id="cllWrap" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none">
 
       <!-- TOP BAR -->
       <div id="cllBar" style="position:absolute;top:0;left:0;right:0;z-index:5;padding:10px 14px;display:flex;align-items:center;gap:10px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent)">
         <button onclick="cllExit()" style="padding:6px 13px;border:1px solid rgba(56,189,248,.35);border-radius:8px;background:rgba(56,189,248,.08);color:#38bdf8;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;cursor:pointer;flex-shrink:0">← HUB</button>
         <div id="cllTitle" style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.2em;color:#06b6d4;flex:1;text-align:center;text-shadow:0 0 18px rgba(6,182,212,.6)">CREDIT LIMIT LAB · LV 1/3</div>
+        <button onclick="cllShowHelp()" title="How to play" style="padding:6px 10px;border:1px solid rgba(56,189,248,.35);border-radius:8px;background:rgba(56,189,248,.08);color:#38bdf8;cursor:pointer;font-size:.75rem;flex-shrink:0">❓</button>
         <div id="cllScore" style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:#fbbf24;min-width:60px;text-align:right;font-variant-numeric:tabular-nums">0</div>
         <div id="cllTime" style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:#e2e8f0;min-width:36px;text-align:right;font-variant-numeric:tabular-nums">90s</div>
       </div>
@@ -152,6 +159,9 @@
 
       <!-- GAME OVER OVERLAY -->
       <div id="cllOver" style="position:absolute;inset:0;z-index:10;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(3,4,12,.9);backdrop-filter:blur(8px);gap:16px;padding:28px;text-align:center"></div>
+
+      <!-- HOW TO PLAY overlay (shown once at start, reopened via ❓) -->
+      <div id="cllHelp" style="position:absolute;inset:0;z-index:11;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.9);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box"></div>
     </div>`;
   };
 
@@ -204,7 +214,53 @@
     G.last = performance.now();
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(loop);
+
+    if(_cllFreshEntry){
+      // only the very first boot after a hub entry auto-shows the tutorial and
+      // holds gameplay; replays/next-level (which also call cllBoot()) skip
+      // straight to 'play' — reopening the same explanation is still always
+      // available via the ❓ button (cllShowHelp).
+      _cllFreshEntry = false;
+      G.phase = 'help'; // hold on the tutorial before gameplay/timer starts ticking
+      showHowToPlay(true);
+    }
   }
+
+  /* ─── HOW TO PLAY — shown once per session at first boot, reopened via ❓.
+     While G.phase is 'help' (not 'play'), loop() below skips update() entirely
+     and only keeps calling render(), so G.time never advances and nothing is
+     double-counted. ────────────────────────────────────────────────────── */
+  function showHowToPlay(firstTime){
+    const help = document.getElementById('cllHelp');
+    if(!help || !G) return;
+    help.style.display = 'flex';
+    help.innerHTML = `
+      <div style="max-width:360px;width:100%;text-align:center;padding:26px 22px;background:linear-gradient(160deg,rgba(3,4,12,.97),rgba(2,20,30,.97));border:1px solid rgba(56,189,248,.4);border-radius:20px;box-shadow:0 0 50px rgba(6,182,212,.2)">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.2em;color:#38bdf8;margin-bottom:10px">HOW TO PLAY</div>
+        <div style="font-size:2rem;margin-bottom:8px">🧪</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:1rem;margin-bottom:14px;color:#fff">CREDIT LIMIT LAB</div>
+        <ul style="text-align:left;font-size:.78rem;color:#ddd;line-height:1.65;margin:0 0 18px;padding-left:18px">
+          <li>Move your basket left and right — with your mouse, finger, or the ← → arrow keys — to catch falling items.</li>
+          <li>Green items lower your credit utilization (good!). Red items push it up (watch out!).</li>
+          <li>Keep utilization in the HEALTHY zone below 30% — the meter at the top shows exactly where you stand.</li>
+          <li>Catching good items in a row builds a combo streak that multiplies your points and adds bigger bursts.</li>
+          <li>Score as many points as you can before time runs out — all 3 levels use this same idea, just faster and trickier!</li>
+        </ul>
+        <button id="cllHelpBtn" style="padding:13px 30px;border:none;border-radius:11px;background:linear-gradient(90deg,#06b6d4,#38bdf8);color:#031017;font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${firstTime ? 'GOT IT — START ▶' : '▶ RESUME'}</button>
+      </div>`;
+    const btn = document.getElementById('cllHelpBtn');
+    if(btn) btn.onclick = () => {
+      help.style.display = 'none';
+      if(!G) return;
+      G.last = performance.now(); // reset the frame clock so the next dt is ~0, not the whole paused span
+      G.phase = 'play';
+    };
+  }
+  window.cllShowHelp = function(){
+    if(!G || G.phase !== 'play') return;
+    G.phase = 'help';
+    showHowToPlay(false);
+  };
 
   /* ─── MAIN LOOP ───────────────────────────────────────────── */
   function loop(now){
@@ -343,30 +399,34 @@
     const scoreEl = document.getElementById('cllScore');
     if(scoreEl) scoreEl.textContent = G.score;
 
-    // Float label
+    // Float label — text grows with combo tier so a x4 catch visibly pops harder than a x1
+    const comboScale = it.good ? G.comboMult : 1;
     const label = (earned >= 0 ? '+' : '') + earned + ' pts';
-    spawnFloat(sx, sy - 20, label, it.good ? '#34d399' : '#ef4444');
+    spawnFloat(sx, sy - 20, label, it.good ? '#34d399' : '#ef4444', comboScale);
 
     // Util float
     const utilLabel = (def.util >= 0 ? '+' : '') + def.util + '% util';
-    spawnFloat(sx, sy - 44, utilLabel, it.good ? '#06b6d4' : '#f97316');
+    spawnFloat(sx, sy - 44, utilLabel, it.good ? '#06b6d4' : '#f97316', 1);
 
-    // Particles
-    burst(sx, sy, it.good ? '#34d399' : '#ef4444', it.good ? 10 : 6);
+    // Particles — burst size/speed scale with combo depth (visual only, scoring untouched)
+    const burstCount = it.good ? Math.min(10 + comboScale * 4, 26) : 6;
+    const burstSpeedMult = it.good ? 1 + (comboScale - 1) * 0.25 : 1;
+    burst(sx, sy, it.good ? '#34d399' : '#ef4444', burstCount, burstSpeedMult);
   }
 
   /* ─── PARTICLES ───────────────────────────────────────────── */
-  function burst(x, y, color, count){
+  function burst(x, y, color, count, speedMult){
+    speedMult = speedMult || 1;
     for(let i = 0; i < count; i++){
       const angle = (Math.PI*2 * i/count) + rnd(-0.4,0.4);
-      const speed = rnd(60,180);
+      const speed = rnd(60,180) * speedMult;
       G.particles.push({ x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed - 80, color, life: rnd(.4,.8), size: rnd(2,5) });
     }
   }
 
   /* ─── FLOATS ──────────────────────────────────────────────── */
-  function spawnFloat(x, y, text, color){
-    G.floats.push({ x, y, text, color, life: 1.0 });
+  function spawnFloat(x, y, text, color, scale){
+    G.floats.push({ x, y, text, color, life: 1.0, scale: scale || 1 });
   }
 
   /* ─── METER UI UPDATE ─────────────────────────────────────── */
@@ -495,17 +555,18 @@
       ctx.restore();
     });
 
-    // Float labels
+    // Float labels — size scales with combo tier (fl.scale) so a high-combo catch reads bigger
     G.floats.forEach(fl => {
       const a = clamp(fl.life, 0, 1);
+      const fsize = Math.round(13 + ((fl.scale||1) - 1) * 3);
       ctx.save();
       ctx.globalAlpha = a;
-      ctx.font = `700 13px Orbitron,sans-serif`;
+      ctx.font = `700 ${fsize}px Orbitron,sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = fl.color;
       ctx.shadowColor = fl.color;
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = 8 + ((fl.scale||1) - 1) * 2;
       ctx.fillText(fl.text, fl.x, fl.y);
       ctx.restore();
     });
@@ -623,7 +684,11 @@
     const ov = document.getElementById('cllOver');
     if(!ov) return;
     ov.style.display = 'flex';
+    /* win (real stars, no crash) gets a punchy overshoot pop; a util-maxout crash
+       gets a plain, subdued fade — so the end screen actually feels different, not just re-texted */
+    const endAnim = earlyCrash ? 'cllFadeIn .4s ease' : 'cllWinPop .5s cubic-bezier(.34,1.56,.64,1)';
     ov.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;gap:16px;animation:${endAnim}">
       <div style="font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.22em;color:#38bdf8;opacity:.8;margin-bottom:-6px">${headline}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:900;letter-spacing:.06em;background:linear-gradient(135deg,#06b6d4,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0">
         ${G.score}<span style="font-size:.6rem;opacity:.6"> PTS</span>
@@ -659,6 +724,7 @@
       <div style="display:flex;gap:12px;margin-top:4px">
         <button onclick="cllReplay()" style="padding:12px 24px;background:linear-gradient(135deg,#0891b2,#06b6d4);border:none;border-radius:10px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.15em;cursor:pointer;box-shadow:0 4px 20px rgba(6,182,212,.4)">${showNext ? 'REPLAY LV '+curLevel : 'PLAY AGAIN'}</button>
         <button onclick="cllExit()" style="padding:12px 24px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:10px;color:#e2e8f0;font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.15em;cursor:pointer">← HUB</button>
+      </div>
       </div>`;
   }
 

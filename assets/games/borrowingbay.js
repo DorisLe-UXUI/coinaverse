@@ -351,6 +351,7 @@
      1.  STATE
   ───────────────────────────────────────────── */
   let gs = null; // game state, reset on each play
+  let _bbHelpShown = false; // module-level (survives freshState() resets) — tutorial auto-shows once per hub visit, not on every replay/next-level
 
   function freshState() {
     return {
@@ -378,6 +379,7 @@
     window.SCREENS[SCREEN_ID] = function() {
       if (window.state) window.state.viewingWorld = 'credtech';
       setLevel(1); // fresh entry from hub always starts at Level 1
+      _bbHelpShown = false; // re-show the tutorial once per fresh hub visit
       gs = freshState();
       const html = `<style>${CSS}</style><div id="bb-root"><canvas id="bb-stars"></canvas>${renderTopBar()}${renderBudgetStrip()}${renderProgressDots()}<div id="bb-stage"></div></div>`;
       setTimeout(function(){
@@ -458,6 +460,7 @@
       <div id="bb-topbar">
         <button class="bb-back" onclick="borrowingbayExit()">&#8592;</button>
         <div id="bb-title">BORROWING BAY <span id="bb-level-badge" style="color:#38bdf8">· LV ${curLevel}/3</span></div>
+        <button class="bb-help-btn" onclick="bbShowHelp()" title="How to play">?</button>
         <div id="bb-hud-right">
           <span id="bb-score-val" class="bb-gold">0 pts</span>
           <span id="bb-session-timer" class="bb-cyan">${Math.floor(SESSION_SECS/60)}:${(SESSION_SECS%60).toString().padStart(2,'0')}</span>
@@ -504,6 +507,8 @@
       renderGate(stage);
     } else if (gs.phase === 'ended') {
       renderEnd(stage);
+    } else if (gs.phase === 'help') {
+      renderHelp(stage);
     } else {
       stage.innerHTML = '';
     }
@@ -594,6 +599,79 @@
       </div>
     `;
   }
+
+  /* ─────────────────────────────────────────────
+     9b. HOW-TO-PLAY OVERLAY — shown once automatically before the very first
+     card (gs.phase gated to 'help' inside startSession), and reopenable any
+     time via the ❓ button. One explanation covers all 3 levels since the
+     mechanic never changes — just tighter budgets & faster card timers.
+  ───────────────────────────────────────────── */
+  function renderHelp(stage) {
+    const resuming = gs._helpResumePhase != null;
+    stage.innerHTML = `
+      <div class="bb-gate">
+        <div class="bb-gate-icon">🏦</div>
+        <div class="bb-gate-title">HOW TO PLAY — BORROWING BAY</div>
+        <div class="bb-gate-body" style="text-align:left">
+          <ul style="margin:0;padding-left:18px;line-height:1.65">
+            <li>A loan offer appears — read the amount, APR and monthly payment before time runs out.</li>
+            <li>Choose <strong style="color:#34d399">APPROVE</strong> if it's a smart, affordable loan, or <strong style="color:#ef4444">DECLINE</strong> if it's a bad deal or breaks your budget.</li>
+            <li>Tap a button, swipe the card, or use the A / D keys (← / →).</li>
+            <li>Watch your <strong>Budget Left</strong> — approving a loan lowers it, and going over budget is a red flag.</li>
+            <li>Great decisions earn more points and stars — each of the 3 levels just moves faster with tighter budgets.</li>
+          </ul>
+        </div>
+        <button class="bb-gate-btn" onclick="bbCloseHelp()">${resuming ? '▶ RESUME' : 'GOT IT — START ▶'}</button>
+      </div>
+    `;
+  }
+
+  window.bbShowHelp = function() {
+    if (!gs || gs.phase === 'help') return;
+    if (gs.phase === 'ended') return; // end screen already has its own summary; no help needed there
+    gs._helpResumePhase = gs.phase; // remember what to resume into ('idle' on first-ever entry, 'playing' or 'gate' mid-run)
+    if (gs.phase === 'playing') clearInterval(gs.cardTimer); // stop the card timer at its current cardLeft value (session timer stopped by clearTimers() below)
+    clearTimers(); // stops session + card intervals cleanly; both are plain decrementing counters so no elapsed-time shift is needed on resume
+    gs.phase = 'help';
+    renderStage();
+  };
+
+  window.bbCloseHelp = function() {
+    if (!gs) return;
+    const resumePhase = gs._helpResumePhase;
+    gs._helpResumePhase = null;
+
+    if (resumePhase === 'playing' || resumePhase === 'gate') {
+      // Mid-run reopen: restore the exact phase and restart timers from the
+      // frozen gs.sessionLeft / gs.cardLeft — clearInterval() never advanced
+      // those counters while the overlay was open, so no time was lost or
+      // double-counted (e.g. 30s left, held open 8s, still 30s on resume).
+      gs.phase = resumePhase;
+      renderStage();
+      updateHUD();
+      gs.sessionTimer = setInterval(() => {
+        gs.sessionLeft--;
+        updateHUD();
+        if (gs.sessionLeft <= 0) { clearTimers(); endGame(); }
+      }, 1000);
+      if (resumePhase === 'playing') {
+        gs.cardTimer = setInterval(() => {
+          gs.cardLeft--;
+          updateCardBar();
+          if (gs.cardLeft <= 0) {
+            clearInterval(gs.cardTimer);
+            gs.cardTimer = null;
+            handleDecision('TIMEOUT');
+          }
+        }, 1000);
+      }
+    } else {
+      // First-ever entry (resumePhase was 'idle'): hand off to the normal
+      // start path, which flips phase to 'playing' and boots both timers.
+      gs.phase = 'idle';
+      startSession();
+    }
+  };
 
   /* ─────────────────────────────────────────────
      10. END SCREEN
@@ -710,6 +788,19 @@
   ───────────────────────────────────────────── */
   function startSession() {
     if (gs.phase !== 'idle') return;
+
+    if (!_bbHelpShown) {
+      // First time this game session reaches actual gameplay — show the
+      // tutorial before card 1 instead of starting timers. bbCloseHelp()'s
+      // 'idle' resumePhase branch calls startSession() again afterward,
+      // and by then _bbHelpShown is true so this branch is skipped.
+      _bbHelpShown = true;
+      gs._helpResumePhase = 'idle';
+      gs.phase = 'help';
+      renderStage();
+      return;
+    }
+
     gs.phase      = 'playing';
     gs.startTime  = Date.now();
     gs.cardLeft   = CARD_SECS;
@@ -1128,6 +1219,21 @@
       transition: background 0.2s;
     }
     .bb-back:hover { background: rgba(255,255,255,0.15); }
+
+    .bb-help-btn {
+      background: rgba(56,189,248,0.12);
+      border: 1px solid rgba(56,189,248,0.35);
+      color: #38bdf8;
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s;
+    }
+    .bb-help-btn:hover { background: rgba(56,189,248,0.22); }
 
     #bb-title {
       font-family: 'Orbitron', monospace, sans-serif;

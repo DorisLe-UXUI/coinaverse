@@ -279,6 +279,20 @@
     from { transform:translateY(32px) scale(.94); opacity:0; }
     to   { transform:translateY(0) scale(1); opacity:1; }
   }
+  /* win-only end-screen entrance: bouncy scale+rotate pop, distinct from the
+     loss screen's plain pdl_result_in fade (see endGame()) */
+  @keyframes pdl_win_pop {
+    0%   { transform:scale(.4) rotate(-8deg); opacity:0; }
+    60%  { transform:scale(1.08) rotate(2deg); opacity:1; }
+    100% { transform:scale(1) rotate(0deg); opacity:1; }
+  }
+  /* floating "+N SAT" label spawned at a bug chip's location (see
+     spawnFloatingGain / fixBug) */
+  @keyframes pdl_float_gain {
+    0%   { transform:translate(-50%,-50%) scale(.7); opacity:0; }
+    25%  { transform:translate(-50%,-70%) scale(1.1); opacity:1; }
+    100% { transform:translate(-50%,-140%) scale(1); opacity:0; }
+  }
   @keyframes pdl_star_pop {
     0%   { transform:scale(0) rotate(-20deg); opacity:0; }
     70%  { transform:scale(1.2) rotate(5deg);  opacity:1; }
@@ -895,6 +909,13 @@
     if (G.budget < bug.cost) { showToast('💸 Not enough budget to fix!', RED); return; }
     if (G.timeLeft <= bug.time) { showToast('⏰ No time to fix bug!', AMBER); return; }
 
+    // capture the clicked chip's on-screen position BEFORE the re-render
+    // removes it, so the "+N SAT" floats from the bug the player actually
+    // fixed rather than only showing a generic bottom toast (matters once
+    // several bug chips are active at once — see spawnFloatingGain).
+    const chipEl = document.querySelector(`.pdl-bug-chip[data-bug-id="${bug.id}"]`);
+    const chipRect = chipEl ? chipEl.getBoundingClientRect() : null;
+
     G.budget   -= bug.cost;
     G.timeLeft -= bug.time;
     G.bugs.splice(idx, 1);
@@ -903,6 +924,7 @@
     const satReturn = Math.floor(bug.satPenalty * 0.8);
     G.satisfaction = Math.min(100, G.satisfaction + satReturn);
 
+    if (chipRect) spawnFloatingGain(chipRect.left + chipRect.width / 2, chipRect.top, `+${satReturn} SAT`, GREEN);
     showToast(`🛠 ${bug.label} fixed! +${satReturn} SAT`, GREEN);
     updateHUD();
     updateTimerDisplay();
@@ -921,6 +943,7 @@
       G.bugs.forEach(bug => {
         const chip = document.createElement('div');
         chip.className = 'pdl-bug-chip';
+        chip.dataset.bugId = bug.id; // lets fixBug() locate this exact chip's position for its floating "+N SAT"
         chip.innerHTML = `${bug.icon} ${bug.label} <span style="color:${RED};font-family:Orbitron,sans-serif;font-size:.48rem">−$${bug.cost}</span>`;
         chip.title = `Click to fix: −$${bug.cost}, −${bug.time}s dev time`;
         chip.addEventListener('click', () => fixBug(bug.id));
@@ -1388,6 +1411,11 @@
       </div>
     `).join('');
 
+    /* win gets the bouncy pop (pdl_win_pop); loss keeps the plain fade
+       (pdl_result_in) — so the launch-complete moment reads as more
+       celebratory than a loss, instead of the card just swapping text */
+    const resultAnim = won ? 'pdl_win_pop .5s cubic-bezier(.2,1.4,.4,1) both' : 'pdl_result_in .45s ease both';
+
     ov.innerHTML = `
       <div style="
         width:min(380px,96vw);
@@ -1395,7 +1423,7 @@
         border:2px solid ${ACCENT}44;border-radius:22px;padding:24px 20px;
         text-align:center;box-shadow:0 0 60px ${ACCENT}22,0 20px 60px rgba(0,0,0,.7);
         position:relative;overflow:hidden;
-        animation:pdl_result_in .45s ease both;
+        animation:${resultAnim};
       ">
         <!-- top glow bar -->
         <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${ACCENT},${AC2},transparent)"></div>
@@ -1515,6 +1543,21 @@
     clearTimeout(G && G._toastTimer);
     if (G) G._toastTimer = setTimeout(() => { if (t) t.style.opacity = '0'; }, 2200);
     else setTimeout(() => { if (t) t.style.opacity = '0'; }, 2200);
+  }
+
+  /* ── floating gain text ────────────────────────────────────────
+     Spawns a small rising/fading label at a fixed-viewport (x,y) — used
+     by fixBug() so the "+N SAT" appears at the specific bug chip just
+     fixed rather than only the generic bottom toast, which matters once
+     several bug chips are active on screen at once. Purely visual. ── */
+  function spawnFloatingGain(x, y, text, color) {
+    const root = document.getElementById('pdl_root');
+    if (!root) return;
+    const el = document.createElement('div');
+    el.textContent = text;
+    el.style.cssText = `position:fixed;left:${x}px;top:${y}px;transform:translate(-50%,-50%);z-index:70;pointer-events:none;font-family:Orbitron,sans-serif;font-size:.62rem;font-weight:900;color:${color};text-shadow:0 0 10px ${color};animation:pdl_float_gain .8s ease-out forwards`;
+    root.appendChild(el);
+    setTimeout(() => el.remove(), 820);
   }
 
   /* ── debug hooks (console-only, no UI) ──────────────────────── */

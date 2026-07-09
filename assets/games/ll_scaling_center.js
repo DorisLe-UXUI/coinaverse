@@ -135,6 +135,20 @@
     cancelAnimationFrame(_raf);
     setTimeout(initGame, 40);
     return `
+<style id="sc_styles">
+  /* win-only entrance for the final result / level-complete overlays:
+     bouncy scale+rotate pop, distinct from the loss screen's plain fade
+     (see endGame() / showLevelComplete()) */
+  @keyframes sc_win_pop {
+    0%   { transform:scale(.4) rotate(-8deg); opacity:0; }
+    60%  { transform:scale(1.08) rotate(2deg); opacity:1; }
+    100% { transform:scale(1) rotate(0deg); opacity:1; }
+  }
+  @keyframes sc_loss_fade {
+    from { transform:scale(.97); opacity:0; }
+    to   { transform:scale(1); opacity:1; }
+  }
+</style>
 <div id="sc_root" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none;">
   <!-- TOP BAR -->
   <div id="sc_topbar" style="position:absolute;top:0;left:0;right:0;height:52px;background:${BG2};border-bottom:1px solid ${ACC}40;display:flex;align-items:center;padding:0 12px;gap:12px;z-index:30;">
@@ -697,29 +711,34 @@
     if (!G || !G.selectedNode) return;
     const nd = G.selectedNode;
     const cost = 150;
-    if (G.budget < cost) { flashMsg('Not enough budget!', DANGER); return; }
-    if (nd.level >= 3) { flashMsg('Already max level!', WARN); return; }
+    if (G.budget < cost) { flashMsg('Not enough budget!', DANGER, nd.x, nd.y); return; }
+    if (nd.level >= 3) { flashMsg('Already max level!', WARN, nd.x, nd.y); return; }
     G.budget -= cost;
     nd.level++;
     nd.throughput = Math.min(100, nd.throughput + 20);
     spawnParticles(nd.x, nd.y, GOLD, 16);
-    flashMsg(`${NODE_TYPES[nd.type].label} upgraded to L${nd.level}!`, GOOD);
+    flashMsg(`${NODE_TYPES[nd.type].label} upgraded to L${nd.level}!`, GOOD, nd.x, nd.y);
   }
 
   /* ── try to add a route between two nodes ────────────────────── */
   function tryConnect (from, to) {
+    /* midpoint used to anchor all flashMsg calls below at the route the
+       player is actually drawing, instead of a fixed top-center spot */
+    const midX = (from.x + to.x) / 2;
+    const midY = (from.y + to.y) / 2;
+
     /* check not duplicate */
     const exists = G.routes.find(r =>
       (r.fromId === from.id && r.toId === to.id) ||
       (r.fromId === to.id   && r.toId === from.id)
     );
-    if (exists) { flashMsg('Route already exists', WARN); return; }
+    if (exists) { flashMsg('Route already exists', WARN, midX, midY); return; }
 
     /* cost = pixel distance * 0.2 */
     const dist = Math.hypot(from.x - to.x, from.y - to.y);
     const cost = Math.round(dist * 0.25);
 
-    if (G.budget < cost) { flashMsg(`Need $${cost} — not enough budget!`, DANGER); return; }
+    if (G.budget < cost) { flashMsg(`Need $${cost} — not enough budget!`, DANGER, midX, midY); return; }
 
     G.budget -= cost;
     G.routes.push({
@@ -737,10 +756,10 @@
       (to.type === res.from && from.type === res.to)
     );
     if (validLink) {
-      spawnParticles((from.x + to.x) / 2, (from.y + to.y) / 2, ACC2, 10);
-      flashMsg(`${validLink.emoji} ${validLink.label} route active! -$${cost}`, GOOD);
+      spawnParticles(midX, midY, ACC2, 10);
+      flashMsg(`${validLink.emoji} ${validLink.label} route active! -$${cost}`, GOOD, midX, midY);
     } else {
-      flashMsg(`Route connected -$${cost}`, ACC2);
+      flashMsg(`Route connected -$${cost}`, ACC2, midX, midY);
     }
 
     /* update hint */
@@ -762,7 +781,7 @@
       /* partial refund */
       const refund = Math.floor(best.cost * 0.4);
       G.budget += refund;
-      flashMsg(`Route removed. Refunded $${refund}`, WARN);
+      flashMsg(`Route removed. Refunded $${refund}`, WARN, x, y);
     }
   }
 
@@ -1157,17 +1176,59 @@
   ══════════════════════════════════════════════════════════════ */
   let _flashTimer = null;
   let _disruptTimer = null;
-  function flashMsg (msg, color) {
+
+  /* convert canvas-internal coordinates (as used by G.nodes[].x/y and route
+     midpoints) to viewport/client coordinates, for positioning an
+     absolutely-positioned HTML element over the canvas. Inverse of
+     canvasPos() above. */
+  function canvasToClient (cx, cy) {
+    if (!_canvas) return null;
+    const rect = _canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    return {
+      x: rect.left + cx * (rect.width  / _canvas.width),
+      y: rect.top  + cy * (rect.height / _canvas.height),
+    };
+  }
+
+  /* anchorCX/anchorCY (optional, canvas-space): with up to 13 nodes active
+     in Level 3, anchoring the message at the node/route that triggered it
+     (instead of a fixed top-center position) lets the player tell which
+     specific action just happened. Falls back to the original fixed
+     top-center spot when no coordinates are given or conversion fails
+     (e.g. canvas not yet laid out). */
+  function flashMsg (msg, color, anchorCX, anchorCY) {
     let el = document.getElementById('sc_flash');
     if (!el) {
       el = document.createElement('div');
       el.id = 'sc_flash';
+      /* max-width + normal wrap (not nowrap) so a longer message can't
+         bleed past the viewport edge on narrow screens once it's anchored
+         near a node close to the left/right edge instead of always
+         center-screen */
       el.style.cssText = `position:absolute;top:90px;left:50%;transform:translateX(-50%);
         background:${BG2}ee;border:1px solid ${ACC}40;border-radius:8px;
         padding:8px 18px;font-size:13px;z-index:40;pointer-events:none;
-        transition:opacity 0.3s;white-space:nowrap;`;
+        transition:opacity 0.3s;white-space:normal;max-width:min(280px,86vw);text-align:center;`;
       document.getElementById('sc_root').appendChild(el);
     }
+
+    let pos = null;
+    if (anchorCX !== undefined && anchorCY !== undefined) {
+      pos = canvasToClient(anchorCX, anchorCY);
+    }
+    if (pos) {
+      const clampedX = Math.max(80, Math.min(window.innerWidth  - 80, pos.x));
+      const clampedY = Math.max(70, Math.min(window.innerHeight - 40, pos.y - 34)); // float just above the node
+      el.style.top       = clampedY + 'px';
+      el.style.left      = clampedX + 'px';
+      el.style.transform = 'translate(-50%,-100%)';
+    } else {
+      el.style.top       = '90px';
+      el.style.left      = '50%';
+      el.style.transform = 'translateX(-50%)';
+    }
+
     el.textContent  = msg;
     el.style.color  = color || '#fff';
     el.style.borderColor = (color || ACC) + '80';
@@ -1219,11 +1280,15 @@
     const flavor = completedLvl === 1
       ? 'City scaled. Time to go multi-city!'
       : 'Multi-city network mastered. One challenge remains — go legendary!';
+    /* this screen only ever shows on a level win (see finishLevel), so it
+       always gets the bouncy win-pop entrance, never the plain loss fade */
     ov.innerHTML = `
-      <div style="font-size:36px;margin-bottom:8px;">${starStr}</div>
-      <div style="font-family:'Orbitron',monospace;font-size:20px;color:${GOOD};margin-bottom:6px;">CITY SCALED!</div>
-      <div style="font-size:13px;color:#888;margin-bottom:24px;">Level ${completedLvl} complete. ${flavor}</div>
-      <button onclick="this.closest('#sc_overlay').style.display='none';window._scContinue()" style="background:${ACC};border:none;color:#fff;padding:12px 32px;border-radius:8px;cursor:pointer;font-size:15px;font-family:Orbitron,monospace;letter-spacing:1px;">CONTINUE → LEVEL ${nextLvl}</button>`;
+      <div style="animation:sc_win_pop .5s cubic-bezier(.2,1.4,.4,1) both;text-align:center">
+        <div style="font-size:36px;margin-bottom:8px;">${starStr}</div>
+        <div style="font-family:'Orbitron',monospace;font-size:20px;color:${GOOD};margin-bottom:6px;">CITY SCALED!</div>
+        <div style="font-size:13px;color:#888;margin-bottom:24px;">Level ${completedLvl} complete. ${flavor}</div>
+        <button onclick="this.closest('#sc_overlay').style.display='none';window._scContinue()" style="background:${ACC};border:none;color:#fff;padding:12px 32px;border-radius:8px;cursor:pointer;font-size:15px;font-family:Orbitron,monospace;letter-spacing:1px;">CONTINUE → LEVEL ${nextLvl}</button>
+      </div>`;
     window._scContinue = onContinue;
   }
 
@@ -1258,8 +1323,13 @@
       <div style="font-size:13px;color:#ccc;line-height:1.6;">The best businesses do not just grow — they <span style="color:${ACC2};font-weight:600;">scale</span>. Scaling means using systems, automation and smart routing so that doing more does not always cost more. That is how a startup becomes a global company.</div>
     </div>`;
 
+    /* win gets the bouncy pop (sc_win_pop); loss gets a plain fade
+       (sc_loss_fade) — so reaching Global Company status feels more
+       celebratory than an operation failure, instead of identical statics */
+    const endAnim = won ? 'sc_win_pop .5s cubic-bezier(.2,1.4,.4,1) both' : 'sc_loss_fade .35s ease both';
+
     ov.innerHTML = `
-      <div style="text-align:center;padding:20px;">
+      <div style="text-align:center;padding:20px;animation:${endAnim};">
         <div style="font-size:40px;margin-bottom:6px;">${starStr}</div>
         <div style="font-family:'Orbitron',monospace;font-size:22px;color:${titleCol};margin-bottom:4px;letter-spacing:2px;">${titleMsg}</div>
         <div style="font-size:13px;color:#888;margin-bottom:16px;">Throughput: ${G ? G.score : 0} · Budget remaining: $${G ? G.budget : 0}</div>

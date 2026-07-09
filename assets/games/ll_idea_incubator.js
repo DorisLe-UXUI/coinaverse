@@ -202,6 +202,26 @@
     cancelAnimationFrame(_raf);
     setTimeout(initGame, 40);
     return `
+<style id="iiStyles">
+  /* combo burst particle — spawned dynamically at the matched card location,
+     count + size scale with combo depth (see spawnComboBurst) */
+  @keyframes iiBurstPop {
+    0%   { transform: translate(-50%,-50%) scale(0.3); opacity: 1; }
+    70%  { opacity: 1; }
+    100% { transform: translate(-50%,-50%) scale(1); opacity: 0; }
+  }
+  /* win-screen card entrance: bouncy scale+rotate pop-in, distinct from the
+     flat loss screen's plain fade (see endGame()) */
+  @keyframes iiWinPop {
+    0%   { transform: scale(0.4) rotate(-8deg); opacity: 0; }
+    60%  { transform: scale(1.08) rotate(2deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+  @keyframes iiLossFade {
+    from { transform: scale(0.97); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+</style>
 <div id="iiRoot" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none">
 
   <!-- Background: holographic grid lines -->
@@ -269,8 +289,16 @@
     <div id="iiDisrText" style="font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.1em;color:${GOLD};margin-top:4px"></div>
   </div>
 
-  <!-- Match feedback flash -->
+  <!-- Match feedback flash — position (top/left) is set dynamically at flash
+       time to the triggering card's on-screen location (see flashFeedback),
+       so with multiple cards active the player can tell which one fired it.
+       Falls back to screen-center only when no specific element triggered it
+       (e.g. the TREND BLOCK disruptor message, which isn't tied to one card). -->
   <div id="iiFeedback" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:40;pointer-events:none;display:none;font-family:Orbitron,sans-serif;font-size:1.6rem;font-weight:900;text-align:center"></div>
+
+  <!-- Combo burst particles container — particles spawned here at match
+       location, count/size scale with combo depth (see spawnComboBurst) -->
+  <div id="iiBurstLayer" style="position:absolute;inset:0;z-index:35;pointer-events:none;overflow:hidden"></div>
 
   <!-- End overlay -->
   <div id="iiOver" style="position:absolute;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.94);backdrop-filter:blur(6px)"></div>
@@ -758,7 +786,7 @@
       if (G.blockCat && prob.category === G.blockCat) {
         correct = false;
         G.blockCat = null;
-        flashFeedback('📉 TREND BLOCK!', DANGER, false);
+        flashFeedback('📉 TREND BLOCK!', DANGER, false, 'sol_' + sol.id);
         return;
       }
     }
@@ -796,7 +824,7 @@
       energy     *= 2;
       pts        *= 2;
       G.doubleNext = false;
-      flashFeedback('💼 DOUBLE SCORE!', GOLD, true);
+      flashFeedback('💼 DOUBLE SCORE!', GOLD, true, 'sol_' + sol.id);
     }
 
     /* combo bonus */
@@ -817,11 +845,15 @@
     animateCard('prob_' + prob.id, true);
     animateCard('sol_'  + sol.id,  true);
 
-    /* combo flash */
+    /* combo flash — anchored at the solution card the player just dropped
+       onto (matters once several cards are active on screen at once, so the
+       player can tell which match just scored). Burst particle count/size
+       scale with combo depth so a 10x streak visibly pops more than a 3x. */
     if (G.combo >= 3) {
-      flashFeedback(`🔥 ${G.combo}x COMBO!`, GOLD, true);
+      flashFeedback(`🔥 ${G.combo}x COMBO!`, GOLD, true, 'sol_' + sol.id);
+      spawnComboBurst('sol_' + sol.id, G.combo);
     } else {
-      flashFeedback('✅ ' + prob.bizName + ' LAUNCHED!', GOOD, true);
+      flashFeedback('✅ ' + prob.bizName + ' LAUNCHED!', GOOD, true, 'sol_' + sol.id);
     }
 
     updateHUD();
@@ -847,12 +879,12 @@
     /* Level 3: priced outside the active segment's budget (checked first —
        this is the more specific case since id already matched here) */
     if (G.level === 3 && budgetMiss) {
-      flashFeedback('❌ OOPS — OUT OF BUDGET!', DANGER, false);
+      flashFeedback('❌ OOPS — OUT OF BUDGET!', DANGER, false, 'sol_' + sol.id);
     /* Level 2 + 3: demographic mismatch message */
     } else if ((G.level === 2 || G.level === 3) && prob.id === sol.id && G.activeSeg) {
-      flashFeedback('❌ OOPS — SEGMENT MISMATCH!', DANGER, false);
+      flashFeedback('❌ OOPS — SEGMENT MISMATCH!', DANGER, false, 'sol_' + sol.id);
     } else {
-      flashFeedback('❌ NICE TRY — FAILED IDEA!', DANGER, false);
+      flashFeedback('❌ NICE TRY — FAILED IDEA!', DANGER, false, 'sol_' + sol.id);
     }
 
     updateHUD();
@@ -1061,10 +1093,36 @@
     }
   }
 
-  /* ── feedback flash ─────────────────────────────────────────── */
-  function flashFeedback (text, color, success) {
+  /* ── feedback flash ─────────────────────────────────────────────
+     anchorId (optional): id of the card element that triggered this
+     (e.g. 'sol_lunch') — with up to 6+ cards active on screen at once,
+     anchoring the flash there (instead of a fixed screen-center) lets
+     the player tell which specific match just fired. Falls back to
+     viewport-center only when no anchor is given or it isn't found
+     (e.g. a disruptor message not tied to one specific card). Position
+     is clamped so the text never clips off the top/bottom/sides. ── */
+  function flashFeedback (text, color, success, anchorId) {
     const el = document.getElementById('iiFeedback');
     if (!el) return;
+
+    let topPx = null, leftPx = null;
+    if (anchorId) {
+      const anchorEl = document.getElementById(anchorId);
+      if (anchorEl) {
+        const rect = anchorEl.getBoundingClientRect();
+        topPx  = Math.max(60, Math.min(window.innerHeight - 60, rect.top + rect.height / 2));
+        leftPx = Math.max(70, Math.min(window.innerWidth  - 70, rect.left + rect.width  / 2));
+      }
+    }
+
+    if (topPx !== null) {
+      el.style.top  = topPx + 'px';
+      el.style.left = leftPx + 'px';
+    } else {
+      el.style.top  = '50%';
+      el.style.left = '50%';
+    }
+
     el.textContent    = text;
     el.style.color    = color;
     el.style.display  = 'block';
@@ -1078,6 +1136,40 @@
       el.style.transform  = `translate(-50%,-60%) scale(${success ? 1.15 : 0.9})`;
     }, 700);
     setTimeout(() => { el.style.display = 'none'; }, 1300);
+  }
+
+  /* ── combo burst particles ────────────────────────────────────────
+     Spawns small glowing dots at the matched card's location, count and
+     size scaling with combo depth so hit #10 in a streak visibly pops
+     more than hit #3 — purely visual, does not touch scoring. ── */
+  function spawnComboBurst (anchorId, combo) {
+    const layer = document.getElementById('iiBurstLayer');
+    const anchorEl = document.getElementById(anchorId);
+    if (!layer || !anchorEl) return;
+    const rect = anchorEl.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+
+    const count = Math.min(9 + Math.min(12, combo), 21); // scales with combo, capped
+    const size  = Math.min(6 + Math.floor(combo * 0.6), 14); // bigger particles at deeper combo
+
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+      const dist  = 30 + Math.random() * (40 + combo * 3);
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist;
+      p.style.cssText = `position:fixed;left:${cx}px;top:${cy}px;width:${size}px;height:${size}px;border-radius:50%;background:${GOLD};box-shadow:0 0 ${size}px ${GOLD};pointer-events:none;z-index:36;transform:translate(-50%,-50%);animation:iiBurstPop .6s ease-out forwards`;
+      p.style.setProperty('--dx', dx + 'px');
+      p.style.setProperty('--dy', dy + 'px');
+      /* offset final position via a second inline transform applied after
+         a frame so the keyframe's scale animation still applies cleanly */
+      requestAnimationFrame(() => {
+        p.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1)`;
+      });
+      layer.appendChild(p);
+      setTimeout(() => p.remove(), 650);
+    }
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -1213,8 +1305,13 @@
 
     const badgeHTML = stars === 3 ? `<div style="background:rgba(124,58,237,.18);border:1px solid ${ACC}44;border-radius:10px;padding:8px 14px;margin-top:4px"><div style="font-family:Orbitron,sans-serif;font-size:.44rem;letter-spacing:.12em;color:${ACC2}">BADGE UNLOCKED</div><div style="font-size:.8rem;margin-top:2px">🏆 Inventor Badge</div></div>` : '';
 
+    /* win gets a bouncy scale+rotate pop-in (iiWinPop); loss gets a plain
+       fade (iiLossFade) — so the end screen itself feels more celebratory
+       on a win instead of just swapping text on an identically-static card */
+    const cardAnim = won ? 'iiWinPop .5s cubic-bezier(.2,1.4,.4,1) both' : 'iiLossFade .35s ease both';
+
     el.innerHTML = `
-      <div style="max-width:380px;width:92%;text-align:center;border:1.5px solid ${ACC}88;border-radius:18px;padding:28px 20px;background:linear-gradient(160deg,rgba(10,5,22,.98),rgba(18,8,40,.98));box-shadow:0 0 40px ${ACC}33;overflow-y:auto;max-height:90vh">
+      <div style="max-width:380px;width:92%;text-align:center;border:1.5px solid ${ACC}88;border-radius:18px;padding:28px 20px;background:linear-gradient(160deg,rgba(10,5,22,.98),rgba(18,8,40,.98));box-shadow:0 0 40px ${ACC}33;overflow-y:auto;max-height:90vh;animation:${cardAnim}">
         <div style="font-family:Orbitron,sans-serif;font-size:.56rem;letter-spacing:.24em;color:${ACC2};margin-bottom:10px">IDEA INCUBATOR</div>
         <div style="font-size:1.4rem;font-weight:800;color:#fff;margin-bottom:4px">${titleText}</div>
         <div style="font-size:2rem;margin:12px 0;letter-spacing:3px">${starHTML}</div>

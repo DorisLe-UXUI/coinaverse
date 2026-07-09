@@ -97,6 +97,8 @@
       walletHPMax: 100,
       scamsAvoided: 0,
       scamsHit: 0,
+      catchStreak: 0,      // consecutive good catches — visual-only escalation, never touches scoring
+      bestCatchStreak: 0,
       timeLeft: cfg.dur,
       elapsed: 0,
       spawnAcc: 0,
@@ -505,6 +507,7 @@
       // Hit by scam
       G.walletHP = Math.max(0, G.walletHP + item.walletHP);
       G.scamsHit++;
+      G.catchStreak = 0;   // scam hit breaks any good-catch streak
       G.shake = 0.4;
       G.flashBad = 0.5;
       burstParticles(t.x, t.y, '#ff3366', 8);
@@ -513,11 +516,18 @@
       // Collected good item
       G.score += item.pts;
       G.flashGood = 0.18;
+      G.catchStreak = (G.catchStreak || 0) + 1;
+      G.bestCatchStreak = Math.max(G.bestCatchStreak || 0, G.catchStreak);
       if (item.walletHP > 0) {
         G.walletHP = Math.min(G.walletHPMax, G.walletHP + item.walletHP);
       }
-      burstParticles(t.x, t.y, item.color, 6);
-      spawnFloat('+' + item.pts, t.x, t.y, item.color);
+      // Visual-only escalation: a run of consecutive good catches grows the
+      // burst size/speed and float text — hit #1 and hit #10 of a streak
+      // should not look the same. Scoring math is untouched.
+      const streakMult = 1 + Math.min(1.2, Math.max(0, (G.catchStreak - 1) * 0.15));
+      const streakTag = G.catchStreak >= 3 ? ` 🔥x${G.catchStreak}` : '';
+      burstParticles(t.x, t.y, item.color, Math.round(6 * streakMult));
+      spawnFloat('+' + item.pts + streakTag, t.x, t.y, item.color, 15 * streakMult);
     }
   }
 
@@ -536,8 +546,8 @@
     }
   }
 
-  function spawnFloat(text, x, y, color) {
-    G.floatTexts.push({ text, x, y, color, life: 0.85 });
+  function spawnFloat(text, x, y, color, fontSize) {
+    G.floatTexts.push({ text, x, y, color, life: 0.85, fontSize: fontSize || 15 });
   }
 
   /* ── RENDER ─────────────────────────────────────────────────── */
@@ -623,7 +633,7 @@
       ctx.save();
       ctx.globalAlpha = f.life / 0.85;
       ctx.fillStyle = f.color;
-      ctx.font = 'bold 15px Inter';
+      ctx.font = `bold ${f.fontSize || 15}px Inter`;
       ctx.textAlign = 'center';
       ctx.shadowColor = f.color;
       ctx.shadowBlur = 10;
@@ -972,6 +982,29 @@
     }
   }
 
+  /* ── END-OVERLAY ENTRANCE ANIMATION (injected once, idempotent) ──
+     This file has no <style> block (all styling is inline), so the
+     keyframes needed for the win/loss entrance are added to <head>
+     the first time endRound() runs and reused on every replay. ── */
+  function ensureEndAnimStyle() {
+    if (document.getElementById('ccEndAnimStyle')) return;
+    const style = document.createElement('style');
+    style.id = 'ccEndAnimStyle';
+    style.textContent = `
+      @keyframes ccWinPop {
+        0%   { opacity:0; transform:scale(.55) rotate(-3deg); }
+        55%  { opacity:1; transform:scale(1.06) rotate(1deg); }
+        80%  { transform:scale(.97) rotate(0deg); }
+        100% { transform:scale(1); }
+      }
+      @keyframes ccEndFade {
+        0%   { opacity:0; transform:scale(.92); }
+        100% { opacity:1; transform:scale(1); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   /* ── END ROUND ──────────────────────────────────────────────── */
   function endRound() {
     if (!G || G.phase === 'over') return;
@@ -997,6 +1030,14 @@
     const starStr = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
     const overDiv = document.getElementById('ccOver');
     if (!overDiv) return;
+
+    ensureEndAnimStyle();
+    // Win pops in with a celebratory bounce; loss just fades — so the two
+    // outcomes read differently at a glance, not just via swapped text.
+    const won = stars >= 1;
+    overDiv.style.animation = won
+      ? 'ccWinPop .55s cubic-bezier(.22,1.4,.36,1)'
+      : 'ccEndFade .35s ease-out';
 
     const accuracyPct = G.scamsHit + G.scamsAvoided > 0
       ? Math.round(G.scamsAvoided / (G.scamsHit + G.scamsAvoided + 0.01) * 100)

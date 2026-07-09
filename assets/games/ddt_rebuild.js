@@ -223,6 +223,8 @@
       @keyframes rbSetbackIn{from{opacity:0;transform:translateY(-16px) scale(.95)}to{opacity:1;transform:none}}
       @keyframes rbBuildRepair{0%{transform:scale(1)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
       @keyframes rbPop{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1);opacity:1}}
+      @keyframes rbWinCardIn{0%{opacity:0;transform:scale(.6) rotate(-6deg) translateY(20px)}55%{opacity:1;transform:scale(1.08) rotate(2deg) translateY(-4px)}80%{transform:scale(.97) rotate(-1deg)}100%{opacity:1;transform:scale(1) rotate(0) translateY(0)}}
+      @keyframes rbLoseCardIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
       .rbTile{
         flex-shrink:0;width:92px;height:110px;border-radius:14px;
         display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -608,12 +610,16 @@
 
     const action = ACTIONS.find(a=>a.id===building.action);
 
-    // float texts
+    // float texts — streak label grows with streak depth so hit #10 reads as a bigger deal than hit #3
+    const streakScale = streakBonus>0 ? Math.min(0.8 + (G.bonusStreak-3)*0.08, 1.3) : 0.8;
     addFloat(building.x+building.w/2, building.y+building.h/3, `+${totalBonus} pts`, GOLD, 1.1);
     if(orderBonus) addFloat(building.x+building.w/2, building.y+building.h/3+22, 'OPTIMAL ORDER!', GREEN, 0.85);
-    if(streakBonus>0) addFloat(building.x+building.w/2, building.y+building.h/3+44, `STREAK ×${G.bonusStreak}!`, ACCENT_LT, 0.8);
+    if(streakBonus>0) addFloat(building.x+building.w/2, building.y+building.h/3+44, `STREAK ×${G.bonusStreak}!`, ACCENT_LT, streakScale);
 
-    burst(building.x+building.w/2, building.y+building.h/2, action?action.color:ACCENT_LT, 18);
+    // burst particle count scales with streak depth (18 base, up to +24 at high streaks) so the
+    // celebration visibly escalates instead of looking identical from hit #1 to hit #10
+    const burstCount = 18 + Math.min(G.bonusStreak * 2, 24);
+    burst(building.x+building.w/2, building.y+building.h/2, action?action.color:ACCENT_LT, burstCount);
 
     // After animation: mark repaired
     setTimeout(()=>{
@@ -656,7 +662,7 @@
         <div style="display:flex;align-items:flex-start;gap:12px">
           <div style="font-size:1.9rem;line-height:1;flex-shrink:0">${sb.icon}</div>
           <div style="flex:1;min-width:0">
-            <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.14em;color:#fca5a5;margin-bottom:3px">SETBACK: ${sb.label.toUpperCase()}</div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.14em;color:#fca5a5;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">SETBACK: ${sb.label.toUpperCase()}</div>
             <div style="color:rgba(255,255,255,.6);font-size:.7rem;line-height:1.45;margin-bottom:8px">${sb.desc}</div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <div style="font-size:.68rem;color:${RED}">HP −${sb.hpHit}%${G.lv.budgetStart?' · Budget −$'+sb.budgetHit:''}</div>
@@ -1088,8 +1094,12 @@
 
     const mainColor = won ? GREEN : RED;
     const mainLabel = won ? 'DISTRICT RESTORED!' : stars>0 ? 'PARTIAL RESTORATION' : 'FINANCIAL HEALTH FAILED';
+    // Win gets a bouncy, overshooting entrance; loss/partial gets a plain calm fade — so the
+    // win moment reads as more celebratory instead of both states swapping in identically.
+    const cardAnim = won ? 'rbWinCardIn .6s cubic-bezier(.22,1.4,.36,1) both' : 'rbLoseCardIn .4s ease both';
 
     endEl.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;animation:${cardAnim}">
       <div style="font-size:2.5rem;margin-bottom:4px">${won?'🏙️':'🏚️'}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:.2em;color:${mainColor};margin-bottom:8px">${mainLabel}</div>
       <div style="font-size:1.7rem;letter-spacing:.1em;margin-bottom:4px">${starStr}</div>
@@ -1123,6 +1133,7 @@
         <button id="rbChooseLvl" style="padding:12px 20px;border:1px solid rgba(75,45,143,.5);border-radius:12px;background:rgba(42,26,94,.5);color:#c4b5fd;font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.1em;cursor:pointer">⚙ LEVELS</button>
         <button id="rbToHub"     style="padding:12px 20px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.04);color:rgba(255,255,255,.55);font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.08em;cursor:pointer">← HUB</button>
       </div>
+    </div>
     `;
 
     const lvIdx = G.lvIdx;

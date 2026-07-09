@@ -994,11 +994,12 @@
     G._overlayBusy = true;   // level-transition screen owns #ftcmd_end right now — ❓ must not clobber it
     const end = document.getElementById('ftcmd_end');
     if (!end) return;
+    ensureFlashAnimStyle();
 
     const copy = LEVEL_TRANSITION_COPY[lv] || LEVEL_TRANSITION_COPY[2];
 
     end.innerHTML = `
-<div style="text-align:center;padding:30px 24px;max-width:380px;">
+<div style="text-align:center;padding:30px 24px;max-width:380px;animation:ftcmdWinPop .55s cubic-bezier(.22,1.4,.36,1);">
   <div style="font-size:50px;margin-bottom:16px;">⚡</div>
   <div style="font-family:Orbitron,monospace;font-size:20px;color:${ACCENT};margin-bottom:8px;">
     MISSION ACCOMPLISHED!
@@ -1033,9 +1034,13 @@
   }
 
   // ── Flash feedback ─────────────────────────────────────────────
+  // Visual-only escalation: streak depth grows icon size / glow / pop
+  // strength so a 3-streak and a 15-streak don't render identically.
+  // Scoring math (BASE_POINTS, STREAK_BONUS, the -30 penalty) is untouched.
   function flashFeedback(correct, name, streak, bonus) {
     const flash = document.getElementById('ftcmd_flash');
     if (!flash) return;
+    ensureFlashAnimStyle();
 
     const color  = correct ? '#00FF88' : '#FF6B6B';
     const icon   = correct ? '✅' : '❌';
@@ -1044,10 +1049,17 @@
       ? (streak >= 3 ? `🔥 ${streak}-STREAK! +${bonus} BONUS` : `Nice analysis! +${BASE_POINTS} pts`)
       : `-30 pts — Read the signals more carefully.`;
 
+    // Scale caps at 1.6x so a long streak still fits comfortably on screen.
+    const streakMult = correct ? 1 + Math.min(0.6, Math.max(0, (streak - 1) * 0.06)) : 1;
+    const iconPx  = Math.round(40 * streakMult);
+    const boxGlow = Math.round(30 * streakMult);
+    const borderW = streak >= 6 ? 3 : 2;
+
     flash.innerHTML = `
-<div style="background:rgba(3,4,12,.92);border:2px solid ${color};border-radius:14px;
-  padding:18px 28px;text-align:center;box-shadow:0 0 30px ${color}44;">
-  <div style="font-size:40px;margin-bottom:6px;">${icon}</div>
+<div style="background:rgba(3,4,12,.92);border:${borderW}px solid ${color};border-radius:14px;
+  padding:18px 28px;text-align:center;box-shadow:0 0 ${boxGlow}px ${color}44;
+  animation:ftcmdFlashPop .35s cubic-bezier(.22,1.4,.36,1);">
+  <div style="font-size:${iconPx}px;margin-bottom:6px;">${icon}</div>
   <div style="font-family:Orbitron,monospace;font-size:15px;color:${color};font-weight:700;">${label}</div>
   <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:6px;">${sub}</div>
 </div>`;
@@ -1058,6 +1070,31 @@
       flash.style.transition = 'opacity 0.6s';
       flash.style.opacity = '0';
     }, 900);
+  }
+
+  // ── Injected once, idempotent — this file has no <style> block ──
+  function ensureFlashAnimStyle() {
+    if (document.getElementById('ftcmdAnimStyle')) return;
+    const style = document.createElement('style');
+    style.id = 'ftcmdAnimStyle';
+    style.textContent = `
+      @keyframes ftcmdFlashPop {
+        0%   { opacity:0; transform:scale(.6); }
+        60%  { opacity:1; transform:scale(1.08); }
+        100% { transform:scale(1); }
+      }
+      @keyframes ftcmdWinPop {
+        0%   { opacity:0; transform:scale(.55) rotate(-3deg); }
+        55%  { opacity:1; transform:scale(1.06) rotate(1deg); }
+        80%  { transform:scale(.97) rotate(0deg); }
+        100% { transform:scale(1); }
+      }
+      @keyframes ftcmdEndFade {
+        0%   { opacity:0; transform:scale(.92); }
+        100% { opacity:1; transform:scale(1); }
+      }
+    `;
+    document.head.appendChild(style);
   }
 
   // ── Score display ──────────────────────────────────────────────
@@ -1096,6 +1133,7 @@
 
     const end = document.getElementById('ftcmd_end');
     if (!end) return;
+    ensureFlashAnimStyle();
 
     const starsHTML = won
       ? ['⭐','⭐','⭐'].map(function (s, i) {
@@ -1122,8 +1160,12 @@
       ? `<div style="font-size:12px;color:#FFD700;margin-bottom:6px;">🔥 Best Streak: ${G.bestStreak}x</div>`
       : '';
 
+    const endAnim = won
+      ? 'ftcmdWinPop .55s cubic-bezier(.22,1.4,.36,1)'
+      : 'ftcmdEndFade .35s ease-out';
+
     end.innerHTML = `
-<div style="text-align:center;padding:28px 20px;max-width:400px;width:100%;">
+<div style="text-align:center;padding:28px 20px;max-width:400px;width:100%;animation:${endAnim};">
 
   <div style="font-family:Orbitron,monospace;font-size:11px;color:rgba(0,255,255,.5);
     letter-spacing:3px;margin-bottom:12px;">${won ? 'MISSION COMPLETE' : 'NICE TRY — GO AGAIN!'}</div>

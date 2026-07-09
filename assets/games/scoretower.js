@@ -118,6 +118,9 @@
       gateT: cfg.gateEvery, gateIdx: 0,
       /* input gate */
       inputLocked: false,
+      /* good/great landing streak — consecutive positive-scoring landings
+         (resets on a penalty block or a miss-zone landing) */
+      streak: 0, bestStreak: 0,
     };
     spawnBlock();
     updateLevelChrome();
@@ -173,6 +176,7 @@
       <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:10px;padding:11px 16px;background:linear-gradient(180deg,rgba(3,4,12,.92),transparent)">
         <button onclick="scoretowerExit()" style="padding:7px 13px;border:1px solid rgba(251,191,36,.35);border-radius:9px;background:rgba(251,191,36,.08);color:#fde68a;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.12em;cursor:pointer">← CREDTECH</button>
         <div id="stTitle" style="font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.2em;color:#fbbf24;flex:1;text-align:center">🏦 SCORE TOWER · LV 1/3</div>
+        <button onclick="stShowHelp()" title="How to play" style="padding:7px 10px;border:1px solid rgba(251,191,36,.35);border-radius:9px;background:rgba(251,191,36,.08);color:#fde68a;cursor:pointer;font-size:.8rem">❓</button>
         <div id="stTime" style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:#38bdf8;min-width:44px;text-align:right">${LEVELS[0].round}s</div>
       </div>
 
@@ -207,6 +211,9 @@
 
       <!-- END OVERLAY -->
       <div id="stOver" style="position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.88);backdrop-filter:blur(4px)"></div>
+
+      <!-- HOW TO PLAY overlay (shown once at start, reopened via ❓) -->
+      <div id="stHelp" style="position:absolute;inset:0;z-index:11;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.9);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box"></div>
     </div>`;
   };
 
@@ -220,6 +227,10 @@
     if(!cv) return;
     reset();
     const ctx = cv.getContext('2d');
+    /* stBoot() only ever runs once per fresh hub-entry — stRestart() (replay
+       and next-level) calls reset() directly and never re-enters stBoot() —
+       so every call here really is "first time this session at the game." */
+    G.phase = 'help'; // hold on the tutorial before gameplay/timer starts ticking
 
     function size(){
       cv.width  = cv.clientWidth  * devicePixelRatio;
@@ -261,7 +272,45 @@
       render(ctx, cv.clientWidth, cv.clientHeight, now);
     }
     window._stRaf = requestAnimationFrame(loop);
+
+    showHowToPlay(true);
   }
+
+  /* ── How-to-play intro (shown once at start of a fresh game) + ❓ re-open
+     mid-game. G.phase is held at 'help' (not 'play') while this is up, so the
+     rAF loop above never advances the timer — update() is skipped entirely,
+     only render() keeps drawing the frozen frame. ── */
+  function showHowToPlay(firstTime){
+    const help = document.getElementById('stHelp');
+    if(!help || !G) return;
+    help.style.display = 'flex';
+    help.innerHTML = `
+      <div style="max-width:360px;width:100%;text-align:center;padding:26px 22px;background:linear-gradient(160deg,rgba(3,4,12,.97),rgba(30,20,2,.97));border:1px solid rgba(251,191,36,.4);border-radius:20px;box-shadow:0 0 50px rgba(251,191,36,.2)">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.2em;color:#fbbf24;margin-bottom:10px">HOW TO PLAY</div>
+        <div style="font-size:2rem;margin-bottom:8px">🏦</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:1rem;margin-bottom:14px;color:#fff">SCORE TOWER</div>
+        <ul style="text-align:left;font-size:.78rem;color:#ddd;line-height:1.65;margin:0 0 18px;padding-left:18px">
+          <li>A block slides side to side — tap, click, or press SPACE to drop it and build your FICO score toward the target.</li>
+          <li>Drop it near the center glowing zone for the biggest score boost — dead center is a perfect drop!</li>
+          <li>Green blocks raise your score, red blocks lower it — watch out for the ones with a minus sign.</li>
+          <li>Landing good blocks in a row builds a streak that makes the burst and label effects bigger and bolder.</li>
+          <li>Reach the target FICO before time runs out to earn stars and coins — all 3 levels use this same idea, just faster!</li>
+        </ul>
+        <button id="stHelpBtn" style="padding:13px 30px;border:none;border-radius:11px;background:linear-gradient(90deg,#fbbf24,#f59e0b);color:#1a0d00;font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${firstTime ? 'GOT IT — START ▶' : '▶ RESUME'}</button>
+      </div>`;
+    const btn = document.getElementById('stHelpBtn');
+    if(btn) btn.onclick = () => {
+      help.style.display = 'none';
+      if(!G) return;
+      G.last = performance.now(); // reset the frame clock so the next dt is ~0, not the whole paused span
+      G.phase = 'play';
+    };
+  }
+  window.stShowHelp = function(){
+    if(!G || G.phase !== 'play') return;
+    G.phase = 'help';
+    showHowToPlay(false);
+  };
 
   /* ── Drop trigger ────────────────────────────────────────────── */
   function triggerDrop(){
@@ -349,17 +398,31 @@
     /* tower record */
     G.tower.push({ color: b.color, label: b.label, pts });
 
-    /* burst */
-    burst(G.blockX, 0.82, b.color, pts > 0 ? 20 : 14);
+    /* streak — consecutive positive-scoring landings; a penalty block or a
+       miss-zone landing (pts<=0) breaks it. Purely visual, no scoring change. */
+    if(pts > 0){
+      G.streak++;
+      if(G.streak > G.bestStreak) G.bestStreak = G.streak;
+    } else {
+      G.streak = 0;
+    }
+    const streakTier = pts > 0 ? (G.streak >= 6 ? 2 : G.streak >= 3 ? 1 : 0) : 0;
+
+    /* burst — particle count escalates with streak tier so landing #8 in a
+       row visibly pops bigger than landing #1 */
+    const burstN = pts > 0 ? (streakTier === 2 ? 34 : streakTier === 1 ? 26 : 20) : 14;
+    burst(G.blockX, 0.82, streakTier === 2 ? '#fbbf24' : b.color, burstN);
 
     /* float label */
     const sign = pts >= 0 ? '+' : '';
     floatTxt(G.blockX, 0.78, sign + pts + ' FICO', pts >= 0 ? b.color : '#ef4444', true);
     if(great && pts > 0) floatTxt(G.blockX, 0.72, 'PERFECT!', '#fbbf24', false);
+    if(streakTier === 1) floatTxt(G.blockX, 0.66, G.streak + 'x STREAK!', '#34d399', false);
+    if(streakTier === 2) floatTxt(G.blockX, 0.66, '🔥 ' + G.streak + 'x STREAK!!', '#fbbf24', true);
 
     /* feedback flash */
-    G.flash = pts < 0 ? 0.5 : 0.3;
-    G.flashColor = pts < 0 ? '#ef4444' : b.color;
+    G.flash = pts < 0 ? 0.5 : streakTier === 2 ? 0.55 : 0.3;
+    G.flashColor = pts < 0 ? '#ef4444' : streakTier === 2 ? '#fbbf24' : b.color;
     if(pts < 0) G.shake = 0.4;
 
     /* show inline fact */
@@ -695,16 +758,30 @@
     const emoji    = won ? '🏆' : fico >= (cfg.target - 120) ? '📈' : '🔧';
     const canAdvance = won && stars >= 1 && !isFinalLevel;
 
+    // Win moment scales with outcome: a win (esp. 3★) gets a bouncier
+    // pop-in + gold shimmer sweep across the card; a loss keeps the
+    // original calm slide-up so it doesn't read as a celebration.
+    const winAnim   = is3star ? 'stOverIn3 .55s cubic-bezier(.34,1.56,.64,1)' : won ? 'stOverIn2 .45s cubic-bezier(.34,1.4,.64,1)' : 'stOverIn .4s ease';
+    const cardExtra = is3star ? 'position:relative;overflow:hidden;' : '';
+    const shimmer   = is3star ? `<style>@keyframes stShimmer{0%{left:-60%}100%{left:130%}}</style>
+        <div style="position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(100deg,transparent,rgba(251,191,36,.25),transparent);animation:stShimmer 1.8s ease-in-out .5s 2;pointer-events:none"></div>` : '';
+
     const o = document.getElementById('stOver'); if(!o) return;
     o.style.display = 'flex';
-    o.innerHTML = `<div style="max-width:440px;width:90%;text-align:center;padding:34px 26px;border:1px solid ${accentC}44;border-radius:24px;background:linear-gradient(160deg,rgba(10,8,2,.98),rgba(3,4,12,.98));box-shadow:0 0 70px ${hexA(accentC,0.35)};animation:stOverIn .4s ease">
-      <style>@keyframes stOverIn{0%{transform:translateY(30px);opacity:0}100%{transform:translateY(0);opacity:1}}</style>
+    o.innerHTML = `<div style="max-width:440px;width:90%;text-align:center;padding:34px 26px;border:1px solid ${accentC}44;border-radius:24px;background:linear-gradient(160deg,rgba(10,8,2,.98),rgba(3,4,12,.98));box-shadow:0 0 70px ${hexA(accentC,0.35)};animation:${winAnim};${cardExtra}">
+      <style>
+        @keyframes stOverIn{0%{transform:translateY(30px);opacity:0}100%{transform:translateY(0);opacity:1}}
+        @keyframes stOverIn2{0%{transform:scale(.85);opacity:0}65%{transform:scale(1.03);opacity:1}100%{transform:scale(1);opacity:1}}
+        @keyframes stOverIn3{0%{transform:scale(.72) rotate(-3deg);opacity:0}55%{transform:scale(1.08) rotate(1deg);opacity:1}78%{transform:scale(.97) rotate(0)}100%{transform:scale(1) rotate(0);opacity:1}}
+      </style>
+      ${shimmer}
       <div style="font-size:3rem;margin-bottom:6px">${emoji}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.18em;color:rgba(255,255,255,.4);margin-bottom:4px">LEVEL ${curLevel} · ${cfg.name}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.22em;color:${accentC};margin-bottom:10px">${headline}</div>
       <div style="font-size:1.8rem;margin-bottom:4px">${starStr}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:2.6rem;font-weight:900;color:#fbbf24;text-shadow:0 0 30px rgba(251,191,36,.6);line-height:1.1;margin-bottom:2px">${fico}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.44rem;letter-spacing:.12em;color:rgba(255,255,255,.45);margin-bottom:18px">FINAL FICO SCORE · TARGET WAS ${cfg.target}</div>
+      ${G.bestStreak >= 3 ? `<div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.1em;color:#34d399;margin-bottom:14px">🔥 BEST STREAK: ${G.bestStreak}x</div>` : ''}
       <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:13px;padding:13px 16px;margin-bottom:18px;text-align:left">
         <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:#fde68a;margin-bottom:7px">📚 CREDIT LESSON</div>
         <p style="margin:0;font-size:.88rem;line-height:1.55;color:rgba(255,255,255,.85)">Your credit score is built by <strong style="color:#fbbf24">5 factors</strong> — payment history matters most at <strong style="color:#34d399">35%</strong>, followed by utilization (30%), credit age (15%), credit mix (10%), and new inquiries (10%). Pay on time, keep balances low!</p>

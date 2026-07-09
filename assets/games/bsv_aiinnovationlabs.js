@@ -334,6 +334,8 @@
       particles: [],   // canvas particle effects
       last: performance.now(),
       _evClean: [],
+      correctStreak: 0,   // cosmetic-only: consecutive correct sorts, resets on any mistake —
+                          // drives particle/flash escalation only, never score/IQ/coins.
     };
   }
 
@@ -660,8 +662,10 @@
       scoreDelta = card.typeInfo.pts;
       iqDelta    = card.typeInfo.iqDelta;  // positive for correct data
       G.correct++;
+      G.correctStreak++;   // cosmetic escalation — see field comment in makeGame()
       flashScreen('good');
-      spawnParticles(card, '#00e676');
+      spawnParticles(card, '#00e676', G.correctStreak);
+      if (G.correctStreak >= 3) showComboBadge(card, G.correctStreak);
     } else {
       // Wrong bin
       if (bin === 'train' && card.type !== 'correct') {
@@ -674,8 +678,9 @@
         scoreDelta = 0;
       }
       G.mistakes++;
+      G.correctStreak = 0;   // streak breaks on any mistake
       flashScreen('bad');
-      spawnParticles(card, '#ff1744');
+      spawnParticles(card, '#ff1744', 0);
     }
 
     G.score = Math.max(0, G.score + scoreDelta);
@@ -742,8 +747,51 @@
     }, 60);
   }
 
+  /* ── COMBO BADGE (reward escalation, cosmetic only) ───────────────
+     Shows a small floating "xN" badge at the card's position once the correct-sort
+     streak reaches 3+, so a deep streak visibly reads as a bigger deal than the first
+     correct sort. This file has no @keyframes block (all motion here is JS-driven
+     inline transitions), so this follows that same established pattern rather than
+     introducing a new stylesheet. Does not touch score/IQ/coins. */
+  function showComboBadge(card, streak) {
+    if (!card.el || !card.el.parentNode) return;
+    const stream = document.getElementById('ailStream');
+    if (!stream) return;
+    const r = card.el.getBoundingClientRect();
+    const sr = stream.getBoundingClientRect();
+    const depth = Math.max(0, Math.min(5, streak - 3)); // 0 at streak=3, caps at 5 (streak=8+)
+    const badge = document.createElement('div');
+    badge.textContent = '🔥 x' + streak;
+    badge.style.cssText = `
+      position:absolute;
+      left:${r.left - sr.left + r.width / 2}px;
+      top:${r.top - sr.top}px;
+      transform:translate(-50%,0) scale(${1 + depth * 0.08});
+      font-family:'Orbitron',monospace;
+      font-size:${0.5 + depth * 0.05}rem;
+      font-weight:900;
+      color:#FFD700;
+      text-shadow:0 0 ${6 + depth * 3}px #FFD700;
+      pointer-events:none;
+      z-index:40;
+      opacity:0;
+      transition:transform .35s cubic-bezier(.34,1.56,.64,1), opacity .3s ease, top .35s ease;
+    `;
+    stream.appendChild(badge);
+    requestAnimationFrame(() => {
+      badge.style.opacity = '1';
+      badge.style.top = (r.top - sr.top - 22) + 'px';
+    });
+    setTimeout(() => {
+      badge.style.opacity = '0';
+      setTimeout(() => { if (badge.parentNode) badge.parentNode.removeChild(badge); }, 320);
+    }, 550);
+  }
+
   /* ── PARTICLES ───────────────────────────────────────────────── */
-  function spawnParticles(card, color) {
+  // `streak` (cosmetic only, default 0) scales particle count/speed/size so a deeper
+  // correct-sort streak visibly pops harder — capped at 5 so it never overwhelms the canvas.
+  function spawnParticles(card, color, streak) {
     const pfx = document.getElementById('ailPfx');
     if (!pfx || !card.el) return;
     const r = card.el.getBoundingClientRect();
@@ -751,15 +799,19 @@
     const cx = (r.left + r.width / 2 - pR.left) * devicePixelRatio;
     const cy = (r.top + r.height / 2 - pR.top) * devicePixelRatio;
 
-    for (let i = 0; i < 12; i++) {
+    const depth = Math.max(0, Math.min(5, streak || 0));
+    const count = 12 + depth * 3;      // 12 → 27 particles
+    const speedB = 1 + depth * 0.15;
+
+    for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 1.5 + Math.random() * 3;
+      const speed = (1.5 + Math.random() * 3) * speedB;
       G.particles.push({
         x: cx, y: cy,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed - 1,
         life: 1, decay: 0.03 + Math.random() * 0.03,
-        r: 2 + Math.random() * 3,
+        r: (2 + Math.random() * 3) * (1 + depth * 0.06),
         color,
       });
     }
@@ -812,7 +864,9 @@
                   G.score >= cfg.scoreGoal2 ? 2 : 1;
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_bsv_aiinnovationlabs', { level: 1, is3star, isPerfect: is3star })
+      // cfg.level is the REAL 1-indexed level just completed (G.lvIdx 0/1/2 → cfg.level 1/2/3) —
+      // hardcoding level:1 here was silently capping state.gameLevels at 1 even after Lv2/Lv3 wins.
+      ? cvAwardGame('game_bsv_aiinnovationlabs', { level: cfg.level, is3star, isPerfect: is3star })
       : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
     if (stars < 1 && window.cvSave) cvSave();
     const accuracy = G.total > 0 ? Math.round((G.correct / G.total) * 100) : 0;
@@ -827,10 +881,18 @@
 
     // Result color
     const resultColor = win ? '#00e676' : '#ff4444';
-    const resultLabel = win ? 'AI FULLY TRAINED!' : 'NICE TRY — GO AGAIN!';
+    const resultLabel = win ? 'AI FULLY TRAINED!' : 'NICE TRY! Power up and try again';
 
     const over = document.getElementById('ailOver');
     if (!over) return;
+    // Distinct celebratory entrance on a WIN — previously this overlay was a hard
+    // display:flex + innerHTML swap with zero motion (plain text-swap). Follows this
+    // file's existing JS-transition idiom (see spawnCard()'s entrance) rather than
+    // introducing a @keyframes block, since this file has none elsewhere. Loss keeps
+    // the flat swap — a miss shouldn't feel like a celebration.
+    over.style.transition = 'none';
+    over.style.transform = win ? 'scale(.7)' : 'scale(1)';
+    over.style.opacity = win ? '0' : '1';
     over.style.display = 'flex';
     over.innerHTML = `
       <div style="font-size:.36rem;letter-spacing:.22em;color:rgba(0,255,255,.5)">RESULTS</div>
@@ -872,6 +934,14 @@
         <button id="ailHub" style="padding:12px 22px;border:1px solid rgba(255,255,255,.2);border-radius:10px;background:rgba(255,255,255,.04);color:rgba(255,255,255,.7);font-size:.58rem;letter-spacing:.12em;cursor:pointer;font-weight:700">← HUB</button>
       </div>
     `;
+    if (win) {
+      // trigger the pop after the (opacity:0, scale:.7) starting state above has painted
+      requestAnimationFrame(() => {
+        over.style.transition = 'transform .4s cubic-bezier(.34,1.56,.64,1), opacity .3s ease';
+        over.style.transform = 'scale(1)';
+        over.style.opacity = '1';
+      });
+    }
 
     const savedLvIdx = G.lvIdx;
     document.getElementById('ailPlayAgain').addEventListener('click', () => {

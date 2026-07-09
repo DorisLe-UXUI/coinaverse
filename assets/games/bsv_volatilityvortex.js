@@ -331,6 +331,9 @@
       riskInStableMs: 0,
       riskOutStableMs: 0,
       stabilityScore: 0,
+      stableStreakMs: 0,   // cosmetic-only: CURRENT consecutive ms in the safe band (resets on exit,
+                           // unlike riskInStableMs which is a lifetime cumulative total). Drives the
+                           // STABILITY chip's glow escalation only — never read by scoring/thresholds.
 
       /* time */
       timeLeft: getLevelCfg(1).duration,
@@ -875,10 +878,12 @@
       if (risk >= SAFE_BAND_LOW && risk <= SAFE_BAND_HIGH) {
         G.riskInStableMs += dt;
         G.stabilityScore += G.cfg.stabilityBonus * (dt / 1000);
+        G.stableStreakMs += dt;   // cosmetic streak — see field comment above
       } else {
         G.riskOutStableMs += dt;
         // penalise for being out of zone
         G.portValue -= (Math.abs(risk - 45) * 0.005) * (dt / 1000) * 5;
+        G.stableStreakMs = 0;     // streak breaks the instant risk leaves the safe band
       }
 
       // check crash
@@ -915,9 +920,17 @@
       // tick active events
       tickEvents(dt, now);
 
-      // update stability score display
+      // update stability score display — reward escalation (cosmetic only, no scoring
+      // change): the longer the CURRENT stable-band streak runs, the brighter/bolder
+      // this chip glows, so staying balanced for a while visibly pays off more than
+      // just having entered the zone a second ago. Resets instantly on stableStreakMs=0.
       const stabEl = document.getElementById('vvStabScore');
-      if (stabEl) stabEl.textContent = Math.round(G.stabilityScore);
+      if (stabEl) {
+        stabEl.textContent = Math.round(G.stabilityScore);
+        const streakDepth = Math.max(0, Math.min(5, Math.floor(G.stableStreakMs / 3000))); // +1 tier per 3s in-zone, caps at 5
+        stabEl.style.textShadow = streakDepth > 0 ? `0 0 ${4 + streakDepth * 4}px ${AC}` : 'none';
+        stabEl.style.fontWeight = streakDepth >= 3 ? '900' : '700';
+      }
 
       updateAllVisuals();
     }
@@ -1101,7 +1114,7 @@
 
     overlay.style.display = 'flex';
     overlay.innerHTML = `
-      <div style="max-width:360px;width:90%;text-align:center;padding:0 12px;">
+      <div class="${won ? 'vvWinPanel' : ''}" style="max-width:360px;width:90%;text-align:center;padding:0 12px;">
         <!-- title -->
         <div style="font-family:Orbitron,monospace;font-size:11px;letter-spacing:2px;color:${AC};margin-bottom:10px;">VOLATILITY VORTEX</div>
 
@@ -1185,6 +1198,17 @@
         80%  { opacity:1; }
         100% { opacity:0; }
       }
+      /* Distinct celebratory entrance for the end-of-run panel on a WIN — the
+         previous behaviour was a hard display:flex swap with zero animation, which
+         read as a plain text-swap rather than a moment. Loss keeps the flat swap
+         (a crash shouldn't feel triumphant); win overshoots past 1x then settles. */
+      @keyframes vvWinPop {
+        0%   { opacity:0; transform:scale(.7) translateY(14px); }
+        50%  { opacity:1; transform:scale(1.08) translateY(-3px); }
+        75%  { transform:scale(.97) translateY(0); }
+        100% { opacity:1; transform:scale(1) translateY(0); }
+      }
+      .vvWinPanel { animation:vvWinPop .5s cubic-bezier(.34,1.56,.64,1) both; }
       #vvSliders::-webkit-scrollbar { width:4px; }
       #vvSliders::-webkit-scrollbar-track { background:transparent; }
       #vvSliders::-webkit-scrollbar-thumb { background:${AC}44; border-radius:4px; }

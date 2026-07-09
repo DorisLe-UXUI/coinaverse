@@ -809,8 +809,13 @@
       : 'Strong credit habits = a faster car. Keep utilization low and pay on time!';
     const o=document.getElementById('frOver'); if(!o) return;
     o.style.display='flex';
-    o.innerHTML=`<div style="max-width:520px;width:92%;text-align:center;padding:30px 26px;border:1.5px solid ${win?'#fbbf24':'#38bdf8'};border-radius:24px;background:linear-gradient(165deg,rgba(10,18,44,.98),rgba(3,6,20,.99));box-shadow:0 0 80px rgba(56,189,248,.35)">
-      <div style="font-size:3rem">${why==='destroyed'?'💥':win?['🏆','🥈','🥉'][rank-1]:'🏁'}</div>
+    o.innerHTML=`<div style="max-width:520px;width:92%;text-align:center;padding:30px 26px;border:1.5px solid ${win?'#fbbf24':'#38bdf8'};border-radius:24px;background:linear-gradient(165deg,rgba(10,18,44,.98),rgba(3,6,20,.99));box-shadow:0 0 80px rgba(56,189,248,.35);animation:${win?'frWinPop .55s cubic-bezier(.2,1.4,.4,1)':'frFadeIn .3s ease'}">
+      <style>
+        @keyframes frWinPop{0%{transform:scale(.7) rotate(-3deg);opacity:0}60%{transform:scale(1.06) rotate(1deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+        @keyframes frFadeIn{0%{transform:scale(.94);opacity:0}100%{transform:scale(1);opacity:1}}
+        @keyframes frTrophyPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+      </style>
+      <div style="font-size:3rem${win?';animation:frTrophyPulse 1.1s ease-in-out infinite':''}">${why==='destroyed'?'💥':win?['🏆','🥈','🥉'][rank-1]:'🏁'}</div>
       <div style="font-family:'Anton',sans-serif;font-size:1.7rem;margin:6px 0;color:${win?'#fbbf24':'#7dd3fc'}">${why==='destroyed'?'CAR DESTROYED':win?'MISSION ACCOMPLISHED!':'RACE COMPLETE'}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.18em;color:rgba(255,255,255,.5);margin-bottom:14px">${L.name} · ${finished?('FINISHED P'+rank+'/4'):'DID NOT FINISH'}</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">

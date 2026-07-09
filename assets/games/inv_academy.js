@@ -382,7 +382,9 @@
       startTime: 0,
       timePenalty: 0,
       paused: false,       // true while the ❓ help overlay is open mid-question
-      introShown: false    // becomes true once the first-time tutorial is dismissed
+      introShown: false,   // becomes true once the first-time tutorial is dismissed
+      streak: 0,           // consecutive correct answers in a row (resets on a miss/timeout)
+      bestStreak: 0
     };
 
     showIntro(root);
@@ -615,6 +617,34 @@
     document.addEventListener('keydown', window._inv_kbHandler);
 
     startTimer(q.ans);
+
+    // One-shot "stakes just went up" cue on the first question of L2/L3 —
+    // without this, level2/level3 feel like the exact same screen with a
+    // new question, just a repeat with a different accent color.
+    if (G.qIndex === 0 && (G.phase === 'level2' || G.phase === 'level3')) {
+      showPhaseUpBanner(G.phase, accentColor);
+    }
+  }
+
+  /* ── phase-up banner — announces escalating stakes when Level 2/3 begins ── */
+  function showPhaseUpBanner(phase, color) {
+    const root = document.getElementById('inv_acad_root');
+    if (!root) return;
+    const old = document.getElementById('inv_phaseup');
+    if (old) old.remove();
+    const msg = phase === 'level2'
+      ? '⚡ LEVEL 2: MASTERY — timer\'s faster, questions get sharper!'
+      : '👑 LEVEL 3: ELITE — fastest timer yet, real-world scenarios ahead!';
+    const div = document.createElement('div');
+    div.id = 'inv_phaseup';
+    div.style.cssText = `position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:40;
+      max-width:88%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      background:rgba(3,4,12,.95);border:1.5px solid ${color};border-radius:30px;
+      padding:9px 18px;font-family:'Orbitron',monospace;font-size:12px;font-weight:700;
+      color:${color};box-shadow:0 0 24px ${color}55;animation:inv_pop .4s;pointer-events:none;`;
+    div.textContent = msg;
+    root.appendChild(div);
+    setTimeout(() => { if (div.parentNode) div.remove(); }, 2600);
   }
 
   /* ─── TIMER ──────────────────────────────────────────────── */
@@ -669,11 +699,14 @@
     if (correct) {
       G.correct++;
       G.levelCorrect++;
+      G.streak++;
+      if (G.streak > G.bestStreak) G.bestStreak = G.streak;
       // Bonus for speed: up to 3 extra points for answering in <5s
       const speedBonus = Math.max(0, Math.floor((G.timePerQ - timeTaken) / G.timePerQ * 3));
       G.score += 10 + speedBonus;
     } else {
       G.timePenalty += timeTaken;
+      G.streak = 0;
     }
 
     // Visual feedback on buttons
@@ -684,18 +717,28 @@
       else if (i === idx && !correct) btn.classList.add('inv_wrong');
     });
 
-    // Feedback panel
+    // Feedback panel — streak escalates the visual celebration (glow +
+    // streak line) at 3+ and 5+ correct in a row; purely cosmetic, no
+    // change to scoring math.
+    const streakTier = !correct ? 0 : G.streak >= 5 ? 2 : G.streak >= 3 ? 1 : 0;
     const fb = document.getElementById('inv_feedback');
     if (fb) {
       fb.style.display = 'block';
-      fb.style.borderColor = correct ? 'rgba(0,200,83,.4)' : 'rgba(255,80,80,.3)';
+      fb.style.borderColor = correct ? (streakTier === 2 ? '#ffd600' : 'rgba(0,200,83,.4)') : 'rgba(255,80,80,.3)';
       fb.style.background = correct ? 'rgba(0,200,83,.06)' : 'rgba(255,80,80,.05)';
       fb.style.padding = '14px';
-      fb.style.animation = 'inv_pop .35s';
+      fb.style.boxShadow = streakTier === 2 ? '0 0 26px rgba(255,214,0,.35)' : streakTier === 1 ? '0 0 16px rgba(0,200,83,.25)' : 'none';
+      fb.style.animation = streakTier === 2 ? 'inv_pop .45s' : 'inv_pop .35s';
+      const streakLine = streakTier === 2
+        ? `<div style="font-size:13px;font-weight:700;color:#ffd600;margin-bottom:6px;">🔥 ${G.streak} IN A ROW — ON FIRE!</div>`
+        : streakTier === 1
+          ? `<div style="font-size:13px;font-weight:700;color:#69f0ae;margin-bottom:6px;">🔥 ${G.streak} streak!</div>`
+          : '';
       fb.innerHTML = `
         <div style="font-weight:700;font-size:15px;color:${correct ? '#00C853' : '#ff8080'};margin-bottom:6px;">
           ${correct ? '✓ Correct! +' + (10 + Math.max(0, Math.floor((G.timePerQ - timeTaken) / G.timePerQ * 3))) + ' pts' : '💪 Nice try!'}
         </div>
+        ${streakLine}
         <div style="font-size:13px;color:#b2dfdb;line-height:1.5;">${q.explain}</div>
         <button class="inv_btn" style="width:100%;margin-top:12px;padding:12px;font-size:14px;" onclick="window._inv_nextQ()">
           ${G.qIndex + 1 < G.questions.length ? 'Next Question →' : 'See Results →'}
@@ -711,6 +754,7 @@
     G.total++;
     G.levelTotal++;
     G.timePenalty += G.timePerQ;
+    G.streak = 0;
 
     const q = G.questions[G.qIndex];
     const buttons = document.querySelectorAll('.inv_answer_btn');
@@ -878,17 +922,26 @@
       `<span style="font-size:40px;animation:inv_star_pop .4s ${(n-1)*0.15}s both;">${n <= stars ? '⭐' : '☆'}</span>`
     ).join('');
 
+    // Win moment scales with stars: 3★ gets a bigger emoji + bouncy pop-in
+    // and a gold glow ring; 0★ keeps a calm, non-celebratory entrance so a
+    // miss doesn't look like a win with different text.
+    const heroEmoji  = stars === 3 ? '🏆' : stars === 2 ? '🎓' : stars === 1 ? '📋' : '🔧';
+    const heroSize   = stars === 3 ? 68 : stars === 2 ? 56 : 48;
+    const heroAnim   = stars === 3 ? 'inv_star_pop .55s' : 'inv_pop .5s';
+    const cardGlow   = stars === 3 ? 'box-shadow:0 0 40px rgba(255,214,0,.35);border-color:rgba(255,214,0,.5);' : '';
+    const headline   = stars === 3 ? 'ELITE INVESTOR!' : stars === 2 ? 'CERTIFIED INVESTOR!' : stars === 1 ? 'ACADEMY GRADUATE!' : 'NICE TRY! POWER UP AND TRY AGAIN';
+
     root.innerHTML = `
       <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:14px;overflow-y:auto;">
-        <div style="font-size:52px;animation:inv_pop .5s;">🎓</div>
+        <div style="font-size:${heroSize}px;animation:${heroAnim};">${heroEmoji}</div>
 
         <div style="font-family:'Orbitron',monospace;font-size:20px;font-weight:700;color:#00C853;text-align:center;animation:inv_slide_in .4s;">
-          ${stars === 3 ? 'ELITE INVESTOR!' : stars === 2 ? 'CERTIFIED INVESTOR!' : stars === 1 ? 'ACADEMY GRADUATE!' : 'NICE TRY — GO AGAIN!'}
+          ${headline}
         </div>
 
         <div style="display:flex;gap:4px;">${starDisplay}</div>
 
-        <div class="inv_glass" style="width:100%;max-width:360px;padding:18px;display:flex;flex-direction:column;gap:12px;animation:inv_slide_in .4s .1s both;">
+        <div class="inv_glass" style="width:100%;max-width:360px;padding:18px;display:flex;flex-direction:column;gap:12px;animation:inv_slide_in .4s .1s both;${cardGlow}">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <div>
               <div style="font-size:11px;color:#7cb8a0;letter-spacing:1px;text-transform:uppercase;">Accuracy</div>
@@ -909,6 +962,14 @@
               <div style="font-size:15px;color:#00C853;font-weight:700;">${rankIcon} ${rankName}</div>
             </div>
           </div>
+          ${G.bestStreak >= 2 ? `
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <div style="font-size:11px;color:#7cb8a0;letter-spacing:1px;text-transform:uppercase;">Best Streak</div>
+                <div style="font-family:'Orbitron',monospace;font-size:18px;color:#ffd600;font-weight:700;">🔥 ${G.bestStreak} in a row</div>
+              </div>
+            </div>
+          ` : ''}
           ${stars > 0 ? `
             <div style="border-top:1px solid rgba(0,200,83,.2);padding-top:12px;display:flex;justify-content:space-between;align-items:center;">
               <div>

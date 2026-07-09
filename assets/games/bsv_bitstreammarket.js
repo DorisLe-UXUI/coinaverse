@@ -465,6 +465,22 @@
     border-radius:18px;padding:24px 20px;width:100%;max-width:340px;
     text-align:center;
     box-shadow:0 0 60px rgba(0,255,255,.25);
+    animation:bmEndFadeIn .35s ease-out;
+  }
+  #bm-end-box.win {
+    border:1.5px solid ${GOLD};
+    box-shadow:0 0 70px rgba(255,215,0,.4);
+    animation:bmWinPop .55s cubic-bezier(.22,1.4,.36,1);
+  }
+  @keyframes bmEndFadeIn {
+    0%   { opacity:0; transform:scale(.92); }
+    100% { opacity:1; transform:scale(1); }
+  }
+  @keyframes bmWinPop {
+    0%   { opacity:0; transform:scale(.55) rotate(-3deg); }
+    55%  { opacity:1; transform:scale(1.06) rotate(1deg); }
+    80%  { transform:scale(.97) rotate(0deg); }
+    100% { transform:scale(1); }
   }
   #bm-end-badge {
     font-size:.58rem;font-family:'Orbitron',sans-serif;letter-spacing:.18em;
@@ -677,6 +693,7 @@
       qty: 1,
       tradesMade: 0,
       profitableTrades: 0,
+      profitStreak: 0,   // consecutive profitable sells — drives escalating visual juice only
       totalProfit: 0,
       running: true,
       eventActive: false,
@@ -1020,14 +1037,23 @@
     const baseCost = item.basePx * qty;
     const profit = revenue - baseCost;
     G.totalProfit += profit;
-    if (profit > 0) G.profitableTrades++;
+    if (profit > 0) {
+      G.profitableTrades++;
+      G.profitStreak = (G.profitStreak || 0) + 1;
+    } else {
+      G.profitStreak = 0;
+    }
 
     G.wallet += revenue;
     G.held[item.id] -= qty;
     if (G.cfg.supplyLimited) item.supply = Math.min(G.cfg.supplyMax, item.supply + Math.floor(qty / 2));
 
     G.tradesMade++;
-    showFloat(item.id, '+$' + fmtNum(revenue), GREEN);
+    // Visual-only escalation: streak of 2+ profitable sells grows the float and
+    // adds a streak tag, capping at 2x scale so it never overwhelms the card.
+    const streakScale = 1 + Math.min(1, Math.max(0, (G.profitStreak - 1) * 0.18));
+    const floatText = G.profitStreak >= 2 ? `+$${fmtNum(revenue)} 🔥x${G.profitStreak}` : '+$' + fmtNum(revenue);
+    showFloat(item.id, floatText, GREEN, streakScale);
 
     // Check win
     if (G.wallet >= G.target) {
@@ -1288,7 +1314,10 @@
   /* ══════════════════════════════════════════════════════════════
      FLOAT LABELS & FLASH
   ══════════════════════════════════════════════════════════════ */
-  function showFloat(itemId, text, color) {
+  // `scale` (1 = normal) lets a profit streak grow the float's size/glow so
+  // trade #1 and trade #10 of a hot streak don't look identical — purely
+  // visual, no scoring math involved.
+  function showFloat(itemId, text, color, scale) {
     const card = document.getElementById('bm-card-' + itemId);
     if (!card) return;
     const rect = card.getBoundingClientRect();
@@ -1296,12 +1325,17 @@
     if (!root) return;
     const rootRect = root.getBoundingClientRect();
 
+    const s = Math.max(1, Math.min(2, scale || 1));
     const el = document.createElement('div');
     el.className = 'bm-float';
     el.textContent = text;
     el.style.color = color;
     el.style.left  = (rect.left - rootRect.left + rect.width / 2 - 40) + 'px';
     el.style.top   = (rect.top  - rootRect.top  + rect.height / 2)     + 'px';
+    if (s > 1) {
+      el.style.fontSize = (0.7 * s) + 'rem';
+      el.style.textShadow = `0 2px ${8 * s}px rgba(0,0,0,.8), 0 0 ${14 * s}px ${color}`;
+    }
     root.appendChild(el);
     setTimeout(() => el.remove(), 1200);
   }
@@ -1355,7 +1389,7 @@
     const overlay = document.createElement('div');
     overlay.id = 'bm-end';
     overlay.innerHTML = `
-      <div id="bm-end-box">
+      <div id="bm-end-box"${won ? ' class="win"' : ''}>
         <div id="bm-end-badge">${won ? 'MARKET MASTER' : reason === 'bankrupt' ? 'BANKRUPT' : 'TIME EXPIRED'}</div>
         <div id="bm-end-stars">${starsStr || '💔'}</div>
         <div id="bm-end-title" style="color:${won ? AC : RED}">${won ? 'WALLET TARGET HIT!' : 'MARKET CLOSED'}</div>

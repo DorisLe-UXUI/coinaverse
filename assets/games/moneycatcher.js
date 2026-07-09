@@ -275,6 +275,7 @@
     const ui=document.getElementById('mcUI');
     ui.style.pointerEvents='none';
     ui.innerHTML=`
+      <style>@keyframes mcComboPop{0%{transform:scale(1)}40%{transform:scale(1.45)}100%{transform:scale(1)}}</style>
       <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(2,12,18,.9),transparent);pointer-events:none">
         <button onclick="mcExit()" style="pointer-events:auto;padding:6px 12px;border:1px solid rgba(20,184,166,.4);border-radius:8px;background:rgba(20,184,166,.1);color:#5eead4;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
         <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.16em;color:#2dd4bf;flex:1;text-align:center">🐷 ${L.name.toUpperCase()}</div>
@@ -325,7 +326,7 @@
         moneyGoal:L.moneyGoal, stockGoal:L.stockGoal,
         stamina:100, staminaMax:100,
         heroX:0, vx:0, facing:1,
-        combo:0, comboMult:1,
+        combo:0, comboMult:1, _comboShown:1,
         items:[], floats:[],
         time:L.dur, spawnAcc:0, elapsed:0, last:performance.now(),
         pu:{ magnet:0, shield:0, shieldHits:0, freeze:0, speed:0 },
@@ -538,7 +539,10 @@
     const sb=document.getElementById('mcStamBar');
     if(sb){ sb.style.width=pct+'%'; sb.style.background=pct>50?'linear-gradient(90deg,#34d399,#6ee7b7)':pct>25?'linear-gradient(90deg,#fbbf24,#fde68a)':'linear-gradient(90deg,#ef4444,#f87171)'; }
     const mc=document.getElementById('mcCombo');
-    if(mc){ mc.textContent='x'+G.comboMult; mc.style.color=G.comboMult>=5?'#f87171':G.comboMult>=3?'#a78bfa':G.comboMult>=2?'#34d399':'#fbbf24'; }
+    if(mc){ mc.textContent='x'+G.comboMult; mc.style.color=G.comboMult>=5?'#f87171':G.comboMult>=3?'#a78bfa':G.comboMult>=2?'#34d399':'#fbbf24';
+      // punch-scale the combo readout on every step UP (deeper chains pop harder) — pure HUD feedback, no gameplay effect
+      if(G.comboMult>G._comboShown){ mc.style.animation='none'; void mc.offsetWidth; mc.style.animation='mcComboPop '+(220+G.comboMult*40)+'ms ease-out'; }
+      G._comboShown=G.comboMult; }
     const mm=document.getElementById('mcMoney'); if(mm) mm.textContent='$'+fmt(G.money);
     const ms=document.getElementById('mcStock'); if(ms) ms.textContent=G.stock;
     const gb=document.getElementById('mcGoalBar'); if(gb) gb.style.width=Math.min(100,G.money/G.moneyGoal*100)+'%';
@@ -624,7 +628,13 @@
     else tip='Catch more coins, cash and stock before the timer runs out to hit your goal.';
     const headline=won?'Your Savings Empire Just Grew!':'Game Over';
     overEl.innerHTML=`
-      <div style="font-size:2.2rem">${won?'🏆':'💔'}</div>
+      <style>
+        @keyframes mcWinPop{0%{transform:scale(.7) rotate(-3deg);opacity:0}60%{transform:scale(1.06) rotate(1deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+        @keyframes mcFadeIn{0%{transform:scale(.94);opacity:0}100%{transform:scale(1);opacity:1}}
+        @keyframes mcTrophyPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+      </style>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:14px;animation:${won?'mcWinPop .55s cubic-bezier(.2,1.4,.4,1)':'mcFadeIn .3s ease'}">
+      <div style="font-size:2.2rem${won?';animation:mcTrophyPulse 1.1s ease-in-out infinite':''}">${won?'🏆':'💔'}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:${won?.65:.75}rem;letter-spacing:.14em;color:${won?'#34d399':'#f87171'};text-align:center;max-width:280px">${headline}</div>
       <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:14px 18px;width:100%;max-width:300px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center">
@@ -642,6 +652,7 @@
         <button onclick="mcReplay()" style="padding:11px 22px;background:linear-gradient(135deg,#0d9488,#14b8a6);border:none;border-radius:10px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer">REPLAY</button>
         <button onclick="mcMenu()" style="padding:11px 22px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:10px;color:#e2e8f0;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer">DISTRICTS</button>
         <button onclick="mcExit()" style="padding:11px 22px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:10px;color:#e2e8f0;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer">← HUB</button>
+      </div>
       </div>`;
   }
   function stat(label,val,color){ return `<div><div style="font-family:'Orbitron',sans-serif;font-size:.36rem;color:rgba(255,255,255,.4);letter-spacing:.08em;margin-bottom:4px">${label}</div><div style="font-family:'Anton',sans-serif;font-size:.95rem;color:${color}">${val}</div></div>`; }

@@ -77,9 +77,24 @@
     exitBtn.onmouseleave = () => { exitBtn.style.background = 'rgba(13,13,43,.75)'; };
     exitBtn.addEventListener('click', () => goHub());
     container.appendChild(exitBtn);
+
+    /* ── persistent ❓ how-to-play button (DOM overlay, same style/layer as exitBtn) ── */
+    const helpBtn = document.createElement('button');
+    helpBtn.textContent = '❓';
+    helpBtn.style.cssText = 'position:absolute;top:14px;left:88px;z-index:5;padding:7px 12px;'
+      + 'border:1px solid rgba(251,191,36,.45);border-radius:9px;background:rgba(13,13,43,.75);'
+      + 'backdrop-filter:blur(6px);color:#fbbf24;font:700 .78rem/1 sans-serif;'
+      + 'cursor:pointer;';
+    helpBtn.onmouseenter = () => { helpBtn.style.background = 'rgba(251,191,36,.18)'; };
+    helpBtn.onmouseleave = () => { helpBtn.style.background = 'rgba(13,13,43,.75)'; };
+    helpBtn.addEventListener('click', () => openHelp());
+    container.appendChild(helpBtn);
+
     function syncExitBtn() {
       // hidden on TITLE (its own layout) and END (end-screen already has a HUB button)
       exitBtn.style.display = (screen === SCREENS.PLAYING || screen === SCREENS.PAUSED) ? 'block' : 'none';
+      // ❓ only makes sense mid-run — hidden on TITLE/END/HELP itself (HELP has its own close button)
+      helpBtn.style.display = (screen === SCREENS.PLAYING || screen === SCREENS.PAUSED) ? 'block' : 'none';
     }
 
     let W, H, GROUND_Y;
@@ -93,8 +108,22 @@
     ro.observe(container);
 
     /* ── Screens ────────────────────────────────────────────────────────── */
-    const SCREENS = { TITLE:0, PLAYING:1, PAUSED:2, END:3 };
+    const SCREENS = { TITLE:0, PLAYING:1, PAUSED:2, END:3, HELP:4 };
     let screen = SCREENS.TITLE;
+
+    /* ── How-to-play tutorial state ────────────────────────────────────────
+       One explanation covers all 3 levels (same mechanic, just faster/denser).
+       _rrHelpShown is a per-instance flag (not per-level) so it only auto-fires
+       once per fresh playRepaymentRunway() call, not on every replay/next-level.
+       _helpReturnScreen remembers what to resume into when closed; _helpPauseStartTs
+       records the moment HELP opened so we can shift startTime by the exact paused
+       duration on resume (timeLeft is DERIVED from startTime every frame, not a
+       decrementing counter, so simply freezing draw isn't enough — the elapsed
+       real time spent on the help screen must be added back to startTime or it
+       would silently count against timeLeft the instant we resume). ── */
+    let _rrHelpShown = false;
+    let _helpReturnScreen = SCREENS.PLAYING;
+    let _helpPauseStartTs = null;
 
     /* ── Level state ────────────────────────────────────────────────────── */
     let curLevel = 1;      // 1|2|3 — chosen on TITLE screen, advances via END screen
@@ -188,6 +217,10 @@
         return;
       }
       if (screen === SCREENS.END)   { return; }
+      if (screen === SCREENS.HELP) {
+        if (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape') { e.preventDefault(); closeHelp(); }
+        return;
+      }
       if (e.code === 'Space' || e.code === 'ArrowUp')   { e.preventDefault(); doJump(); }
       if (e.code === 'ArrowDown' || e.code === 'KeyS')  { e.preventDefault(); doDuck(); }
       if (e.code === 'Escape') togglePause();
@@ -201,6 +234,7 @@
     function onMouseDown(e) {
       if (screen === SCREENS.TITLE) { handleTitleClick(e); return; }
       if (screen === SCREENS.END)   { handleEndClick(e); return; }
+      if (screen === SCREENS.HELP)  { handleHelpClick(e); return; }
       doJump();
     }
 
@@ -209,6 +243,7 @@
       touchStartY = e.touches[0].clientY;
       if (screen === SCREENS.TITLE) { handleTitleTap(e); return; }
       if (screen === SCREENS.END)   { handleEndTap(e); return; }
+      if (screen === SCREENS.HELP)  { handleHelpTap(e); return; }
       doJump();
     }
 
@@ -243,6 +278,33 @@
         screen = SCREENS.PLAYING;
         lastTime = performance.now();
       }
+    }
+
+    /* ── How-to-play tutorial: open / close ───────────────────────────────
+       openHelp() can be reached from PLAYING or PAUSED (❓ button); closeHelp()
+       always returns to PLAYING and — critically — shifts startTime forward by
+       the exact real-world duration the overlay was open, so timeLeft (which is
+       recomputed every frame as cfg.duration - (now - startTime)/1000) reads the
+       same value it held right before the overlay opened, then keeps counting
+       down normally. Concrete check: 30s left when opened, held open 8s, closed
+       → startTime += ~8000ms → next frame's (now - startTime) is unchanged from
+       the instant it paused → timeLeft is still ~30s, not ~22s. */
+    function openHelp() {
+      if (screen !== SCREENS.PLAYING && screen !== SCREENS.PAUSED) return;
+      _helpReturnScreen = screen; // PAUSED is unreachable via the ❓ button today (no pause-menu ❓), but honored if ever wired up
+      _helpPauseStartTs = performance.now();
+      screen = SCREENS.HELP;
+    }
+
+    function closeHelp() {
+      if (screen !== SCREENS.HELP) return;
+      if (_helpPauseStartTs != null && startTime != null) {
+        // startTime is set (mid-run reopen, not the very first pre-game show) — shift it.
+        startTime += (performance.now() - _helpPauseStartTs);
+      }
+      _helpPauseStartTs = null;
+      screen = (_helpReturnScreen === SCREENS.PAUSED) ? SCREENS.PAUSED : SCREENS.PLAYING;
+      lastTime = performance.now(); // avoid a huge dt spike on the next frame, same as togglePause()'s resume path
     }
 
     /* ── Obstacle generation ─────────────────────────────────────────────── */
@@ -1085,6 +1147,116 @@
       ctx.restore();
     }
 
+    /* ── How-to-play tutorial screen ───────────────────────────────────────
+       One explanation covers all 3 levels — the run mechanic never changes,
+       only speed/obstacle density does. Drawn on canvas (this game has no DOM
+       template) using the same panel/roundRect/wrapText helpers as drawEnd(). */
+    let helpBtnClose = null;
+
+    function drawHelp() {
+      drawBackground();
+      ctx.save();
+
+      const fz = Math.max(14, H * 0.032);
+      const pw = Math.min(W * 0.84, 520);
+      const ph = Math.min(H * 0.82, fz * 17);
+      const px = (W - pw) / 2;
+      const py = (H - ph) / 2;
+
+      ctx.fillStyle = 'rgba(15,15,40,0.96)';
+      roundRect(ctx, px, py, pw, ph, 16);
+      ctx.fill();
+      ctx.strokeStyle = COLORS.hudAccent;
+      ctx.lineWidth   = 2;
+      roundRect(ctx, px, py, pw, ph, 16);
+      ctx.stroke();
+
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+
+      ctx.font      = `bold ${fz * 1.2}px sans-serif`;
+      ctx.fillStyle = COLORS.hudAccent;
+      ctx.fillText('HOW TO PLAY', W / 2, py + fz * 0.7);
+
+      ctx.font      = `bold ${fz * 0.95}px sans-serif`;
+      ctx.fillStyle = COLORS.hud;
+      ctx.fillText('REPAYMENT RUNWAY', W / 2, py + fz * 1.85);
+
+      const bullets = [
+        'Run automatically — jump over walls & pits, duck under bill-collector drones.',
+        'SPACE / tap to jump, ↓ or swipe down to duck. Time it right to avoid getting stunned.',
+        'Collect green payment coins and gold stars to raise your score and your FICO bar.',
+        'Chain collects in a row to build a streak multiplier — the longer the streak, the more each pickup is worth.',
+        'All 3 levels use the same controls, just faster and busier — reach the target score for stars.',
+      ];
+
+      let by = py + fz * 2.75;
+      const bulletLineH = fz * 0.95;
+      const bodyMaxW = pw * 0.84;
+      ctx.font = `${fz * 0.78}px sans-serif`;
+      for (const b of bullets) {
+        ctx.fillStyle = COLORS.hudAccent;
+        ctx.textAlign = 'left';
+        ctx.fillText('•', px + pw * 0.06, by);
+        ctx.fillStyle = '#cbd5e1';
+        by = wrapTextLeft(ctx, b, px + pw * 0.09, by, bodyMaxW, bulletLineH);
+        by += bulletLineH * 0.55;
+      }
+
+      /* close button */
+      const btnW = pw * 0.6, btnH = fz * 2.0;
+      const bx = px + (pw - btnW) / 2;
+      const bBtnY = py + ph - btnH - fz * 0.9;
+      ctx.fillStyle   = COLORS.ficoBar;
+      ctx.shadowColor = COLORS.ficoBar;
+      ctx.shadowBlur  = 12;
+      roundRect(ctx, bx, bBtnY, btnW, btnH, 8);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle  = '#052e16';
+      ctx.font       = `bold ${fz * 0.9}px sans-serif`;
+      ctx.textAlign  = 'center';
+      ctx.textBaseline = 'middle';
+      const closingFreshRun = (startTime == null);
+      ctx.fillText(closingFreshRun ? 'GOT IT — START ▶' : '▶ RESUME', bx + btnW / 2, bBtnY + btnH / 2);
+      helpBtnClose = { x: bx, y: bBtnY, w: btnW, h: btnH };
+
+      ctx.restore();
+    }
+
+    // Same word-wrap as wrapText() but left-aligned (bullets read better than centered)
+    // and returns the Y position after the last line so bullets can stack dynamically.
+    function wrapTextLeft(ctx, text, x, y, maxW, lineH) {
+      const words = text.split(' ');
+      let line = '';
+      let curY = y;
+      const prevAlign = ctx.textAlign;
+      ctx.textAlign = 'left';
+      for (const word of words) {
+        const test = line ? line + ' ' + word : word;
+        if (ctx.measureText(test).width > maxW && line) {
+          ctx.fillText(line, x, curY);
+          line = word;
+          curY += lineH;
+        } else {
+          line = test;
+        }
+      }
+      if (line) { ctx.fillText(line, x, curY); curY += lineH; }
+      ctx.textAlign = prevAlign;
+      return curY;
+    }
+
+    function handleHelpClick(e) {
+      if (hitTest(e, helpBtnClose)) { closeHelp(); return; }
+    }
+
+    function handleHelpTap(e) {
+      if (!e.changedTouches) return;
+      const t = e.changedTouches[0];
+      handleHelpClick({ clientX: t.clientX, clientY: t.clientY });
+    }
+
     /* ── End screen ──────────────────────────────────────────────────────── */
     let endBtnPlay = null, endBtnHub = null, endBtnNext = null;
 
@@ -1286,6 +1458,20 @@
     /* ── Start ───────────────────────────────────────────────────────────── */
     function startGame() {
       initGame();
+      if (!_rrHelpShown) {
+        // First time this game instance reaches actual gameplay — show the
+        // tutorial before the run starts instead of going straight to PLAYING.
+        // startTime stays null (set by initGame() above) until closeHelp()
+        // flips screen to PLAYING, at which point loop()'s own
+        // "screen===PLAYING && !startTime → startTime=now" line sets it fresh,
+        // so no paused-time shift is needed for this first-time path at all —
+        // the shift in closeHelp() only matters for the mid-run ❓ reopen case.
+        _rrHelpShown = true;
+        _helpReturnScreen = SCREENS.PLAYING;
+        _helpPauseStartTs = performance.now();
+        screen = SCREENS.HELP;
+        return;
+      }
       screen = SCREENS.PLAYING;
     }
 
@@ -1303,6 +1489,11 @@
       /* draw */
       if (screen === SCREENS.TITLE) {
         drawTitle();
+      } else if (screen === SCREENS.HELP) {
+        // drawHelp() paints its own background — no obstacles/player behind it are
+        // meaningful pre-run, and mid-run the frozen values would just be visual noise
+        // under the modal (same "dim over nothing extra" approach as drawPause()).
+        drawHelp();
       } else {
         drawBackground();
         drawObstacles();
@@ -1327,6 +1518,7 @@
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keyup',   onKeyUp);
       if (exitBtn.parentNode) exitBtn.parentNode.removeChild(exitBtn);
+      if (helpBtn.parentNode) helpBtn.parentNode.removeChild(helpBtn);
     }
 
     // expose cleanup in case hub needs it

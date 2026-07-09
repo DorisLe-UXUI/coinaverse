@@ -22,6 +22,7 @@
   ];
   function cfgFor(level){ return LEVELS[level-1] || LEVELS[0]; }
   var curLevel = 1;
+  var _trxFreshEntry = true; // true only for the very first initGame() after a hub entry; consumed on use
 
   /* ── card deck definitions — DISJOINT per level ──────────────────── */
   // LEVEL 1 · the fundamentals (10 up + 10 down)
@@ -125,6 +126,7 @@
       currentX:    0,
       decided:     false,      // prevent double-fire mid-animation
       ended:       false,
+      paused:      false,      // true while the how-to-play overlay is open
     };
   }
 
@@ -140,6 +142,11 @@
   /* ── HTML shell ─────────────────────────────────────────────────── */
   function buildHTML() {
     return [
+      '<style>',
+        '@keyframes trxComboPop{0%{transform:scale(1)}45%{transform:scale(1.35)}100%{transform:scale(1)}}',
+        '@keyframes trxWinPop{0%{transform:scale(.7) translateY(14px);opacity:0}60%{transform:scale(1.05) translateY(-4px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}',
+        '@keyframes trxFadeIn{0%{opacity:0;transform:translateY(6px)}100%{opacity:1;transform:translateY(0)}}',
+      '</style>',
       '<div id="trx-root" style="',
         'position:relative;width:100%;max-width:480px;margin:0 auto;',
         'min-height:100dvh;background:linear-gradient(160deg,#0d0d1a 0%,#12102a 100%);',
@@ -157,6 +164,11 @@
             '← Hub',
           '</button>',
           '<div style="font-size:15px;font-weight:700;color:#e0d6ff;letter-spacing:.5px;">TRUST EXCHANGE <span style="color:#a78bfa;font-size:12px;">· LV '+curLevel+'/3</span></div>',
+          '<button onclick="trxShowHelp()" title="How to play" style="',
+            'background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);',
+            'color:#e0d6ff;border-radius:10px;padding:6px 10px;font-size:14px;cursor:pointer;margin-right:6px;">',
+            '❓',
+          '</button>',
           '<div id="trx-timer" style="',
             'font-size:18px;font-weight:800;color:#a78bfa;min-width:38px;text-align:right;">',
             String(cfgFor(curLevel).timerSec),
@@ -244,6 +256,14 @@
           'padding:24px;box-sizing:border-box;text-align:center;z-index:999;">',
         '</div>',
 
+        /* how-to-play overlay (shown once at start, reopened via ❓) */
+        '<div id="trx-help" style="',
+          'display:none;position:absolute;inset:0;',
+          'background:rgba(0,0,0,.92);',
+          'flex-direction:column;align-items:center;justify-content:center;',
+          'padding:24px;box-sizing:border-box;text-align:center;z-index:1000;">',
+        '</div>',
+
       '</div>',  /* #trx-root */
     ].join('');
   }
@@ -311,7 +331,7 @@
   }
 
   function onDragStart(e) {
-    if (s.decided || s.ended) return;
+    if (s.decided || s.ended || s.paused) return;
     s.dragging = true;
     s.startX   = clientX(e);
     s.currentX = 0;
@@ -355,14 +375,14 @@
 
   /* ── keyboard support ───────────────────────────────────────────── */
   function onKey(e) {
-    if (s.ended) return;
+    if (s.ended || s.paused) return;
     if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') trxDecide('down');
     if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') trxDecide('up');
   }
 
   /* ── decide: up or down ─────────────────────────────────────────── */
   global.trxDecide = function (direction) {
-    if (s.decided || s.ended || s.index >= s.deck.length) return;
+    if (s.decided || s.ended || s.paused || s.index >= s.deck.length) return;
     s.decided = true;
 
     var card    = s.deck[s.index];
@@ -384,7 +404,12 @@
       var bonus = s.combo > 1 ? (s.combo - 1) * COMBO_BONUS : 0;
       s.score  += s.cfg.ptsCorrect + bonus;
       s.trust   = Math.min(100, s.trust + 8);
-      flashScreen('rgba(34,197,94,.25)');
+      /* flash intensity scales with combo depth — hit #1 is a soft tint, a long
+         streak flashes brighter so escalating combos actually feel escalating */
+      var comboTier   = Math.min(s.combo, 10);
+      var flashAlpha  = Math.min(0.25 + comboTier * 0.035, 0.6);
+      flashScreen('rgba(34,197,94,' + flashAlpha.toFixed(2) + ')');
+      if (s.combo >= 3) comboPop();
     } else {
       s.combo   = 0;
       s.score   = Math.max(0, s.score + s.cfg.ptsWrong);
@@ -421,8 +446,13 @@
 
     if (comboEl) {
       if (s.combo >= 2) {
-        comboEl.textContent = s.combo + 'x 🔥';
-        comboEl.style.opacity = '1';
+        /* combo visuals escalate with streak depth: bigger text + hotter color
+           the deeper the streak, so 2x reads very differently from 8x+ */
+        var fireCount = s.combo >= 8 ? 3 : s.combo >= 5 ? 2 : 1;
+        comboEl.textContent = s.combo + 'x ' + '🔥'.repeat(fireCount);
+        comboEl.style.opacity  = '1';
+        comboEl.style.fontSize = (13 + Math.min(s.combo, 8)) + 'px';
+        comboEl.style.color    = s.combo >= 8 ? '#fb923c' : s.combo >= 5 ? '#fbbf24' : '#facc15';
       } else {
         comboEl.style.opacity = '0';
       }
@@ -465,6 +495,18 @@
     fl.style.background = color;
     fl.style.opacity    = '1';
     setTimeout(function () { fl.style.opacity = '0'; }, 200);
+  }
+
+  /* ── combo pop: punchy scale-burst on the combo readout for streaks >= 3 ──
+     positioned at the combo badge itself (top HUD row), not screen-center,
+     since that IS where the combo indicator lives. */
+  function comboPop() {
+    var el = document.getElementById('trx-combo');
+    if (!el) return;
+    el.style.animation = 'none';
+    /* force reflow so re-triggering the same animation restarts it */
+    void el.offsetWidth;
+    el.style.animation = 'trxComboPop .32s ease';
   }
 
   function shakeIncoming() {
@@ -551,7 +593,12 @@
     var barColor = trustPc > 70 ? '#4ade80' : trustPc < 30 ? '#f87171' : '#a78bfa';
     var cfg = cfgFor(curLevel);
     var isFinalLevel = curLevel >= LEVELS.length;
+    var isWin = stars >= 1;
+    /* win gets a punchy overshoot pop; a no-star result gets a soft plain fade —
+       so the end screen actually feels different on a win vs a loss, not just the text */
+    var entranceAnim = isWin ? 'trxWinPop .5s cubic-bezier(.34,1.56,.64,1)' : 'trxFadeIn .4s ease';
     return [
+      '<div style="width:100%;display:flex;flex-direction:column;align-items:center;animation:'+entranceAnim+';">',
       '<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:6px;">LEVEL '+curLevel+' · '+cfg.name+'</div>',
       '<div style="font-size:44px;margin-bottom:4px;">'+starIcons(stars)+'</div>',
       '<div style="font-size:22px;font-weight:800;color:#e0d6ff;margin-bottom:2px;">'+(stars===3 && isFinalLevel ? 'MISSION ACCOMPLISHED' : stars>=1 ? 'CHALLENGE COMPLETE' : 'NICE TRY!')+'</div>',
@@ -605,6 +652,7 @@
           '← HUB',
         '</button>',
       '</div>',
+      '</div>',  /* close entrance-animation wrapper */
     ].join('');
   }
 
@@ -644,7 +692,18 @@
     resetState();
     renderStack();
     updateHUD();
-    startTimer();
+    /* Only the very first initGame() after a hub entry auto-shows the
+       tutorial and holds gameplay; trxRestart()/trxNextLevel() call initGame()
+       again for replays but leave _trxFreshEntry false by then, so they start
+       the timer immediately as before. Reopening the same explanation is
+       still always available via the ❓ button (trxShowHelp). */
+    if (_trxFreshEntry) {
+      _trxFreshEntry = false;
+      s.paused = true; // hold gameplay + timer until the tutorial is dismissed
+      showHowTo(true);
+    } else {
+      startTimer();
+    }
     document.addEventListener('keydown', onKey);
 
     /* global mouse-up to end drag if pointer leaves card */
@@ -669,12 +728,56 @@
     document.addEventListener('mouseup',   _muHandler);
   }
 
+  /* ── how-to-play overlay: shown once at first boot, reopened via ❓ ──────
+     While s.paused is true, trxDecide()/onKey()/onDragStart() all bail out,
+     and startTimer() is simply never (re-)called — since the timer runs on
+     setInterval, clearing the handle freezes s.timeLeft at its exact current
+     value with zero drift, and calling startTimer() again resumes the exact
+     same countdown (startTimer() never resets s.timeLeft itself). ────────── */
+  function showHowTo(firstTime) {
+    var help = document.getElementById('trx-help');
+    if (!help) return;
+    help.style.display = 'flex';
+    help.innerHTML = [
+      '<div style="max-width:360px;width:100%;padding:26px 22px;background:linear-gradient(160deg,#1e1b40,#12102a);border:1px solid rgba(167,139,250,.4);border-radius:20px;box-shadow:0 0 50px rgba(124,77,255,.2)">',
+        '<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#a78bfa;margin-bottom:10px;font-weight:700">HOW TO PLAY</div>',
+        '<div style="font-size:2rem;margin-bottom:8px">🤝</div>',
+        '<div style="font-size:17px;font-weight:800;color:#e0d6ff;margin-bottom:14px;">TRUST EXCHANGE</div>',
+        '<ul style="text-align:left;font-size:13px;color:rgba(255,255,255,.8);line-height:1.65;margin:0 0 18px;padding-left:18px">',
+          '<li>A card shows a money habit — swipe it right (or tap TRUST UP) if it builds trust, or left (TRUST DOWN) if it hurts it.</li>',
+          '<li>You can also drag the card itself, or use the ← → arrow keys.</li>',
+          '<li>Get it right in a row to build your combo streak — the badge glows hotter and your bonus points grow the longer you keep it going.</li>',
+          '<li>A mismatched swipe breaks your streak and costs trust — read each card before deciding!</li>',
+          '<li>Clear all 20 cards before time runs out. Your final trust score decides your stars and coins across all 3 levels.</li>',
+        '</ul>',
+        '<button id="trx-help-btn" style="width:100%;padding:14px;border:none;border-radius:14px;background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;font-size:15px;font-weight:800;cursor:pointer;">',
+          firstTime ? 'GOT IT — START ▶' : '▶ RESUME',
+        '</button>',
+      '</div>',
+    ].join('');
+    var btn = document.getElementById('trx-help-btn');
+    if (btn) btn.onclick = function () {
+      help.style.display = 'none';
+      if (!s) return;
+      s.paused = false;
+      startTimer(); // (re-)arms setInterval; s.timeLeft is untouched so the countdown resumes exactly where it left off
+    };
+  }
+
+  global.trxShowHelp = function () {
+    if (!s || s.ended || s.paused) return;
+    s.paused = true;
+    clearInterval(s.timerHandle); // freeze s.timeLeft at its current value — no drift math needed
+    showHowTo(false);
+  };
+
   /* ── screen entry point (called by goTo / SCREENS map) ─────────── */
   if (!global.SCREENS) global.SCREENS = {};
 
   global.SCREENS[GAME_ID] = function() {
     if (window.state) window.state.viewingWorld = 'credtech';
     curLevel = 1; // fresh entry from hub always starts at Level 1
+    _trxFreshEntry = true; // gate the auto-tutorial to this one boot, not replays/next-level
     setTimeout(initGame, 40);
     return buildHTML();
   };

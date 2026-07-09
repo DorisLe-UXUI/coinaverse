@@ -353,6 +353,16 @@
       0%,100%{ opacity:.6; }
       50%{ opacity:1; }
     }
+    @keyframes ddt_combo_particle {
+      0%  { opacity:1; transform:translate(0,0) scale(1); }
+      100%{ opacity:0; transform:translate(var(--px),var(--py)) scale(.3); }
+    }
+    @keyframes ddt_win_pop {
+      0%  { opacity:0; transform:scale(.5) rotate(-6deg); }
+      60% { opacity:1; transform:scale(1.07) rotate(2deg); }
+      82% { transform:scale(.96) rotate(-1deg); }
+      100%{ opacity:1; transform:scale(1) rotate(0deg); }
+    }
     #ddt_bin_good:hover { background: linear-gradient(to top, rgba(245,200,66,.22), rgba(245,200,66,.08)) !important; }
     #ddt_bin_bad:hover  { background: linear-gradient(to top, rgba(232,64,96,.22), rgba(232,64,96,.08)) !important; }
   </style>
@@ -832,12 +842,12 @@
     updateScoreDisplay();
     updateCombo();
     flashScreen(GOLD, 0.18);
-    pulseGoodBin();
+    pulseBin(card.cat);
 
     if (speedBonus > 0 || comboBonus > 0) {
-      showFloatingBonus(`+${pts}`, comboBonus > 0 ? TEAL : GOLD);
+      showFloatingBonus(`+${pts}`, comboBonus > 0 ? TEAL : GOLD, G.combo);
     } else {
-      showFloatingBonus(`+${pts}`, GOLD);
+      showFloatingBonus(`+${pts}`, GOLD, G.combo);
     }
   }
 
@@ -907,20 +917,34 @@
     setTimeout(() => { stage.style.animation = ''; }, 380);
   }
 
-  function pulseGoodBin() {
-    const bin = document.getElementById('ddt_bin_good');
+  /* pulses the bin that ACTUALLY matches the card's category — previously
+     this always pulsed the good bin even when a card was correctly sorted
+     into bad debt, so players sorting into the bad bin got feedback on the
+     wrong side of the screen. cat is 'good' or 'bad'. */
+  function pulseBin(cat) {
+    const binId = cat === 'good' ? 'ddt_bin_good' : 'ddt_bin_bad';
+    const anim  = cat === 'good' ? 'ddt_pulse_good' : 'ddt_pulse_bad';
+    const bin = document.getElementById(binId);
     if (!bin) return;
-    bin.style.animation = 'ddt_pulse_good .4s ease-out';
+    bin.style.animation = `${anim} .4s ease-out`;
     setTimeout(() => { bin.style.animation = ''; }, 420);
   }
 
-  function showFloatingBonus(text, color) {
+  /* combo (optional) scales the visual punch — hit #1 and hit #10 in a
+     streak should NOT look identical: font grows and a particle burst
+     appears once the combo is deep enough. Purely visual — scoring math
+     (pts/comboBonus) is untouched. */
+  function showFloatingBonus(text, color, combo) {
     const stage = document.getElementById('ddt_stage');
     if (!stage) return;
+    const comboLevel = combo || 0;
+    const growth = Math.min(comboLevel, 10) * 0.035; // up to +0.35rem at combo 10+
+    const fontSize = (1.2 + growth).toFixed(2) + 'rem';
+
     const el = document.createElement('div');
     el.style.cssText = `
       position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-      font-family:Orbitron,sans-serif;font-size:1.2rem;font-weight:700;
+      font-family:Orbitron,sans-serif;font-size:${fontSize};font-weight:700;
       color:${color};text-shadow:0 0 12px ${color}88;
       pointer-events:none;z-index:80;white-space:nowrap;
       animation:ddt_bonus_float .8s ease-out forwards;
@@ -928,6 +952,26 @@
     el.textContent = text;
     stage.appendChild(el);
     setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 850);
+
+    /* particle burst scales with combo depth once past the combo threshold */
+    if (comboLevel >= COMBO_THRESHOLD) {
+      const particleCount = 9 + Math.min(12, comboLevel);
+      for (let i = 0; i < particleCount; i++) {
+        const p = document.createElement('div');
+        const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.4;
+        const dist  = 40 + Math.random() * 50;
+        const px = Math.cos(angle) * dist;
+        const py = Math.sin(angle) * dist;
+        p.style.cssText = `
+          position:absolute;top:50%;left:50%;width:5px;height:5px;border-radius:50%;
+          background:${color};box-shadow:0 0 6px ${color};pointer-events:none;z-index:79;
+          --px:${px}px;--py:${py}px;
+          animation:ddt_combo_particle .6s ease-out forwards;
+        `;
+        stage.appendChild(p);
+        setTimeout(() => { if (p.parentNode) p.parentNode.removeChild(p); }, 620);
+      }
+    }
   }
 
   /* ── level up transition ─────────────────────────────────────── */
@@ -1045,6 +1089,11 @@
       animation:ddt_card_in .4s ease both;
     `;
 
+    /* won runs get a bouncy scale+rotate pop-in on the card itself so a
+       3-star clear FEELS different from a session-ended loss, which keeps
+       the plainer backdrop fade only */
+    const cardAnim = won ? 'ddt_win_pop .55s cubic-bezier(.22,1.4,.4,1) .1s both' : 'ddt_card_in .4s ease both';
+
     overlay.innerHTML = `
       <div style="
         width:min(360px,90vw);
@@ -1055,6 +1104,7 @@
         text-align:center;
         box-shadow:0 0 60px rgba(75,45,143,.25),0 20px 60px rgba(0,0,0,.8);
         position:relative;overflow:hidden;
+        animation:${cardAnim};
       ">
         <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${VIOLET},transparent)"></div>
 

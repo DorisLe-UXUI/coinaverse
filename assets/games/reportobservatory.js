@@ -7,6 +7,8 @@
 (function(){
   let G = null;
   let curLevel = 1;   // 1|2|3 — chosen on hub entry, advances via end-screen "NEXT LEVEL"
+  // Tutorial auto-shows once per fresh hub visit, not on every roPlayAgain()/roNextLevel() replay.
+  let _roHelpShown = false;
 
   /* ─── LEVEL CONFIGS ───────────────────────────────────────────── */
   const LEVELS = [
@@ -166,6 +168,7 @@
   window.SCREENS.game_reportobservatory = function(){
     G = null;
     curLevel = 1;   // fresh hub entry always starts the campaign at Level 1
+    _roHelpShown = false;   // re-show the tutorial once per fresh hub visit
     setTimeout(initGame, 40);
     return `<div id="roRoot" style="position:absolute;inset:0;background:#0d0920;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
 
@@ -176,6 +179,7 @@
       <div style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;padding:12px 14px;gap:10px;background:linear-gradient(180deg,rgba(13,9,32,.98) 70%,transparent);flex-shrink:0">
         <button onclick="roExit()" style="padding:7px 13px;border:1px solid rgba(139,92,246,.4);border-radius:9px;background:rgba(139,92,246,.12);color:#a78bfa;font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.14em;cursor:pointer;white-space:nowrap;flex-shrink:0">← HUB</button>
         <div id="roTitle" style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:#a78bfa;flex:1;text-align:center;text-shadow:0 0 16px rgba(139,92,246,.6)">REPORT OBSERVATORY · LV 1/3</div>
+        <button onclick="roShowHelp()" title="How to play" style="padding:7px 10px;border:1px solid rgba(139,92,246,.4);border-radius:9px;background:rgba(139,92,246,.12);color:#a78bfa;cursor:pointer;font-size:.75rem;flex-shrink:0">❓</button>
         <div style="display:flex;gap:10px;align-items:center;flex-shrink:0">
           <div id="roScore" style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:#fbbf24;font-variant-numeric:tabular-nums;text-shadow:0 0 10px rgba(251,191,36,.4);min-width:52px;text-align:right">0</div>
           <div id="roTimer" style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:#e2e8f0;font-variant-numeric:tabular-nums;min-width:36px;text-align:right">90s</div>
@@ -516,11 +520,60 @@
       </div>`;
   }
 
+  /* ─── HOW-TO-PLAY OVERLAY — shown once automatically before the timer/taps
+     go live (G.phase held at 'help', not 'play'), and reopenable any time via
+     the ❓ button. One explanation covers all 3 levels — the tap-to-find
+     mechanic never changes, only the error count/subtlety/time budget does.
+     Reuses the roOver slot (also used by endGame()); safe because endGame()
+     only ever fires once G.phase reaches 'over', which happens strictly after
+     this overlay's 'help'→'play' transition, so the two never collide. ──── */
+  function showHowToPlay(firstTime){
+    const over = document.getElementById('roOver');
+    if(!over || !G) return;
+    over.style.display = 'flex';
+    over.innerHTML = `
+      <div style="max-width:380px;width:100%;text-align:center;padding:26px 22px;background:linear-gradient(160deg,rgba(13,9,32,.97),rgba(30,15,60,.97));border:1px solid rgba(139,92,246,.4);border-radius:20px;box-shadow:0 0 50px rgba(139,92,246,.2)">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#a78bfa;margin-bottom:10px">HOW TO PLAY</div>
+        <div style="font-size:2rem;margin-bottom:8px">🔭</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.95rem;margin-bottom:14px;color:#fff">REPORT OBSERVATORY</div>
+        <ul style="text-align:left;font-size:.74rem;color:#ddd;line-height:1.65;margin:0 0 18px;padding-left:18px">
+          <li>A credit report is shown below — some entries are correct, but a few contain hidden mistakes.</li>
+          <li>Tap any entry you think has a mistake in it before time runs out.</li>
+          <li>Found one? Great — a hint explains the mistake. Tap a correct entry by accident and you'll lose points, so look carefully.</li>
+          <li>Find mistakes back-to-back to build a streak for extra flair — every level just hides a few more, subtler ones.</li>
+          <li>Your score and how many mistakes you catch decide your stars at the end.</li>
+        </ul>
+        <button id="roHelpBtn" style="padding:13px 30px;border:none;border-radius:11px;background:linear-gradient(90deg,#8b5cf6,#a78bfa);color:#1a0f3c;font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${firstTime ? 'GOT IT — START ▶' : '▶ RESUME'}</button>
+      </div>`;
+    const btn = document.getElementById('roHelpBtn');
+    if(btn) btn.onclick = () => {
+      over.style.display = 'none';
+      over.innerHTML = '';
+      if(!G) return;
+      G.phase = 'play';   // tick() and roTapItem() both gate on this — flipping it back is the entire "resume" (G.timeLeft was never decremented while phase!=='play', so no elapsed-time shift is needed)
+    };
+  }
+  window.roShowHelp = function(){
+    if(!G || G.phase === 'over') return;   // end screen already covers everything; don't reopen tutorial over it
+    if(G.phase === 'help') return;         // already open
+    G._helpResumePhase = G.phase;          // remembered for symmetry with the other 2 games' pattern, though roCloseHelp() always just resumes to 'play'
+    G.phase = 'help';
+    showHowToPlay(false);
+  };
+  window.roCloseHelp = function(){
+    // Not currently wired to any button (the in-overlay button's own onclick
+    // above handles closing) — exposed for parity/debug use only.
+    const over = document.getElementById('roOver');
+    if(over){ over.style.display = 'none'; over.innerHTML = ''; }
+    if(G) G.phase = 'play';
+  };
+
   /* ─── INIT ──────────────────────────────────────────────────── */
   function initGame(){
     const root = document.getElementById('roRoot');
     if(!root) return;
     G = newGame(curLevel);
+    if (!_roHelpShown) G.phase = 'help'; // hold on the tutorial before the timer/taps go live
     renderReport();
     const titleEl = document.getElementById('roTitle');
     if(titleEl) titleEl.textContent = `REPORT OBSERVATORY · LV ${curLevel}/3`;
@@ -529,8 +582,9 @@
     const tEl = document.getElementById('roTimer');
     if(tEl) tEl.textContent = G.timeLeft + 's';
     drawStars();
-    G.timerId = setInterval(tick, 1000);
+    G.timerId = setInterval(tick, 1000); // tick() itself no-ops while G.phase!=='play', so G.timeLeft never decrements during the tutorial — no elapsed-time shift is needed on close
     G.last = performance.now();
+    if (!_roHelpShown) { _roHelpShown = true; showHowToPlay(true); }
   }
 
   /* ─── TICK (1s interval) ────────────────────────────────────── */

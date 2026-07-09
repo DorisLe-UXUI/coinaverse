@@ -140,13 +140,14 @@
   #ss-root { position:absolute;inset:0;background:linear-gradient(160deg,#071a10 0%,#031409 55%,#020d07 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff;display:flex;flex-direction:column; }
   .ss-topbar { display:flex;align-items:center;gap:8px;padding:10px 14px 8px;background:linear-gradient(180deg,rgba(3,20,9,.95) 0%,transparent 100%);flex-shrink:0;flex-wrap:wrap; }
   .ss-back-btn { padding:6px 12px;border:1px solid rgba(16,185,129,.4);border-radius:8px;background:rgba(16,185,129,.1);color:#6ee7b7;font-size:.6rem;letter-spacing:.1em;cursor:pointer;font-family:'Orbitron',sans-serif;white-space:nowrap; }
+  .ss-help-btn { padding:6px 9px;border:1px solid rgba(16,185,129,.4);border-radius:8px;background:rgba(16,185,129,.1);color:#6ee7b7;font-size:.62rem;cursor:pointer;font-family:'Orbitron',sans-serif;flex-shrink:0; }
   .ss-title { font-family:'Orbitron',sans-serif;font-size:.65rem;letter-spacing:.2em;color:#34d399;flex:1;text-align:center; }
   .ss-timer { font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fbbf24;min-width:42px;text-align:right; }
   .ss-hud { display:flex;gap:6px;padding:0 12px 8px;flex-shrink:0; }
   .ss-hud-box { flex:1;text-align:center;background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.18);border-radius:10px;padding:5px 4px; }
   .ss-hud-label { font-size:.42rem;letter-spacing:.1em;color:rgba(255,255,255,.45);font-family:'Orbitron',sans-serif;text-transform:uppercase; }
   .ss-hud-val { font-size:.95rem;font-weight:900;color:#fff;font-family:'Anton',sans-serif;line-height:1.2; }
-  .ss-stocks { flex:1;overflow-y:auto;padding:0 10px 8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;align-content:start; }
+  .ss-stocks { flex:1;overflow-y:auto;padding:0 10px 8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;align-content:center;justify-content:center; }
   .ss-stocks::-webkit-scrollbar { width:3px; }
   .ss-stocks::-webkit-scrollbar-thumb { background:rgba(16,185,129,.3);border-radius:3px; }
   .ss-card { border-radius:13px;border:1.5px solid rgba(16,185,129,.2);background:rgba(7,31,13,.7);padding:10px;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .1s;-webkit-tap-highlight-color:transparent;position:relative;overflow:hidden; }
@@ -183,6 +184,16 @@
   .ss-panel { max-width:420px;width:100%;text-align:center;padding:28px 22px;border-radius:20px;background:linear-gradient(160deg,rgba(7,31,13,.98),rgba(3,16,8,.98)); }
   @keyframes ssPanelIn { 0%{transform:scale(.9);opacity:0} 100%{transform:scale(1);opacity:1} }
   .ss-panel { animation:ssPanelIn .3s ease; }
+  /* Distinct celebratory entrance for a WIN specifically — overshoots past 1x then
+     settles, plus a bright glow ring pulse, so hitting the mission reads as a bigger
+     moment than the routine Knowledge Gate / Help panels sharing .ss-panel above. */
+  @keyframes ssWinPop {
+    0%   { transform:scale(.7)  rotate(-2deg); opacity:0; box-shadow:0 0 0 rgba(251,191,36,0); }
+    45%  { transform:scale(1.12) rotate(1deg); opacity:1; box-shadow:0 0 70px rgba(251,191,36,.65); }
+    70%  { transform:scale(.96) rotate(-.5deg); box-shadow:0 0 55px rgba(251,191,36,.5); }
+    100% { transform:scale(1)   rotate(0deg);  box-shadow:0 0 60px rgba(16,185,129,.4); }
+  }
+  .ss-panel-win { animation:ssWinPop .55s cubic-bezier(.34,1.56,.64,1) both; }
   .ss-surge-overlay { position:absolute;inset:0;z-index:8;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(251,191,36,.08);backdrop-filter:blur(2px);pointer-events:none; }
   .ss-surge-box { text-align:center;padding:18px 28px;border-radius:16px;border:2px solid #fbbf24;background:rgba(2,10,5,.92);box-shadow:0 0 40px rgba(251,191,36,.5); }
   @keyframes ssSurgeIn { 0%{transform:scale(.8);opacity:0} 60%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
@@ -199,6 +210,7 @@
   <div class="ss-topbar">
     <button class="ss-back-btn" onclick="ssExit()">← HUB</button>
     <div class="ss-title" id="ss-title">📊 STOCK SURGE</div>
+    <button class="ss-help-btn" onclick="ssShowHelp()" title="How to play">❓</button>
     <div class="ss-timer" id="ss-timer">75s</div>
   </div>
 
@@ -244,6 +256,7 @@
   <div class="ss-overlay" id="ss-gate" style="display:none"></div>
   <div class="ss-overlay" id="ss-over"  style="display:none"></div>
   <div class="ss-overlay" id="ss-info"  style="display:none"></div>
+  <div class="ss-overlay" id="ss-help"  style="display:none"></div>
 </div>`;
   }
 
@@ -299,6 +312,7 @@
       lastBuyPrice:      {},    // ticker -> avg buy price for profit-sell detection
       lastNewsType:      null,  // 'pos'|'neg'|'vol' — current active news bias
       lastNewsTicker:    null,  // ticker affected by current news
+      profitStreak:      0,     // cosmetic-only: consecutive profitable sells, resets on a losing sell
     };
   }
 
@@ -313,7 +327,52 @@
     var q = document.getElementById('ss-qty'); if (q) q.textContent = S.qty;   // DOM persists across restarts
     startTimers();
     ssInitCanvas();
+    // HOW TO PLAY — auto-shown once per session, before the player's very first round.
+    // Fires AFTER startTimers() so the pause path below is identical to the mid-game
+    // ❓ reopen (ssShowHelp), instead of a second "don't start timers yet" code path.
+    if (!window._ssTutorialShown) {
+      window._ssTutorialShown = true;
+      ssShowHelp();
+    }
   }
+
+  /* ── HOW-TO-PLAY overlay — shown once automatically before the first round,
+     reopened anytime via the ❓ button without losing the run. Pausing reuses
+     the same stopTimers()/startTimers() pair as the Knowledge Gate (both are
+     resume-safe per their own comments), so surge/news/gate timers never
+     double-fire on resume. ── */
+  window.ssShowHelp = function () {
+    if (!S || S.phase === 'over') return;
+    var wasPlaying = S.phase === 'play';
+    if (wasPlaying) { S.phase = 'paused'; stopTimers(); clearSurge(); }
+    var el = document.getElementById('ss-help');
+    if (!el) return;
+    el.style.display = 'flex';
+    el.innerHTML = '<div class="ss-panel" style="border:1px solid #34d399;box-shadow:0 0 50px rgba(16,185,129,.4)">' +
+      '<div style="font-family:\'Orbitron\',sans-serif;font-size:.48rem;letter-spacing:.18em;color:#6ee7b7;margin-bottom:10px">HOW TO PLAY</div>' +
+      '<div style="font-size:2.2rem;margin-bottom:8px">📊</div>' +
+      '<div style="font-family:\'Orbitron\',sans-serif;font-size:.85rem;font-weight:900;color:#34d399;text-shadow:0 0 20px rgba(52,211,153,.5);margin-bottom:14px">STOCK SURGE</div>' +
+      '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:13px 15px;margin-bottom:18px;text-align:left">' +
+        '<div style="display:flex;flex-direction:column;gap:9px">' +
+          '<div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:.8rem;flex-shrink:0">🎯</span><span style="font-size:.6rem;color:rgba(255,255,255,.8);line-height:1.5">Grow your cash by picking stocks, then <b style="color:#34d399">BUY</b> low and <b style="color:#fbbf24">SELL</b> high to hit each level\'s mission.</span></div>' +
+          '<div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:.8rem;flex-shrink:0">👆</span><span style="font-size:.6rem;color:rgba(255,255,255,.8);line-height:1.5">Tap a stock card to select it, set QTY, then tap BUY, SELL, or HOLD to wait it out.</span></div>' +
+          '<div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:.8rem;flex-shrink:0">⚡</span><span style="font-size:.6rem;color:rgba(255,255,255,.8);line-height:1.5">Watch for SURGE MOMENTS and NEWS banners — they swing prices fast. React quickly!</span></div>' +
+          '<div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:.8rem;flex-shrink:0">⛩</span><span style="font-size:.6rem;color:rgba(255,255,255,.8);line-height:1.5">Knowledge Gates pop up with quick investing facts — read them for bonus coins.</span></div>' +
+          '<div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:.8rem;flex-shrink:0">🏆</span><span style="font-size:.6rem;color:rgba(255,255,255,.8);line-height:1.5">7 levels total — each one adds new stocks and a new mission. Complete the mission to advance.</span></div>' +
+        '</div>' +
+      '</div>' +
+      '<button onclick="ssCloseHelp()" style="padding:13px 30px;border:none;border-radius:12px;background:linear-gradient(135deg,#34d399,#059669);color:#031409;font-family:\'Orbitron\',sans-serif;font-size:.68rem;letter-spacing:.1em;font-weight:900;cursor:pointer">' + (wasPlaying ? '▶ RESUME' : 'GOT IT — START ▶') + '</button>' +
+    '</div>';
+  };
+
+  window.ssCloseHelp = function () {
+    var el = document.getElementById('ss-help');
+    if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+    if (S && S.phase === 'paused') {
+      S.phase = 'play';
+      startTimers();   // resume-safe (see startTimers()/scheduleGate() comments) — re-arms gate/news/countdown fresh
+    }
+  };
 
   /* ── Live canvas sparklines background ───────────────────────── */
   var _ssBgRaf = null;
@@ -411,12 +470,17 @@
     }
     _ssBgRaf = requestAnimationFrame(drawBg);
 
-    // expose burst for buy/sell
-    window._ssBurst = function(x, y, up) {
+    // expose burst for buy/sell. `streak` (cosmetic only, default 0) scales particle
+    // count/speed/size so a deeper profit streak visibly pops harder — capped at 5
+    // so depth never overwhelms the canvas.
+    window._ssBurst = function(x, y, up, streak) {
       var c = up ? '#34d399' : '#f87171';
+      var depth = Math.max(0, Math.min(5, streak || 0));
+      var count = 10 + depth * 3;              // 10 → 25 particles
+      var speedB = 1 + depth * 0.15;            // subtle extra kick per streak level
       var W2 = cv.clientWidth, H2 = cv.clientHeight;
-      for (var i = 0; i < 10; i++) {
-        _ssBgParts.push({ x: x*W2, y: y*H2, vx:(Math.random()-.5)*4, vy:-Math.random()*3-1, r:Math.random()*2.5+1, c:c, life:1 });
+      for (var i = 0; i < count; i++) {
+        _ssBgParts.push({ x: x*W2, y: y*H2, vx:(Math.random()-.5)*4*speedB, vy:(-Math.random()*3-1)*speedB, r:(Math.random()*2.5+1)*(1+depth*0.08), c:c, life:1 });
       }
     };
 
@@ -452,6 +516,19 @@
   }
   function riskLabel(risk) {
     return risk === 'Steady' ? 'S' : risk === 'Bouncy' ? 'B' : 'W';
+  }
+  // Normalized [0,1] position of a stock's card, for feedback bursts that should
+  // originate AT the card the player acted on rather than a fixed screen point.
+  function cardBurstPos(ticker) {
+    var card = document.getElementById('ss-card-' + ticker);
+    var root = document.getElementById('ss-root');
+    if (!card || !root) return { x: 0.5, y: 0.75 };
+    var cr = card.getBoundingClientRect(), rr = root.getBoundingClientRect();
+    var w = rr.width || 1, h = rr.height || 1;
+    return {
+      x: Math.max(0, Math.min(1, (cr.left + cr.width / 2 - rr.left) / w)),
+      y: Math.max(0, Math.min(1, (cr.top + cr.height / 2 - rr.top) / h))
+    };
   }
   function moodOf(st) {
     var h = st.history;
@@ -877,7 +954,7 @@
         S.newsCorrectTrades++;
       }
       showToast('Bought ' + S.qty + ' ' + st.ticker + ' @ $' + st.price.toFixed(2), '#34d399');
-      if (window._ssBurst) _ssBurst(0.5, 0.75, true);
+      if (window._ssBurst) { var bp = cardBurstPos(st.ticker); _ssBurst(bp.x, bp.y, true); }
     } else if (action === 'sell') {
       if (st.shares < S.qty) { showToast('Not enough shares!', '#f87171'); return; }
       var proceeds = st.price * S.qty;
@@ -889,6 +966,9 @@
       S.trades++;
       // Lv2: count profitable sells (GDD Sec 10 Lv2 win = "make 1 profitable sell")
       if (sellProfitable) S.profitSells++;
+      // Cosmetic-only streak: consecutive profitable sells escalate the sell toast's
+      // punch (size/glow/exclamation) — never touches score, coins, or win conditions.
+      S.profitStreak = sellProfitable ? (S.profitStreak + 1) : 0;
       // Lv5 news-response tracking: selling a stock whose active news is negative = correct
       if (S.lv.winCondition === 'newsResponse' && S.lastNewsType === 'neg' && !S.newsEventCredited &&
           (S.lastNewsTicker === st.ticker || S.lastNewsTicker === 'ALL')) {
@@ -899,8 +979,12 @@
       var lesson = sellProfitable
         ? '💡 Selling after a rise locks in profit!'
         : '📰 Selling in a dip locks in losses. Patience!';
-      if (window._ssBurst) _ssBurst(0.5, 0.75, sellProfitable);
-      showToast('Sold ' + S.qty + ' ' + st.ticker + ' → +' + fmt(proceeds), '#fbbf24');
+      if (window._ssBurst) {
+        var bp2 = cardBurstPos(st.ticker);
+        _ssBurst(bp2.x, bp2.y, sellProfitable, sellProfitable ? S.profitStreak : 0);
+      }
+      var streakTag = sellProfitable && S.profitStreak >= 2 ? ' 🔥x' + S.profitStreak : '';
+      showToast('Sold ' + S.qty + ' ' + st.ticker + ' → +' + fmt(proceeds) + streakTag, '#fbbf24', sellProfitable ? S.profitStreak : 0);
       setTimeout(function () { showToast(lesson, '#6ee7b7'); }, 2100);
     }
 
@@ -1012,7 +1096,9 @@
     if (window.state) {
       if (won2 && window.cvAwardGame) {
         var stars = profit >= 2 * Math.max(1, curTarget() - S.startCash) ? 3 : 2;
-        reward = cvAwardGame('game_stocksurge', { level: Math.min(S.level, 3), stars: stars, badge: 'Market Mogul', is3star: stars === 3, isPerfect: stars === 3, isFlagship: true });
+        // Pass the REAL level reached (1-7) so permanent progress (state.gameLevels) isn't
+        // capped at 3 — cvAwardGame's own coin formula already treats lv>=3 as one flat tier.
+        reward = cvAwardGame('game_stocksurge', { level: S.level, stars: stars, badge: 'Market Mogul', is3star: stars === 3, isPerfect: stars === 3, isFlagship: true });
       } else {
         reward = profit > 0 ? 40 : 20;    // small consolation, no farming value
         state.coins = (state.coins || 0) + reward;
@@ -1051,7 +1137,7 @@
     var el = document.getElementById('ss-over');
     if (!el) return;
     el.style.display = 'flex';
-    el.innerHTML = '<div class="ss-panel" style="border:1px solid ' + (won2 ? '#fbbf24' : '#10b981') + ';box-shadow:0 0 60px rgba(16,185,129,.4)">' +
+    el.innerHTML = '<div class="ss-panel' + (won2 ? ' ss-panel-win' : '') + '" style="border:1px solid ' + (won2 ? '#fbbf24' : '#10b981') + ';box-shadow:0 0 60px rgba(16,185,129,.4)">' +
       '<div style="font-size:2.6rem;margin-bottom:8px">' + (won2 ? '🏆' : profit >= 0 ? '📈' : '📉') + '</div>' +
       '<div style="font-family:\'Orbitron\',sans-serif;font-size:.55rem;letter-spacing:.18em;color:' + (won2 ? '#fbbf24' : '#34d399') + ';margin-bottom:8px">' + (won2 ? 'TARGET REACHED!' : profit >= 0 ? 'PROFITABLE RUN' : 'MARKET CLOSED') + '</div>' +
       '<div style="font-family:\'Orbitron\',sans-serif;font-size:.42rem;letter-spacing:.14em;color:rgba(255,255,255,.5);margin-bottom:6px">INVESTMENT ACCOUNT SUMMARY</div>' +
@@ -1084,15 +1170,25 @@
   /* ══════════════════════════════════════════════════════════════
      TOAST
   ══════════════════════════════════════════════════════════════ */
-  function showToast(text, color) {
+  function showToast(text, color, streak) {
     var root = document.getElementById('ss-root');
     if (!root) return;
     var old = root.querySelector('.ss-toast');
     if (old) old.remove();
+    // Reward escalation (cosmetic only): deeper profit streaks get a slightly bigger,
+    // brighter-glowing toast. Caps at streak 5 so it never runs away visually.
+    // NOTE: the outer .ss-toast element's `transform` is driven entirely by the
+    // ssToastUp keyframes (translateX/translateY) — any scale set inline on it would
+    // be clobbered the instant the animation starts. So the scale is applied to an
+    // INNER wrapper span instead, which the keyframes never touch.
+    var depth    = Math.max(0, Math.min(5, streak || 0));
+    var scale    = 1 + depth * 0.06;          // 1.00 → 1.30 at depth 5
+    var glowSize = 18 + depth * 6;             // 18px → 48px
+    var glowA    = 0.35 + depth * 0.09;        // 0.35 → 0.80
     var div = document.createElement('div');
     div.className = 'ss-toast';
-    div.style.cssText = 'position:absolute;bottom:130px;left:50%;transform:translateX(-50%);z-index:9;pointer-events:none;white-space:nowrap;font-family:\'Inter\',sans-serif;font-weight:800;font-size:.78rem;color:' + (color || '#34d399') + ';background:rgba(2,10,5,.9);padding:8px 16px;border-radius:20px;border:1px solid ' + (color || '#34d399') + '44;box-shadow:0 4px 18px rgba(0,0,0,.4);animation:ssToastUp 2s ease forwards;';
-    div.textContent = text;
+    div.style.cssText = 'position:absolute;bottom:130px;left:50%;pointer-events:none;white-space:nowrap;z-index:9;';
+    div.innerHTML = '<span style="display:inline-block;transform:scale(' + scale + ');font-family:\'Inter\',sans-serif;font-weight:800;font-size:.78rem;color:' + (color || '#34d399') + ';background:rgba(2,10,5,.9);padding:8px 16px;border-radius:20px;border:1px solid ' + (color || '#34d399') + (depth >= 2 ? 'cc' : '44') + ';box-shadow:0 4px ' + glowSize + 'px rgba(251,191,36,' + glowA + ');">' + text + '</span>';
     root.appendChild(div);
     setTimeout(function () { if (div.parentNode) div.remove(); }, 2100);
   }

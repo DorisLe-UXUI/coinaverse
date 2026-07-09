@@ -270,6 +270,7 @@
       comboMult:1,          // current combo multiplier
       comboT:0,             // time since last combo-eligible action
       comboCount:0,         // consecutive chain
+      _comboShown:1,        // last combo value reflected in the HUD pop (see syncHUD)
       // ── particles & floats ──
       parts:[], floats:[],
       // ── timer ──
@@ -290,6 +291,7 @@
     if(!G) reset(0);
     setTimeout(dsBoot,30);
     return `<div id="dsRoot" style="position:absolute;inset:0;background:#0f0f14;overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
+      <style>@keyframes dsComboPop{0%{transform:scale(1)}40%{transform:scale(1.45)}100%{transform:scale(1)}}</style>
 
       <!-- TOP HUD: timer + level -->
       <div style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(15,15,20,0.92);border-bottom:1px solid rgba(249,115,22,0.25)">
@@ -297,6 +299,7 @@
         <div style="flex:1;text-align:center">
           <div style="font-size:.55rem;letter-spacing:.2em;color:rgba(255,255,255,0.45);font-family:monospace">⚔ DEBT SURVIVAL · GLADIATOR PIT</div>
         </div>
+        <button onclick="dsShowHelp()" style="width:24px;height:24px;border-radius:50%;border:1px solid rgba(249,115,22,0.4);background:rgba(249,115,22,0.12);color:#fb923c;font-size:.65rem;cursor:pointer;flex-shrink:0">❓</button>
         <div style="text-align:right">
           <div id="dsTimer" style="font-size:1.3rem;font-weight:900;color:#fbbf24;line-height:1">--:--</div>
           <div style="font-size:.45rem;color:rgba(255,255,255,0.4);letter-spacing:.1em">TIME LEFT</div>
@@ -320,6 +323,7 @@
 
       <div id="dsGate" style="position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.82);backdrop-filter:blur(6px);padding:20px"></div>
       <div id="dsSelect" style="position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);backdrop-filter:blur(4px);padding:20px"></div>
+      <div id="dsHow" style="position:absolute;inset:0;z-index:21;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.88);backdrop-filter:blur(6px);padding:20px"></div>
       <div id="dsOver" style="position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.88);backdrop-filter:blur(6px);padding:20px"></div>
     </div>`;
   };
@@ -403,9 +407,43 @@
   window.dsStartLv=function(i){
     reset(i);
     const el=document.getElementById('dsSelect'); if(el){el.style.display='none';el.innerHTML='';}
-    G.phase='play'; G.last=performance.now();
     const lbl=document.getElementById('dsLvLabel'); if(lbl) lbl.textContent=LEVELS[i].label;
     spawnItems();
+    showHowToPlay(true);   // auto-shown once before play starts; reopenable anytime via the ❓ button
+  };
+
+  /* ─── HOW TO PLAY (auto-shown once per level start, reopenable via ❓) ── */
+  function howToBody(){
+    return `<div style="max-width:460px;width:100%;text-align:center;padding:28px 24px;border:1px solid rgba(249,115,22,0.5);border-radius:20px;background:linear-gradient(160deg,#1a1a2e,#0f0f1a);box-shadow:0 0 60px rgba(249,115,22,0.25)">
+      <div style="font-size:2.2rem;margin-bottom:6px">⚔️</div>
+      <div style="font-size:.5rem;letter-spacing:.22em;color:#fb923c;margin-bottom:10px">HOW TO PLAY</div>
+      <div style="font-size:1.1rem;font-weight:900;color:#fff;margin-bottom:14px">DEBT SURVIVAL: GLADIATOR PIT</div>
+      <ul style="text-align:left;max-width:380px;margin:0 auto;font-size:.78rem;line-height:1.7;color:rgba(255,255,255,0.82);padding-left:18px">
+        <li><b>Goal:</b> survive the arena timer while keeping your Financial Health above 0.</li>
+        <li><b>Move:</b> WASD / arrow keys, or touch-drag to steer your vehicle.</li>
+        <li><b>Grab the good stuff:</b> 🪙💵🟢🟡🔮💊⚡ boost your Credit, Savings and melt your Debt.</li>
+        <li><b>Dodge the red stuff:</b> 📦 Scam Box and 🔴 Late Fee Trap pile on Debt and Risk.</li>
+        <li><b>Watch for 🚛 the Debt Collector:</b> it appears randomly and hits hard — Shield Orbs and Green Tank armor block it.</li>
+        <li><b>Knowledge Gates:</b> answer correctly for big bonuses — wrong answers buff the boss!</li>
+        <li><b>Combo:</b> chain good pickups without a miss to build your multiplier up to ×5.</li>
+      </ul>
+      <button onclick="dsCloseHelp()" style="margin-top:18px;padding:12px 30px;border:none;border-radius:12px;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;font-weight:900;font-size:.66rem;letter-spacing:.1em;cursor:pointer">GOT IT — SURVIVE ▶</button>
+    </div>`;
+  }
+  function showHowToPlay(first){
+    const el=document.getElementById('dsHow'); if(!el||!G) return;
+    if(!first) G._pauseStartTs=performance.now();
+    G.phase='help';
+    el.style.display='flex';
+    el.innerHTML=howToBody();
+  }
+  window.dsShowHelp=function(){ showHowToPlay(false); };
+  window.dsCloseHelp=function(){
+    const el=document.getElementById('dsHow'); if(el){ el.style.display='none'; el.innerHTML=''; }
+    if(!G) return;
+    if(G._pauseStartTs){ G.last+=(performance.now()-G._pauseStartTs); G._pauseStartTs=0; }
+    G.phase='play';   // only reachable from level-start ('select') or mid-play (❓ button) — both resolve to 'play'
+    G.last=performance.now();
   };
 
   /* ─── ITEM SPAWNING ─────────────────────────────────────────── */
@@ -442,7 +480,7 @@
     if(!cv||!G){ cancelAnimationFrame(raf); return; }
     const ctx=cv.getContext('2d'); const W=cv.clientWidth, H=cv.clientHeight;
     const dt=clamp((now-G.last)/1000,0,0.05); G.last=now;
-    if(G.phase==='play') update(dt,W,H,now);
+    if(G.phase==='play') update(dt,W,H,now);   // 'help' pauses same as 'gate'/'select'/'over'
     render(ctx,W,H,now);
     raf=requestAnimationFrame(loop);
   }
@@ -610,6 +648,9 @@
     if(cDisp){
       cDisp.textContent='×'+G.comboMult+' COMBO';
       cDisp.style.color=G.comboMult>=5?'#fbbf24':G.comboMult>=3?'#fb923c':'rgba(255,255,255,0.45)';
+      // punch-scale on every step UP (deeper chains pop harder) — pure HUD feedback, no gameplay effect
+      if(G.comboMult>G._comboShown){ cDisp.style.animation='none'; void cDisp.offsetWidth; cDisp.style.animation='dsComboPop '+(200+G.comboMult*35)+'ms ease-out'; }
+      G._comboShown=G.comboMult;
     }
 
     // Status line
@@ -722,7 +763,7 @@
   /* ─── RENDER ────────────────────────────────────────────────── */
   function render(ctx,W,H,now){
     ctx.clearRect(0,0,W,H);
-    if(G.phase==='select'||G.phase==='over'||G.phase==='gate') return;
+    if(G.phase==='select'||G.phase==='over'||G.phase==='gate'||G.phase==='help') return;
     const g=geo(W,H);
     let ox=0,oy=0;
     if(G.shake>0){ ox=(Math.random()-.5)*G.shake*18; oy=(Math.random()-.5)*G.shake*18; }
@@ -999,10 +1040,14 @@
     const elapsedSec=Math.floor((G.lv.duration-G.timeLeft)%60);
     const o=document.getElementById('dsOver'); if(!o) return;
     o.style.display='flex';
-    o.innerHTML=`<div style="max-width:480px;width:100%;text-align:center;padding:28px 20px;border:1px solid ${win?'rgba(249,115,22,0.6)':'rgba(239,68,68,0.5)'};border-radius:20px;background:linear-gradient(160deg,#1a1428,#0f0f1a);box-shadow:0 0 60px ${win?'rgba(249,115,22,0.4)':'rgba(239,68,68,0.35)'}">
-
+    o.innerHTML=`<div style="max-width:480px;width:100%;text-align:center;padding:28px 20px;border:1px solid ${win?'rgba(249,115,22,0.6)':'rgba(239,68,68,0.5)'};border-radius:20px;background:linear-gradient(160deg,#1a1428,#0f0f1a);box-shadow:0 0 60px ${win?'rgba(249,115,22,0.4)':'rgba(239,68,68,0.35)'};animation:${win?'dsWinPop .55s cubic-bezier(.2,1.4,.4,1)':'dsFadeIn .3s ease'}">
+      <style>
+        @keyframes dsWinPop{0%{transform:scale(.7) rotate(-3deg);opacity:0}60%{transform:scale(1.06) rotate(1deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+        @keyframes dsFadeIn{0%{transform:scale(.94);opacity:0}100%{transform:scale(1);opacity:1}}
+        @keyframes dsStarPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+      </style>
       <!-- STAR RATING (GDD: 1–5 stars) -->
-      <div style="font-size:1.8rem;letter-spacing:4px;color:#fbbf24;margin-bottom:2px">${starDisp}</div>
+      <div style="font-size:1.8rem;letter-spacing:4px;color:#fbbf24;margin-bottom:2px${win?';animation:dsStarPulse 1.1s ease-in-out infinite':''}">${starDisp}</div>
       <div style="font-size:.48rem;letter-spacing:.2em;color:rgba(255,255,255,0.35);margin-bottom:6px">ARENA RATING</div>
       <div style="font-size:.55rem;letter-spacing:.22em;color:${win?'#fbbf24':'#fca5a5'};margin-bottom:4px">${win?'YOU SURVIVED!':'FINANCIAL HEALTH DEPLETED'}</div>
       <div style="font-size:.58rem;color:rgba(255,255,255,0.45);margin-bottom:14px">Survived ${elapsedMin>0?elapsedMin+'m ':''}${elapsedSec}s · ${G.lv.label}</div>

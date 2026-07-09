@@ -354,6 +354,24 @@
     </div>
   </div>
 
+  <style>
+    @keyframes gym_hit_pop {
+      0%  { opacity:0; transform:translateX(-50%) scale(.6); }
+      45% { opacity:1; transform:translateX(-50%) scale(1.22); }
+      100%{ opacity:1; transform:translateX(-50%) scale(1); }
+    }
+    @keyframes gym_win_pop {
+      0%  { opacity:0; transform:scale(.55) rotate(-8deg); }
+      55% { opacity:1; transform:scale(1.08) rotate(2deg); }
+      80% { transform:scale(.97) rotate(-1deg); }
+      100%{ opacity:1; transform:scale(1) rotate(0deg); }
+    }
+    @keyframes gym_fail_fade {
+      from{ opacity:0; transform:translateY(10px); }
+      to  { opacity:1; transform:translateY(0); }
+    }
+  </style>
+
 </div>`;
   };
 
@@ -1093,7 +1111,7 @@
       G.combo = Math.min(8, G.combo + (perfect ? 0.5 : 0.25));
       G.maxCombo = Math.max(G.maxCombo, Math.floor(G.combo));
 
-      showFeedback(perfect ? 'PERFECT! 💥' : 'GOOD REP! ✓', perfect ? GOLD : GREEN);
+      showFeedback(perfect ? 'PERFECT! 💥' : 'GOOD REP! ✓', perfect ? GOLD : GREEN, 0.9, G.combo);
 
       // update rep counter
       const repEl = document.getElementById('gym_repprogress');
@@ -1196,13 +1214,21 @@
   }
 
   /* ── feedback flash ──────────────────────────────────────────── */
-  function showFeedback(text, color, dur = 0.9) {
+  /* combo (optional) scales the punch — a x1 hit and a x8 combo hit should
+     not look identical: font grows and the pop is snappier as combo climbs.
+     Purely visual — scoring math in scoreRep() is untouched. */
+  function showFeedback(text, color, dur = 0.9, combo = 1) {
     const el = document.getElementById('gym_feedback');
     if (!el) return;
+    const growth = Math.min(combo, 8) * 0.045; // up to +0.36rem at combo 8
     el.textContent = text;
     el.style.color = color;
     el.style.textShadow = `0 0 16px ${color}`;
+    el.style.fontSize = (1 + growth).toFixed(2) + 'rem';
     el.style.opacity = '1';
+    el.style.animation = 'none';
+    void el.offsetWidth; // force reflow so back-to-back hits restart the pop instead of no-op-ing
+    el.style.animation = `gym_hit_pop ${combo >= 4 ? '.3' : '.38'}s cubic-bezier(.2,1.4,.4,1)`;
     G.feedbackTimer = dur;
   }
 
@@ -1266,6 +1292,10 @@
     document.getElementById('gym_endcoins').textContent = `+${coins} coins earned`;
     document.getElementById('gym_lesson').textContent = mainLesson;
 
+    /* win moment gets a bouncy scale+rotate pop-in so it FEELS more
+       celebratory than a flat display swap — distinct from the plain
+       fade used on the stamina-depleted fail overlay */
+    overlay.style.animation = 'gym_win_pop .55s cubic-bezier(.2,1.4,.4,1)';
     overlay.style.display = 'flex';
   }
 
@@ -1273,7 +1303,11 @@
     cancelAnimationFrame(animFrame);
     clearDistractions();
     const overlay = document.getElementById('gym_failoverlay');
-    if (overlay) overlay.style.display = 'flex';
+    if (overlay) {
+      /* plain fade — deliberately calmer than the win overlay's bouncy pop */
+      overlay.style.animation = 'gym_fail_fade .35s ease';
+      overlay.style.display = 'flex';
+    }
   }
 
   /* ── exit function ───────────────────────────────────────────── */

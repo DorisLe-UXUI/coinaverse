@@ -263,6 +263,39 @@
     0% { box-shadow:0 0 12px rgba(255,214,0,.4); }
     100% { box-shadow:0 0 32px rgba(255,214,0,.85), 0 0 60px rgba(255,214,0,.2); }
   }
+  /* ── trade feedback flash (fires ON the exact card that was traded) ── */
+  .sa-card.trade-flash-buy   { animation:saTradeFlashBuy .55s ease-out; }
+  .sa-card.trade-flash-sell  { animation:saTradeFlashSell .55s ease-out; }
+  .sa-card.trade-flash-panic { animation:saTradeFlashPanic .5s ease-out; }
+  @keyframes saTradeFlashBuy {
+    0%   { box-shadow:0 0 0 rgba(0,200,83,0);   background-color:rgba(0,200,83,.32); transform:scale(1.045); }
+    100% { box-shadow:0 0 22px rgba(0,200,83,0);background-color:rgba(0,20,8,.65);   transform:scale(1); }
+  }
+  @keyframes saTradeFlashSell {
+    0%   { box-shadow:0 0 0 rgba(255,214,0,0);   background-color:rgba(255,214,0,.28); transform:scale(1.045); }
+    100% { box-shadow:0 0 22px rgba(255,214,0,0);background-color:rgba(0,20,8,.65);    transform:scale(1); }
+  }
+  @keyframes saTradeFlashPanic {
+    0%   { background-color:rgba(255,23,68,.32); transform:translateX(0); }
+    25%  { transform:translateX(-4px); }
+    50%  { transform:translateX(4px); }
+    75%  { transform:translateX(-2px); }
+    100% { background-color:rgba(0,20,8,.65); transform:translateX(0); }
+  }
+  /* ── streak glow ring — grows richer at higher consecutive-profit streaks ── */
+  .sa-streak-pop {
+    position:absolute;z-index:11;pointer-events:none;
+    font-family:'Orbitron',sans-serif;font-weight:900;letter-spacing:.06em;
+    white-space:nowrap;left:50%;transform:translateX(-50%);
+    animation:saStreakPop 1.1s ease-out forwards;
+  }
+  @keyframes saStreakPop {
+    0%   { opacity:0; transform:translateX(-50%) translateY(6px) scale(.7); }
+    18%  { opacity:1; transform:translateX(-50%) translateY(0) scale(1.12); }
+    32%  { transform:translateX(-50%) translateY(0) scale(1); }
+    78%  { opacity:1; }
+    100% { opacity:0; transform:translateX(-50%) translateY(-16px) scale(1); }
+  }
   .sa-card-icon { font-size:1.5rem;flex-shrink:0;line-height:1; }
   .sa-card-info { flex:1;min-width:0; }
   .sa-card-ticker {
@@ -350,6 +383,41 @@
     animation:saPanelIn .32s ease;
   }
   @keyframes saPanelIn { 0%{transform:scale(.88);opacity:0} 100%{transform:scale(1);opacity:1} }
+  /* ── win-moment entrance scales with star count: 2★ gets a gold-tinted
+     border glow-in, 3★ gets a bigger bounce + rotating gold shimmer sweep
+     so a perfect session feels distinctly bigger than a routine pass ── */
+  .sa-panel-2star {
+    border-color:rgba(0,200,83,.55);
+    box-shadow:0 0 70px rgba(0,200,83,.35);
+    animation:saPanelIn2 .4s cubic-bezier(.34,1.4,.64,1);
+  }
+  @keyframes saPanelIn2 {
+    0%   { transform:scale(.82); opacity:0; }
+    65%  { transform:scale(1.035); opacity:1; }
+    100% { transform:scale(1); opacity:1; }
+  }
+  .sa-panel-3star {
+    border-color:${GOLD};
+    box-shadow:0 0 90px rgba(255,214,0,.45),0 0 140px rgba(255,214,0,.15);
+    animation:saPanelIn3 .55s cubic-bezier(.34,1.56,.64,1);
+    position:relative;overflow:hidden;
+  }
+  .sa-panel-3star::after {
+    content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;
+    background:linear-gradient(100deg,transparent,rgba(255,214,0,.22),transparent);
+    animation:saPanelShimmer 1.8s ease-in-out .5s 2;
+    pointer-events:none;
+  }
+  @keyframes saPanelIn3 {
+    0%   { transform:scale(.72) rotate(-3deg); opacity:0; }
+    55%  { transform:scale(1.07) rotate(1deg); opacity:1; }
+    78%  { transform:scale(.97) rotate(0deg); }
+    100% { transform:scale(1) rotate(0deg); opacity:1; }
+  }
+  @keyframes saPanelShimmer {
+    0%   { left:-60%; }
+    100% { left:130%; }
+  }
   /* ── AI rival bar ── */
   #sa-rival {
     position:relative;z-index:5;flex-shrink:0;
@@ -598,6 +666,8 @@
       trades: 0,
       profitableTrades: 0,
       panicSells: 0,
+      profitStreak: 0,   // consecutive profitable sells in a row (resets on panic sell)
+      bestStreak: 0,
       rivalValue: START_CASH,
       rivalGrowthRate: meta.rivalGrowthRate,
       nextBoostIn: BOOST_SPAWN_INT * 1000,
@@ -761,11 +831,16 @@
       var sel  = G.selected === st.ticker;
       var boostCls = st.hasBoost ? ' boost-glow' : '';
       var selCls   = sel ? ' selected' : '';
+      // transient trade-flash class baked directly into the freshly-built
+      // markup — renderStocks() fully replaces #sa-stocks' innerHTML on
+      // every price tick, so a class applied via classList.add() after the
+      // fact would be wiped before the browser ever paints it
+      var flashCls = st._flashKind ? (' trade-flash-' + st._flashKind) : '';
 
       // mini sparkline via inline SVG
       var spark = makeSpark(st.history, up ? AC2 : RED);
 
-      html += '<div class="sa-card' + selCls + boostCls + '" onclick="saSelect(\'' + st.ticker + '\')">' +
+      html += '<div class="sa-card' + selCls + boostCls + flashCls + '" id="sa-card-' + st.ticker + '" onclick="saSelect(\'' + st.ticker + '\')">' +
         '<div class="sa-card-icon">' + st.icon + '</div>' +
         '<div class="sa-card-info">' +
           '<div class="sa-card-ticker">' + st.ticker + '</div>' +
@@ -1099,6 +1174,7 @@
       st.shares += G.qty;
       G.trades++;
       showToast('Bought ' + G.qty + ' ' + st.ticker + ' @ $' + st.price.toFixed(2), AC2);
+      flashCard(st.ticker, 'buy');
     } else if (action === 'sell') {
       if (st.shares < G.qty) {
         showToast('Not enough shares to sell!', RED);
@@ -1109,13 +1185,20 @@
       var isPanic = st.price < st.prev * 0.97 && st.shares > 0;
       if (isPanic) {
         G.panicSells++;
+        G.profitStreak = 0;
         showToast('Panic sell detected! Buy low — sell high!', RED);
         setTimeout(function() {
           showToast('Tip: Hold through dips — they often recover!', GOLD);
         }, 2300);
+        flashCard(st.ticker, 'panic');
       } else {
         G.profitableTrades++;
+        G.profitStreak++;
+        if (G.profitStreak > G.bestStreak) G.bestStreak = G.profitStreak;
         showToast('Sold ' + G.qty + ' ' + st.ticker + ' → +$' + proceeds.toFixed(0), AC2);
+        flashCard(st.ticker, 'sell');
+        // Escalating streak celebration — only pops at 2+ so a single sell stays quiet
+        if (G.profitStreak >= 2) streakPop(st.ticker, G.profitStreak);
       }
       G.cash += proceeds;
       st.shares -= G.qty;
@@ -1126,6 +1209,57 @@
     renderStocks();
     updateCostInfo();
   };
+
+  /* ── card flash — feedback fires ON the exact card that was traded,
+     not at a fixed screen position, so it's obvious which of several
+     active stocks the action applied to.
+     IMPORTANT: renderStocks() fully rebuilds #sa-stocks' innerHTML on every
+     price tick AND right after this fires (saAct calls renderStocks()
+     immediately after), so toggling a classList on the live DOM node here
+     would be wiped before the browser ever paints one frame of it. Instead
+     this sets a transient flag the NEXT renderStocks() bakes straight into
+     the fresh markup (see the flashCls line in renderStocks), then clears
+     the flag once the animation has had time to play. ────────────────── */
+  function flashCard(ticker, kind) {
+    var st = getStock(ticker);
+    if (!st) return;
+    st._flashKind = kind; // 'buy' | 'sell' | 'panic' — read by renderStocks()
+    setTimeout(function() {
+      if (st._flashKind === kind) { st._flashKind = null; renderStocks(); }
+    }, 600);
+  }
+
+  /* ── streak celebration — visual burst SCALES with streak depth so
+     sell #2 in a row reads differently from sell #6+ (purely visual,
+     does not touch scoring) ─────────────────────────────────────── */
+  function streakPop(ticker, streak) {
+    var card = document.getElementById('sa-card-' + ticker);
+    var root = document.getElementById('sa-root');
+    if (!card || !root) return;
+    var rect = card.getBoundingClientRect();
+    var rootRect = root.getBoundingClientRect();
+
+    var tier = streak >= 6 ? 3 : streak >= 4 ? 2 : 1;
+    var label = tier === 3 ? '🔥 ' + streak + 'x STREAK!!' : tier === 2 ? '🔥 ' + streak + 'x STREAK!' : streak + 'x STREAK';
+    var size  = tier === 3 ? '1.05rem' : tier === 2 ? '.82rem' : '.62rem';
+    var color = tier === 3 ? GOLD : AC2;
+    var glow  = tier === 3 ? '0 0 18px ' + GOLD + ', 0 0 34px ' + GOLD + '88' : tier === 2 ? '0 0 10px ' + AC2 : 'none';
+
+    var old = document.getElementById('sa-streakpop');
+    if (old) old.remove();
+
+    var div = document.createElement('div');
+    div.id = 'sa-streakpop';
+    div.className = 'sa-streak-pop';
+    div.style.top = (rect.top - rootRect.top - 6) + 'px';
+    div.style.left = (rect.left - rootRect.left + rect.width / 2) + 'px';
+    div.style.fontSize = size;
+    div.style.color = color;
+    div.style.textShadow = glow;
+    div.textContent = label;
+    root.appendChild(div);
+    setTimeout(function() { if (div.parentNode) div.remove(); }, 1150);
+  }
 
   /* ── toast ───────────────────────────────────────────────────── */
   function showToast(text, col) {
@@ -1202,8 +1336,8 @@
     el.style.display = 'flex';
 
     var positive = gain >= 0;
-    var heroEmoji = stars === 3 ? '🏆' : stars === 2 ? '📈' : gain >= 0 ? '📊' : '📉';
-    var headline  = stars === 3 ? 'MARKET CHAMPION!' : stars === 2 ? 'PROFITABLE SESSION' : gain >= 0 ? 'BREAK EVEN' : 'MARKET CLOSED';
+    var heroEmoji = stars === 3 ? '🏆' : stars === 2 ? '📈' : gain >= 0 ? '📊' : '🔧';
+    var headline  = stars === 3 ? 'MARKET CHAMPION!' : stars === 2 ? 'PROFITABLE SESSION' : gain >= 0 ? 'BREAK EVEN' : 'NICE TRY! POWER UP AND TRY AGAIN';
     var headCol   = stars === 3 ? GOLD : stars === 2 ? AC : '#fff';
 
     var starsHtml = '';
@@ -1211,7 +1345,11 @@
       starsHtml += '<span style="color:' + (i <= stars ? GOLD : 'rgba(255,255,255,.2)') + ';text-shadow:' + (i <= stars ? '0 0 14px ' + GOLD : 'none') + '">' + (i <= stars ? '★' : '☆') + '</span>';
     }
 
-    el.innerHTML = '<div class="sa-panel">' +
+    // Win-moment celebration scales with stars: 3★ gets a bouncier, glowing
+    // entrance; 0-1★ gets the same calm entrance as before (saPanelIn).
+    var panelCls  = stars === 3 ? 'sa-panel sa-panel-3star' : stars === 2 ? 'sa-panel sa-panel-2star' : 'sa-panel';
+
+    el.innerHTML = '<div class="' + panelCls + '">' +
       '<div style="font-size:2.4rem;margin-bottom:6px">' + heroEmoji + '</div>' +
       '<div style="font-family:\'Orbitron\',sans-serif;font-size:.55rem;letter-spacing:.2em;color:' + headCol + ';margin-bottom:4px">' + headline + '</div>' +
       '<div style="font-size:1.8rem;letter-spacing:6px;margin:6px 0 12px">' + starsHtml + '</div>' +
@@ -1223,6 +1361,7 @@
         srow('TOTAL GAIN/LOSS', (gain >= 0 ? '+' : '') + '$' + Math.round(gain).toLocaleString() + ' (' + gainPct.toFixed(1) + '%)', positive ? AC2 : RED) +
         srow('TRADES MADE', G.trades, '#fff') +
         srow('PANIC SELLS', G.panicSells, G.panicSells > 2 ? RED : AC2) +
+        (G.bestStreak >= 2 ? srow('BEST STREAK', G.bestStreak + 'x 🔥', GOLD) : '') +
         srow('MARKET BOOSTS USED', G.boosts, GOLD) +
         ((LEVEL_META[G.level] || LEVEL_META[1]).hasRival ? srow('BEAT AI RIVAL', beatRival ? '✓ YES' : '✗ NO', beatRival ? AC2 : RED) : '') +
         srow('COINS EARNED', '+' + coins + ' 🪙', GOLD) +
