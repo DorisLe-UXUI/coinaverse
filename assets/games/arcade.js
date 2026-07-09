@@ -29,10 +29,23 @@
       float(x,y,t,c,big){ A.g.floats.push({x,y,t,c:c||'#fde68a',life:0.95,big:!!big}); },
       flash(c){ A.g.flash=0.25; A.g.flashC=c||A.cfg.accent; },
       shake(v){ A.g.shake=Math.max(A.g.shake,v||0.4); },
-      add(score,prog){ A.g.score+=score||0; if(prog) A.g.prog=Math.max(0,A.g.prog+prog); },
+      add(score,prog){ A.g.score+=score||0; if(prog) A.g.prog=Math.max(0,A.g.prog+prog); bumpStreak(A.g); },
       win(){ end(true); }, lose(){ end(false); },
       get score(){return A.g.score;}, get prog(){return A.g.prog;}
     };
+  }
+  // purely-cosmetic hit streak (never changes scoring/goal balance): rapid consecutive
+  // add() calls build a streak; a 1.8s gap between hits resets it. Milestones fire an
+  // extra celebratory burst/flash/banner so mastery feels rewarded across every mechanic.
+  const STREAK_MILE=[5,10,20,35];
+  function bumpStreak(g){
+    const now=performance.now();
+    if(g._lastHitAt!=null && now-g._lastHitAt>1800) g.streak=0;
+    g._lastHitAt=now; g.streak=(g.streak||0)+1;
+    if(STREAK_MILE.indexOf(g.streak)>=0){
+      A.api.flash('#fde68a'); A.api.shake(.55); A.api.burst(.5,.42,'#fde68a',22);
+      A.api.float(.5,.34,'🔥 '+g.streak+' STREAK!','#fde68a',true);
+    }
   }
 
   /* ── one-time CSS ── */
@@ -48,7 +61,8 @@
     .arc-top{position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:12px;padding:0 22px;height:60px;background:rgba(255,255,255,.045);backdrop-filter:blur(18px);border-bottom:1px solid var(--ac);box-shadow:0 0 16px color-mix(in srgb,var(--ac) 30%,transparent)}
     .arc-back{padding:8px 15px;border:1px solid color-mix(in srgb,var(--ac) 55%,transparent);background:rgba(255,255,255,.04);color:#e5deff;font:500 .58rem/1 'Orbitron',monospace;letter-spacing:.16em;cursor:pointer;clip-path:polygon(0 0,100% 0,100% 62%,90% 100%,0 100%);transition:.15s}
     .arc-back:hover{background:color-mix(in srgb,var(--ac) 22%,transparent)}
-    .arc-title{flex:1;text-align:center;font-family:'Anton',sans-serif;font-size:1.12rem;letter-spacing:.07em;color:var(--ac);text-shadow:0 0 16px color-mix(in srgb,var(--ac) 75%,transparent)}
+    .arc-title{flex:1;min-width:0;text-align:center;font-family:'Anton',sans-serif;font-size:1.12rem;letter-spacing:.07em;color:var(--ac);text-shadow:0 0 16px color-mix(in srgb,var(--ac) 75%,transparent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    @media (max-width:420px){.arc-title{font-size:.85rem}}
     .arc-time{min-width:56px;text-align:right;font:400 1.15rem/1 'Anton',sans-serif;color:#FBBF24;text-shadow:0 0 10px rgba(251,191,36,.55)}
     .arc-stat{position:absolute;top:66px;left:22px;right:22px;z-index:5}
     .arc-statrow{display:flex;justify-content:space-between;font:500 .55rem/1 'Orbitron',monospace;letter-spacing:.16em;color:#8aa0b0;margin-bottom:6px;text-transform:uppercase}
@@ -217,9 +231,14 @@
     ctx.clearRect(0,0,W,H);
     let ox=0,oy=0; if(g.shake>0){ ox=(Math.random()-.5)*g.shake*20; oy=(Math.random()-.5)*g.shake*20; }
     ctx.save(); ctx.translate(ox,oy);
-    // starfield
+    // ambient starfield + soft drifting glow orbs — keeps the scene feeling alive
+    // between spawns instead of a static void, purely cosmetic (no gameplay effect)
     ctx.fillStyle=hexA(cfg.accent||'#60a5fa',.5);
-    for(let i=0;i<40;i++){ const sx=(i*73.3%W), sy=((i*129.7+now*0.01*((i%3)+1))%H); ctx.globalAlpha=0.1+(i%5)*0.05; ctx.fillRect(sx,sy,2,2); }
+    for(let i=0;i<64;i++){ const sx=(i*47.7%W), sy=((i*97.3+now*0.014*((i%4)+1))%H); ctx.globalAlpha=0.08+(i%5)*0.045; ctx.fillRect(sx,sy,1+(i%3),1+(i%3)); }
+    ctx.globalAlpha=1;
+    for(let i=0;i<3;i++){ const ox2=W*(.2+i*.32), oy2=H*(.25+((i*137)%40)/100)+Math.sin(now*0.00025+i*2)*H*.05, r=W*(.09+i%2*.03);
+      const gr=ctx.createRadialGradient(ox2,oy2,0,ox2,oy2,r); gr.addColorStop(0,hexA(cfg.accent,.07)); gr.addColorStop(1,hexA(cfg.accent,0));
+      ctx.fillStyle=gr; ctx.fillRect(ox2-r,oy2-r,r*2,r*2); }
     ctx.globalAlpha=1;
     if(g.flash>0){ ctx.fillStyle=hexA(g.flashC,g.flash*0.22); ctx.fillRect(0,0,W,H); }
     if(mech.render) mech.render(ctx,g,cfg,A.api,W,H);
@@ -285,7 +304,7 @@
   MECH.catch={ start(g,cfg){ g.m={x:0.5,items:[],t:0}; },
     update(dt,g,cfg,A,W,H){ const m=g.m; const pr=1-(cfg.time?g.time/cfg.time:0.5);
       if(g.ptr)m.x=g.ptr.x; if(g.kL)m.x-=dt*1.3; if(g.kR)m.x+=dt*1.3; m.x=Math.max(.06,Math.min(.94,m.x));
-      m.t-=dt; if(m.t<=0){ m.t=Math.max(.4,.9-pr*.4); const bad=Math.random()<(cfg.badRate||.3);
+      m.t-=dt; if(m.t<=0){ m.t=Math.max(.28,.62-pr*.32); const bad=Math.random()<(cfg.badRate||.3);
         const arr=bad?(cfg.bad||['💸']):(cfg.good||['🪙']); m.items.push({x:Math.random()*.86+.07,y:-.05,vy:.32+pr*.4+Math.random()*.2,e:arr[Math.floor(Math.random()*arr.length)],bad}); }
       for(const it of m.items){ it.y+=it.vy*dt;
         if(it.y>.84&&!it.done&&Math.abs(it.x-m.x)<.09){ it.done=1; if(it.bad){ g.score=Math.max(0,g.score-8); A.shake(.4); A.burst(it.x,.84,'#f87171',9); A.float(it.x,.8,'-8','#fca5a5'); } else { const v=cfg.pts||12; A.add(v,v); A.burst(it.x,.84,cfg.accent,10); A.ring(it.x,.84,cfg.accent); A.float(it.x,.8,'+'+v); A.flash(); } }
@@ -299,7 +318,7 @@
   MECH.lane={ start(g,cfg){ g.m={lane:1,obs:[],t:0,sw:0}; },
     update(dt,g,cfg,A,W,H){ const m=g.m; const pr=1-(cfg.time?g.time/cfg.time:.5);
       if(m.sw>0)m.sw-=dt;
-      m.t-=dt; if(m.t<=0){ m.t=Math.max(.45,.95-pr*.45); const L=Math.floor(Math.random()*3); const bad=Math.random()<(cfg.badRate||.45);
+      m.t-=dt; if(m.t<=0){ m.t=Math.max(.32,.66-pr*.34); const L=Math.floor(Math.random()*3); const bad=Math.random()<(cfg.badRate||.45);
         m.obs.push({lane:L,y:-.06,vy:.5+pr*.5,e:bad?(cfg.bad||['🚧'])[0]:(cfg.good||['🪙'])[0],bad}); }
       for(const o of m.obs){ o.y+=o.vy*dt;
         if(o.y>.78&&o.y<.92&&!o.done&&o.lane===m.lane){ o.done=1; if(o.bad){ g.score=Math.max(0,g.score-10); A.shake(.5); A.burst([.2,.5,.8][o.lane],.84,'#f87171',10);} else { const v=cfg.pts||14; A.add(v,v); A.ring([.2,.5,.8][o.lane],.84,cfg.accent); A.float([.2,.5,.8][o.lane],.8,'+'+v);} }
@@ -315,7 +334,7 @@
   // 3 ── TAP: targets pop up, tap GOOD fast, avoid BAD ──────────────
   MECH.tap={ start(g,cfg){ g.m={tg:[],t:0}; },
     update(dt,g,cfg,A,W,H){ const m=g.m; const pr=1-(cfg.time?g.time/cfg.time:.5);
-      m.t-=dt; if(m.t<=0){ m.t=Math.max(.35,.8-pr*.4); const bad=Math.random()<(cfg.badRate||.3);
+      m.t-=dt; if(m.t<=0){ m.t=Math.max(.26,.58-pr*.32); const bad=Math.random()<(cfg.badRate||.3);
         const arr=bad?(cfg.bad||['💣']):(cfg.good||['💰']); m.tg.push({x:.12+Math.random()*.76,y:.24+Math.random()*.6,e:arr[Math.floor(Math.random()*arr.length)],bad,life:1.1+Math.random()*.5,born:.0,s:0}); }
       for(const t of m.tg){ t.life-=dt; t.s=Math.min(1,t.s+dt*5); if(t.life<=0&&!t.bad){ t.dead=1; } if(t.life<=0)t.dead=1; }
       m.tg=m.tg.filter(t=>!t.dead); },
@@ -342,13 +361,15 @@
   function pick(i,q,g,cfg,A){ g.m.fb=.9; g.m.fbC=i; if(i===q.c){ const v=cfg.pts||34; A.add(v,v); A.float(.5,.4,'CORRECT +'+v,'#86efac',true); A.flash('#22c55e'); } else { g.score=Math.max(0,g.score-6); A.shake(.4); A.float(.5,.4,'Try again!','#fca5a5'); } }
 
   // 5 ── SORT: item falls, send LEFT or RIGHT by its category ───────
-  MECH.sort={ start(g,cfg){ g.m={it:null,t:0}; },
+  MECH.sort={ start(g,cfg){ g.m={it:null,t:0,trail:[]}; },
     update(dt,g,cfg,A,W,H){ const m=g.m; const pr=1-(cfg.time?g.time/cfg.time:.5);
-      if(!m.it){ m.t-=dt; if(m.t<=0){ const pool=cfg.items||[]; const p=pool[Math.floor(Math.random()*pool.length)]; m.it={e:p[0],t:p[1],side:p[2],x:.5,y:.2}; } }
-      else { m.it.y+=(.16+pr*.12)*dt; if(m.it.y>.8){ resolveSort(m.it.side,g,cfg,A); m.it=null; m.t=.25; } } },
+      if(!m.it){ m.t-=dt; if(m.t<=0){ const pool=cfg.items||[]; const p=pool[Math.floor(Math.random()*pool.length)]; m.it={e:p[0],t:p[1],side:p[2],x:.5,y:.34}; } }
+      else { m.it.y+=(.14+pr*.1)*dt; m.trail.push({x:m.it.x,y:m.it.y,life:.4}); if(m.it.y>.58){ resolveSort(m.it.side,g,cfg,A); m.it=null; m.t=.2; } }
+      for(const t of m.trail)t.life-=dt; m.trail=m.trail.filter(t=>t.life>0); },
     render(ctx,g,cfg,A,W,H){ const L=cfg.left||['NEED','#34d399'],R=cfg.right||['WANT','#f472b6'];
-      rr(ctx,W*.04,H*.7,W*.4,H*.22,14); ctx.fillStyle=hexA(L[1],.14); ctx.fill(); ctx.strokeStyle=L[1]; ctx.lineWidth=2; ctx.stroke(); lbl(ctx,'◀ '+L[0],W*.24,H*.81,L[1],15,'Orbitron');
-      rr(ctx,W*.56,H*.7,W*.4,H*.22,14); ctx.fillStyle=hexA(R[1],.14); ctx.fill(); ctx.strokeStyle=R[1]; ctx.lineWidth=2; ctx.stroke(); lbl(ctx,R[0]+' ▶',W*.76,H*.81,R[1],15,'Orbitron');
+      for(const t of g.m.trail){ ctx.globalAlpha=Math.max(0,t.life/.4)*.35; sprite(ctx,g.m.it?g.m.it.e:'',t.x*W,t.y*H,14); } ctx.globalAlpha=1;
+      rr(ctx,W*.04,H*.58,W*.4,H*.22,14); ctx.fillStyle=hexA(L[1],.14); ctx.fill(); ctx.strokeStyle=L[1]; ctx.lineWidth=2; ctx.stroke(); lbl(ctx,'◀ '+L[0],W*.24,H*.69,L[1],15,'Orbitron');
+      rr(ctx,W*.56,H*.58,W*.4,H*.22,14); ctx.fillStyle=hexA(R[1],.14); ctx.fill(); ctx.strokeStyle=R[1]; ctx.lineWidth=2; ctx.stroke(); lbl(ctx,R[0]+' ▶',W*.76,H*.69,R[1],15,'Orbitron');
       const it=g.m.it; if(it){ sprite(ctx,it.e,it.x*W,it.y*H,24,cfg.accent); lbl(ctx,it.t,it.x*W,it.y*H+34,'#fff',12,'Inter'); } },
     pointer(x,y,type,g,cfg,A){ if(type==='down'&&g.m.it){ resolveSort(g.m.it.side, g, cfg, A, x<.5?0:1); g.m.it=null; g.m.t=.2; } },
     key(k,d,g,cfg,A){ if(d&&g.m.it){ if(k==='ArrowLeft'){resolveSort(g.m.it.side,g,cfg,A,0);g.m.it=null;g.m.t=.2;} if(k==='ArrowRight'){resolveSort(g.m.it.side,g,cfg,A,1);g.m.it=null;g.m.t=.2;} } } };
@@ -405,7 +426,7 @@
   // 10 ── GROW: tap to grow your money, banked toward the goal ──────
   MECH.grow={ start(g,cfg){ g.m={pulse:0,evt:0,mult:1,events:[]}; },
     update(dt,g,cfg,A,W,H){ const m=g.m; if(m.pulse>0)m.pulse-=dt*3;
-      m.evt-=dt; if(m.evt<=0){ m.evt=2.4+Math.random()*2; const good=Math.random()<.6; m.events.push({x:.15+Math.random()*.7,y:.3+Math.random()*.4,e:good?(cfg.good||['✨'])[0]:(cfg.bad||['💸'])[0],good,life:1.8}); }
+      m.evt-=dt; if(m.evt<=0){ m.evt=1.3+Math.random()*1.2; const good=Math.random()<.6; m.events.push({x:.15+Math.random()*.7,y:.3+Math.random()*.4,e:good?(cfg.good||['✨'])[0]:(cfg.bad||['💸'])[0],good,life:1.8}); }
       for(const e of m.events){ e.life-=dt; e.y-=dt*.05; } m.events=m.events.filter(e=>e.life>0); },
     render(ctx,g,cfg,A,W,H){ const s=1+Math.max(0,g.m.pulse)*.12; sprite(ctx,cfg.player||'🌳',W/2,H*.56,Math.min(64,W*.12)*s,cfg.accent);
       lbl(ctx,(cfg.tapLabel||'TAP TO GROW!'),W/2,H*.8,hexA('#fff',.7),14,'Orbitron');
