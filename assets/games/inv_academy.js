@@ -147,12 +147,84 @@
         topic: "Advanced Valuation",
         explain: "Premium P/E reflects market optimism about future earnings growth — the risk is if that growth doesn't materialise."
       }
+    ],
+    level3: [
+      {
+        q: "You invest $100. It grows 10% in year one, then that new total grows 10% in year two. How much do you have?",
+        opts: ["$120", "$121", "$110", "$200"],
+        ans: 1,
+        topic: "Compounding Math",
+        explain: "Year two earns 10% of $110 — that's $11, not $10. Growth on growth is the engine of compounding."
+      },
+      {
+        q: "A friend says a hot meme stock 'can only go up.' The smartest response is:",
+        opts: ["Invest everything immediately", "Check the company's real earnings and risks first", "Borrow money to buy more", "Copy whatever influencers do"],
+        ans: 1,
+        topic: "Critical Thinking",
+        explain: "Hype isn't proof of value — elite investors check fundamentals before risking a single coin."
+      },
+      {
+        q: "The market drops 20% in a month, but your goal is 20+ years away. History suggests the best move is usually to:",
+        opts: ["Sell everything to stop the losses", "Stay invested and keep contributing", "Move it all into one 'safe' stock", "Stop investing forever"],
+        ans: 1,
+        topic: "Bear Markets",
+        explain: "Long horizons let you ride out crashes — markets have historically recovered and grown past old highs."
+      },
+      {
+        q: "Which portfolio is MOST diversified?",
+        opts: ["Ten technology stocks", "An index fund + bonds + a real estate fund", "Five different crypto coins", "One famous company's stock"],
+        ans: 1,
+        topic: "Diversification",
+        explain: "Spreading across different asset classes protects you far better than many stocks in one sector."
+      },
+      {
+        q: "Inflation is 5% and your savings account pays 1%. Each year your money's real buying power:",
+        opts: ["Grows by 6%", "Shrinks by about 4%", "Stays exactly the same", "Doubles"],
+        ans: 1,
+        topic: "Inflation",
+        explain: "Real return = interest minus inflation. 1% − 5% = −4%, so idle cash quietly loses buying power."
+      },
+      {
+        q: "An emergency fund should be built BEFORE heavy investing because:",
+        opts: ["Investing is not allowed without one", "It stops you selling investments at the worst time when surprises hit", "Banks require it by law", "It earns higher returns than stocks"],
+        ans: 1,
+        topic: "Financial Planning",
+        explain: "Emergency cash means you never have to sell investments during a crash just to pay a surprise bill."
+      },
+      {
+        q: "A company has paid a rising dividend for 25 straight years. This most likely signals:",
+        opts: ["Its stock price can never fall", "Stable cash flow and shareholder-friendly management", "A government guarantee", "You should own only this stock"],
+        ans: 1,
+        topic: "Dividend Quality",
+        explain: "Long dividend streaks signal durable profits — but no stock is risk-free, so keep diversifying."
+      },
+      {
+        q: "What is a stock market 'bubble'?",
+        opts: ["Prices rising far above real value, often ending in a crash", "A safe moment to invest everything", "A government bonus program", "A one-day pause in trading"],
+        ans: 0,
+        topic: "Market Cycles",
+        explain: "Bubbles form when excitement pushes prices way past real value — when they pop, latecomers lose the most."
+      },
+      {
+        q: "Over 30 years of investing, which difference matters MOST to your final wealth?",
+        opts: ["0.1% vs 2% annual fund fees", "A $1 vs $2 one-time app download", "Free stickers vs no stickers", "Paper vs email statements"],
+        ans: 0,
+        topic: "Fees & Costs",
+        explain: "A 2% yearly fee can quietly eat a third or more of your final wealth over decades — low costs compound too."
+      },
+      {
+        q: "In investing, risk and reward are related how?",
+        opts: ["Higher potential reward usually comes with higher risk", "Taking more risk guarantees more reward", "Safe assets always beat risky ones", "They are completely unrelated"],
+        ans: 0,
+        topic: "Risk vs Reward",
+        explain: "Bigger potential returns bring bigger swings and chance of loss — there's no free lunch in markets."
+      }
     ]
   };
 
   const RANKS = ["Trainee", "Apprentice", "Analyst", "Strategist", "Elite Investor"];
   const RANK_ICONS = ["📋", "📚", "📊", "🎯", "🏆"];
-  const CERT_NAMES = ["Foundation Certificate", "Certified Investor"];
+  const CERT_NAMES = ["Foundation Certificate", "Strategy Certificate", "Certified Investor"];
   const PASS_THRESHOLD = 0.7; // 70% to pass
 
   /* ─── SCREEN REGISTRATION ───────────────────────────────── */
@@ -270,6 +342,10 @@
   };
 
   /* ─── EXIT ───────────────────────────────────────────────── */
+  /* ── QA debug hook ─────────────────────────────────────────── */
+  window._invDbg = function () { return G ? { phase: G.phase, level: G.level, qCount: G.questions.length, certPassed: G.certPassed } : null; };
+  window._invAcePass = function () { if (!G) return; G.qIndex = G.questions.length; G.levelCorrect = G.levelTotal = 10; showCertification(); };
+
   window.inv_academyExit = function () {
     clearTimer();
     G = null;
@@ -297,7 +373,7 @@
       rankIndex: 0,
       coins: 0,
       stars: 0,
-      certPassed: [false, false],
+      certPassed: [false, false, false],
       levelStartScore: 0,
       levelCorrect: 0,
       levelTotal: 0,
@@ -319,11 +395,12 @@
         <div style="font-size:64px;line-height:1;">🎓</div>
         <div style="font-family:'Orbitron',monospace;font-size:22px;font-weight:700;color:#00C853;text-align:center;letter-spacing:1px;">INVESTOR ACADEMY</div>
         <div style="color:#b2dfdb;text-align:center;font-size:15px;line-height:1.6;max-width:320px;">
-          Master investing through two levels of certification. Answer questions, solve scenarios, and earn your <strong style="color:#00C853">Certified Investor</strong> status.
+          Master investing through three levels of certification. Answer questions, solve scenarios, and earn your <strong style="color:#00C853">Certified Investor</strong> status.
         </div>
         <div class="inv_glass" style="width:100%;max-width:340px;padding:16px;display:flex;flex-direction:column;gap:12px;">
           ${levelCard('Level 1', 'Foundation', '📚', '10 questions · 30s each · Core concepts', '#00C853')}
           ${levelCard('Level 2', 'Mastery', '🏆', '10 questions · 20s each · Advanced strategy', '#69f0ae')}
+          ${levelCard('Level 3', 'Elite', '👑', '10 questions · 15s each · Real-world scenarios', '#ffd600')}
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:340px;">
           <div class="inv_rank_badge" style="justify-content:center;padding:8px 0;font-size:13px;">
@@ -376,6 +453,19 @@
     showQuestion();
   }
 
+  /* ─── LEVEL 3 ────────────────────────────────────────────── */
+  function startLevel3() {
+    G.phase = 'level3';
+    G.level = 3;
+    G.questions = shuffle([...QUESTIONS.level3]).map(shuffleOptions);
+    G.qIndex = 0;
+    G.levelCorrect = 0;
+    G.levelTotal = 0;
+    G.timePerQ = 15;
+    G.timePenalty = 0;
+    showQuestion();
+  }
+
   /* ─── QUESTION RENDER ────────────────────────────────────── */
   function showQuestion() {
     clearTimer();
@@ -385,9 +475,8 @@
     const q = G.questions[G.qIndex];
     const totalQ = G.questions.length;
     const progress = G.qIndex / totalQ;
-    const isLevel2 = G.phase === 'level2';
-    const lvlLabel = isLevel2 ? 'Level 2: Mastery' : 'Level 1: Foundation';
-    const accentColor = isLevel2 ? '#69f0ae' : '#00C853';
+    const LVL_META = { level1:['Level 1: Foundation','#00C853'], level2:['Level 2: Mastery','#69f0ae'], level3:['Level 3: Elite','#ffd600'] };
+    const [lvlLabel, accentColor] = LVL_META[G.phase] || LVL_META.level1;
 
     G.answered = false;
     G.timerVal = G.timePerQ;
@@ -598,11 +687,11 @@
     const root = document.getElementById('inv_acad_ui');
     if (!root || !G) return;
 
-    const certIdx = G.phase === 'level1' ? 0 : 1;
+    const certIdx = { level1:0, level2:1, level3:2 }[G.phase] ?? 0;
     const pct = G.levelCorrect / G.levelTotal;
     const passed = pct >= PASS_THRESHOLD;
     const certName = CERT_NAMES[certIdx];
-    const isLevel2 = G.phase === 'level2';
+    const nextLevel = { level1:2, level2:3 }[G.phase] || null;   // null once level3 is done
 
     G.certPassed[certIdx] = passed;
 
@@ -633,9 +722,9 @@
             <div class="inv_rank_badge" style="justify-content:center;padding:10px;font-size:13px;background:rgba(0,200,83,.1);border-color:rgba(0,200,83,.4);">
               🏅 ${certName} Earned!
             </div>
-            ${!isLevel2 ? `
-              <button class="inv_btn" style="width:100%;font-size:15px;padding:14px;" onclick="window._inv_goLevel2()">
-                Continue to Level 2: Mastery →
+            ${nextLevel ? `
+              <button class="inv_btn" style="width:100%;font-size:15px;padding:14px;" onclick="window._inv_goLevel${nextLevel}()">
+                Continue to Level ${nextLevel}: ${nextLevel===2?'Mastery':'Elite'} →
               </button>
             ` : `
               <button class="inv_btn" style="width:100%;font-size:15px;padding:14px;" onclick="window._inv_finalResult()">
@@ -660,8 +749,9 @@
     `;
 
     window._inv_goLevel2 = startLevel2;
+    window._inv_goLevel3 = startLevel3;
     window._inv_retake = function() {
-      if (G.phase === 'level1') startLevel1(); else startLevel2();
+      ({ level1:startLevel1, level2:startLevel2, level3:startLevel3 }[G.phase] || startLevel1)();
     };
     window._inv_finalResult = showFinalResult;
   }
@@ -677,7 +767,7 @@
 
     const totalPct = G.correct / G.total;
     let stars = 0;
-    if (G.certPassed[0] && G.certPassed[1]) {
+    if (G.certPassed[0] && G.certPassed[1] && G.certPassed[2]) {
       if (totalPct >= 0.9) stars = 3;
       else if (totalPct >= 0.75) stars = 2;
       else stars = 1;
@@ -754,7 +844,8 @@
                 <div style="font-size:11px;color:#7cb8a0;letter-spacing:1px;text-transform:uppercase;">Certifications</div>
                 <div style="font-size:13px;color:#00C853;">
                   ${G.certPassed[0] ? '✓' : '✗'} Foundation<br>
-                  ${G.certPassed[1] ? '✓' : '✗'} Mastery
+                  ${G.certPassed[1] ? '✓' : '✗'} Mastery<br>
+                  ${G.certPassed[2] ? '✓' : '✗'} Elite
                 </div>
               </div>
             </div>
