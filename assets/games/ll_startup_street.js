@@ -4,6 +4,7 @@
    demand while keeping Profit and Happiness meters healthy.
    Level 1: Single business, fixed demand, guided feedback.
    Level 2: Two locations, random market events, reactive pressure.
+   Level 3: Three locations, frequent/severe events, high volatility.
    Score = final Profit + Happiness bonus  |  Pillar: ops
    ════════════════════════════════════════════════════════════════ */
 (function () {
@@ -46,6 +47,8 @@
     { id:'reviews',   icon:'⭐', title:'BAD REVIEWS!',        desc:'Customer support overwhelmed.', affect:{support:-20}, hint:'Invest in Customer Support to recover trust.' },
     { id:'boom',      icon:'🚀', title:'DEMAND SPIKE!',       desc:'Customers up 30% — can you handle it?', affect:{inventory:-15, employees:-15}, hint:'Balance Inventory & Employees to meet demand.' },
     { id:'recession', icon:'📉', title:'MARKET SLOWDOWN!',    desc:'Marketing matters more now.', affect:{marketing:-18, support:-12}, hint:'Reinvest in Marketing & Support to retain loyalty.' },
+    { id:'audit',     icon:'🧾', title:'SURPRISE AUDIT!',     desc:'Franchise inspectors freeze cash — Inventory and Operations both take a hit.', affect:{inventory:-30, operations:-25}, hint:'Rebuild Inventory & Operations fast to pass the next check.' },
+    { id:'blackout',  icon:'⚡', title:'CITYWIDE BLACKOUT!',  desc:'Every location loses power — service and morale crash hard.', affect:{operations:-35, employees:-20, support:-15}, hint:'Pour budget into Operations to get the lights back on.' },
   ];
 
   /* ── level definitions ───────────────────────────────────────── */
@@ -76,6 +79,21 @@
       eventChance: 0.6,
       roundDuration: 22,
       demandVariance: 15,
+    },
+    {
+      id: 3,
+      name: 'LEGENDARY: Franchise Empire',
+      desc: 'Three locations, relentless events, volatile demand. Run the whole empire — no room for error.',
+      rounds: 8,
+      budget: 100,
+      locations: [
+        { id:'loc0', name:'Neon Café',      emoji:'☕', demand: 80 },
+        { id:'loc1', name:'Volt Boutique',  emoji:'🛍️', demand: 76 },
+        { id:'loc2', name:'Pulse Kiosk',    emoji:'🎧', demand: 84 },
+      ],
+      eventChance: 0.8,
+      roundDuration: 16,
+      demandVariance: 25,
     },
   ];
 
@@ -113,6 +131,7 @@
   <div id="ssTopBar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:8px;padding:10px 14px 8px;background:linear-gradient(180deg,rgba(3,4,12,.97) 70%,transparent);border-bottom:1px solid ${ACCENT}33">
     <button id="ssBack" style="padding:6px 13px;border:1px solid ${ACCENT}66;border-radius:8px;background:${ACCENT}18;color:${ACCENT_L};font-family:Orbitron,sans-serif;font-size:.52rem;letter-spacing:.12em;cursor:pointer;white-space:nowrap;transition:background .2s">← HUB</button>
     <div style="font-family:Orbitron,sans-serif;font-size:.62rem;letter-spacing:.18em;color:${ACCENT_L};flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">🏙️ STARTUP STREET</div>
+    <button id="ssHelpBtn" title="How to play" style="padding:6px 10px;border:1px solid ${ACCENT}66;border-radius:8px;background:${ACCENT}18;color:${ACCENT_L};cursor:pointer;flex-shrink:0;font-size:.72rem">❓</button>
     <div id="ssScore" style="font-family:Orbitron,sans-serif;font-size:.72rem;color:${GOLD};min-width:68px;text-align:right">$0</div>
     <div id="ssTimer" style="font-family:Orbitron,sans-serif;font-size:.72rem;color:${ACCENT_L};min-width:38px;text-align:right">18s</div>
   </div>
@@ -159,6 +178,9 @@
   <!-- END OVERLAY -->
   <div id="ssOver" style="position:absolute;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.92);backdrop-filter:blur(6px)"></div>
 
+  <!-- HOW-TO-PLAY OVERLAY (first-time intro + ❓ re-open) -->
+  <div id="ssHelp" style="position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.94);backdrop-filter:blur(6px);padding:16px"></div>
+
 </div>`;
   };
 
@@ -175,7 +197,66 @@
 
     const back = document.getElementById('ssBack');
     if (back) back.onclick = window.ll_startup_streetExit;
+
+    const helpBtn = document.getElementById('ssHelpBtn');
+    if (helpBtn) helpBtn.onclick = window.ssShowHelp;
+
+    /* first-time how-to-play, shown right as gameplay begins — pauses the
+       just-started RAF loop so no round time drains while the player reads */
+    showHowToPlay();
   }
+
+  /* ══════════════════════════════════════════════════════════════
+     HOW-TO-PLAY — shown once automatically on first launch, and
+     re-openable anytime via the ❓ button without losing progress.
+     Pause trick: same delta-clock pattern as tick() — G.lastTick =
+     performance.now(), dt = (now - G.lastTick)/1000 each frame,
+     G.roundTimer -= dt. Freezing the RAF (cancelAnimationFrame) stops
+     G.roundTimer from draining; on resume, resetting G.lastTick =
+     performance.now() right before restarting the loop makes the very
+     next dt exclude the entire paused duration. If the player opens
+     help while on the between-round fact gate (phase 'gate') there is
+     no RAF running and no round timer at risk, so we simply layer the
+     overlay on top without touching phase — closing it returns to
+     whatever screen was already showing.
+  ══════════════════════════════════════════════════════════════ */
+  function showHowToPlay () {
+    const overlay = document.getElementById('ssHelp');
+    if (!overlay) return;
+    const wasPlay = G && G.phase === 'play';
+    if (wasPlay) {
+      G.phase = 'paused';
+      if (_raf) { cancelAnimationFrame(_raf); _raf = null; }
+    }
+    overlay.style.display = 'flex';
+    overlay.innerHTML = `
+      <div style="max-width:380px;width:92%;padding:26px 22px;background:rgba(10,5,22,.97);border:1.5px solid ${ACCENT}88;border-radius:18px;text-align:center;box-shadow:0 0 50px ${ACCENT}33;max-height:90vh;overflow-y:auto">
+        <div style="font-family:Orbitron,sans-serif;font-size:.56rem;letter-spacing:.2em;color:${ACCENT_L};margin-bottom:8px">HOW TO PLAY</div>
+        <div style="font-size:2rem;margin-bottom:6px">🏙️</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:.95rem;margin-bottom:14px">STARTUP STREET</div>
+        <ul style="text-align:left;font-size:.74rem;color:rgba(255,255,255,.82);line-height:1.6;margin:0 0 18px;padding-left:18px">
+          <li style="margin-bottom:8px"><b style="color:${ACCENT_L}">Goal:</b> keep Profit and Happiness healthy across every round by budgeting well.</li>
+          <li style="margin-bottom:8px"><b style="color:${ACCENT_L}">How to play:</b> drag the 5 sliders to split your 100% budget across Inventory, Employees, Marketing, Operations and Support, then tap DEPLOY ROUND.</li>
+          <li style="margin-bottom:8px"><b style="color:${ACCENT_L}">Watch out:</b> from Level 2 on, random events knock a slider down — react fast before the round timer runs out, and don't let Profit or Happiness hit zero.</li>
+          <li><b style="color:${ACCENT_L}">Scoring:</b> higher Profit and Happiness at the end of every round earns more stars.</li>
+        </ul>
+        <button onclick="window.ssCloseHelp()" style="padding:12px 30px;border:none;border-radius:11px;background:linear-gradient(90deg,${ACCENT_D},${ACCENT});color:#fff;font-family:Orbitron,sans-serif;font-size:.66rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${wasPlay ? '▶ RESUME' : 'GOT IT — START ▶'}</button>
+      </div>`;
+  }
+
+  window.ssShowHelp = function () {
+    if (!G || G.phase === 'end') return;
+    showHowToPlay();
+  };
+
+  window.ssCloseHelp = function () {
+    const overlay = document.getElementById('ssHelp');
+    if (overlay) overlay.style.display = 'none';
+    if (G && G.phase === 'paused') {
+      G.phase = 'play';
+      startLoop();   // startLoop() itself resets G.lastTick = performance.now() before the first frame
+    }
+  };
 
   /* ── inject keyframe styles ──────────────────────────────────── */
   function injectStyles() {
@@ -557,7 +638,7 @@
   }
 
   /* ══════════════════════════════════════════════════════════════
-     RANDOM EVENTS (Level 2)
+     RANDOM EVENTS (Level 2+)
   ══════════════════════════════════════════════════════════════ */
   function maybeFireEvent() {
     if (!G || G.lvIdx < 1) return;
@@ -726,7 +807,15 @@
     if (window.StartupRewardsService) StartupRewardsService.submit({ pillar: 'ops', successDelta: stars === 3 ? 15 : stars === 2 ? 8 : 3 });
 
     const starStr  = '⭐'.repeat(stars) + (stars < 3 ? '☆'.repeat(3 - stars) : '');
-    const canLevel2 = G.lvIdx === 0 && !bankrupt;
+
+    /* explicit per-transition continue logic — index 0 win → offer index 1,
+       index 1 win → offer index 2, index 2 (final) win → no continue button. */
+    const nextIdx = G.lvIdx + 1;
+    const hasNextLevel = nextIdx < LEVELS.length;
+    const canContinue = hasNextLevel && !bankrupt;
+    const NEXT_LEVEL_LABEL = ['🚀 MASTER LEVEL →', '👑 EMPIRE LEVEL →']; // label shown when leaving lvIdx 0, 1 respectively
+    const nextLabel = canContinue ? (NEXT_LEVEL_LABEL[G.lvIdx] || `▶ ${LEVELS[nextIdx].name} →`) : '';
+
     const lesson   = 'Running a business means juggling many things at once. Spending too much on one area and ignoring another is how startups fail — every dollar must be allocated where it creates the most value.';
 
     const badge = stars === 3 ? '👑 CEO Badge' : stars === 2 ? '📊 COO Badge' : '🎓 Intern Badge';
@@ -765,8 +854,8 @@
       </div>
 
       <div style="display:flex;flex-direction:column;gap:8px">
-        ${canLevel2 ? `<button id="ssToL2Btn" style="padding:11px;border-radius:10px;border:1.5px solid ${GOLD};background:${GOLD}22;color:${GOLD};font-family:Orbitron,sans-serif;font-size:.62rem;letter-spacing:.14em;cursor:pointer">
-          🚀 MASTER LEVEL →
+        ${canContinue ? `<button id="ssToL2Btn" style="padding:11px;border-radius:10px;border:1.5px solid ${GOLD};background:${GOLD}22;color:${GOLD};font-family:Orbitron,sans-serif;font-size:.62rem;letter-spacing:.14em;cursor:pointer">
+          ${nextLabel}
         </button>` : ''}
         <button id="ssAgainBtn" style="padding:11px;border-radius:10px;border:1.5px solid ${ACCENT};background:${ACCENT}22;color:${ACCENT_L};font-family:Orbitron,sans-serif;font-size:.62rem;letter-spacing:.14em;cursor:pointer">
           ↺ PLAY AGAIN
@@ -780,7 +869,7 @@
     const l2Btn    = document.getElementById('ssToL2Btn');
     const againBtn = document.getElementById('ssAgainBtn');
     const hubBtn   = document.getElementById('ssHubBtn');
-    if (l2Btn)    l2Btn.onclick    = () => { overEl.style.display='none'; startLevel(1); };
+    if (l2Btn)    l2Btn.onclick    = () => { overEl.style.display='none'; startLevel(nextIdx); };
     if (againBtn) againBtn.onclick = () => { overEl.style.display='none'; startLevel(G.lvIdx); };
     if (hubBtn)   hubBtn.onclick   = window.ll_startup_streetExit;
   }
@@ -815,6 +904,33 @@
     clearTimeout(window._ssInitTimer);
     if (window.state) state.viewingWorld = 'risktaker';
     goTo('hub');
+  };
+
+  /* ══════════════════════════════════════════════════════════════
+     DEBUG HOOKS (console-only, for tracing the L1→L2→L3 chain)
+  ══════════════════════════════════════════════════════════════ */
+  window._ssDbg = () => G ? {
+    lvIdx: G.lvIdx,
+    level: G.lv ? G.lv.id : null,
+    levelName: G.lv ? G.lv.name : null,
+    round: G.round,
+    totalRounds: G.totalRounds,
+    profit: G.profit,
+    happiness: G.happiness,
+    score: G.score,
+    phase: G.phase,
+    roundTimer: G.roundTimer,
+  } : null;
+
+  window._ssForceFinish = () => {
+    if (!G) return 'no game';
+    if (_raf) { cancelAnimationFrame(_raf); _raf = null; }
+    G.profit = 100;
+    G.happiness = 100;
+    G.round = G.totalRounds;
+    const finishedIdx = G.lvIdx;
+    resolveEnd(); // reads G.profit/G.happiness → 3 stars → calls endGame(3, false)
+    return 'forced end at lvIdx ' + finishedIdx;
   };
 
 })();

@@ -47,6 +47,8 @@
     { id:'delay',    label:'Shipping Delay',        emoji:'🌊', node:'SHIPPING',  penaltyBudget:0,  penaltyThroughput:30, duration:10 },
     { id:'demand',   label:'Demand Spike',          emoji:'📈', node:'WAREHOUSE', penaltyBudget:20, penaltyThroughput:0,  duration:6  },
     { id:'upgrade',  label:'Tech Upgrade Available',emoji:'🔬', node:'AI_HUB',    penaltyBudget:0,  penaltyThroughput:0,  duration:12 },
+    { id:'cyberattack', label:'Cyberattack',        emoji:'🛑', node:'AI_HUB',    penaltyBudget:30, penaltyThroughput:55, duration:9,  severe:true },
+    { id:'freeze',   label:'Regulatory Freeze',     emoji:'🧊', node:'HQ',        penaltyBudget:40, penaltyThroughput:20, duration:10, severe:true },
   ];
 
   /* ── level config ────────────────────────────────────────────── */
@@ -65,6 +67,7 @@
       ],
       hints: true,
       disruptions: false,
+      disruptInterval: [8, 16],   // seconds between disruption rolls [min, min+range]
     },
     2: {
       label: 'MASTER',
@@ -84,6 +87,32 @@
       ],
       hints: false,
       disruptions: true,
+      disruptInterval: [8, 18],   // seconds between disruption rolls [min, min+range]
+    },
+    3: {
+      label: 'LEGENDARY',
+      time: 75,
+      budget: 1500,
+      globalTarget: 170,
+      nodes: [
+        { id:'f1', type:'FACTORY',   x:0.08, y:0.14, city:'North City' },
+        { id:'w1', type:'WAREHOUSE', x:0.22, y:0.10, city:'North City' },
+        { id:'f2', type:'FACTORY',   x:0.07, y:0.52, city:'West Bay' },
+        { id:'w3', type:'WAREHOUSE', x:0.21, y:0.48, city:'West Bay' },
+        { id:'f3', type:'FACTORY',   x:0.09, y:0.90, city:'South City' },
+        { id:'w2', type:'WAREHOUSE', x:0.23, y:0.86, city:'South City' },
+        { id:'a1', type:'AI_HUB',    x:0.42, y:0.28, city:'Central Hub' },
+        { id:'a2', type:'AI_HUB',    x:0.42, y:0.62, city:'Central Hub' },
+        { id:'a3', type:'AI_HUB',    x:0.58, y:0.45, city:'Innovation District' },
+        { id:'s1', type:'SHIPPING',  x:0.74, y:0.12, city:'Port Alpha' },
+        { id:'s2', type:'SHIPPING',  x:0.76, y:0.50, city:'Port Beta' },
+        { id:'s3', type:'SHIPPING',  x:0.74, y:0.88, city:'Port Beta' },
+        { id:'h1', type:'HQ',        x:0.93, y:0.50, city:'Global HQ' },
+      ],
+      hints: false,
+      disruptions: true,
+      severeDisruptions: true,   // unlocks the harsher DISRUPTIONS entries (cyberattack/freeze)
+      disruptInterval: [5, 12],  // faster/harsher than level 2's [8, 18]
     }
   };
 
@@ -113,6 +142,7 @@
     <div style="flex:1;text-align:center;">
       <span style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;letter-spacing:2px;color:${ACC2};">SCALING CENTER</span>
     </div>
+    <button id="sc_help_btn" title="How to play" style="background:${ACC}25;border:1px solid ${ACC}60;color:${ACC2};padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-family:Inter,sans-serif;">❓</button>
     <div style="display:flex;gap:16px;align-items:center;">
       <div>
         <span style="font-size:10px;color:#888;letter-spacing:1px;">THROUGHPUT</span><br>
@@ -167,6 +197,11 @@
 
   <!-- END OVERLAY (hidden) -->
   <div id="sc_overlay" style="display:none;position:absolute;inset:0;background:${BG}ee;z-index:50;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;"></div>
+
+  <!-- HOW-TO-PLAY OVERLAY (first-time intro + ❓ re-open; kept separate from
+       sc_overlay so it can sit on top of the level-select/transition/end
+       screens without overwriting their markup) -->
+  <div id="sc_help" style="display:none;position:absolute;inset:0;background:${BG}ee;z-index:55;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:16px;"></div>
 </div>`;
   };
 
@@ -192,8 +227,22 @@
 
     window.addEventListener('resize', resizeCanvas);
 
+    const helpBtn = document.getElementById('sc_help_btn');
+    if (helpBtn) helpBtn.addEventListener('click', window.scShowHelp);
+
     showLevelSelect();
+
+    /* first-time how-to-play, shown on top of the level-select screen so a
+       fresh player reads it before picking a level. No RAF is running yet
+       at this point (showLevelSelect() itself calls cancelAnimationFrame),
+       so there is no timer to pause here — see showHowToPlay() for the
+       mid-game pause/resume path used when reopened via ❓ during play. */
+    if (!_scSeenIntro) {
+      _scSeenIntro = true;
+      showHowToPlay();
+    }
   }
+  let _scSeenIntro = false;
 
   function resizeCanvas () {
     if (!_canvas) return;
@@ -230,9 +279,66 @@
           <div style="font-size:12px;color:${WARN};margin-top:4px;">MASTER</div>
           <div style="font-size:11px;color:#666;margin-top:8px;">Multi-city<br>90 seconds<br>Random disruptions</div>
         </div>
+        <div onclick="window._scStartLevel(3)" style="cursor:pointer;background:${DANGER}10;border:2px solid ${DANGER}80;border-radius:12px;padding:20px 28px;text-align:center;transition:all 0.2s;" onmouseover="this.style.background='${DANGER}20'" onmouseout="this.style.background='${DANGER}10'">
+          <div style="font-size:24px;margin-bottom:8px;">🚀</div>
+          <div style="font-family:'Orbitron',monospace;font-size:14px;color:${DANGER};letter-spacing:1px;">LEVEL 3</div>
+          <div style="font-size:12px;color:${DANGER};margin-top:4px;">LEGENDARY</div>
+          <div style="font-size:11px;color:#666;margin-top:8px;">8 cities<br>75 seconds<br>Severe disruptions</div>
+        </div>
       </div>`;
     window._scStartLevel = startLevel;
   }
+
+  /* ══════════════════════════════════════════════════════════════
+     HOW-TO-PLAY — shown once automatically on top of the level-select
+     screen, and re-openable anytime via the ❓ button without losing
+     progress. Pause trick: same as the game's own gameLoop clock —
+     G.lastTick = performance.now(), dt = (ts - G.lastTick)/1000 each
+     frame. Freezing the RAF (cancelAnimationFrame) stops G.timeLeft
+     from draining; on resume, resetting G.lastTick = performance.now()
+     right before restarting the loop makes the very next dt exclude
+     the entire paused duration. If no level is in progress (still on
+     the level-select / transition / end screen), there is no RAF
+     running and nothing to pause — the overlay just layers on top.
+  ══════════════════════════════════════════════════════════════ */
+  function showHowToPlay () {
+    const overlay = document.getElementById('sc_help');
+    if (!overlay) return;
+    const wasPlay = G && G.phase === 'play';
+    if (wasPlay) {
+      G.phase = 'paused';
+      cancelAnimationFrame(_raf);
+    }
+    overlay.style.display = 'flex';
+    overlay.innerHTML = `
+      <div style="max-width:380px;width:92%;padding:26px 22px;background:rgba(10,10,26,.97);border:1.5px solid ${ACC}88;border-radius:18px;text-align:center;box-shadow:0 0 50px ${ACC}33;max-height:90vh;overflow-y:auto">
+        <div style="font-family:'Orbitron',monospace;font-size:11px;letter-spacing:3px;color:${ACC2};margin-bottom:8px">HOW TO PLAY</div>
+        <div style="font-size:2rem;margin-bottom:6px">🌐</div>
+        <div style="font-family:'Orbitron',monospace;font-size:15px;margin-bottom:14px">SCALING CENTER</div>
+        <ul style="text-align:left;font-size:12.5px;color:rgba(255,255,255,.82);line-height:1.6;margin:0 0 18px;padding-left:18px">
+          <li style="margin-bottom:8px"><b style="color:${ACC2}">Goal:</b> build a full pipeline — Factory → Warehouse → AI Hub → Shipping → Global HQ — before time runs out.</li>
+          <li style="margin-bottom:8px"><b style="color:${ACC2}">How to play:</b> click a node to start a route, then click another node to connect them. Right-click a route to delete it.</li>
+          <li style="margin-bottom:8px"><b style="color:${ACC2}">Watch out:</b> every route costs budget, and from Level 2 on random disruptions ⚡ can knock out a node — reroute or upgrade it to recover.</li>
+          <li><b style="color:${ACC2}">Scoring:</b> reach Global Company status while spending less of your budget to earn more stars.</li>
+        </ul>
+        <button onclick="window.scCloseHelp()" style="background:${ACC};border:none;color:#fff;padding:12px 30px;border-radius:11px;cursor:pointer;font-size:13px;font-family:'Orbitron',monospace;letter-spacing:1px;font-weight:700;">${wasPlay ? '▶ RESUME' : 'GOT IT — START ▶'}</button>
+      </div>`;
+  }
+
+  window.scShowHelp = function () {
+    if (G && G.phase === 'end') return;
+    showHowToPlay();
+  };
+
+  window.scCloseHelp = function () {
+    const overlay = document.getElementById('sc_help');
+    if (overlay) overlay.style.display = 'none';
+    if (G && G.phase === 'paused') {
+      G.phase = 'play';
+      G.lastTick = performance.now();   // exclude paused duration from next dt
+      _raf = requestAnimationFrame(gameLoop);
+    }
+  };
 
   /* ══════════════════════════════════════════════════════════════
      START LEVEL
@@ -260,7 +366,7 @@
       mouseY:        0,
       selectedNode:  null,
       disruptions:   [],         // active disruption objects
-      nextDisrupt:   cfg.disruptions ? (8 + Math.random() * 8) : 9999,
+      nextDisrupt:   cfg.disruptions ? rollDisruptInterval(cfg) : 9999,
       disruptTimer:  0,
       throughputAccum: 0,        // accumulates fractional throughput per tick
       globalPct:     0,
@@ -329,12 +435,12 @@
       return;
     }
 
-    /* disruptions (level 2 only) */
+    /* disruptions (any level with CFG[level].disruptions === true) */
     if (CFG[G.level].disruptions) {
       G.disruptTimer += dt;
       if (G.disruptTimer >= G.nextDisrupt) {
         fireDisruption();
-        G.nextDisrupt = G.disruptTimer + 8 + Math.random() * 10;
+        G.nextDisrupt = G.disruptTimer + rollDisruptInterval(CFG[G.level]);
       }
       /* tick disruption durations */
       G.disruptions = G.disruptions.filter(dis => {
@@ -443,8 +549,23 @@
   /* ══════════════════════════════════════════════════════════════
      DISRUPTIONS
   ══════════════════════════════════════════════════════════════ */
+  /* roll a seconds-until-next-disruption value from a level's
+     disruptInterval:[min, max] tuple; falls back to the old hardcoded
+     8-18s window if a level config is somehow missing the field. */
+  function rollDisruptInterval (cfg) {
+    const iv = cfg && cfg.disruptInterval;
+    if (!iv) return 8 + Math.random() * 10;
+    const [min, max] = iv;
+    return min + Math.random() * (max - min);
+  }
+
   function fireDisruption () {
-    const def = DISRUPTIONS[Math.floor(Math.random() * DISRUPTIONS.length)];
+    /* Level 3 draws from the full pool (incl. severe types); earlier levels
+       stay on the original 4 so their balance is unchanged. */
+    const pool = CFG[G.level].severeDisruptions
+      ? DISRUPTIONS
+      : DISRUPTIONS.filter(d => !d.severe);
+    const def = pool[Math.floor(Math.random() * pool.length)];
     const affected = G.nodes.filter(n => n.type === def.node);
     if (!affected.length) return;
     const nd = affected[Math.floor(Math.random() * affected.length)];
@@ -661,8 +782,9 @@
     /* grid */
     drawGrid(ctx, W, H);
 
-    /* city zones (level 2 only) */
-    if (G.level === 2) drawCityZones(ctx, W, H);
+    /* city zones — only meaningful once nodes span more than one city,
+       works for any level's actual layout instead of a hardcoded one */
+    if (cityCount(G.nodes) > 1) drawCityZones(ctx, W, H);
 
     /* routes */
     G.routes.forEach(rt => drawRoute(ctx, rt));
@@ -712,21 +834,39 @@
     ctx.restore();
   }
 
+  /* count of distinct city names among a node list (city undefined counts
+     as a single implicit group so old/edge-case configs stay safe) */
+  function cityCount (nodes) {
+    if (!nodes || !nodes.length) return 0;
+    return new Set(nodes.map(n => n.city || '__none__')).size;
+  }
+
+  const ZONE_PALETTE = [ACC, CYAN, ACC2, GOLD, WARN, GOOD, DANGER, '#60A5FA', '#F472B6', '#34D399'];
+
+  /* derive city zones straight from whatever nodes the active level laid
+     out — works for L1's single city, L2's 6, L3's 8, or any future
+     relayout, instead of a name/position list hardcoded to one level. */
   function drawCityZones (ctx, W, H) {
-    const cities = [
-      { name:'North City', cx:0.23, cy:0.20, r:0.16, color:ACC },
-      { name:'South City', cx:0.22, cy:0.70, r:0.16, color:CYAN },
-      { name:'Central Hub',cx:0.50, cy:0.50, r:0.18, color:ACC2 },
-      { name:'Port Alpha', cx:0.68, cy:0.22, r:0.13, color:GOLD },
-      { name:'Port Beta',  cx:0.70, cy:0.75, r:0.13, color:WARN },
-      { name:'Global HQ',  cx:0.85, cy:0.50, r:0.12, color:GOOD },
-    ];
-    cities.forEach(c => {
-      const cx = c.cx * W;
-      const cy = c.cy * H;
-      const r  = c.r  * Math.min(W, H);
-      const g  = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-      g.addColorStop(0, c.color + '18');
+    if (!G || !G.nodes || !G.nodes.length) return;
+    const groups = new Map();
+    G.nodes.forEach(nd => {
+      const key = nd.city || '__none__';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(nd);
+    });
+
+    const minSpan = Math.min(W, H);
+    let colorIdx = 0;
+    groups.forEach((members, name) => {
+      const cx = members.reduce((s, n) => s + n.x, 0) / members.length;
+      const cy = members.reduce((s, n) => s + n.y, 0) / members.length;
+      const spread = members.reduce((m, n) => Math.max(m, Math.hypot(n.x - cx, n.y - cy)), 0);
+      const r = Math.max(spread + 46, minSpan * 0.11);
+      const color = ZONE_PALETTE[colorIdx % ZONE_PALETTE.length];
+      colorIdx++;
+
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, color + '18');
       g.addColorStop(1, 'transparent');
       ctx.fillStyle = g;
       ctx.beginPath();
@@ -734,9 +874,9 @@
       ctx.fill();
 
       ctx.font = '9px Inter,sans-serif';
-      ctx.fillStyle = c.color + '80';
+      ctx.fillStyle = color + '80';
       ctx.textAlign = 'center';
-      ctx.fillText(c.name.toUpperCase(), cx, cy + r - 6);
+      ctx.fillText(name.toUpperCase(), cx, cy + r - 6);
     });
     ctx.textAlign = 'left';
   }
@@ -1055,28 +1195,35 @@
       else stars = 1;
     }
 
-    /* advance to level 2 if level 1 won */
+    /* advance to the next level on a win, unless we just won the final level */
     if (won && G.level === 1) {
-      showLevelComplete(stars, () => startLevel(2));
+      showLevelComplete(stars, 1, 2, () => startLevel(2));
+      return;
+    }
+    if (won && G.level === 2) {
+      showLevelComplete(stars, 2, 3, () => startLevel(3));
       return;
     }
 
-    /* final game over or win */
+    /* final game over or win (level 3 win, or a loss at any level) */
     endGame(stars, won);
   }
 
-  function showLevelComplete (stars, onContinue) {
+  function showLevelComplete (stars, completedLvl, nextLvl, onContinue) {
     const ov = document.getElementById('sc_overlay');
     ov.style.display = 'flex';
     ov.style.flexDirection = 'column';
     ov.style.alignItems = 'center';
     ov.style.justifyContent = 'center';
     const starStr = ['', '⭐', '⭐⭐', '⭐⭐⭐'][stars] || '';
+    const flavor = completedLvl === 1
+      ? 'City scaled. Time to go multi-city!'
+      : 'Multi-city network mastered. One challenge remains — go legendary!';
     ov.innerHTML = `
       <div style="font-size:36px;margin-bottom:8px;">${starStr}</div>
       <div style="font-family:'Orbitron',monospace;font-size:20px;color:${GOOD};margin-bottom:6px;">CITY SCALED!</div>
-      <div style="font-size:13px;color:#888;margin-bottom:24px;">Level 1 complete. Time to go global!</div>
-      <button onclick="this.closest('#sc_overlay').style.display='none';window._scContinue()" style="background:${ACC};border:none;color:#fff;padding:12px 32px;border-radius:8px;cursor:pointer;font-size:15px;font-family:Orbitron,monospace;letter-spacing:1px;">CONTINUE → LEVEL 2</button>`;
+      <div style="font-size:13px;color:#888;margin-bottom:24px;">Level ${completedLvl} complete. ${flavor}</div>
+      <button onclick="this.closest('#sc_overlay').style.display='none';window._scContinue()" style="background:${ACC};border:none;color:#fff;padding:12px 32px;border-radius:8px;cursor:pointer;font-size:15px;font-family:Orbitron,monospace;letter-spacing:1px;">CONTINUE → LEVEL ${nextLvl}</button>`;
     window._scContinue = onContinue;
   }
 
@@ -1148,6 +1295,31 @@
     G = null;
     if (window.state) state.viewingWorld = 'risktaker';
     if (window.goTo) goTo('hub');
+  };
+
+  /* ══════════════════════════════════════════════════════════════
+     DEBUG HOOKS (console-drivable, no waiting on real timers)
+  ══════════════════════════════════════════════════════════════ */
+  window._scDbg = () => G ? {
+    level:        G.level,
+    phase:        G.phase,
+    score:        G.score,
+    budget:       G.budget,
+    globalPct:    G.globalPct,
+    globalTarget: G.globalTarget,
+    nodeCount:    G.nodes ? G.nodes.length : 0,
+    cityCount:    G.nodes ? cityCount(G.nodes) : 0,
+    routeCount:   G.routes ? G.routes.length : 0,
+    timeLeft:     G.timeLeft,
+  } : null;
+
+  /* Sets score to the win threshold so the very next gameLoop tick takes
+     the real win branch (globalPct >= 100 -> finishLevel(true)) — this
+     exercises the actual L1->L2->L3 chain instead of bypassing it. */
+  window._scForceWin = () => {
+    if (!G) return 'no game';
+    G.score = G.globalTarget;
+    return `score set to globalTarget (${G.globalTarget}) on level ${G.level} — next tick triggers the real win path`;
   };
 
   /* ══════════════════════════════════════════════════════════════

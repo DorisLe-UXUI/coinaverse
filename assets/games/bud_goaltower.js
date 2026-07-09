@@ -5,6 +5,8 @@
    Wrong order → tower wobble, time penalty, floor lost.
    Level 1: One goal, 4-6 milestones, learn sequencing.
    Level 2: Three simultaneous goals, shared resource tokens, setbacks.
+   Level 3: Four simultaneous goals incl. an Emergency Fund grind,
+            faster setbacks, tighter clock — the full Commander test.
    WIN: Complete all goals before time expires.
    ════════════════════════════════════════════════════════════════ */
 (function () {
@@ -21,10 +23,12 @@
 
   const ROUND_L1 = 90;   // seconds level 1
   const ROUND_L2 = 120;  // seconds level 2
+  const ROUND_L3 = 130;  // seconds level 3 — more goals, only slightly more time
 
   // Star thresholds (score)
   // Level 1 max score: 4 milestones × combo pts + 200 goal bonus ≈ 800
   // Level 2 max score: 14 milestones × combo pts + 600 goal bonus ≈ 3000+
+  // Level 3 max score: 19 milestones × combo pts + 800 goal bonus ≈ 4200+
   const STAR3 = 700;
   const STAR2 = 400;
 
@@ -84,15 +88,42 @@
         { id: 3, label: 'Book in Advance',         icon: '📅', desc: 'Lock in lower prices' },
         { id: 4, label: 'Reach Goal',              icon: '🏆', desc: 'Ready to go!' }
       ]
+    },
+    {
+      id: 'emergency',
+      name: 'Build Emergency Fund',
+      icon: '🛡️',
+      color: '#38bdf8',
+      milestones: [
+        { id: 0, label: 'Calculate 3-Month Costs', icon: '🧮', desc: 'Add up 3 months of bare essentials' },
+        { id: 1, label: 'Open Separate Account',   icon: '🏦', desc: 'Keep it apart from spending cash' },
+        { id: 2, label: 'Automate Transfers',      icon: '⚡', desc: 'Pay yourself first, every payday' },
+        { id: 3, label: 'Bank Windfalls',          icon: '🎁', desc: 'Send gifts & bonuses straight to the fund' },
+        { id: 4, label: 'Resist Dipping In',       icon: '🔒', desc: 'Emergency fund is for emergencies only' },
+        { id: 5, label: 'Reach Goal',              icon: '🏆', desc: 'Fully funded safety net!' }
+      ]
     }
   ];
 
-  /* ── setback events (level 2 only) ────────────────────────── */
+  /* Level → which GOAL_DEFS indices are simultaneously active. Keeps the
+     level/goal mapping in one lookup table instead of scattered ternaries. */
+  const LEVEL_GOAL_IDX = {
+    1: [0],
+    2: [0, 1, 2],
+    3: [0, 1, 2, 3],
+  };
+  const MAX_LEVEL = Math.max(...Object.keys(LEVEL_GOAL_IDX).map(Number)); // 3 — last playable level
+  const LEVEL_LABEL = { 2: 'MASTER', 3: 'COMMANDER' }; // end-screen "next level" button text
+
+  /* ── setback events (level 2 and up — minLevel gates the two ─────┐
+     Level-3-exclusive setbacks so Commander tier isn't just faster) */
   const SETBACKS = [
     { label: 'Impulse Purchase!', icon: '🛍️', desc: 'Spent $30 on impulse', cost: 1 },
     { label: 'Emergency Cost!',   icon: '🚨', desc: 'Unexpected bill arrived', cost: 1 },
     { label: 'Price Increase!',   icon: '📈', desc: 'Goal costs more now', cost: 1 },
-    { label: 'Missed Transfer!',  icon: '⏰', desc: 'Forgot to save this week', cost: 1 }
+    { label: 'Missed Transfer!',  icon: '⏰', desc: 'Forgot to save this week', cost: 1 },
+    { label: 'Interest Rate Hike!', icon: '📊', desc: 'Loan cost jumped — your budget got tighter', cost: 1, minLevel: 3 },
+    { label: 'Job Hours Cut!',      icon: '✂️', desc: 'Fewer shifts this week — income dipped', cost: 1, minLevel: 3 }
   ];
 
   /* ── state factory ─────────────────────────────────────────── */
@@ -109,12 +140,19 @@
     };
   }
 
+  // Per-level tuning — one lookup table instead of scattered ternaries,
+  // so adding/adjusting a level never means hunting through reset().
+  const LEVEL_TUNING = {
+    1: { timeLimit: ROUND_L1, maxHand: 3, tokens: 0,  setbackT: 9999, gateT: 30 },
+    2: { timeLimit: ROUND_L2, maxHand: 4, tokens: 5,  setbackT: 25,   gateT: 40 },
+    3: { timeLimit: ROUND_L3, maxHand: 5, tokens: 7,  setbackT: 18,   gateT: 45 },
+  };
+
   function reset(level) {
     currentLevel = level || 1;
-    const timeLimit = currentLevel === 1 ? ROUND_L1 : ROUND_L2;
-    const goals = currentLevel === 1
-      ? [makeGoalState(GOAL_DEFS[0])]
-      : [makeGoalState(GOAL_DEFS[0]), makeGoalState(GOAL_DEFS[1]), makeGoalState(GOAL_DEFS[2])];
+    const tuning = LEVEL_TUNING[currentLevel] || LEVEL_TUNING[1];
+    const goalIdxs = LEVEL_GOAL_IDX[currentLevel] || LEVEL_GOAL_IDX[1];
+    const goals = goalIdxs.map(i => makeGoalState(GOAL_DEFS[i]));
 
     // Build card queue from all goals' milestones, shuffled
     const cards = [];
@@ -130,12 +168,12 @@
       level: currentLevel,
       score: 0,
       combo: 0,
-      time: timeLimit,
+      time: tuning.timeLimit,
       last: performance.now(),
       goals,
       cards,               // remaining cards in queue
       hand: [],            // cards in player's "hand" (shown in sidebar)
-      maxHand: currentLevel === 1 ? 3 : 4,
+      maxHand: tuning.maxHand,
       dragCard: null,      // { cardIdx, x, y, startX, startY }
       floats: [],          // floating score texts
       particles: [],       // burst particles
@@ -143,11 +181,11 @@
       flashGood: 0,
       flashBad: 0,
       wobbleGlobal: 0,
-      tokens: { time: currentLevel === 1 ? 0 : 5, money: currentLevel === 1 ? 0 : 5 },
-      setbackT: currentLevel === 1 ? 9999 : 25,
+      tokens: { time: tuning.tokens, money: tuning.tokens },
+      setbackT: tuning.setbackT,
       setbackActive: null,
       factIdx: 0,
-      gateT: currentLevel === 1 ? 30 : 40,
+      gateT: tuning.gateT,
       gateOpen: false,
       perfectPlacements: 0,
       wrongPlacements: 0,
@@ -207,6 +245,46 @@
     raf = null;
     if (window.state) state.viewingWorld = 'strategist';
     goTo('hub');
+  };
+
+  /* ── DEBUG HOOKS (dev/QA only — no UI wiring) ─────────────────── */
+  window._gtDbg = function () {
+    if (!G) return null;
+    return {
+      level: G.level,
+      maxLevel: MAX_LEVEL,
+      goalIds: G.goals.map(gs => gs.def.id),
+      goalCount: G.goals.length,
+      goalsComplete: G.goals.map(gs => gs.complete),
+      time: G.time,
+      score: G.score,
+      tokens: { ...G.tokens },
+      setbackT: G.setbackT,
+      won: G.won,
+      lost: G.lost,
+      phase: G.phase,
+    };
+  };
+  // action: 'finishgoals' instantly completes every goal's every milestone
+  // in correct order (bypasses drag/drop) so checkWin() fires for real.
+  // action: 'goto'(levelNum) calls the real reset() — same call the actual
+  // "next level" button's onclick handler makes.
+  window._gtTest = function (action, arg) {
+    if (action === 'goto') { reset(arg); if (restartLoop) restartLoop(); return window._gtDbg(); }
+    if (!G) return null;
+    if (action === 'finishgoals') {
+      for (const gs of G.goals) {
+        while (!gs.complete && gs.needed < gs.def.milestones.length) {
+          const ms = gs.def.milestones[gs.needed];
+          gs.placed.push(ms);
+          gs.needed++;
+          if (gs.needed >= gs.def.milestones.length) gs.complete = true;
+        }
+      }
+      checkWin();
+      return window._gtDbg();
+    }
+    return window._gtDbg();
   };
 
   /* ── init ──────────────────────────────────────────────────── */
@@ -412,7 +490,7 @@
       G.wrongPlacements++;
       G.time = Math.max(5, G.time - 8);
       G.flashBad = 0.35;
-      floatTxt(0.5, 0.45, 'OOPS — WRONG ORDER! -8s', DANGER);
+      floatTxt(0.5, 0.45, 'OOPS — OUT OF SEQUENCE! -8s', DANGER);
       burst(0.5, 0.45, DANGER, 10);
 
       // knock back: if goal has a placed milestone, remove last one
@@ -470,11 +548,11 @@
       return;
     }
 
-    // setback timer (level 2)
-    if (G.level === 2) {
+    // setback timer (level 2 and up — level 3 re-triggers faster)
+    if (G.level >= 2) {
       G.setbackT -= dt;
       if (G.setbackT <= 0) {
-        G.setbackT = 22 + Math.random() * 18;
+        G.setbackT = G.level >= 3 ? (14 + Math.random() * 12) : (22 + Math.random() * 18);
         triggerSetback();
       }
     }
@@ -745,8 +823,8 @@
       drawCard(ctx, card, slot.x, slot.y, slot.w, slot.h, now);
     }
 
-    // tokens (level 2)
-    if (G.level === 2) {
+    // tokens (level 2 and up)
+    if (G.level >= 2) {
       ctx.fillStyle = 'rgba(251,191,36,0.8)';
       ctx.font = '10px Inter';
       ctx.textAlign = 'left';
@@ -844,9 +922,10 @@
     ctx.font = '9px Orbitron, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
+    const keyRange = G.goals.map((_, i) => i + 1).join('/');
     const hint = G.level === 1
       ? 'DRAG cards onto the correct tower in order · Press 1 to place top card'
-      : 'DRAG cards onto towers · Keys 1/2/3 to place · Order matters!';
+      : `DRAG cards onto towers · Keys ${keyRange} to place · Order matters!`;
     ctx.fillText(hint, W / 2, H - getHandH(H) - 4);
   }
 
@@ -935,7 +1014,7 @@
     if (!G || G.gateOpen) return;
     G.gateOpen = true;
     G.phase = 'gate';
-    G.gateT = G.level === 1 ? 30 : 40;
+    G.gateT = (LEVEL_TUNING[G.level] || LEVEL_TUNING[1]).gateT;
 
     const fact = FACTS[G.factIdx % FACTS.length];
     G.factIdx++;
@@ -959,10 +1038,11 @@
     });
   }
 
-  /* ── setback (level 2) ─────────────────────────────────────── */
+  /* ── setback (level 2 and up) ─────────────────────────────────── */
   function triggerSetback() {
     G.phase = 'setback';
-    const sb = SETBACKS[Math.floor(Math.random() * SETBACKS.length)];
+    const eligible = SETBACKS.filter(s => !s.minLevel || G.level >= s.minLevel);
+    const sb = eligible[Math.floor(Math.random() * eligible.length)];
     G.setbackActive = sb;
 
     // knock back a random incomplete goal's last milestone
@@ -1045,7 +1125,7 @@
           <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.14em;color:${VIOLET_LT};margin-bottom:8px">LESSON</div>
           <div style="font-size:.88rem;line-height:1.6;color:#cbd5e1">Big goals don't happen in one move — they are built step by step in the right order. Create the plan first, save consistently second, resist distractions third, and the goal takes care of itself. <strong>Skipping steps always costs more time than doing them right.</strong></div>
         </div>
-        ${level === 1 && won ? `<div style="margin-bottom:14px"><button id="gtPlayL2" style="padding:12px 24px;border-radius:10px;border:1.5px solid ${GOLD};background:rgba(251,191,36,0.15);color:${GOLD};font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.13em;cursor:pointer;margin-right:10px">▶ LEVEL 2: MASTER</button></div>` : ''}
+        ${won && level < MAX_LEVEL ? `<div style="margin-bottom:14px"><button id="gtPlayNextLv" style="padding:12px 24px;border-radius:10px;border:1.5px solid ${GOLD};background:rgba(251,191,36,0.15);color:${GOLD};font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.13em;cursor:pointer;margin-right:10px">▶ LEVEL ${level + 1}${LEVEL_LABEL[level + 1] ? ': ' + LEVEL_LABEL[level + 1] : ''}</button></div>` : ''}
         <div style="display:flex;gap:10px;justify-content:center;margin-top:4px">
           <button id="gtPlayAgain" style="padding:12px 22px;border-radius:10px;border:1.5px solid rgba(124,58,237,0.6);background:rgba(124,58,237,0.2);color:#c4b5fd;font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.13em;cursor:pointer">↺ PLAY AGAIN</button>
           <button id="gtGoHub" style="padding:12px 22px;border-radius:10px;border:1.5px solid rgba(26,42,74,0.8);background:rgba(26,42,74,0.35);color:#93c5fd;font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.13em;cursor:pointer">← HUB</button>
@@ -1061,11 +1141,11 @@
     document.getElementById('gtGoHub').addEventListener('click', () => {
       window.bud_goaltowerExit();
     });
-    const l2btn = document.getElementById('gtPlayL2');
-    if (l2btn) {
-      l2btn.addEventListener('click', () => {
+    const nextLvBtn = document.getElementById('gtPlayNextLv');
+    if (nextLvBtn) {
+      nextLvBtn.addEventListener('click', () => {
         el.style.display = 'none';
-        reset(2);
+        reset(level + 1);
         if (restartLoop) restartLoop();
       });
     }

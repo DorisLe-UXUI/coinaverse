@@ -4,6 +4,7 @@
    True Cost = price ÷ lifespan in months.  Best value = lowest true cost.
    Level 1: simple two-card comparisons.
    Level 2: sales, hidden fees, subscriptions, bundles.
+   Level 3: compounding interest, opportunity cost, multi-variable trade-offs.
    ════════════════════════════════════════════════════════════════════════════ */
 (function () {
   /* ── CONSTANTS ─────────────────────────────────────────────────────────── */
@@ -17,8 +18,11 @@
   const RED_ERR     = '#f87171';
   const ROUND_SECS  = 90;          // total time per round
   const COMBO_BONUS = 10;          // extra pts per correct streak
-  const STAR3_SCORE = 820;
-  const STAR2_SCORE = 500;
+  const L1_COUNT    = 4;           // rounds drawn from ROUNDS_L1 per game
+  const L2_COUNT    = 6;           // rounds drawn from ROUNDS_L2 per game
+  const L3_COUNT    = 5;           // rounds drawn from ROUNDS_L3 per game
+  const STAR3_SCORE = 1180;        // raised proportionally: 15 rounds vs prior 10, plus harder L3 scoring
+  const STAR2_SCORE = 650;
   const STAR1_SCORE = 1;
 
   /* ── PRODUCT CATALOGUE ─────────────────────────────────────────────────── */
@@ -177,14 +181,97 @@
     },
   ];
 
+  const ROUNDS_L3 = [
+    {
+      level: 3,
+      question: 'Which way to buy a $1,200 laptop actually costs less?',
+      hint: 'Credit card interest compounds — run the full math before you swipe.',
+      products: [
+        { emoji: '💳', name: 'Credit Card (min payments)', price: 1637, lifeMonths: 24, stars: 3, warranty: 12, reviews: '—', badge: null,
+          note: '22% APR, paying only the $40/mo minimum — total interest paid: $437 (real total: $1,637)' },
+        { emoji: '🏦', name: 'Save 3 Months First',        price: 1200, lifeMonths: 24, stars: 3, warranty: 12, reviews: '—', badge: 'SMART CHOICE',
+          note: 'Wait 3 months, save $400/mo, pay cash — $0 interest' },
+      ],
+      // Credit card true cost: $1637/24 = $68.21/mo. Cash: $1200/24 = $50/mo.
+      bestIdx: 1,
+    },
+    {
+      level: 3,
+      question: 'Which use of $500 leaves you better off in 10 years?',
+      hint: 'Money invested grows over time — money spent on a depreciating item does not.',
+      products: [
+        { emoji: '🎮', name: 'New Console + Games', price: 350, lifeMonths: 120, stars: 4, warranty: 12, reviews: '9k', badge: null,
+          note: 'Costs $500 now, resells for ~$150 in 3 years, then $0 — net cost over 10 yrs: $350' },
+        { emoji: '📈', name: 'Invest in Index Fund', price: -484, lifeMonths: 120, stars: 5, warranty: 0, reviews: '—', badge: 'COMPOUNDS',
+          note: 'At ~7%/yr average growth, $500 grows to ~$984 in 10 years — you gain $484, you don\'t lose it' },
+      ],
+      // Net cost per month: Console = $350/120 = $2.92/mo lost value. Invest = -$484/120 = -$4.03/mo (money GAINED, negative cost).
+      bestIdx: 1,
+    },
+    {
+      level: 3,
+      question: 'Which car loan actually costs less overall?',
+      hint: 'A lower monthly payment can hide a longer loan that costs more in total interest.',
+      products: [
+        { emoji: '🚙', name: '72-Month Loan, Low Payment', price: 30840, lifeMonths: 72, stars: 3, warranty: 36, reviews: '4k', badge: 'LOW MONTHLY!',
+          note: '$24,000 car, 9.5% APR — total interest paid: $6,840 (real total: $30,840)' },
+        { emoji: '🚗', name: '48-Month Loan, Higher Payment', price: 25050, lifeMonths: 48, stars: 4, warranty: 36, reviews: '4k', badge: null,
+          note: '$22,000 car, 6.5% APR — total interest paid: $3,050 (real total: $25,050)' },
+      ],
+      // Total cost of ownership: $30,840 vs $25,050 — the shorter loan is nearly $5,800 cheaper even though its
+      // monthly payment ($521.88) looks higher than the 72-month plan's ($428.33).
+      bestIdx: 1,
+    },
+    {
+      level: 3,
+      question: 'Which tuition payment plan is the smarter long-term move?',
+      hint: 'A loan you take today keeps charging interest for years after you graduate.',
+      products: [
+        { emoji: '🎓', name: 'Student Loan (full amount)', price: 10705, lifeMonths: 120, stars: 4, warranty: 0, reviews: '—', badge: null,
+          note: '$8,000 tuition, 6% APR over 10 years — total interest paid: $2,705 (real total: $10,705)' },
+        { emoji: '💼', name: 'Part-Time Job + Scholarship', price: 8000, lifeMonths: 120, stars: 5, warranty: 0, reviews: '—', badge: 'DEBT-FREE',
+          note: 'Covers the same $8,000 tuition working part-time over 2 years — $0 interest, ever' },
+      ],
+      // Same 10-year window for fair comparison: Loan = $10,705/120 = $89.21/mo. Debt-free path = $8,000/120 = $66.67/mo.
+      bestIdx: 1,
+    },
+    {
+      level: 3,
+      question: 'Which insurance plan actually protects your wallet better — if a mishap happens this year?',
+      hint: 'A cheap monthly premium can hide a deductible that wrecks your savings.',
+      products: [
+        { emoji: '🛡️', name: 'Low-Premium Plan',  price: 3300, lifeMonths: 12, stars: 3, warranty: 0, reviews: '2k', badge: 'CHEAPEST!',
+          note: '$25/mo premium ($300/yr) + $3,000 deductible if you file one claim (real total: $3,300)' },
+        { emoji: '🛡️', name: 'Balanced Plan',      price: 1280, lifeMonths: 12, stars: 5, warranty: 0, reviews: '6k', badge: null,
+          note: '$65/mo premium ($780/yr) + only a $500 deductible if you file one claim (real total: $1,280)' },
+      ],
+      // True cost if one claim happens in the year: Low = $3,300/12 = $275/mo; Balanced = $1,280/12 = $106.67/mo
+      bestIdx: 1,
+    },
+    {
+      level: 3,
+      question: 'Which phone upgrade plan gives you the best true value over 4 years?',
+      hint: 'Carriers bundle interest and fees into "easy" monthly upgrade plans.',
+      products: [
+        { emoji: '📱', name: 'Carrier Upgrade Plan',   price: 2000, lifeMonths: 48, stars: 4, warranty: 12, reviews: '11k', badge: 'UPGRADE EVERY 2 YRS',
+          note: 'New phone every 2 years at $1,000/cycle, but you never stop paying — 4-yr total: $2,000' },
+        { emoji: '📱', name: 'Buy Outright, Keep 4 Yrs', price: 1000, lifeMonths: 48, stars: 5, warranty: 24, reviews: '11k', badge: null,
+          note: 'One phone, no upgrade fees, used the full 4 years — 4-yr total: $1,000' },
+      ],
+      // 4-yr true cost: Carrier = $2,000/48 = $41.67/mo. Buy outright = $1,000/48 = $20.83/mo.
+      bestIdx: 1,
+    },
+  ];
+
   /* ── STATE ─────────────────────────────────────────────────────────────── */
   let G = null;
 
   function freshState() {
-    // Shuffle and interleave rounds: 4 L1, then 6 L2
+    // Shuffle and interleave rounds: L1 rounds, then L2 rounds, then L3 rounds
     const l1 = shuffle([...ROUNDS_L1]);
     const l2 = shuffle([...ROUNDS_L2]);
-    const queue = [...l1.slice(0, 4), ...l2.slice(0, 6)];
+    const l3 = shuffle([...ROUNDS_L3]);
+    const queue = [...l1.slice(0, L1_COUNT), ...l2.slice(0, L2_COUNT), ...l3.slice(0, L3_COUNT)];
     return {
       phase: 'intro',    // intro | play | result | gameover
       rounds: queue,
@@ -406,6 +493,7 @@
         }
         .bp-level-1 { background: rgba(96,165,250,0.15); border: 1px solid rgba(96,165,250,0.35); color: #93c5fd; }
         .bp-level-2 { background: rgba(251,191,36,0.15); border: 1px solid rgba(251,191,36,0.35); color: ${GOLD}; }
+        .bp-level-3 { background: rgba(255,77,171,0.15); border: 1px solid rgba(255,77,171,0.4); color: #ff8fc8; }
       </style>
       <!-- bg decorations -->
       <div class="bp-grid-deco"></div>
@@ -506,6 +594,10 @@
             <span style="font-family:'Orbitron',sans-serif;font-size:0.42rem;display:block;letter-spacing:0.12em;margin-bottom:2px">LEVEL 2</span>
             Sales, fees, bundles
           </div>
+          <div style="background:rgba(255,77,171,0.1);border:1px solid rgba(255,77,171,0.3);border-radius:10px;padding:8px 14px;font-size:0.68rem;color:#ff8fc8">
+            <span style="font-family:'Orbitron',sans-serif;font-size:0.42rem;display:block;letter-spacing:0.12em;margin-bottom:2px">LEVEL 3</span>
+            Interest & opportunity cost
+          </div>
         </div>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
           <button id="bpStartBtn" class="bp-btn bp-btn-teal" style="font-size:0.72rem;padding:14px 32px">▶ START SHOPPING</button>
@@ -537,7 +629,7 @@
     const round = G.rounds[G.roundIdx];
     const main = document.getElementById('bpMain');
     if (!main) return;
-    const isL2 = round.level === 2;
+    const levelTag = round.level === 3 ? 'EXPERT' : round.level === 2 ? 'MASTER' : 'LEARN';
     const progress = G.roundIdx + 1;
     const total = G.rounds.length;
 
@@ -548,7 +640,7 @@
       <!-- progress + level -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <div style="font-family:'Orbitron',sans-serif;font-size:0.48rem;letter-spacing:0.12em;color:rgba(255,255,255,0.4)">ROUND ${progress} / ${total}</div>
-        <span class="bp-level-badge bp-level-${round.level}">LEVEL ${round.level}: ${isL2 ? 'MASTER' : 'LEARN'}</span>
+        <span class="bp-level-badge bp-level-${round.level}">LEVEL ${round.level}: ${levelTag}</span>
         <div style="display:flex;gap:3px">${Array.from({length:total},(_,i)=>`<div style="width:${Math.max(16,Math.floor(220/total))}px;height:4px;border-radius:2px;background:${i<G.roundIdx?TEAL:i===G.roundIdx?'rgba(0,229,192,0.4)':'rgba(255,255,255,0.1)'}"></div>`).join('')}</div>
       </div>
       <!-- progress bar -->
@@ -655,6 +747,7 @@
 
   function fmtPrice(n) {
     if (n === 0) return 'FREE';
+    if (n < 0) return '+$' + Math.abs(n).toFixed(2); // negative true cost = net money gained (e.g. investment growth)
     return '$' + (Number.isInteger(n) ? n.toFixed(2) : n.toFixed(2));
   }
 
@@ -775,6 +868,24 @@
     if (round.level === 2 && round.products.find(p => p.name.includes('Printer + Ink Bundle'))) {
       return `The bundle includes ink worth $50 extra — buying printer-only means spending $110 total. The bundle saves you $30!`;
     }
+    if (round.level === 3 && round.products.find(p => p.name.includes('Credit Card (min payments)'))) {
+      return `Paying only the minimum on a credit card lets interest pile up — that $1,200 laptop becomes $1,637. Saving up first and paying cash keeps the full $437 in your pocket.`;
+    }
+    if (round.level === 3 && round.products.find(p => p.name.includes('Invest in Index Fund'))) {
+      return `Money spent on a depreciating item (like a console) only ever loses value. Money invested compounds — that same $500 nearly doubles to $984 over 10 years. That's opportunity cost in action.`;
+    }
+    if (round.level === 3 && round.products.find(p => p.name.includes('72-Month Loan'))) {
+      return `A lower monthly payment isn't always the cheaper choice. The 72-month loan looks easier month-to-month, but its extra interest adds up to almost $5,800 more over the life of the loan.`;
+    }
+    if (round.level === 3 && round.products.find(p => p.name.includes('Student Loan (full amount)'))) {
+      return `A student loan keeps charging interest the whole time you're paying it off — $8,000 in tuition becomes $10,705. Working part-time to cover it directly means every dollar you earn stays yours.`;
+    }
+    if (round.level === 3 && round.products.find(p => p.name.includes('Low-Premium Plan'))) {
+      return `The cheapest premium can be a trap — one claim with a $3,000 deductible costs you $3,300 total. The plan with a higher premium but a $500 deductible protects your savings far better if a mishap happens.`;
+    }
+    if (round.level === 3 && round.products.find(p => p.name.includes('Carrier Upgrade Plan'))) {
+      return `Upgrading your phone every 2 years on a carrier plan never lets the payments stop — over 4 years that's $2,000. Buying outright and keeping it the full 4 years costs half that.`;
+    }
     if (correct) {
       return `Correct! ${best.emoji} ${best.name} costs ${fmtPrice(bestTC)}/month — saving you ${fmtPrice(parseFloat(savings))}/month vs the cheapest option. Smart shoppers always calculate true cost!`;
     } else {
@@ -860,8 +971,15 @@
     cancelAnimationFrame(G.rafId);
 
     const is3star = stars === 3;
+    // "current level" = the highest level tier the player actually reached in this run
+    // (roundIdx may be clamped to the last round if the game ended on the final round, or
+    //  cut short by the timer mid-round — either way this reflects real progress, not a guess)
+    const roundsPlayed = Math.min(G.roundIdx + 1, G.rounds.length);
+    const reachedLevel = roundsPlayed > 0
+      ? G.rounds.slice(0, roundsPlayed).reduce((max, r) => Math.max(max, r.level), 1)
+      : 1;
     const coins = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_bud_plaza', { level: 1, stars, badge: 'Value Hunter', is3star, isPerfect: is3star })
+      ? cvAwardGame('game_bud_plaza', { level: reachedLevel, stars, badge: 'Value Hunter', is3star, isPerfect: is3star })
       : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
     if (stars < 1 && window.cvSave) cvSave();
 
@@ -951,6 +1069,48 @@
     if (G) { G.timerRunning = false; cancelAnimationFrame(G.rafId); G = null; }
     if (window.state) state.viewingWorld = WORLD_ID;
     goTo('hub');
+  };
+
+  /* ── debug hook (dev/test only) ──────────────────────────────────
+     window._bpDbg()                 -> snapshot of current state
+     window._bpTest('jumpTo', 9)      -> force roundIdx to a given index and re-render (0-based)
+     window._bpTest('autoWin')        -> auto-pick the correct answer for every remaining round
+  ── */
+  window._bpDbg = function () {
+    if (!G) return null;
+    const round = G.rounds[G.roundIdx] || null;
+    return {
+      roundIdx: G.roundIdx,
+      totalRounds: G.rounds.length,
+      currentRoundLevel: round ? round.level : null,
+      currentQuestion: round ? round.question : null,
+      score: G.score,
+      combo: G.combo,
+      phase: G.phase,
+    };
+  };
+  window._bpTest = function (action, arg) {
+    if (!G) return null;
+    if (action === 'jumpTo') {
+      G.roundIdx = Math.max(0, Math.min(G.rounds.length - 1, arg));
+      G.phase = 'play';
+      G.choiceResult = null;
+      renderRound();
+      return window._bpDbg();
+    }
+    if (action === 'autoWin') {
+      while (G && G.roundIdx < G.rounds.length && G.phase !== 'gameover') {
+        const round = G.rounds[G.roundIdx];
+        if (!round) break;
+        handlePick(round.bestIdx);
+        if (!G || G.phase === 'gameover') break;
+        G.roundIdx++;
+        if (G.roundIdx >= G.rounds.length) { endGame(calcStars()); break; }
+        G.phase = 'play';
+      }
+      return window._bpDbg();
+    }
+    return null;
   };
 
 })();

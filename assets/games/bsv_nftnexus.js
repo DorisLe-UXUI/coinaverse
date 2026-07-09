@@ -10,8 +10,19 @@
   const ACCENT      = '#00FFFF';
   const SCREEN_ID   = 'game_bsv_nftnexus';
   const WORLD_ID    = 'builder';
-  const ROUND_TIME  = 90; // seconds
-  const MAX_FAKES   = 2;  // allowed fake approvals before loss
+
+  // Per-level tuning — level 3 is tighter on time and stricter on fakes.
+  const ROUND_TIME_BY_LEVEL = { 1: 90, 2: 90, 3: 75 }; // seconds
+  const MAX_FAKES_BY_LEVEL  = { 1: 2, 2: 2, 3: 1 };    // allowed fake approvals before loss
+
+  // 3-star / 2-star score bars. Level 3's pool is bigger (10 cards vs 6-8)
+  // so its bars scale up too, keeping "3 stars" a genuinely harder bar than
+  // on level 2 rather than an easier one from having more scoring events.
+  const STAR_GOALS_BY_LEVEL = {
+    1: { goal3: 1800, goal2: 900 },
+    2: { goal3: 1800, goal2: 900 },
+    3: { goal3: 2400, goal2: 1200 },
+  };
 
   // ── NFT card data ──────────────────────────────────────────────
   // type: 'original' → must drag to correct owner wallet
@@ -39,7 +50,7 @@
       owner: 'AliceVault',
       market: 'NFTbay',
       tokenId: '#7523',
-      hint: 'Same image, WRONG blockchain and creator wallet — counterfeit!',
+      hint: 'Same image, but check the blockchain and creator wallet — counterfeit!',
     },
     {
       id: 'n3', type: 'original',
@@ -190,6 +201,132 @@
     },
   ];
 
+  // Level 3 — three blockchains in play, and fakes require checking MULTIPLE
+  // fields at once (chain+creator+rarity+market+tokenId format) rather than
+  // spotting one obvious mismatch.
+  const NFT_POOL_L3 = [
+    {
+      id: 'p1', type: 'original',
+      name: 'MoonWolf #0619',
+      image: '🐺', rarity: 'Epic',
+      collection: 'MoonWolves',
+      blockchain: 'Solana',
+      creator: '9pXk...q7Lm',
+      owner: 'HaroldReef',
+      market: 'OpenSea',
+      tokenId: '#0619',
+      hint: 'MoonWolves mints only on Solana — chain, creator and market all line up.',
+    },
+    {
+      id: 'p2', type: 'fake',
+      name: 'MoonWolf #0619',
+      image: '🐺', rarity: 'Epic',
+      collection: 'MoonWolves',
+      blockchain: 'Ethereum',
+      creator: '9pXk...q7Lm',
+      owner: 'HaroldReef',
+      market: 'OpenSea',
+      tokenId: '#0619',
+      hint: 'MoonWolves has never minted on Ethereum — this collection lives on Solana only.',
+    },
+    {
+      id: 'p3', type: 'original',
+      name: 'Starlit Koi #1145',
+      image: '🐟', rarity: 'Rare',
+      collection: 'StarlitKoi',
+      blockchain: 'Ethereum',
+      creator: '0x7d3a...9c21',
+      owner: 'IvyLagoon',
+      market: 'OpenSea',
+      tokenId: '#1145',
+      hint: 'Creator wallet 0x7d3a...9c21 matches the StarlitKoi mint contract exactly.',
+    },
+    {
+      id: 'p4', type: 'fake',
+      name: 'Starlit Koi #1145',
+      image: '🐟', rarity: 'Rare',
+      collection: 'StarlitKoi',
+      blockchain: 'Ethereum',
+      creator: '0x7d3a...9c12',
+      owner: 'IvyLagoon',
+      market: 'OpenSea',
+      tokenId: '#1145',
+      hint: 'Middle digits swapped — 9c21 became 9c12. Easy to miss unless you read every character.',
+    },
+    {
+      id: 'p5', type: 'original',
+      name: 'Golden Griffin #0087',
+      image: '🦅', rarity: 'Common',
+      collection: 'GoldenGriffins',
+      blockchain: 'Ethereum',
+      creator: '0x51ba...2ef0',
+      owner: 'JunoPeak',
+      market: 'OpenSea',
+      tokenId: '#0087',
+      hint: 'Common rarity matches the registry — nothing was changed on this one.',
+    },
+    {
+      id: 'p6', type: 'fake',
+      name: 'Golden Griffin #0087',
+      image: '🦅', rarity: 'Legendary',
+      collection: 'GoldenGriffins',
+      blockchain: 'Ethereum',
+      creator: '0x51ba...2ef0',
+      owner: 'JunoPeak',
+      market: 'OpenSea',
+      tokenId: '#0087',
+      hint: 'Rarity was bumped from Common to Legendary to look more valuable — the registry never changed it.',
+    },
+    {
+      id: 'p7', type: 'original',
+      name: 'Nova Otter #0303',
+      image: '🦦', rarity: 'Epic',
+      collection: 'NovaOtters',
+      blockchain: 'Polygon',
+      creator: '0x2f6e...c88d',
+      owner: 'KaiHarbor',
+      market: 'OpenSea',
+      tokenId: '#0303',
+      hint: 'Listed on OpenSea, the marketplace NovaOtters officially trades on.',
+    },
+    {
+      id: 'p8', type: 'fake',
+      name: 'Nova Otter #0303',
+      image: '🦦', rarity: 'Epic',
+      collection: 'NovaOtters',
+      blockchain: 'Polygon',
+      creator: '0x2f6e...c88d',
+      owner: 'KaiHarbor',
+      market: 'GemSwap Direct',
+      tokenId: '#0303',
+      hint: '"GemSwap Direct" is not a real marketplace — chain and creator match, but the listing itself is bait.',
+    },
+    {
+      id: 'p9', type: 'original',
+      name: 'Crystal Wyrm #4420',
+      image: '🐉', rarity: 'Legendary',
+      collection: 'CrystalWyrms',
+      blockchain: 'Ethereum',
+      creator: '0x8e14...b30a',
+      owner: 'LenaFrost',
+      market: 'OpenSea',
+      tokenId: '#4420',
+      hint: 'Token ID format matches the CrystalWyrms contract exactly: four digits, no extra padding.',
+    },
+    {
+      id: 'p10', type: 'fake',
+      name: 'Crystal Wyrm #4420',
+      image: '🐉', rarity: 'Legendary',
+      collection: 'CrystalWyrms',
+      blockchain: 'Ethereum',
+      creator: '0x8e14...b30a',
+      owner: 'LenaFrost',
+      market: 'OpenSea',
+      tokenId: '#04420',
+      hint: 'Token ID has an extra leading zero — #04420 instead of #4420 — a subtle contract mismatch.',
+    },
+  ];
+
   // Owners / destinations for matching
   const OWNERS = {
     AliceVault:  { label: 'Alice\'s Vault',   color: '#c084fc', icon: '👩‍💻' },
@@ -199,16 +336,25 @@
     EvaSpace:    { label: 'Eva\'s Space',      color: '#fb7185', icon: '👩‍🎤' },
     FinnGallery: { label: 'Finn\'s Gallery',   color: '#60a5fa', icon: '🧑‍🎭' },
     GraceHub:    { label: 'Grace\'s Hub',      color: '#a78bfa', icon: '👩‍🏫' },
+    HaroldReef:  { label: 'Harold\'s Reef',    color: '#22d3ee', icon: '🧑‍🚀' },
+    IvyLagoon:   { label: 'Ivy\'s Lagoon',     color: '#2dd4bf', icon: '👩‍🔬' },
+    JunoPeak:    { label: 'Juno\'s Peak',      color: '#facc15', icon: '🧑‍✈️' },
+    KaiHarbor:   { label: 'Kai\'s Harbor',     color: '#38bdf8', icon: '🧑‍🎨' },
+    LenaFrost:   { label: 'Lena\'s Frost',     color: '#e879f9', icon: '👩‍🎨' },
   };
 
   // ── State ──────────────────────────────────────────────────────
   let G = null;
 
+  const POOLS = { 1: NFT_POOL_L1, 2: NFT_POOL_L2, 3: NFT_POOL_L3 };
+
   function makeState(level) {
-    const pool = level === 1 ? NFT_POOL_L1 : NFT_POOL_L2;
+    const pool = POOLS[level] || NFT_POOL_L1;
     const queue = shuffle(pool.slice());
     // collect unique owners present in this pool
     const presentOwners = [...new Set(queue.filter(n => n.type === 'original').map(n => n.owner))];
+    const roundTime = ROUND_TIME_BY_LEVEL[level] || ROUND_TIME_BY_LEVEL[1];
+    const maxFakes = MAX_FAKES_BY_LEVEL[level] != null ? MAX_FAKES_BY_LEVEL[level] : MAX_FAKES_BY_LEVEL[1];
     return {
       level,
       phase: 'scanning', // scanning → dragging → result
@@ -218,7 +364,9 @@
       fakeApprovals: 0,
       correct: 0,
       total: queue.length,
-      timeLeft: ROUND_TIME,
+      roundTime,
+      maxFakes,
+      timeLeft: roundTime,
       scanProgress: 0,
       drag: null,        // { startX, startY, currentX, currentY, el }
       ended: false,
@@ -258,7 +406,7 @@
         </div>
         <div style="background:rgba(0,255,255,.07);border:1px solid rgba(0,255,255,.2);border-radius:8px;padding:5px 12px;text-align:center">
           <div style="font-family:Orbitron,sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,100,100,.7)">FAKES SLIPPED</div>
-          <div id="nn-fakes" style="font-family:Orbitron,sans-serif;font-size:.88rem;color:#ff6464">0 / ${MAX_FAKES}</div>
+          <div id="nn-fakes" style="font-family:Orbitron,sans-serif;font-size:.88rem;color:#ff6464">0 / ${MAX_FAKES_BY_LEVEL[1]}</div>
         </div>
         <div style="background:rgba(0,255,255,.07);border:1px solid rgba(0,255,255,.2);border-radius:8px;padding:5px 12px;text-align:center">
           <div style="font-family:Orbitron,sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(0,255,255,.6)">VERIFIED</div>
@@ -321,13 +469,24 @@
             <div style="color:#ff64c8;font-size:.85rem;margin-bottom:4px">LEVEL 2 — MASTER</div>
             <div style="font-family:Inter,sans-serif;font-size:.65rem;color:rgba(255,255,255,.6);letter-spacing:0;font-weight:400;margin-top:4px">multi-chain · near-identical fakes · scammer wallets</div>
           </button>
+          <button id="nn-lvl3" style="padding:16px;border:2px solid rgba(255,179,0,.5);border-radius:14px;background:rgba(255,179,0,.07);color:#fff;font-family:Orbitron,sans-serif;font-size:.7rem;letter-spacing:.15em;cursor:pointer;transition:all .2s">
+            <div style="color:#ffb300;font-size:.85rem;margin-bottom:4px">LEVEL 3 — LEGEND</div>
+            <div style="font-family:Inter,sans-serif;font-size:.65rem;color:rgba(255,255,255,.6);letter-spacing:0;font-weight:400;margin-top:4px">3 blockchains · surgical fakes · multi-field verification</div>
+          </button>
         </div>
       </div>`;
     document.getElementById('nn-lvl1').onclick = () => startLevel(1);
     document.getElementById('nn-lvl2').onclick = () => startLevel(2);
+    document.getElementById('nn-lvl3').onclick = () => startLevel(3);
   }
 
   // ── Start level ────────────────────────────────────────────────
+  const LEVEL_BADGE_TEXT = {
+    1: 'LEVEL 1 · LEARN · ETHEREUM ONLY',
+    2: 'LEVEL 2 · MASTER · MULTI-CHAIN',
+    3: 'LEVEL 3 · LEGEND · TRIPLE-CHECK EVERYTHING',
+  };
+
   function startLevel(level) {
     const sel = document.getElementById('nn-levelsel');
     if (sel) sel.style.display = 'none';
@@ -337,7 +496,7 @@
     G = makeState(level);
 
     const badge = document.getElementById('nn-level-badge');
-    if (badge) badge.textContent = level === 1 ? 'LEVEL 1 · LEARN · ETHEREUM ONLY' : 'LEVEL 2 · MASTER · MULTI-CHAIN';
+    if (badge) badge.textContent = LEVEL_BADGE_TEXT[level] || LEVEL_BADGE_TEXT[1];
 
     updateHUD();
     renderDropZones();
@@ -367,7 +526,7 @@
     const sc = document.getElementById('nn-score-disp');
     if (sc) sc.textContent = G.score + ' pts';
     const fk = document.getElementById('nn-fakes');
-    if (fk) fk.textContent = G.fakeApprovals + ' / ' + MAX_FAKES;
+    if (fk) fk.textContent = G.fakeApprovals + ' / ' + G.maxFakes;
     const pr = document.getElementById('nn-progress');
     if (pr) pr.textContent = G.correct + '/' + G.total;
   }
@@ -433,10 +592,10 @@
     G.phase = 'scanning';
     G.scanProgress = 0;
 
-    const isL2 = G.level === 2;
     const chainColor = nft.blockchain === 'Ethereum' ? '#a78bfa' :
                        nft.blockchain === 'Polygon'  ? '#8b5cf6' :
-                       nft.blockchain === 'BinanceSC' ? '#f59e0b' : '#00FFFF';
+                       nft.blockchain === 'BinanceSC' ? '#f59e0b' :
+                       nft.blockchain === 'Solana'    ? '#14f195' : '#00FFFF';
 
     area.innerHTML = `
       <div id="nn-nft-card"
@@ -604,12 +763,12 @@
         // Rejected a real NFT
         G.combo = 0;
         pointsDelta = -50;
-        label = '-50 OOPS — WRONG OWNER!';
+        label = '-50 OOPS — CHECK THE OWNER!';
       } else {
-        // Sent to wrong owner
+        // Sent to the wrong wallet
         G.combo = 0;
         pointsDelta = -30;
-        label = '-30 OOPS — WRONG WALLET!';
+        label = '-30 OOPS — CHECK THE WALLET!';
       }
     } else {
       // type === 'fake'
@@ -655,7 +814,7 @@
     }
 
     // Check end conditions
-    if (G.fakeApprovals >= MAX_FAKES) {
+    if (G.fakeApprovals >= G.maxFakes) {
       setTimeout(() => triggerEnd(false, 'fakes'), 500);
       return;
     }
@@ -762,16 +921,21 @@
 
     const accuracy = G.total > 0 ? G.correct / G.total : 0;
     const noFakeBonus = G.fakeApprovals === 0;
+    // Level 3's pool has more cards (10 vs L1/L2's 6-8) and a tighter clock,
+    // so its 3-star bar is raised proportionally — otherwise the larger pool
+    // would make 3 stars easier to reach than on level 2, backwards for the
+    // hardest tier.
+    const starGoals = STAR_GOALS_BY_LEVEL[G.level] || STAR_GOALS_BY_LEVEL[1];
     let stars = 1;
-    if (G.score >= 1800 && accuracy >= 0.85 && noFakeBonus) stars = 3;
-    else if (G.score >= 900 && accuracy >= 0.65) stars = 2;
+    if (G.score >= starGoals.goal3 && accuracy >= 0.85 && noFakeBonus) stars = 3;
+    else if (G.score >= starGoals.goal2 && accuracy >= 0.65) stars = 2;
     else if (G.score > 0 || G.correct > 0) stars = 1;
 
     if (!won) stars = Math.min(stars, 1);
 
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_bsv_nftnexus', { level: 1, is3star, isPerfect: is3star })
+      ? cvAwardGame('game_bsv_nftnexus', { level: G.level, is3star, isPerfect: is3star })
       : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
     if (stars < 1 && window.cvSave) cvSave();
 
@@ -847,6 +1011,21 @@
     cancelAnimationFrame(_floatRaf);
     if (window.state) state.viewingWorld = WORLD_ID;
     goTo('hub');
+  };
+
+  // ── Debug hooks (console-only, no UI impact) ────────────────────
+  window._nnDbg = () => G ? {
+    level: G.level, score: G.score, currentIdx: G.currentIdx,
+    total: G.total, fakeApprovals: G.fakeApprovals,
+    timeLeft: G.timeLeft, phase: G.phase,
+  } : null;
+
+  window._nnForceLevel = (lv) => {
+    const sel = document.getElementById('nn-levelsel');
+    if (sel) sel.style.display = 'none';
+    const over = document.getElementById('nn-overlay');
+    if (over) over.style.display = 'none';
+    startLevel(lv);
   };
 
   // ── Inject CSS ─────────────────────────────────────────────────

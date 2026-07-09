@@ -338,12 +338,14 @@
         }
       </style>
       <div id="inv_acad_ui" style="position:absolute;inset:0;display:flex;flex-direction:column;"></div>
+      <!-- HOW TO PLAY overlay (shown once before Level 1, reopened via ❓ during questions) -->
+      <div id="inv_help" style="display:none;position:absolute;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(3,4,12,.9);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box;"></div>
     </div>`;
   };
 
   /* ─── EXIT ───────────────────────────────────────────────── */
   /* ── QA debug hook ─────────────────────────────────────────── */
-  window._invDbg = function () { return G ? { phase: G.phase, level: G.level, qCount: G.questions.length, certPassed: G.certPassed } : null; };
+  window._invDbg = function () { return G ? { phase: G.phase, level: G.level, qCount: G.questions.length, certPassed: G.certPassed, paused: G.paused, timerVal: G.timerVal, startTime: G.startTime, answered: G.answered } : null; };
   window._invAcePass = function () { if (!G) return; G.qIndex = G.questions.length; G.levelCorrect = G.levelTotal = 10; showCertification(); };
 
   window.inv_academyExit = function () {
@@ -378,11 +380,82 @@
       levelCorrect: 0,
       levelTotal: 0,
       startTime: 0,
-      timePenalty: 0
+      timePenalty: 0,
+      paused: false,       // true while the ❓ help overlay is open mid-question
+      introShown: false    // becomes true once the first-time tutorial is dismissed
     };
 
     showIntro(root);
   }
+
+  /* ─── HOW-TO-PLAY (shown once before Level 1 starts) + ❓ re-open ───
+     Mid-question: pausing clears the 1s timerInterval (no ticks lost)
+     and removes the A/B/C/D keydown listener; resuming shifts
+     G.startTime forward by the paused span (so the speed bonus isn't
+     punished for time spent reading help) and restarts the interval
+     from the CURRENT G.timerVal — it does not reset to timePerQ. ───── */
+  let _invPauseStartTs = null;
+  function showHowToPlay(onDismiss) {
+    const help = document.getElementById('inv_help');
+    if (!help) return;
+    const firstTime = !G.introShown;
+    help.style.display = 'flex';
+    help.innerHTML = `
+      <div style="max-width:360px;width:100%;text-align:center;padding:26px 22px;background:rgba(6,20,14,.97);border:1px solid rgba(0,200,83,.4);border-radius:20px;box-shadow:0 0 50px rgba(0,200,83,.2);">
+        <div style="font-family:'Orbitron',monospace;font-size:11px;letter-spacing:3px;color:#00C853;margin-bottom:10px;">HOW TO PLAY</div>
+        <div style="font-size:2rem;margin-bottom:8px;">🎓</div>
+        <div style="font-family:'Orbitron',monospace;font-size:16px;margin-bottom:14px;color:#fff;">INVESTOR ACADEMY</div>
+        <ul style="text-align:left;font-size:13px;color:#dfeee7;line-height:1.65;margin:0 0 18px;padding-left:18px;">
+          <li>Each question shows 4 answers — tap the one you think is right, or press A / B / C / D on your keyboard.</li>
+          <li>Answer before the ring around the timer runs out — faster correct answers earn a small bonus.</li>
+          <li>After each level, a certification challenge checks your score — reach the threshold shown to earn that certificate.</li>
+          <li>All 3 levels get tougher and give you less time per question.</li>
+          <li>Earn all 3 certificates with a high accuracy to become a Certified Investor and collect the most stars and coins.</li>
+        </ul>
+        <button id="inv_help_btn" style="padding:13px 30px;border:none;border-radius:11px;background:linear-gradient(135deg,#00C853,#00a844);color:#03040c;font-family:'Inter',sans-serif;font-weight:700;font-size:15px;letter-spacing:.5px;cursor:pointer;">${firstTime ? 'GOT IT — START ▶' : '▶ RESUME'}</button>
+      </div>`;
+    const btn = document.getElementById('inv_help_btn');
+    if (btn) btn.onclick = () => {
+      help.style.display = 'none';
+      if (firstTime) G.introShown = true;
+      if (onDismiss) onDismiss();
+    };
+  }
+
+  window.invShowHelp = function () {
+    if (!G || G.paused || !['level1','level2','level3'].includes(G.phase)) return;
+    // If the current question is already answered (feedback panel showing,
+    // its own timer already self-cleared), just show help with no resume
+    // side-effects — there's nothing running to pause.
+    const wasLive = !G.answered;
+    if (wasLive) {
+      G.paused = true;
+      _invPauseStartTs = Date.now();
+      clearTimer();   // stops the 1s tick + removes the A/B/C/D keydown listener while help is open
+    }
+    showHowToPlay(() => {
+      if (!G || !wasLive) return;
+      // shift the question's start time forward by exactly the paused span,
+      // so (Date.now() - G.startTime) excludes time spent reading help
+      if (_invPauseStartTs) {
+        G.startTime += (Date.now() - _invPauseStartTs);
+        _invPauseStartTs = null;
+      }
+      G.paused = false;
+      // re-arm the keyboard shortcut listener (clearTimer tore it down)
+      window._inv_kbHandler = function (e) {
+        if (!G || G.answered) return;
+        if (['a','b','c','d'].includes(e.key.toLowerCase())) {
+          const idx = e.key.toLowerCase().charCodeAt(0) - 97;
+          const q = G.questions[G.qIndex];
+          if (q && idx < q.opts.length) window._inv_answer(idx);
+        }
+      };
+      document.addEventListener('keydown', window._inv_kbHandler);
+      // resume the countdown from the CURRENT timerVal (not a reset to timePerQ)
+      startTimer(G._curAnswerIdx);
+    });
+  };
 
   /* ─── INTRO SCREEN ───────────────────────────────────────── */
   function showIntro(root) {
@@ -412,7 +485,7 @@
         </div>
       </div>
     `;
-    window._inv_startGame = startLevel1;
+    window._inv_startGame = function () { showHowToPlay(startLevel1); };
   }
 
   function levelCard(num, name, icon, desc, color) {
@@ -481,6 +554,7 @@
     G.answered = false;
     G.timerVal = G.timePerQ;
     G.startTime = Date.now();
+    G._curAnswerIdx = q.ans;   // remembered so a paused/resumed timer can restart its timeout closure
 
     root.innerHTML = `
       <div style="padding:16px 16px 0;display:flex;align-items:center;gap:10px;flex-shrink:0;">
@@ -491,6 +565,7 @@
             <div class="inv_progress_bar_inner" id="inv_prog_bar" style="width:${progress*100}%;"></div>
           </div>
         </div>
+        <button onclick="invShowHelp()" title="How to play" style="background:rgba(0,200,83,.1);border:1px solid rgba(0,200,83,.3);color:#00C853;border-radius:8px;padding:8px 10px;font-size:14px;cursor:pointer;flex-shrink:0;">❓</button>
         <div class="inv_timer_ring_wrap" id="inv_timer_wrap">
           <svg class="inv_timer_svg" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg">
             <circle cx="27" cy="27" r="23" fill="none" stroke="rgba(0,200,83,.15)" stroke-width="4"/>

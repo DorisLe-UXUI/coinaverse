@@ -4,6 +4,7 @@
    across loans to keep total debt below the target cap.
    Level 1 (Learn): One loan, slow-motion compounding demo.
    Level 2 (Master): Multiple loans, randomised emergency expenses.
+   Level 3 (Crisis): Four loans, tighter cap, frequent surprise costs.
    Screen ID : game_ddt_lab
    Hub       : rebuilder (#4B2D8F)
    Exit fn   : window.ddt_labExit
@@ -57,6 +58,28 @@
       ],
       emergencyChance: 0.45,  // 45% chance of an emergency each month
     },
+    {
+      name: 'CRISIS: Debt Avalanche',
+      desc: 'Four loans, frequent surprise costs, a tighter cap. Attack the highest-APR balances first to win.',
+      months: 10,
+      budget: 480,
+      capPct: 1.10,
+      loans: [
+        { id: 'credit',  label: 'Credit Card',  balance: 1600, apr: 0.28, min: 45, color: '#ef4444' },
+        { id: 'medical', label: 'Medical Bill', balance: 950,  apr: 0.20, min: 28, color: '#f97316' },
+        { id: 'personal',label: 'Personal Loan',balance: 700,  apr: 0.16, min: 22, color: '#f5c842' },
+        { id: 'student', label: 'Student Loan', balance: 450,  apr: 0.08, min: 15, color: '#22d3a5' },
+      ],
+      emergencies: [
+        { label: '🚗 Major Car Repair',  cost: 140, msg: 'Transmission trouble!',     color: '#ef4444' },
+        { label: '🏥 ER Visit',          cost: 130, msg: 'Late-night ER trip!',        color: '#f97316' },
+        { label: '🔧 Appliance Died',    cost: 100, msg: 'Fridge stopped working!',    color: '#f97316' },
+        { label: '📱 Device Replacement',cost: 90,  msg: 'Laptop finally gave out!',   color: '#f5c842' },
+        { label: '🐾 Emergency Vet Bill',cost: 110, msg: 'Pet needed urgent care!',    color: '#ef4444' },
+        { label: '🏠 Rent Spike',        cost: 70,  msg: 'Landlord raised the rent!',  color: '#f5c842' },
+      ],
+      emergencyChance: 0.55,  // 55% chance of an emergency each month
+    },
   ];
 
   /* ── payment options ─────────────────────────────────────── */
@@ -67,6 +90,18 @@
 
   /* ── state ────────────────────────────────────────────────── */
   let G = null;
+
+  /* ── debug hook (dev/QA only — safe no-op in production use) ──── */
+  window._ddtLabDbg = function () {
+    return G ? { level: G.lvIdx + 1, month: G.month, totalDebt: G.totalDebt(), capDebt: G.capDebt, dangerDebt: G.dangerDebt, budgetLeft: G.budgetLeft, score: G.score, loans: G.loans.map(l => ({ id: l.id, balance: l.balance })) } : null;
+  };
+  window._ddtLabForceLevel = function (idx) {
+    const root = document.getElementById('ddt_root');
+    if (root) startLevel(root, idx);
+  };
+  window._ddtLabForceWin = function () {
+    if (G) endGame(3);
+  };
 
   /* ── screen entry ─────────────────────────────────────────── */
   window.SCREENS = window.SCREENS || {};
@@ -106,7 +141,7 @@
           ${LEVELS.map((lv, i) => `
             <button onclick="window._ddtStartLevel(${i})" style="background:linear-gradient(135deg,${DARK} 0%,#120830 100%);border:1px solid ${ACCENT};border-radius:14px;padding:20px;cursor:pointer;text-align:left;transition:border-color 0.2s;width:100%"
               onmouseover="this.style.borderColor='${GLOW}'" onmouseout="this.style.borderColor='${ACCENT}'">
-              <div style="font-family:'Orbitron',monospace;font-size:13px;color:${GLOW};margin-bottom:6px">${i === 0 ? '⬛ LEVEL 1' : '⬛ LEVEL 2'}</div>
+              <div style="font-family:'Orbitron',monospace;font-size:13px;color:${GLOW};margin-bottom:6px">⬛ LEVEL ${i + 1}</div>
               <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">${lv.name}</div>
               <div style="font-size:12px;color:rgba(255,255,255,0.55);line-height:1.5">${lv.desc}</div>
               <div style="display:flex;gap:12px;margin-top:10px;font-size:11px;color:${GLOW}">
@@ -629,7 +664,7 @@
   };
 
   /* ════════════════════════════════════════════════════════════
-     EMERGENCY EXPENSES (Level 2)
+     EMERGENCY EXPENSES (Level 2+)
   ════════════════════════════════════════════════════════════ */
   function scheduleEmergency() {
     if (!G) return;

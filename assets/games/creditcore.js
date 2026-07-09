@@ -139,6 +139,7 @@
       <div style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;padding:14px 16px;gap:10px;background:linear-gradient(180deg,rgba(3,4,12,.9) 60%,transparent)">
         <button onclick="creditCoreExit()" style="padding:7px 13px;border:1px solid rgba(56,189,248,.35);border-radius:9px;background:rgba(56,189,248,.1);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;white-space:nowrap">← HUB</button>
         <div id="ccTitle" style="font-family:'Orbitron',sans-serif;font-size:.65rem;letter-spacing:.18em;color:#38bdf8;flex:1;text-align:center;text-shadow:0 0 12px rgba(56,189,248,.5)">💳 CREDIT CORE · LV 1</div>
+        <button onclick="ccShowHelp()" title="How to play" style="padding:7px 10px;border:1px solid rgba(56,189,248,.35);border-radius:9px;background:rgba(56,189,248,.1);color:#7dd3fc;cursor:pointer;font-size:.8rem">❓</button>
         <div id="ccScoreDisplay" style="font-family:'Orbitron',sans-serif;font-size:.82rem;color:#fbbf24;min-width:70px;text-align:right;text-shadow:0 0 10px rgba(251,191,36,.4)">0</div>
       </div>
 
@@ -185,6 +186,8 @@
       <!-- Overlays -->
       <div id="ccGate" style="position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.88);backdrop-filter:blur(6px)"></div>
       <div id="ccOver" style="position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.92);backdrop-filter:blur(8px)"></div>
+      <!-- HOW TO PLAY overlay (shown once at start, reopened via ❓; reuses the ccGate slot) -->
+      <div id="ccHelp" style="position:absolute;inset:0;z-index:25;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.9);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box"></div>
     </div>`;
   };
 
@@ -216,6 +219,7 @@
     G = newGame(curLevel);
     G.last = performance.now();
     G.itemTimer = G.ITEM_DURATION; // start with item visible
+    G.phase = 'help';   // hold on the tutorial before the first item starts ticking
     updateTitleBadge();
 
     const ctx = canvas.getContext('2d');
@@ -244,7 +248,44 @@
       tick(dt, canvas.clientWidth, canvas.clientHeight, ctx);
     }
     raf = requestAnimationFrame(loop);
+
+    showHowToPlay(true);
   }
+
+  /* ── how-to-play intro (shown once at start) + ❓ re-open mid-game ──
+     G.phase is held at 'help' (not 'play') while this is up, so the rAF
+     loop above never advances G.last — no time is lost or double-counted. ── */
+  function showHowToPlay(firstTime){
+    const help = document.getElementById('ccHelp');
+    if(!help || !G) return;
+    help.style.display = 'flex';
+    help.innerHTML = `
+      <div style="max-width:360px;width:100%;text-align:center;padding:26px 22px;background:linear-gradient(160deg,rgba(3,4,12,.97),rgba(14,30,50,.97));border:1px solid rgba(56,189,248,.4);border-radius:20px;box-shadow:0 0 50px rgba(56,189,248,.2)">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.2em;color:#38bdf8;margin-bottom:10px">HOW TO PLAY</div>
+        <div style="font-size:2rem;margin-bottom:8px">💳</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:1rem;margin-bottom:14px;color:#fff">CREDIT CORE</div>
+        <ul style="text-align:left;font-size:.78rem;color:#ddd;line-height:1.65;margin:0 0 18px;padding-left:18px">
+          <li>A card appears — decide if it's GOOD or BAD for credit before the ring around it runs out.</li>
+          <li>Tap a button, or use the ← → arrow keys (or A / D).</li>
+          <li>Sort in a row to build your COMBO multiplier and score way more per card.</li>
+          <li>Each of the 3 levels gives you less time per card — stay sharp!</li>
+          <li>Your final score decides your stars and coins at the end.</li>
+        </ul>
+        <button id="ccHelpBtn" style="padding:13px 30px;border:none;border-radius:11px;background:linear-gradient(90deg,#38bdf8,#0ea5e9);color:#031017;font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${firstTime ? 'GOT IT — START ▶' : '▶ RESUME'}</button>
+      </div>`;
+    const btn = document.getElementById('ccHelpBtn');
+    if(btn) btn.onclick = () => {
+      help.style.display = 'none';
+      if(!G) return;
+      G.last = performance.now();   // reset the frame clock so the next dt is ~0, not the whole paused span
+      G.phase = 'play';
+    };
+  }
+  window.ccShowHelp = function(){
+    if(!G || G.phase !== 'play') return;
+    G.phase = 'help';
+    showHowToPlay(false);
+  };
 
   /* ── Main tick ─────────────────────────────────────────────── */
   function tick(dt, W, H, ctx){
@@ -584,7 +625,7 @@
 
   /* ── Exit ──────────────────────────────────────────────────── */
   /* ── QA debug hook ─────────────────────────────────────────── */
-  window._ccDbg = function(){ return G ? { curLevel, score: G.score, queueLen: G.queue.length, itemDur: G.ITEM_DURATION } : null; };
+  window._ccDbg = function(){ return G ? { curLevel, score: G.score, queueLen: G.queue.length, itemDur: G.ITEM_DURATION, phase: G.phase, timeLeft: G.timeLeft, itemTimer: G.itemTimer, last: G.last } : null; };
   window._ccWin = function(score){ if(!G) return; G.score = score; endGame(); };
 
   window.creditCoreExit = function(){

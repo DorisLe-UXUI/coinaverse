@@ -4,6 +4,7 @@
    Plant investments → collect dividends → reinvest → compound
    Level 1: Learn timing and reinvestment basics
    Level 2: Market fluctuations, rate changes, dynamic strategy
+   Level 3: Global diversification — faster cycles, harsher events
    ════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -14,31 +15,39 @@
   const BG_CARD     = '#090f18';
   const GOLD        = '#FFD700';
   const WARN        = '#FF6B35';
+  const EXPERT_RED  = '#FF3D3D';
   const CASH_START  = 500;
   const CYCLE_MS_L1 = 5000;   // dividend payout every 5s (level 1)
   const CYCLE_MS_L2 = 4000;   // faster in level 2
+  const CYCLE_MS_L3 = 3000;   // fastest in level 3 — expert pacing
   const GAME_TIME   = 75;     // seconds per level
   const TARGET_L1   = 60;     // $60/month passive income to win level 1
   const TARGET_L2   = 120;    // $120/month passive income to win level 2
+  const TARGET_L3   = 200;    // $200/month passive income to win level 3
   const THRESHOLD   = 0;      // passive income must stay >= 0 (no selling required in L1)
   const STAR3_L1    = 80;
   const STAR3_L2    = 150;
+  const STAR3_L3    = 240;
   const STAR2_L1    = 60;
   const STAR2_L2    = 100;
+  const STAR2_L3    = 170;
 
   // ── Tree definitions ─────────────────────────────────────────
+  // minLevel gates a tree into the shop starting at that game level (default 1)
   const TREE_TYPES = [
     { id:'util',  name:'UtilCorp',    emoji:'🌳', color:'#4CAF50', basePay:8,  cost:100, upgCost:80,  maxLv:3, sector:'Utilities' },
     { id:'tech',  name:'TechDiv',     emoji:'🌲', color:'#00BCD4', basePay:12, cost:150, upgCost:100, maxLv:3, sector:'Technology' },
     { id:'reit',  name:'REIT Trust',  emoji:'🏡', color:'#FF9800', basePay:18, cost:200, upgCost:120, maxLv:3, sector:'Real Estate' },
     { id:'bond',  name:'BondFund',    emoji:'🍀', color:'#9C27B0', basePay:5,  cost:75,  upgCost:60,  maxLv:3, sector:'Bonds' },
     { id:'blue',  name:'BluechipDiv', emoji:'🌴', color:'#F44336', basePay:22, cost:250, upgCost:150, maxLv:3, sector:'Blue Chip' },
+    { id:'intl',  name:'GlobalYield', emoji:'🌍', color:'#26C6DA', basePay:30, cost:320, upgCost:180, maxLv:3, sector:'International', minLevel:3 },
   ];
 
   const PLOTS_L1 = 4;
   const PLOTS_L2 = 6;
+  const PLOTS_L3 = 8;
 
-  // ── Market events for level 2 ─────────────────────────────────
+  // ── Market events for level 2+ ─────────────────────────────────
   const MARKET_EVENTS = [
     { type:'rate_up',   text:'⬆️ Interest rates rise — bonds yield more!',  sector:'Bonds',       mult:1.4, duration:12 },
     { type:'rate_down', text:'⬇️ Rate cut — REIT demand soars!',             sector:'Real Estate', mult:1.3, duration:10 },
@@ -48,6 +57,9 @@
     { type:'boom',      text:'📈 Tech sector boom! TechDiv surging!',        sector:'Technology',  mult:1.6, duration:8  },
     { type:'merger',    text:'🤝 REIT merger — income spikes!',              sector:'Real Estate', mult:1.8, duration:8  },
     { type:'crisis',    text:'⚠️ Bond market stress — yields compressed.',   sector:'Bonds',       mult:0.75,duration:12 },
+    { type:'currency',    text:'💱 Currency swing hits GlobalYield!',              sector:'International', mult:0.65,duration:10 },
+    { type:'global_boom', text:'🌏 Global markets rally — GlobalYield soars!',     sector:'International', mult:1.7, duration:8  },
+    { type:'tax_law',     text:'📜 New dividend tax law — all payouts dip briefly!', sector:'Bonds',      mult:0.8, duration:8  },
   ];
 
   let G = null;
@@ -67,6 +79,7 @@
       <div id="divd-topbar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent)">
         <button id="divd-exit-btn" style="padding:6px 13px;border:1px solid ${ACCENT_DIM};border-radius:8px;background:rgba(0,200,83,.1);color:${ACCENT};font-family:Orbitron,sans-serif;font-size:.58rem;letter-spacing:.14em;cursor:pointer;white-space:nowrap;flex-shrink:0">← INVEST</button>
         <div style="font-family:Orbitron,sans-serif;font-size:.72rem;letter-spacing:.2em;color:${ACCENT};flex:1;text-align:center">🌿 DIVIDEND DISTRICT</div>
+        <button id="divd-help-btn" title="How to play" style="padding:6px 10px;border:1px solid ${ACCENT_DIM};border-radius:8px;background:rgba(0,200,83,.1);color:${ACCENT};cursor:pointer;flex-shrink:0;font-size:.78rem">❓</button>
         <div style="display:flex;gap:10px;align-items:center;flex-shrink:0">
           <div style="display:flex;flex-direction:column;align-items:center">
             <span style="font-family:Orbitron,sans-serif;font-size:.55rem;color:rgba(255,255,255,.45);letter-spacing:.1em">INCOME/MO</span>
@@ -134,7 +147,7 @@
       cash: CASH_START,
       passiveIncome: 0,         // $/month total
       time: GAME_TIME,
-      running: true,
+      running: false,           // gated until the how-to-play intro is dismissed
       plots: buildPlots(numPlots),
       pendingPayouts: [],       // { plotIdx, amount, collected } — glowing icons above trees
       floats: [],               // floating +$ text
@@ -154,8 +167,82 @@
     bindEvents();
     resizeCanvas();
 
+    showHowToPlay();   // raf loop starts only once the player dismisses this
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  //  HOW-TO-PLAY TUTORIAL — shown once automatically before Level 1 starts,
+  //  reopenable anytime via the ❓ button without losing time or progress.
+  //  One explanation covers all 3 levels (same plant/collect/reinvest loop
+  //  throughout — later levels just add market events and a faster clock).
+  // ──────────────────────────────────────────────────────────────
+  let _divdPauseStartTs = null;
+
+  function showHowToPlay() {
+    const root = document.getElementById('divd-root');
+    if (!root) return;
+    let overlay = document.getElementById('divd-help-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'divd-help-overlay';
+      root.appendChild(overlay);
+    }
+    const wasRunning = !!(G && G.running);
+    overlay.style.cssText = `
+      position:absolute;inset:0;z-index:95;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;padding:24px;
+      background:rgba(3,4,12,.93);backdrop-filter:blur(8px);
+    `;
+    overlay.innerHTML = `
+      <div style="max-width:340px;width:100%;text-align:center;padding:26px 22px;background:${BG_CARD};border:1.5px solid ${ACCENT_DIM};border-radius:18px;box-shadow:0 0 40px rgba(0,200,83,.15)">
+        <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.2em;color:${ACCENT};margin-bottom:10px">HOW TO PLAY</div>
+        <div style="font-size:2rem;margin-bottom:8px">🌿</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:.95rem;margin-bottom:14px;color:#eee">DIVIDEND DISTRICT</div>
+        <ul style="list-style:none;margin:0 0 16px;padding:0;text-align:left;font-size:.72rem;color:rgba(255,255,255,.75);line-height:1.7">
+          <li style="margin-bottom:8px">🎯 <b style="color:${ACCENT}">Goal:</b> grow your monthly passive income to hit the target before time runs out.</li>
+          <li style="margin-bottom:8px">🌱 <b style="color:${ACCENT}">Plant:</b> tap a tree card in the shop tray, then tap an empty plot to plant it.</li>
+          <li style="margin-bottom:8px">💰 <b style="color:${ACCENT}">Collect:</b> tap the glowing bubble above a tree to collect its dividend payout.</li>
+          <li style="margin-bottom:8px">♻️ <b style="color:${ACCENT}">Reinvest:</b> tap REINVEST ALL to auto-upgrade trees — this is how income compounds.</li>
+          <li>📉 Watch for market event banners — they boost or cut a sector's payouts for a while.</li>
+        </ul>
+        <button id="divd-help-dismiss" style="padding:12px 30px;border:none;border-radius:11px;background:${ACCENT};color:#03130f;font-family:Orbitron,sans-serif;font-size:.68rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${wasRunning ? '▶ RESUME' : 'GOT IT — START ▶'}</button>
+      </div>`;
+    const btn = document.getElementById('divd-help-dismiss');
+    if (btn) btn.onclick = () => closeHowToPlay();
+  }
+
+  function closeHowToPlay() {
+    const overlay = document.getElementById('divd-help-overlay');
+    if (overlay) overlay.remove();
+    if (!G || G.gameOver) return;
+
+    if (_divdPauseStartTs !== null) {
+      // Re-baseline lastTick/lastCycleTick to "now" so the delta-time loop's
+      // very first dt after resume is small (one frame), not the full paused
+      // duration — this is the rAF equivalent of the setInterval epoch-shift
+      // trick: it stops the pause from being counted as elapsed game time.
+      const now = performance.now();
+      G.lastTick = now;
+      G.lastCycleTick = now;
+      _divdPauseStartTs = null;
+    }
+    G.running = true;
     raf = requestAnimationFrame(loop);
   }
+
+  // Re-open the tutorial mid-game via the ❓ button. Stops the rAF chain by
+  // setting G.running=false — loop() early-returns on that flag and (crucially)
+  // does NOT reschedule itself, so no more frames fire until closeHowToPlay()
+  // manually restarts requestAnimationFrame with a fresh lastTick baseline.
+  window.divdShowHelp = function () {
+    if (!G || G.gameOver) return;
+    if (G.running) {
+      G.running = false;
+      _divdPauseStartTs = performance.now();
+      if (raf) { cancelAnimationFrame(raf); raf = null; }
+    }
+    showHowToPlay();
+  };
 
   // ──────────────────────────────────────────────────────────────
   //  PLOT BUILDING
@@ -275,7 +362,10 @@
     if (!row) return;
     row.innerHTML = '';
 
-    const types = G.level === 1 ? TREE_TYPES.slice(0, 3) : TREE_TYPES;
+    // Level 1 only sees the first 3 trees; later trees (incl. minLevel-gated ones) unlock progressively.
+    const types = G.level === 1
+      ? TREE_TYPES.slice(0, 3)
+      : TREE_TYPES.filter(t => (t.minLevel || 1) <= G.level);
 
     types.forEach(t => {
       const card = document.createElement('div');
@@ -550,7 +640,7 @@
     const fillEl  = document.getElementById('divd-progress-fill');
     const targEl  = document.getElementById('divd-target-label');
 
-    const target  = G.level === 1 ? TARGET_L1 : TARGET_L2;
+    const target  = G.level === 1 ? TARGET_L1 : G.level === 2 ? TARGET_L2 : TARGET_L3;
 
     if (incEl)  incEl.textContent  = `$${G.passiveIncome}`;
     if (cashEl) cashEl.textContent = `$${Math.floor(G.cash)}`;
@@ -584,7 +674,7 @@
     }
 
     // Dividend cycle — trigger payouts for planted trees
-    const cycleMs = G.level === 1 ? CYCLE_MS_L1 : CYCLE_MS_L2;
+    const cycleMs = G.level === 1 ? CYCLE_MS_L1 : G.level === 2 ? CYCLE_MS_L2 : CYCLE_MS_L3;
     if (ts - G.lastCycleTick >= cycleMs) {
       G.lastCycleTick = ts;
       G.plots.forEach(p => {
@@ -592,8 +682,8 @@
       });
     }
 
-    // Level 2 market events
-    if (G.level === 2) {
+    // Level 2+ market events (level 3 keeps events firing, pulling from the expanded pool)
+    if (G.level >= 2) {
       if (G.eventActive && ts / 1000 > G.eventActive.endsAt) {
         G.eventActive = null;
         const banner = document.getElementById('divd-event-banner');
@@ -616,13 +706,16 @@
       G.running = false;
       G.gameOver = true;
       const finalIncome = G.passiveIncome;
-      const target = G.level === 1 ? TARGET_L1 : TARGET_L2;
-      const star3 = G.level === 1 ? STAR3_L1 : STAR3_L2;
-      const star2 = G.level === 1 ? STAR2_L1 : STAR2_L2;
+      const target = G.level === 1 ? TARGET_L1 : G.level === 2 ? TARGET_L2 : TARGET_L3;
+      const star3   = G.level === 1 ? STAR3_L1 : G.level === 2 ? STAR3_L2 : STAR3_L3;
+      const star2   = G.level === 1 ? STAR2_L1 : G.level === 2 ? STAR2_L2 : STAR2_L3;
 
       if (G.level === 1 && finalIncome >= TARGET_L1) {
         // Advance to level 2
         showLevel1Win(finalIncome, star3, star2);
+      } else if (G.level === 2 && finalIncome >= TARGET_L2) {
+        // Advance to level 3
+        showLevel2Win(finalIncome, star3, star2);
       } else {
         const stars = finalIncome >= star3 ? 3 : finalIncome >= star2 ? 2 : finalIncome > 0 ? 1 : 0;
         endGame(stars, finalIncome);
@@ -690,7 +783,63 @@
   }
 
   // ──────────────────────────────────────────────────────────────
-  //  MARKET EVENTS (LEVEL 2)
+  //  LEVEL 3 TRANSITION
+  // ──────────────────────────────────────────────────────────────
+  function showLevel2Win(income, star3, star2) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position:absolute;inset:0;z-index:90;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:16px;
+      background:rgba(3,4,12,.92);backdrop-filter:blur(6px);
+    `;
+    overlay.innerHTML = `
+      <div style="font-family:Orbitron,sans-serif;font-size:1.3rem;color:${GOLD};letter-spacing:.12em;text-align:center">LEVEL 2 CLEARED!</div>
+      <div style="font-size:2.5rem">🌟🌟🌟</div>
+      <div style="font-size:.9rem;color:rgba(255,255,255,.7);text-align:center;max-width:280px;line-height:1.6">
+        You built <span style="color:${GOLD};font-weight:700">$${income}/month</span> in passive income through real market swings!<br>
+        <span style="color:${EXPERT_RED}">Ready to diversify globally?</span>
+      </div>
+      <button id="divd-l3-btn" style="padding:12px 28px;border:2px solid ${EXPERT_RED};border-radius:12px;background:rgba(255,61,61,.15);color:${EXPERT_RED};font-family:Orbitron,sans-serif;font-size:.8rem;letter-spacing:.18em;cursor:pointer;">LEVEL 3 — EXPERT</button>
+    `;
+    const root = document.getElementById('divd-root');
+    if (root) root.append(overlay);
+
+    document.getElementById('divd-l3-btn')?.addEventListener('click', () => {
+      overlay.remove();
+      startLevel3();
+    });
+  }
+
+  function startLevel3() {
+    // Keep existing trees, add more plots, hardest target, faster cycles + events
+    const extraPlots = PLOTS_L3 - G.plots.length;
+    for (let i = 0; i < extraPlots; i++) {
+      G.plots.push({ idx: G.plots.length, treeType: null, level: 0, el: null, payBubble: null, pendingPay: 0 });
+    }
+    G.level = 3;
+    G.time = GAME_TIME;
+    G.running = true;
+    G.eventActive = null;
+    G.nextEventAt = 60 - 10;   // shorter runway than level 2 — first event lands sooner
+    G.lastCycleTick = performance.now();
+    G.lastTick = performance.now();
+
+    const badge = document.getElementById('divd-lvlbadge');
+    if (badge) { badge.textContent = 'LEVEL 3 · EXPERT'; badge.style.color = EXPERT_RED; badge.style.borderColor = 'rgba(255,61,61,.35)'; }
+
+    const targetBar = document.getElementById('divd-target-label');
+    if (targetBar) targetBar.textContent = `$${G.passiveIncome} / $${TARGET_L3}`;
+
+    layoutPlots();
+    G.plots.forEach(p => { if (p.treeType) updatePlotEl(p); });
+    renderShop();
+    updateHUD();
+
+    raf = requestAnimationFrame(loop);
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  //  MARKET EVENTS (LEVEL 2+)
   // ──────────────────────────────────────────────────────────────
   function triggerMarketEvent(ts) {
     const ev = MARKET_EVENTS[Math.floor(Math.random() * MARKET_EVENTS.length)];
@@ -724,8 +873,8 @@
     if (stars < 1 && window.cvSave) cvSave();
 
     const starStr  = stars > 0 ? '⭐'.repeat(stars) + '☆'.repeat(3 - stars) : '☆☆☆';
-    const target   = G.level === 1 ? TARGET_L1 : TARGET_L2;
-    const star3    = G.level === 1 ? STAR3_L1 : STAR3_L2;
+    const target   = G.level === 1 ? TARGET_L1 : G.level === 2 ? TARGET_L2 : TARGET_L3;
+    const star3    = G.level === 1 ? STAR3_L1 : G.level === 2 ? STAR3_L2 : STAR3_L3;
     const efficiency = G.reinvestCount;
 
     // Badges
@@ -799,6 +948,17 @@
     G = null;
     if (window.state) state.viewingWorld = 'investor';
     goTo('hub');
+  };
+
+  // ──────────────────────────────────────────────────────────────
+  //  DEBUG HOOKS (dev only — safe no-ops when no game is running)
+  // ──────────────────────────────────────────────────────────────
+  window._divdDbg = () => G ? { level: G.level, time: G.time, passiveIncome: G.passiveIncome, cash: Math.round(G.cash), plots: G.plots.length, running: G.running, gameOver: G.gameOver, lastTick: G.lastTick, paused: _divdPauseStartTs !== null } : null;
+  window._divdForceLevel3 = () => {
+    if (!G) return 'no game running';
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+    startLevel3();
+    return 'forced to level 3 — check window._divdDbg()';
   };
 
   // ──────────────────────────────────────────────────────────────
@@ -963,6 +1123,7 @@
   function bindEvents() {
     document.getElementById('divd-exit-btn')?.addEventListener('click', window.inv_dividendExit);
     document.getElementById('divd-reinvest-btn')?.addEventListener('click', handleReinvest);
+    document.getElementById('divd-help-btn')?.addEventListener('click', () => window.divdShowHelp());
     window.addEventListener('resize', resizeCanvas);
 
     // Keyboard: R to reinvest, space to collect all

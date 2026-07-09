@@ -4,6 +4,7 @@
    Each repair restores the city and raises the Financial Health meter.
    Level 1: 5 buildings, clear visual cues, learn the model.
    Level 2: Full district + setback events, limited repair budget.
+   Level 3: Larger district, faster setbacks, tighter time-per-building ratio.
    Accent: #4B2D8F  WorldId: rebuilder
    ════════════════════════════════════════════════════════════════ */
 (function(){
@@ -27,12 +28,13 @@
     { id:'credit', label:'Build Credit',   icon:'📈', color:'#F472B6', desc:'On-time payments boost your score'    },
   ];
 
-  /* ─── SETBACK EVENTS (Level 2) ──────────────────────────────── */
+  /* ─── SETBACK EVENTS (Level 2+) ─────────────────────────────── */
   const SETBACKS = [
     { id:'medical', icon:'🏥', label:'Medical Bill',  desc:'Unexpected hospital visit',      hpHit:12, budgetHit:80  },
     { id:'car',     icon:'🚗', label:'Car Breakdown', desc:'Repair cost arrived suddenly',   hpHit:10, budgetHit:100 },
     { id:'jobloss', icon:'💼', label:'Job Loss',       desc:'Income paused — prioritize now', hpHit:18, budgetHit:150 },
     { id:'hike',    icon:'🏠', label:'Rent Hike',      desc:'Monthly expense jumped',         hpHit:8,  budgetHit:60  },
+    { id:'fraud',   icon:'🔒', label:'Card Fraud Alert',desc:'A charge you didn\'t make showed up', hpHit:14, budgetHit:120 },
   ];
 
   /* ─── LEVEL DEFINITIONS ─────────────────────────────────────── */
@@ -50,15 +52,40 @@
       label: 'LEVEL 2 — MASTER',
       buildingCount: 8,
       timerSec: 150,
-      budgetStart: 800,
+      // NOTE: budgetStart must comfortably exceed buildingCount*repairCost (800)
+      // PLUS the expected setback drain over timerSec at setbackRate, or the
+      // level becomes structurally unwinnable (verified by simulation — see
+      // Level 3 comment below for the same check applied to Level 3).
+      budgetStart: 1300,
       setbackRate: 22,     // seconds between setbacks
       optimalOrder: ['efund','debt','bills','save','credit','efund','bills','debt'],
       starThresholds: [600, 380]
+    },
+    {
+      label: 'LEVEL 3 — CRISIS',
+      buildingCount: 11,
+      timerSec: 210,
+      // Economy verified by simulation: 11 buildings * $100 repair = $1100 minimum,
+      // plus expected setback drain (~17s avg interval over 210s ≈ 12 hits *
+      // ~$102 avg = ~$1224) requires budgetStart well above the sum of both to
+      // remain winnable for a competent player while staying harder than Level 2
+      // (higher buildingCount, faster setbackRate, tighter time-per-building ratio).
+      budgetStart: 1900,
+      setbackRate: 17,     // seconds between setbacks — faster than Level 2's 22
+      optimalOrder: ['efund','debt','bills','save','credit','efund','bills','debt','save','credit','efund'],
+      starThresholds: [780, 500]
     }
   ];
 
   /* ─── STATE ─────────────────────────────────────────────────── */
   let G = null, raf = null;
+
+  /* ─── DEBUG HOOK (dev/QA only) ───────────────────────────────── */
+  window._rbDbg = function () {
+    return G ? { level: G.lvIdx + 1, repaired: G.repairedCount, buildingCount: G.lv.buildingCount, budget: G.budget, health: G.health, score: G.score } : null;
+  };
+  window._rbForceLevel = function (idx) { startLevel(idx); };
+  window._rbForceWin = function () { if (G) { G.repairedCount = G.lv.buildingCount; G.health = 100; endGame(calcStars()); } };
 
   /* ─── STORED LISTENER REFS (for cleanup) ────────────────────── */
   let _onDragMove = null, _onDragEnd = null, _onResize = null;
@@ -226,7 +253,7 @@
       <div style="display:flex;flex-direction:column;gap:11px;width:100%;max-width:340px">
         ${LEVELS.map((lv,i)=>`
           <button id="rbSelBtn${i}" style="padding:15px 18px;border:1px solid rgba(75,45,143,.5);border-radius:14px;background:rgba(42,26,94,.55);color:#e2e8f0;font-family:'Inter',sans-serif;font-size:.8rem;cursor:pointer;text-align:left;display:flex;align-items:center;gap:14px">
-            <div style="font-size:1.5rem">${i===0?'🎓':'🏆'}</div>
+            <div style="font-size:1.5rem">${i===0?'🎓':i===1?'🏆':'🔥'}</div>
             <div>
               <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.15em;color:${ACCENT_LT};margin-bottom:3px">${lv.label}</div>
               <div style="color:rgba(255,255,255,.55);font-size:.7rem">${lv.buildingCount} buildings · ${lv.timerSec}s${lv.budgetStart?` · $${lv.budgetStart} budget · setbacks active`:' · no setbacks'}</div>
@@ -511,7 +538,7 @@
     // Does the tile match the building?
     if(hit.action !== tile.id){
       // Wrong action — visual rejection
-      addFloat(hit.x+hit.w/2, hit.y+hit.h/2, '✗ Wrong action!', RED, 0.9);
+      addFloat(hit.x+hit.w/2, hit.y+hit.h/2, 'OOPS — try a different tile!', RED, 0.9);
       if(tile.el){ tile.el.classList.remove('shake'); void tile.el.offsetWidth; tile.el.classList.add('shake'); }
       hit.shakeT = 0.4;
       G.health = clamp(G.health - 3, 0, 100);
@@ -522,7 +549,7 @@
     }
 
     // Check budget
-    const repairCost = 100; // each repair costs $100 in level 2
+    const repairCost = 100; // each repair costs $100 in any level with a budget (Level 2+)
     if(G.lv.budgetStart && G.budget < repairCost){
       addFloat(hit.x+hit.w/2, hit.y+hit.h/2, 'Not enough budget!', RED, 0.9);
       if(tile.el){ tile.el.classList.remove('shake'); void tile.el.offsetWidth; tile.el.classList.add('shake'); }
@@ -541,7 +568,8 @@
     tile.used = true;
     if(tile.el) tile.el.classList.add('used');
     // toolbox refill — once every tile is spent, re-arm them all
-    // (Level 2 has 8 buildings but only 5 action tiles, so a refill cycle is required)
+    // (Level 2 has 8 buildings and Level 3 has 11, but only 5 action tiles exist,
+    // so repeated refill cycles are required to reach buildingCount repairs)
     if(G.tiles.every(t => t.used)){
       setTimeout(() => {
         if(!G || G.phase !== 'play') return;

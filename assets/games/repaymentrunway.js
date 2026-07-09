@@ -10,16 +10,11 @@
   const S = () => window.cvState || (window.cvState = {});
 
   /* ── Constants ──────────────────────────────────────────────────────────── */
-  const GAME_DURATION   = 90;        // seconds
   const GROUND_Y_RATIO  = 0.72;      // canvas fraction
-  const SPEED_START     = 4.2;
-  const SPEED_END       = 9.5;
   const JUMP_VY         = -15;
   const GRAVITY         = 0.55;
   const DUCK_SCALE      = 0.55;      // hitbox shrink when ducking
   const HIT_STUN        = 1100;      // ms
-  const HIT_FICO_DMAG   = 12;
-  const HIT_SCORE_PEN   = 30;
   const COIN_PTS        = 10;
   const STAR_PTS        = 50;
   const FICO_MIN        = 300;
@@ -29,6 +24,14 @@
 
   // Streak multiplier table  [minStreak, multiplier]
   const STREAK_TABLE = [[20,8],[14,6],[9,4],[5,3],[3,2],[1,1.5],[0,1]];
+
+  /* ── 3-LEVEL LADDER — each level scales duration, speed ramp, obstacle
+     density, hit penalties & star thresholds. Harder/faster/bigger each level. ── */
+  const LEVELS = [
+    { n:1, name:'RUNWAY CADET',     duration:90, speedStart:4.2, speedEnd:9.5,  obsGapMin:0.45, obsGapMax:0.80, droneWeight:0.33, hitFicoDmg:12, hitScorePen:30, star1:300,  star2:700,  star3:1200 },
+    { n:2, name:'RUNWAY PILOT',     duration:90, speedStart:5.5, speedEnd:11.5, obsGapMin:0.36, obsGapMax:0.66, droneWeight:0.40, hitFicoDmg:16, hitScorePen:40, star1:450,  star2:1000, star3:1700 },
+    { n:3, name:'RUNWAY COMMANDER', duration:90, speedStart:7.0, speedEnd:14.0, obsGapMin:0.28, obsGapMax:0.54, droneWeight:0.48, hitFicoDmg:22, hitScorePen:55, star1:600,  star2:1300, star3:2200 },
+  ];
 
   const COLORS = {
     sky        : '#0d0d2b',
@@ -77,6 +80,15 @@
     const SCREENS = { TITLE:0, PLAYING:1, PAUSED:2, END:3 };
     let screen = SCREENS.TITLE;
 
+    /* ── Level state ────────────────────────────────────────────────────── */
+    let curLevel = 1;      // 1|2|3 — chosen on TITLE screen, advances via END screen
+    let cfg = LEVELS[0];   // active level config, refreshed by setLevel()
+
+    function setLevel(n) {
+      curLevel = Math.max(1, Math.min(3, n));
+      cfg = LEVELS[curLevel - 1];
+    }
+
     /* ── Game state ─────────────────────────────────────────────────────── */
     let score, fico, coinsCollected, streakCount, multiplier;
     let timeLeft, startTime, lastTime;
@@ -110,10 +122,10 @@
       coinsCollected = 0;
       streakCount    = 0;
       multiplier     = 1;
-      timeLeft       = GAME_DURATION;
+      timeLeft       = cfg.duration;
       startTime      = null;
       lastTime       = null;
-      speed          = SPEED_START;
+      speed          = cfg.speedStart;
       stunUntil      = 0;
       flashUntil     = 0;
       hintsVisible   = true;
@@ -151,7 +163,14 @@
 
     function onKeyDown(e) {
       keys[e.code] = true;
-      if (screen === SCREENS.TITLE) { startGame(); return; }
+      if (screen === SCREENS.TITLE) {
+        // number keys jump straight to a level; any other key starts curLevel
+        if (e.code === 'Digit1' || e.code === 'Numpad1') { setLevel(1); startGame(); return; }
+        if (e.code === 'Digit2' || e.code === 'Numpad2') { setLevel(2); startGame(); return; }
+        if (e.code === 'Digit3' || e.code === 'Numpad3') { setLevel(3); startGame(); return; }
+        if (e.code === 'Space' || e.code === 'Enter')    { startGame(); return; }
+        return;
+      }
       if (screen === SCREENS.END)   { return; }
       if (e.code === 'Space' || e.code === 'ArrowUp')   { e.preventDefault(); doJump(); }
       if (e.code === 'ArrowDown' || e.code === 'KeyS')  { e.preventDefault(); doDuck(); }
@@ -164,7 +183,7 @@
     }
 
     function onMouseDown(e) {
-      if (screen === SCREENS.TITLE) { startGame(); return; }
+      if (screen === SCREENS.TITLE) { handleTitleClick(e); return; }
       if (screen === SCREENS.END)   { handleEndClick(e); return; }
       doJump();
     }
@@ -172,7 +191,7 @@
     function onTouchStart(e) {
       e.preventDefault();
       touchStartY = e.touches[0].clientY;
-      if (screen === SCREENS.TITLE) { startGame(); return; }
+      if (screen === SCREENS.TITLE) { handleTitleTap(e); return; }
       if (screen === SCREENS.END)   { handleEndTap(e); return; }
       doJump();
     }
@@ -213,8 +232,14 @@
     /* ── Obstacle generation ─────────────────────────────────────────────── */
     const OBS_TYPES = ['wall', 'pit', 'drone'];
 
+    // Higher levels weight more drones (duck-timing is the hardest skill)
+    function pickObsType() {
+      if (Math.random() < cfg.droneWeight) return 'drone';
+      return Math.random() < 0.5 ? 'wall' : 'pit';
+    }
+
     function spawnObstacle() {
-      const type = OBS_TYPES[Math.floor(Math.random() * OBS_TYPES.length)];
+      const type = pickObsType();
       const pr   = player.r;
 
       if (type === 'wall') {
@@ -247,7 +272,8 @@
         });
       }
 
-      obsGap  = W * (0.45 + Math.random() * 0.35) / (speed / SPEED_START);
+      const gapSpan = cfg.obsGapMax - cfg.obsGapMin;
+      obsGap  = W * (cfg.obsGapMin + Math.random() * gapSpan) / (speed / cfg.speedStart);
       nextObstAt = obstacles[obstacles.length - 1].x + obsGap;
     }
 
@@ -339,8 +365,8 @@
     function triggerHit(now) {
       stunUntil  = now + HIT_STUN;
       flashUntil = now + 300;
-      score      = Math.max(0, score - HIT_SCORE_PEN);
-      fico       = Math.max(FICO_MIN, fico - HIT_FICO_DMAG);
+      score      = Math.max(0, score - cfg.hitScorePen);
+      fico       = Math.max(FICO_MIN, fico - cfg.hitFicoDmg);
       streakCount = 0;
       multiplier  = 1;
       player.stunRing = player.r;
@@ -375,11 +401,11 @@
       const dtS = dt / 1000;
 
       /* timer */
-      timeLeft = Math.max(0, GAME_DURATION - (now - startTime) / 1000);
+      timeLeft = Math.max(0, cfg.duration - (now - startTime) / 1000);
 
       /* speed ramp */
-      const progress = 1 - timeLeft / GAME_DURATION;
-      speed = SPEED_START + (SPEED_END - SPEED_START) * progress;
+      const progress = 1 - timeLeft / cfg.duration;
+      speed = cfg.speedStart + (cfg.speedEnd - cfg.speedStart) * progress;
 
       /* hints fade */
       if (hintsVisible) {
@@ -478,7 +504,7 @@
       const st = S();
       const _rrStars = starRating();
       const coinsEarned = _rrStars >= 1 && window.cvAwardGame
-        ? cvAwardGame('game_repaymentrunway', { level: 1, stars: _rrStars, is3star: _rrStars===3, isPerfect: _rrStars===3&&streakCount>=10, badge: 'Repayment Runway Master' })
+        ? cvAwardGame('game_repaymentrunway', { level: curLevel, stars: _rrStars, is3star: _rrStars===3, isPerfect: _rrStars===3&&streakCount>=10, badge: 'Repayment Runway Master' })
         : Math.floor(score / 15);
       if (_rrStars >= 1 && window.cvHubMeter) cvHubMeter('credtech_trust', _rrStars*4);
       // cvAwardGame already grants XP internally — only add XP on the fallback path
@@ -738,6 +764,9 @@
       ctx.textAlign    = 'left';
       ctx.textBaseline = 'top';
       ctx.fillText(`SCORE  ${score}`, pad, pad);
+      ctx.fillStyle    = COLORS.hudAccent;
+      ctx.font         = `${fz * 0.62}px sans-serif`;
+      ctx.fillText(`LV ${curLevel} · ${cfg.name}`, pad, pad + fz * 1.15);
 
       /* streak — top center */
       const mul = multiplier;
@@ -832,7 +861,9 @@
       ctx.closePath();
     }
 
-    /* ── Title screen ────────────────────────────────────────────────────── */
+    /* ── Title screen — level select (3 cards) ────────────────────────────── */
+    let titleCards = []; // [{n, x, y, w, h, locked}]
+
     function drawTitle() {
       drawBackground();
 
@@ -840,26 +871,112 @@
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
 
-      const titleFz = Math.max(28, H * 0.07);
+      const titleFz = Math.max(24, H * 0.06);
       ctx.font      = `900 ${titleFz}px sans-serif`;
       ctx.fillStyle = COLORS.hudAccent;
       ctx.shadowColor = COLORS.hudAccent;
-      ctx.shadowBlur  = 22;
-      ctx.fillText('REPAYMENT RUNWAY', W / 2, H * 0.32);
+      ctx.shadowBlur  = 20;
+      ctx.fillText('REPAYMENT RUNWAY', W / 2, H * 0.18);
 
       ctx.shadowBlur = 0;
-      ctx.font       = `${Math.max(14, H * 0.033)}px sans-serif`;
+      ctx.font       = `${Math.max(12, H * 0.026)}px sans-serif`;
       ctx.fillStyle  = COLORS.hud;
-      ctx.fillText('Jump over walls & pits  ·  Duck under drones', W / 2, H * 0.46);
-      ctx.fillText('Collect payment coins to build your streak', W / 2, H * 0.52);
+      ctx.fillText('Jump over walls & pits  ·  Duck under drones  ·  Collect payment coins', W / 2, H * 0.28);
+
+      // ── Level cards ── (cvAwardGame persists progress on window.state, not cvState)
+      const st = window.state || {};
+      const bestLevel = (st.gameLevels && st.gameLevels.game_repaymentrunway) || 0;
+      const cardW = Math.min(W * 0.27, 190);
+      const cardH = H * 0.34;
+      const gap   = W * 0.03;
+      const totalW = cardW * 3 + gap * 2;
+      const startX = (W - totalW) / 2;
+      const cardY  = H * 0.36;
+
+      titleCards = [];
+      for (let i = 0; i < 3; i++) {
+        const L = LEVELS[i];
+        const n = L.n;
+        const locked = n > 1 && bestLevel < n - 1; // must clear level n-1 first
+        const cx = startX + i * (cardW + gap);
+        titleCards.push({ n, x: cx, y: cardY, w: cardW, h: cardH, locked });
+
+        ctx.save();
+        const selected = n === curLevel;
+        ctx.fillStyle = locked ? 'rgba(30,30,60,0.55)' : selected ? 'rgba(251,191,36,0.16)' : 'rgba(20,20,50,0.7)';
+        roundRect(ctx, cx, cardY, cardW, cardH, 14);
+        ctx.fill();
+        ctx.strokeStyle = locked ? 'rgba(120,120,150,0.35)' : selected ? COLORS.hudAccent : 'rgba(226,232,240,0.35)';
+        ctx.lineWidth = selected ? 2.5 : 1.5;
+        roundRect(ctx, cx, cardY, cardW, cardH, 14);
+        ctx.stroke();
+
+        const midX = cx + cardW / 2;
+        ctx.fillStyle = locked ? 'rgba(148,163,184,0.5)' : COLORS.hudAccent;
+        ctx.font = `bold ${Math.max(13, cardH * 0.16)}px sans-serif`;
+        ctx.fillText(`LEVEL ${n}`, midX, cardY + cardH * 0.24);
+
+        ctx.fillStyle = locked ? 'rgba(148,163,184,0.4)' : COLORS.hud;
+        ctx.font = `${Math.max(10, cardH * 0.1)}px sans-serif`;
+        ctx.fillText(L.name, midX, cardY + cardH * 0.42);
+
+        if (locked) {
+          ctx.font = `${Math.max(20, cardH * 0.22)}px sans-serif`;
+          ctx.fillText('🔒', midX, cardY + cardH * 0.66);
+          ctx.font = `${Math.max(9, cardH * 0.08)}px sans-serif`;
+          ctx.fillStyle = 'rgba(148,163,184,0.45)';
+          ctx.fillText(`Clear Lv ${n - 1} first`, midX, cardY + cardH * 0.85);
+        } else {
+          ctx.font = `${Math.max(9, cardH * 0.085)}px sans-serif`;
+          ctx.fillStyle = 'rgba(226,232,240,0.6)';
+          ctx.fillText(`Speed ${L.speedStart.toFixed(1)}→${L.speedEnd.toFixed(1)}`, midX, cardY + cardH * 0.66);
+          // gameStars is one best-ever scalar (not per-level) — only show it on the
+          // highest level actually cleared so far, everything else stays neutral
+          if (bestLevel === n) {
+            const bestStars = (st.gameStars && st.gameStars.game_repaymentrunway) || 0;
+            const starLine = '★'.repeat(bestStars) + '☆'.repeat(3 - bestStars);
+            ctx.fillStyle = COLORS.star;
+            ctx.font = `${Math.max(11, cardH * 0.13)}px sans-serif`;
+            ctx.fillText(starLine, midX, cardY + cardH * 0.85);
+          } else if (n === 1) {
+            ctx.fillStyle = 'rgba(226,232,240,0.35)';
+            ctx.font = `${Math.max(9, cardH * 0.08)}px sans-serif`;
+            ctx.fillText('Start here', midX, cardY + cardH * 0.85);
+          }
+        }
+        ctx.restore();
+      }
 
       const pulse = 0.8 + Math.sin(Date.now() / 400) * 0.2;
       ctx.globalAlpha = pulse;
-      ctx.font        = `bold ${Math.max(16, H * 0.038)}px sans-serif`;
+      ctx.font        = `bold ${Math.max(13, H * 0.03)}px sans-serif`;
       ctx.fillStyle   = COLORS.hudAccent;
-      ctx.fillText('TAP or PRESS SPACE to start', W / 2, H * 0.68);
+      ctx.fillText('TAP A LEVEL — or PRESS SPACE for Level ' + curLevel, W / 2, H * 0.78);
+      ctx.globalAlpha = 1;
 
       ctx.restore();
+    }
+
+    function hitTestTitle(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = W / rect.width, scaleY = H / rect.height;
+      const cx = (e.clientX - rect.left) * scaleX;
+      const cy = (e.clientY - rect.top) * scaleY;
+      for (const card of titleCards) {
+        if (cx >= card.x && cx <= card.x + card.w && cy >= card.y && cy <= card.y + card.h) return card;
+      }
+      return null;
+    }
+
+    function handleTitleClick(e) {
+      const card = hitTestTitle(e);
+      if (card && !card.locked) { setLevel(card.n); startGame(); }
+    }
+
+    function handleTitleTap(e) {
+      if (!e.changedTouches) return;
+      const t = e.changedTouches[0];
+      handleTitleClick({ clientX: t.clientX, clientY: t.clientY });
     }
 
     /* ── Pause screen ────────────────────────────────────────────────────── */
@@ -878,12 +995,12 @@
     }
 
     /* ── End screen ──────────────────────────────────────────────────────── */
-    let endBtnPlay = null, endBtnHub = null;
+    let endBtnPlay = null, endBtnHub = null, endBtnNext = null;
 
     function starRating() {
-      if (score >= 1200) return 3;
-      if (score >= 700)  return 2;
-      if (score >= 300)  return 1;
+      if (score >= cfg.star3) return 3;
+      if (score >= cfg.star2) return 2;
+      if (score >= cfg.star1) return 1;
       return 0;
     }
 
@@ -923,7 +1040,10 @@
       /* title */
       ctx.font      = `bold ${fz * 1.3}px sans-serif`;
       ctx.fillStyle = COLORS.hudAccent;
-      ctx.fillText('RUNWAY COMPLETE!', W / 2, py + fz * 0.6);
+      const headline = stars >= 1
+        ? (curLevel >= 3 ? '👑 MISSION ACCOMPLISHED!' : `MISSION ACCOMPLISHED · LV ${curLevel}`)
+        : 'NICE TRY! Power up and try again';
+      ctx.fillText(headline, W / 2, py + fz * 0.6);
 
       /* stars */
       const starFz = fz * 2.2;
@@ -972,31 +1092,53 @@
       wrapText(ctx, lesson.body, W / 2, lY + fz * 1.35, pw * 0.8, fz * 0.9);
 
       /* buttons */
-      const btnY = py + ph - fz * 3.5;
-      const btnW = pw * 0.38, btnH = fz * 2;
+      const showNext = stars >= 1 && curLevel < 3;
+      const btnW = pw * 0.38, btnH = fz * 1.9;
+      let btnY;
 
-      // PLAY AGAIN
+      endBtnNext = null;
+      if (showNext) {
+        // NEXT LEVEL — full-width, above the replay/hub row
+        btnY = py + ph - fz * 6.0;
+        const nx = px + pw * 0.07;
+        const nw = pw * 0.86;
+        ctx.fillStyle = COLORS.ficoBar;
+        ctx.shadowColor = COLORS.ficoBar;
+        ctx.shadowBlur  = 12;
+        roundRect(ctx, nx, btnY, nw, btnH, 8);
+        ctx.fill();
+        ctx.shadowBlur  = 0;
+        ctx.fillStyle   = '#052e16';
+        ctx.font        = `bold ${fz * 0.9}px sans-serif`;
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`LEVEL ${curLevel + 1} ▶ ${LEVELS[curLevel].name}`, nx + nw / 2, btnY + btnH / 2);
+        endBtnNext = { x: nx, y: btnY, w: nw, h: btnH };
+      }
+
+      const rowY = py + ph - fz * 3.4;
+
+      // REPLAY / PLAY AGAIN
       const p1x = px + pw * 0.07;
       ctx.fillStyle = COLORS.hudAccent;
       ctx.shadowColor = COLORS.hudAccent;
       ctx.shadowBlur  = 10;
-      roundRect(ctx, p1x, btnY, btnW, btnH, 8);
+      roundRect(ctx, p1x, rowY, btnW, btnH, 8);
       ctx.fill();
       ctx.shadowBlur  = 0;
       ctx.fillStyle   = '#1c1917';
-      ctx.font        = `bold ${fz * 0.88}px sans-serif`;
+      ctx.font        = `bold ${fz * 0.85}px sans-serif`;
       ctx.textBaseline = 'middle';
-      ctx.fillText('PLAY AGAIN', p1x + btnW / 2, btnY + btnH / 2);
-      endBtnPlay = { x: p1x, y: btnY, w: btnW, h: btnH };
+      ctx.fillText(showNext ? 'REPLAY LV ' + curLevel : 'PLAY AGAIN', p1x + btnW / 2, rowY + btnH / 2);
+      endBtnPlay = { x: p1x, y: rowY, w: btnW, h: btnH };
 
       // HUB
       const p2x = px + pw * 0.55;
       ctx.fillStyle = '#334155';
-      roundRect(ctx, p2x, btnY, btnW, btnH, 8);
+      roundRect(ctx, p2x, rowY, btnW, btnH, 8);
       ctx.fill();
       ctx.fillStyle   = COLORS.hud;
-      ctx.fillText('HUB', p2x + btnW / 2, btnY + btnH / 2);
-      endBtnHub = { x: p2x, y: btnY, w: btnW, h: btnH };
+      ctx.fillText('HUB', p2x + btnW / 2, rowY + btnH / 2);
+      endBtnHub = { x: p2x, y: rowY, w: btnW, h: btnH };
 
       ctx.restore();
     }
@@ -1028,6 +1170,7 @@
     }
 
     function handleEndClick(e) {
+      if (hitTest(e, endBtnNext)) { setLevel(curLevel + 1); startGame(); return; }
       if (hitTest(e, endBtnPlay)) { startGame(); return; }
       if (hitTest(e, endBtnHub))  { goHub(); return; }
     }
@@ -1095,6 +1238,13 @@
 
     // expose cleanup in case hub needs it
     container._destroyGame = destroy;
+
+    /* ── QA debug hook ──────────────────────────────────────────────────── */
+    window._rrDbg = () => ({ curLevel, cfg, screen, score, fico, timeLeft, streakCount });
+    // force-advance to a given level and jump straight into PLAYING (skips title)
+    window._rrForceLevel = (n) => { setLevel(n); startGame(); };
+    // force an immediate win at the current level (for star/end-screen testing)
+    window._rrForceWin = () => { score = cfg.star3 + 1; timeLeft = 0; gameEnded = false; endGame(); };
 
     /* ── Kick off ────────────────────────────────────────────────────────── */
     screen = SCREENS.TITLE;

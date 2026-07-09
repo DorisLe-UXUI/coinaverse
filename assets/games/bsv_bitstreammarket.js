@@ -33,8 +33,11 @@
   const ITEMS_L1 = ['gem','shield','chip','coil'].map(id => ALL_ITEMS.find(i=>i.id===id));
   /* ─── LEVEL 2 items (all) ────────────────────────────────────── */
   const ITEMS_L2 = ALL_ITEMS;
+  /* ─── LEVEL 3 items (all, same catalogue — the challenge is tighter
+     supply/time/events, not new goods) ──────────────────────────── */
+  const ITEMS_L3 = ALL_ITEMS;
 
-  /* ─── MARKET EVENTS (Level 2) ────────────────────────────────── */
+  /* ─── MARKET EVENTS (Level 2+) ───────────────────────────────── */
   const MARKET_EVENTS = [
     { text:'⚡ DEMAND SPIKE: Rare Gems flooding exchanges!',  id:'gem',   bias:+28, dur:4 },
     { text:'📉 OVERSUPPLY: Data Shields crashing!',          id:'shield', bias:-22, dur:4 },
@@ -50,6 +53,17 @@
     { text:'🛡️ Hackers: Data Shields in high demand!',       id:'shield', bias:+30, dur:3 },
   ];
 
+  /* ─── MARKET EVENTS EXCLUSIVE TO LEVEL 3 (sharper swings, disjoint text) ─ */
+  const MARKET_EVENTS_L3 = [
+    { text:'🌪️ FLASH CRASH: Entire exchange in freefall!',    id:'ALL',    bias:-32, dur:3 },
+    { text:'🐋 WHALE BUY: Nexus Pass cornered by big trader!', id:'pass',   bias:+55, dur:2 },
+    { text:'⚙️ RECALL: Quantum Chips pulled from shelves!',   id:'chip',   bias:-40, dur:3 },
+    { text:'🔥 VIRAL: Cyber Blade meme goes global!',         id:'blade',  bias:+50, dur:2 },
+    { text:'🛰️ SUPPLY CHAIN BREAK: Scout Drones scarce!',      id:'drone',  bias:+38, dur:3 },
+    { text:'💎 CARTEL DUMP: Rare Gems flood the market!',     id:'gem',    bias:-30, dur:3 },
+    { text:'🚀 EVERYTHING RALLY: Whole exchange surges!',     id:'ALL',    bias:+26, dur:3 },
+  ];
+
   /* ─── END LESSON ─────────────────────────────────────────────── */
   const LESSON = 'In any market — digital or real — prices are set by supply and demand. Buying when demand is low and selling when it is high is the foundation of trading. Patience, timing, and reading market signals matter more than luck.';
 
@@ -62,10 +76,43 @@
   const TARGET_L2       = 7000;
   const TIME_L2         = 150;  // seconds
 
+  const START_WALLET_L3 = 3000;
+  const TARGET_L3       = 9000;
+  const TIME_L3          = 170; // seconds
+
   const TICK_MS_L1      = 2800;
   const TICK_MS_L2      = 1800;
+  const TICK_MS_L3      = 1200;
   const MAX_HELD_EACH   = 5;    // max qty of one item you can hold
   const SUPPLY_MAX_L2   = 8;    // items have limited stock in L2
+  const SUPPLY_MAX_L3   = 5;    // L3: tighter stock than L2 — scarcer, harder
+
+  /* ─── PER-LEVEL CONFIG TABLE (keyed by the numeric level, 1/2/3) ───────
+     Every ternary that used to say "lvl === 1 ? X : Y" now reads this table
+     instead, so adding/tuning a level never requires touching game logic. */
+  const LEVEL_CFG = {
+    1: {
+      items: ITEMS_L1, startWallet: START_WALLET_L1, target: TARGET_L1,
+      totalTime: TIME_L1, tickMs: TICK_MS_L1, volMult: 0.7,
+      supplyLimited: false, supplyMax: 99,
+      eventsOn: false, events: [],
+      badgeText: 'LEVEL 1 · LEARN — STEADY MARKET',
+    },
+    2: {
+      items: ITEMS_L2, startWallet: START_WALLET_L2, target: TARGET_L2,
+      totalTime: TIME_L2, tickMs: TICK_MS_L2, volMult: 1.4,
+      supplyLimited: true, supplyMax: SUPPLY_MAX_L2,
+      eventsOn: true, events: MARKET_EVENTS,
+      badgeText: 'LEVEL 2 · MASTER — VOLATILE MARKET',
+    },
+    3: {
+      items: ITEMS_L3, startWallet: START_WALLET_L3, target: TARGET_L3,
+      totalTime: TIME_L3, tickMs: TICK_MS_L3, volMult: 1.9,
+      supplyLimited: true, supplyMax: SUPPLY_MAX_L3,
+      eventsOn: true, events: MARKET_EVENTS.concat(MARKET_EVENTS_L3),
+      badgeText: 'LEVEL 3 · LEGEND — FLASH MARKET',
+    },
+  };
 
   /* ─── STATE ──────────────────────────────────────────────────── */
   let G = null;
@@ -554,6 +601,11 @@
       Wallet $3,500 → Target $7,000 · 2:30 min
       <small>Limited supply · Demand spikes · Flash market events</small>
     </button>
+    <button class="bm-lvl-btn" id="bm-lvl3-btn" style="border-color:rgba(255,77,157,.4);background:rgba(255,77,157,.07)">
+      <strong style="color:#ff4d9d">LEVEL 3 · LEGEND</strong>
+      Wallet $3,000 → Target $9,000 · 2:50 min
+      <small>Scarcest supply · Rapid flash events · Fastest ticking market</small>
+    </button>
   </div>
 </div>
 `;
@@ -575,6 +627,7 @@
 
     document.getElementById('bm-lvl1-btn').addEventListener('click', () => startLevel(1));
     document.getElementById('bm-lvl2-btn').addEventListener('click', () => startLevel(2));
+    document.getElementById('bm-lvl3-btn').addEventListener('click', () => startLevel(3));
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -586,11 +639,12 @@
     const modal = document.getElementById('bm-lvl-modal');
     if (modal) modal.style.display = 'none';
 
-    const items = lvl === 1 ? ITEMS_L1 : ITEMS_L2;
-    const startWallet = lvl === 1 ? START_WALLET_L1 : START_WALLET_L2;
-    const target = lvl === 1 ? TARGET_L1 : TARGET_L2;
-    const totalTime = lvl === 1 ? TIME_L1 : TIME_L2;
-    const tickMs = lvl === 1 ? TICK_MS_L1 : TICK_MS_L2;
+    const cfg = LEVEL_CFG[lvl] || LEVEL_CFG[1];
+    const items       = cfg.items;
+    const startWallet = cfg.startWallet;
+    const target      = cfg.target;
+    const totalTime   = cfg.totalTime;
+    const tickMs      = cfg.tickMs;
 
     // Build market items
     const market = items.map(item => ({
@@ -599,13 +653,18 @@
       prev:   item.basePx,
       pct:    0,
       history:[item.basePx],
-      supply: lvl === 2 ? (Math.floor(Math.random() * 5) + 4) : 99, // L2 limited supply
+      // Supply-limited levels seed to a random point within their own cap
+      // (never exceeds cfg.supplyMax, so the % bar can never overflow).
+      supply: cfg.supplyLimited
+        ? Math.max(1, Math.floor(Math.random() * (cfg.supplyMax - 3)) + 3)
+        : cfg.supplyMax,
       eventBias: 0,
       eventTicks: 0,
     }));
 
     G = {
       lvl,
+      cfg,
       items: market,
       wallet: startWallet,
       target,
@@ -626,8 +685,7 @@
     // init held map
     market.forEach(it => { G.held[it.id] = 0; });
 
-    document.getElementById('bm-lvbadge').textContent =
-      lvl === 1 ? 'LEVEL 1 · LEARN — STEADY MARKET' : 'LEVEL 2 · MASTER — VOLATILE MARKET';
+    document.getElementById('bm-lvbadge').textContent = cfg.badgeText;
     document.getElementById('bm-target').textContent = '$' + fmtNum(target);
 
     buildMarketCards();
@@ -638,8 +696,8 @@
     _tick = setInterval(priceTick, tickMs);
     // Countdown
     _countdown = setInterval(countdownTick, 1000);
-    // Events (L2 only)
-    if (lvl === 2) scheduleEvent();
+    // Events (any level with eventsOn — L2, L3, ...)
+    if (cfg.eventsOn) scheduleEvent();
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -647,12 +705,12 @@
   ══════════════════════════════════════════════════════════════ */
   function priceTick() {
     if (!G || !G.running) return;
-    const isL2 = G.lvl === 2;
+    const volMult = G.cfg.volMult;
 
     G.items.forEach(it => {
       const item = G.items.find(i => i.id === it.id);
       // Volatility
-      const vol = item.vol * (isL2 ? 1.4 : 0.7);
+      const vol = item.vol * volMult;
       const rand = (Math.random() - 0.48) * 2; // slight upward bias
       let delta = item.price * (vol * rand + item.trend);
 
@@ -702,13 +760,16 @@
   ══════════════════════════════════════════════════════════════ */
   function scheduleEvent() {
     if (!G || !G.running) return;
-    const delay = 12000 + Math.random() * 14000; // 12–26 seconds
+    // L3 fires events on a tighter, faster cadence than L2 (8–16s vs 12–26s)
+    const isL3 = G.lvl === 3;
+    const delay = isL3 ? (8000 + Math.random() * 8000) : (12000 + Math.random() * 14000);
     _evtTimer = setTimeout(fireEvent, delay);
   }
 
   function fireEvent() {
     if (!G || !G.running) return;
-    const ev = MARKET_EVENTS[Math.floor(Math.random() * MARKET_EVENTS.length)];
+    const pool = (G.cfg && G.cfg.events && G.cfg.events.length) ? G.cfg.events : MARKET_EVENTS;
+    const ev = pool[Math.floor(Math.random() * pool.length)];
 
     // Apply bias to items
     G.items.forEach(it => {
@@ -762,12 +823,12 @@
     const pctColor = item.pct > 0 ? 'bm-up' : item.pct < 0 ? 'bm-dn' : 'bm-fl';
     const pctArrow = item.pct > 0 ? '▲' : item.pct < 0 ? '▼' : '●';
     const heldQty  = G.held[item.id] || 0;
-    const soldOut  = G.lvl === 2 && item.supply <= 0;
+    const soldOut  = G.cfg.supplyLimited && item.supply <= 0;
     const rarityColor = item.rarity === 'rare' ? GOLD : item.rarity === 'uncommon' ? PURPLE : 'rgba(255,255,255,.4)';
 
     let supplyHTML = '';
-    if (G.lvl === 2) {
-      const supplyPct = Math.max(0, (item.supply / SUPPLY_MAX_L2) * 100);
+    if (G.cfg.supplyLimited) {
+      const supplyPct = Math.max(0, (item.supply / G.cfg.supplyMax) * 100);
       const supplyColor = supplyPct < 30 ? RED : supplyPct < 60 ? GOLD : GREEN;
       supplyHTML = `
         <div class="bm-supply-row">
@@ -921,7 +982,7 @@
     const qty = G.qty || 1;
     const cost = Math.round(item.price * qty);
     if (cost > G.wallet) { flashMsg('Not enough funds!', RED); return; }
-    if (G.lvl === 2 && item.supply < qty) {
+    if (G.cfg.supplyLimited && item.supply < qty) {
       if (item.supply === 0) { flashMsg('Sold out!', RED); return; }
       G.qty = item.supply;
       renderActionBar();
@@ -933,7 +994,7 @@
 
     G.wallet -= cost;
     G.held[item.id] = (G.held[item.id] || 0) + qty;
-    if (G.lvl === 2) item.supply = Math.max(0, item.supply - qty);
+    if (G.cfg.supplyLimited) item.supply = Math.max(0, item.supply - qty);
 
     G.tradesMade++;
     showFloat(item.id, '-$' + fmtNum(cost), RED);
@@ -963,7 +1024,7 @@
 
     G.wallet += revenue;
     G.held[item.id] -= qty;
-    if (G.lvl === 2) item.supply = Math.min(SUPPLY_MAX_L2, item.supply + Math.floor(qty / 2));
+    if (G.cfg.supplyLimited) item.supply = Math.min(G.cfg.supplyMax, item.supply + Math.floor(qty / 2));
 
     G.tradesMade++;
     showFloat(item.id, '+$' + fmtNum(revenue), GREEN);
@@ -1006,7 +1067,7 @@
             const getQty = Math.floor(myVal / it.price);
             const diff   = myVal - (getQty * it.price);
             const diffColor = diff >= 0 ? GREEN : RED;
-            const soldOut = G.lvl === 2 && it.supply <= 0;
+            const soldOut = G.cfg.supplyLimited && it.supply <= 0;
             return `
               <div class="bm-trade-item ${soldOut ? 'opacity:.4;pointer-events:none' : ''}" data-tid="${it.id}" data-qty="${getQty}">
                 <span class="bm-trade-item-icon">${it.icon}</span>
@@ -1054,11 +1115,11 @@
 
     // Liquidate from item, acquire to item
     G.held[fromId] = 0;
-    if (G.lvl === 2) fromItem.supply = Math.min(SUPPLY_MAX_L2, fromItem.supply + fromQty);
+    if (G.cfg.supplyLimited) fromItem.supply = Math.min(G.cfg.supplyMax, fromItem.supply + fromQty);
 
     const actualQty = Math.min(toQty, MAX_HELD_EACH - (G.held[toId] || 0));
     G.held[toId] = (G.held[toId] || 0) + actualQty;
-    if (G.lvl === 2) toItem.supply = Math.max(0, toItem.supply - actualQty);
+    if (G.cfg.supplyLimited) toItem.supply = Math.max(0, toItem.supply - actualQty);
     G.wallet += diff;
 
     G.tradesMade++;
@@ -1157,11 +1218,11 @@
         pchgEl.className = 'bm-pchg ' + cl;
       }
       // Supply bars
-      if (G.lvl === 2) {
+      if (G.cfg.supplyLimited) {
         const supFill = document.getElementById('bm-sup-' + item.id);
         const supTxt  = document.getElementById('bm-sup-txt-' + item.id);
         if (supFill) {
-          const pct = Math.max(0, (item.supply / SUPPLY_MAX_L2) * 100);
+          const pct = Math.max(0, (item.supply / G.cfg.supplyMax) * 100);
           const color = pct < 30 ? RED : pct < 60 ? GOLD : GREEN;
           supFill.style.width = pct + '%';
           supFill.style.background = color;
@@ -1197,7 +1258,7 @@
     const qty  = G.qty || 1;
     const cost = Math.round(item.price * qty);
     const held = G.held[item.id] || 0;
-    const soldOut = G.lvl === 2 && item.supply <= 0;
+    const soldOut = G.cfg.supplyLimited && item.supply <= 0;
 
     if (qval) qval.textContent = qty;
     if (hint) hint.textContent = item.icon + ' ' + item.name + ' @ $' + fmtNum(item.price);
@@ -1284,7 +1345,7 @@
   function endGame(stars, finalWallet, reason) {
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_bsv_bitstreammarket', { level: 1, is3star, isPerfect: is3star })
+      ? cvAwardGame('game_bsv_bitstreammarket', { level: (G && G.lvl) || 1, is3star, isPerfect: is3star })
       : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
     if (stars < 1 && window.cvSave) cvSave();
 
@@ -1329,10 +1390,15 @@
             <strong>LEVEL 2 · MASTER</strong>Wallet $3,500 → Target $7,000 · 2:30 min
             <small>Limited supply · Demand spikes · Flash market events</small>
           </button>
+          <button class="bm-lvl-btn" id="bm-lvl3-btn2" style="border-color:rgba(255,77,157,.4);background:rgba(255,77,157,.07)">
+            <strong style="color:#ff4d9d">LEVEL 3 · LEGEND</strong>Wallet $3,000 → Target $9,000 · 2:50 min
+            <small>Scarcest supply · Rapid flash events · Fastest ticking market</small>
+          </button>
         </div>`;
         document.getElementById('bm-root').appendChild(newModal);
         document.getElementById('bm-lvl1-btn2').addEventListener('click', () => { newModal.remove(); startLevel(1); });
         document.getElementById('bm-lvl2-btn2').addEventListener('click', () => { newModal.remove(); startLevel(2); });
+        document.getElementById('bm-lvl3-btn2').addEventListener('click', () => { newModal.remove(); startLevel(3); });
       }
     });
     document.getElementById('bm-end-hub').addEventListener('click', window.bsv_bitstreammarketExit);
@@ -1349,5 +1415,20 @@
     const el = document.getElementById(id);
     if (el) el.textContent = val;
   }
+
+  /* ── DEBUG HOOK (dev/QA only) ───────────────────────────────── */
+  window._bmDbg = () => G ? {
+    lvl: G.lvl, wallet: G.wallet, target: G.target, timeLeft: G.timeLeft,
+    supplyLimited: G.cfg.supplyLimited, supplyMax: G.cfg.supplyMax,
+    volMult: G.cfg.volMult, eventsOn: G.cfg.eventsOn,
+    eventPoolSize: (G.cfg.events || []).length,
+    itemSupplies: G.items.map(i => ({ id: i.id, supply: i.supply })),
+  } : null;
+  window._bmForceWin = () => {
+    if (!G) return 'no active game — call startLevel(1|2|3) first';
+    G.wallet = G.target;
+    triggerEnd('win');
+    return 'forced wallet=' + G.wallet + ' (target=' + G.target + '), triggerEnd(\'win\') invoked';
+  };
 
 })();

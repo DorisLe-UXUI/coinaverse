@@ -20,6 +20,7 @@
     { id:'gold',      label:'Gold',         icon:'🥇', color:'#f59e0b', darkColor:'#78350f', minPct:5,  maxPct:25, volatility:0.4 },
     { id:'etfs',      label:'ETFs',         icon:'📊', color:'#a78bfa', darkColor:'#4c1d95', minPct:5,  maxPct:35, volatility:0.5 },
     { id:'crypto',    label:'Crypto',       icon:'₿',  color:'#f87171', darkColor:'#7f1d1d', minPct:0,  maxPct:15, volatility:1.5 },
+    { id:'bonds',     label:'Bonds',        icon:'📜', color:'#38bdf8', darkColor:'#0c4a6e', minPct:5,  maxPct:35, volatility:0.15 },
   ];
 
   /* ── market event catalogue ──────────────────────────────────── */
@@ -30,12 +31,17 @@
     { id:'boom',     label:'ECONOMIC BOOM!',     icon:'🚀', desc:'Growth surge — equities and ETFs rally!',  affect:{ stocks:+12, etfs:+10 }, hint:'Increase Stocks & ETFs exposure' },
     { id:'cryptobull',label:'CRYPTO MANIA!',     icon:'🌙', desc:'Crypto is surging — but risk is extreme.', affect:{ crypto:+25 }, hint:'Trim Crypto to stay balanced' },
     { id:'recession',label:'RECESSION RISK!',    icon:'🌧️', desc:'Safe havens outperform in downturns.',      affect:{ gold:+8, cash:+5 }, hint:'Build up Gold & Cash positions' },
+    /* level-3-exclusive events — expert-tier shocks, gated by minLevel in fireEvent() */
+    { id:'bondcrash',  label:'BOND SELLOFF!',    icon:'📉', desc:'Rising yields are crushing bond prices!',        affect:{ bonds:-12, cash:+6 },              hint:'Shift Bonds into Cash temporarily', minLevel:3 },
+    { id:'stagflation',label:'STAGFLATION!',     icon:'⚠️', desc:'Slow growth AND high inflation — brutal combo.', affect:{ stocks:-8, cash:-6, gold:+10 },     hint:'Gold is the classic stagflation hedge', minLevel:3 },
+    { id:'goldrush',   label:'GOLD RUSH!',       icon:'🥇', desc:'Investors flee to safety in a panic.',           affect:{ gold:+15, crypto:-10 },             hint:"Don't overload Gold — stay balanced", minLevel:3 },
   ];
 
   /* ── healthy allocation ranges (per level) ───────────────────── */
   const HEALTHY_RANGES = {
     1: { stocks:[15,55], realestate:[10,35], cash:[5,25], gold:[5,20] },
     2: { stocks:[10,50], realestate:[8,30],  cash:[5,20], gold:[5,20], etfs:[5,30], crypto:[0,12] },
+    3: { stocks:[12,45], realestate:[8,28],  cash:[5,18], gold:[5,18], etfs:[5,28], crypto:[0,10], bonds:[8,30] },
   };
 
   let G = null, raf = null;
@@ -52,6 +58,7 @@
       <div style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:10px;padding:12px 16px;background:linear-gradient(180deg,rgba(3,4,12,.95) 60%,transparent)">
         <button id="phqBackBtn" style="padding:7px 14px;border:1px solid ${ACCENT}44;border-radius:9px;background:${ACCENT}14;color:${ACCENT};font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer;white-space:nowrap">← HUB</button>
         <div style="font-family:Orbitron,sans-serif;font-size:.7rem;letter-spacing:.18em;color:${ACCENT};flex:1;text-align:center">PORTFOLIO HQ</div>
+        <button id="phqHelpBtn" title="How to play" style="padding:6px 10px;border:1px solid ${ACCENT}44;border-radius:8px;background:${ACCENT}14;color:${ACCENT};cursor:pointer;font-size:.8rem">❓</button>
         <div style="display:flex;gap:10px;align-items:center">
           <div style="font-family:Orbitron,sans-serif;font-size:.65rem;color:#fbbf24" id="phqScore">0 PTS</div>
           <div style="font-family:Orbitron,sans-serif;font-size:.8rem;color:#fff" id="phqTimer">60s</div>
@@ -136,10 +143,14 @@
     const backBtn = document.getElementById('phqBackBtn');
     if (backBtn) backBtn.onclick = window.inv_portfolioExit;
 
+    /* ❓ help button — reopens the how-to-play tutorial without losing progress */
+    const helpBtn = document.getElementById('phqHelpBtn');
+    if (helpBtn) helpBtn.onclick = () => window.phqShowHelp();
+
     /* bootstrap state */
     G = {
       level: 1,
-      phase: 'play',      // 'play' | 'event' | 'over'
+      phase: 'intro',     // 'intro' | 'play' | 'paused' | 'over' — gated until tutorial dismissed
       score: 0,
       timeLeft: 60,
       inGreenMs: 0,
@@ -148,6 +159,8 @@
       activeEvent: null,
       eventTimer: 0,
       rebalanceBonus: 0,
+      _eventTimerStartedAt: null,   // wall-clock ms when the active event's response window began
+      _eventPausedRemainMs: null,   // ms remaining on that window, saved while help is open
 
       /* current allocations — must always sum to 100 */
       allocs: { stocks:40, realestate:20, cash:15, gold:15, etfs:0, crypto:0 },
@@ -162,8 +175,96 @@
 
     buildSliders();
     refreshMeter();
-    startLoop();
+    showHowToPlay();   // startLoop() runs once the tutorial is dismissed
   }
+
+  /* ── How-to-play tutorial — shown once automatically before Level 1 starts,
+     reopenable anytime via the ❓ button without losing time or progress.
+     One explanation covers all 3 levels (same slider/allocation mechanic
+     throughout — later levels just add more asset classes and market events). ── */
+  function showHowToPlay() {
+    const overlay = document.getElementById('phqOver');
+    if (!overlay) return;
+    // By the time this renders, phqShowHelp() has already flipped a mid-game
+    // reopen to 'paused' (so tick()/slider guards take effect immediately) —
+    // check 'paused', not 'play', to tell a reopen apart from the first-ever intro.
+    const wasPlay = G && G.phase === 'paused';
+    overlay.style.display = 'flex';
+    overlay.innerHTML = `
+      <div style="max-width:340px;width:90%;text-align:center;padding:26px 22px;border:1.5px solid ${ACCENT}66;border-radius:20px;background:rgba(3,4,12,.97);box-shadow:0 0 40px rgba(0,200,83,.15)">
+        <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.2em;color:${ACCENT};margin-bottom:10px">HOW TO PLAY</div>
+        <div style="font-size:2rem;margin-bottom:8px">📊</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:.95rem;margin-bottom:14px;color:#eee">PORTFOLIO HQ</div>
+        <ul style="list-style:none;margin:0 0 16px;padding:0;text-align:left;font-size:.72rem;color:rgba(255,255,255,.75);line-height:1.7">
+          <li style="margin-bottom:8px">🎯 <b style="color:${ACCENT}">Goal:</b> keep the Diversification Meter in the green for as long as you can.</li>
+          <li style="margin-bottom:8px">👆 <b style="color:${ACCENT}">How:</b> drag each slider, or tap the left/right side of a card to nudge it 5%.</li>
+          <li style="margin-bottom:8px">⚖️ Every asset has a healthy range — too little OR too much both hurt your score.</li>
+          <li style="margin-bottom:8px">📉 Watch for market event banners — they shove your allocations off balance and you must rebalance fast.</li>
+          <li>⭐ Score builds every second you stay balanced — the calmer your portfolio, the higher your score.</li>
+        </ul>
+        <button id="phqHelpDismiss" style="padding:12px 30px;border:none;border-radius:11px;background:${ACCENT};color:#000;font-family:Orbitron,sans-serif;font-size:.68rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${wasPlay ? '▶ RESUME' : 'GOT IT — START ▶'}</button>
+      </div>`;
+    const btn = document.getElementById('phqHelpDismiss');
+    if (btn) btn.onclick = () => closeHowToPlay();
+  }
+
+  function closeHowToPlay() {
+    const overlay = document.getElementById('phqOver');
+    if (overlay) { overlay.style.display = 'none'; overlay.innerHTML = ''; }
+    if (!G) return;
+    if (G.phase === 'intro') {
+      G.phase = 'play';
+      startLoop();        // first-time: the rAF loop hasn't started yet, and
+                           // startLoop()'s eventCooldown reset is correct here
+                           // since no countdown has ever run yet this level.
+    } else if (G.phase === 'paused') {
+      G.phase = 'play';
+      // NOTE: deliberately do NOT call startLoop() here — it resets
+      // G.eventCooldown based on level (meant for level-start init), which
+      // would hand the player extra risk-free seconds before the next market
+      // event. Only re-baseline lastTick and restart the rAF chain, leaving
+      // eventCooldown/score/allocs exactly where they were.
+      G.lastTick = performance.now();
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(tick);
+
+      // If a market event banner was active when help opened, its auto-dismiss
+      // setTimeout (line ~554) was cancelled in phqShowHelp() — reschedule it
+      // for whatever real time was actually LEFT on the response window, not
+      // the full original duration (that would grant free time) and not 0
+      // (that would unfairly snap-dismiss it the instant help closes).
+      if (G.activeEvent && G._eventPausedRemainMs != null) {
+        G._eventTimerStartedAt = Date.now();
+        G._eventDismissTimeout = setTimeout(() => dismissEvent(), G._eventPausedRemainMs);
+        G._eventPausedRemainMs = null;
+      }
+    }
+  }
+
+  // Re-open the tutorial mid-game via the ❓ button. Setting G.phase='paused'
+  // is sufficient for the rAF loop: tick() early-returns on `G.phase !== 'play'`
+  // WITHOUT rescheduling itself, so the chain actually stops (no frames, no dt,
+  // no timeLeft decrement) until closeHowToPlay() manually restarts it with a
+  // reset lastTick. The same phase guard already blocks every slider drag/tap.
+  //
+  // The market-event auto-dismiss timer is a SEPARATE mechanism (a raw
+  // setTimeout in real wall-clock ms, independent of the rAF dt loop) — it
+  // must be paused/resumed on its own: cancel the pending timeout, remember
+  // how much response time was left, and leave G.activeEvent untouched so the
+  // banner's own state survives the pause (it just stops counting down).
+  window.phqShowHelp = function () {
+    if (!G || G.phase === 'over') return;
+    if (G.phase === 'play') {
+      G.phase = 'paused';
+      cancelAnimationFrame(raf);
+      if (G.activeEvent && G._eventDismissTimeout) {
+        clearTimeout(G._eventDismissTimeout);
+        const elapsedMs = Date.now() - (G._eventTimerStartedAt || Date.now());
+        G._eventPausedRemainMs = Math.max(0, G.eventTimer * 1000 - elapsedMs);
+      }
+    }
+    showHowToPlay();
+  };
 
   /* ── build slider cards for active assets ────────────────────── */
   function buildSliders() {
@@ -454,7 +555,8 @@
   /* ── market event system ─────────────────────────────────────── */
   function fireEvent() {
     if (!G || G.level < 2) return;
-    const evt = EVENTS[Math.floor(Math.random() * EVENTS.length)];
+    const pool = EVENTS.filter(e => (e.minLevel || 1) <= G.level);
+    const evt = pool[Math.floor(Math.random() * pool.length)];
     G.activeEvent = evt;
     G.eventTimer = 12; /* seconds to respond */
 
@@ -470,7 +572,10 @@
       if (descEl) descEl.textContent = evt.desc;
       if (hintEl) hintEl.textContent = '→ ' + evt.hint;
       banner.style.display = 'block';
-      /* auto-dismiss after eventTimer */
+      /* auto-dismiss after eventTimer — track the wall-clock start so a
+         mid-event pause (❓ help) can correctly compute remaining time
+         instead of restarting the full window or losing the timeout entirely */
+      G._eventTimerStartedAt = Date.now();
       G._eventDismissTimeout = setTimeout(() => dismissEvent(), G.eventTimer * 1000);
     }
 
@@ -518,7 +623,8 @@
   function startLoop() {
     cancelAnimationFrame(raf);
     G.lastTick = performance.now();
-    G.eventCooldown = G.level === 1 ? 9999 : 18; /* first event at 18s in L2 */
+    /* first-event delay by level: L1 has no events (9999 = never), L2 waits 18s, L3 only 12s (more pressure from the start) */
+    G.eventCooldown = G.level === 1 ? 9999 : G.level === 2 ? 18 : 12;
 
     raf = requestAnimationFrame(tick);
   }
@@ -548,19 +654,16 @@
       G.score = Math.max(0, G.score - dt * 2);
     }
 
-    /* event cooldown */
+    /* event cooldown — level 3 gets a faster, harsher cadence (8-14s) vs level 2 (14-22s) */
     if (G.level >= 2) {
       G.eventCooldown -= dt;
       if (G.eventCooldown <= 0 && !G.activeEvent) {
         fireEvent();
-        G.eventCooldown = 14 + Math.random() * 8;
+        G.eventCooldown = (G.level >= 3 ? 8 : 14) + Math.random() * (G.level >= 3 ? 6 : 8);
       }
     }
 
-    /* level up: after 60s on L1, go to L2 */
-    if (G.level === 1 && G.timeLeft < 1 && G.phase === 'play') {
-      // handled by endGame
-    }
+    /* level transitions (L1→L2, L2→L3) are handled by endGame() when timeLeft hits 0 */
 
     updateScoreDisplay();
     updateTimerDisplay();
@@ -612,11 +715,40 @@
     flashBonus('LEVEL 2 — MASTER!');
   }
 
+  /* ── advance to level 3 ──────────────────────────────────────── */
+  function advanceToLevel3() {
+    if (!G) return;
+    G.level = 3;
+    G.timeLeft = 100;                    // longer round — more to manage
+    G.eventCooldown = 10;                // events start sooner at level 3
+    G.activeAssets = ['stocks', 'realestate', 'cash', 'gold', 'etfs', 'crypto', 'bonds'];
+    /* introduce Bonds — the 7th asset class, unique to level 3 */
+    G.allocs.bonds = 12;
+    /* rescale existing 6 down proportionally to make room for the new 12% */
+    const priorTotal = G.allocs.stocks + G.allocs.realestate + G.allocs.cash + G.allocs.gold + G.allocs.etfs + G.allocs.crypto;
+    const factor = 88 / priorTotal;
+    ['stocks', 'realestate', 'cash', 'gold', 'etfs', 'crypto'].forEach(id => {
+      G.allocs[id] = Math.round(G.allocs[id] * factor);
+    });
+    /* fix rounding drift the same way advanceToLevel2 does */
+    const total = Object.values(G.allocs).reduce((s, v) => s + v, 0);
+    G.allocs.stocks += (100 - total);
+
+    const badge = document.getElementById('phqLevelBadge');
+    if (badge) badge.textContent = 'LVL 3 · EXPERT';
+    badge && (badge.style.color = '#f87171');   // red/orange — distinct from L1 gray and L2 green
+
+    buildSliders();
+    refreshMeter();
+    dismissEvent();
+    flashBonus('LEVEL 3 — EXPERT!');
+  }
+
   /* ── end game ────────────────────────────────────────────────── */
   function endGame() {
     if (!G) return;
 
-    /* if we finished level 1 without losing, advance */
+    /* if we finished level 1 without losing, advance to level 2 */
     if (G.level === 1 && G.score > 0) {
       advanceToLevel2();
       G.phase = 'play';
@@ -625,12 +757,25 @@
       return;
     }
 
+    /* if we finished level 2 with a real showing (cleared the 2-star bar), advance to level 3 */
+    if (G.level === 2 && G.score >= 150) {
+      advanceToLevel3();
+      G.phase = 'play';
+      G.lastTick = performance.now();
+      raf = requestAnimationFrame(tick);
+      return;
+    }
+
+    /* level 3 (any outcome), or a level 1/2 run that didn't clear its advancement bar, falls through to final scoring */
     G.phase = 'over';
     cancelAnimationFrame(raf);
     dismissEvent();
 
+    /* score is cumulative across all levels played (never reset by advanceToLevel2/3), so a level-3
+       finisher already banked considerable score in levels 1-2 before level-3 play even starts.
+       Thresholds are raised accordingly so 3-star still requires genuinely strong play on top of that. */
     const finalScore = Math.floor(G.score);
-    const stars = finalScore >= 300 ? 3 : finalScore >= 150 ? 2 : 1;
+    const stars = finalScore >= 550 ? 3 : finalScore >= 320 ? 2 : 1;
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
       ? cvAwardGame('game_inv_portfolio', { level: G.level, stars, badge: 'Diversification Master', is3star, isPerfect: is3star })
@@ -696,6 +841,26 @@
     buildSliders();
     refreshMeter();
     startLoop();
+  };
+
+  /* ── debug hooks (dev/QA only) ───────────────────────────────── */
+  window._phqDbg = () => G ? {
+    level: G.level,
+    phase: G.phase,
+    score: Math.round(G.score),
+    timeLeft: G.timeLeft,
+    activeAssets: G.activeAssets.slice(),
+    allocs: { ...G.allocs },
+    divScore: getDivScore(),
+    activeEvent: G.activeEvent ? G.activeEvent.id : null,
+    eventPausedRemainMs: G._eventPausedRemainMs,
+    rafPending: !!raf,
+  } : null;
+
+  window._phqForceLevel3 = () => {
+    if (!G) return 'no game running';
+    advanceToLevel3();
+    return 'forced to level 3 — check window._phqDbg()';
   };
 
 })();

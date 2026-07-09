@@ -5,24 +5,52 @@
    + tip — bigger tip when patience is high). Build serve COMBOS.
    Watch INVENTORY: tap RESTOCK before you run dry. Angry walk-offs
    crush HAPPINESS. Hit the revenue GOAL before time runs out.
+   3-LEVEL MISSION LADDER: L1 Rookie → L2 Pro (higher goal, faster
+   customer spawns, shorter patience, pricier restocks) → L3 Legend
+   (highest goal, fastest spawns, shortest patience, priciest restocks).
+   Each level has its OWN 4 entrepreneurship tips (never repeated within
+   a level, never repeated across levels).
    Loads after the main script; overrides the stub window.SCREENS.game_bizop.
    ════════════════════════════════════════════════════════════════ */
 (function(){
-  const GOAL=2000, ROUND=80, MAXQ=5, START_STOCK=8, STOCK_CAP=12, RESTOCK_COST=40, RESTOCK_QTY=6, GATE_EVERY=18;
-  let G=null, raf=null;
+  const MAXQ=5, START_STOCK=8, STOCK_CAP=12, RESTOCK_QTY=6, GATE_EVERY=18;
+  let G=null, raf=null, LV=0;   // LV = current level index (0..2)
 
-  // LEARN WHILE PLAYING — entrepreneurship lessons (one card at a time on a Knowledge Gate)
+  // ── 3-LEVEL SYSTEM — real scaling knobs per level ────────────────────
+  //    goal: revenue target · round: seconds · spawnMul: spawn-interval
+  //    multiplier (lower=faster customers) · patMul: patience multiplier
+  //    (lower=shorter fuse) · restockCost: $ per restock (pricier = tighter
+  //    margins on higher levels)
+  const LEVELS=[
+    { name:'ROOKIE', goal:2000, round:80, spawnMul:1.0,  patMul:1.0,  restockCost:40 },
+    { name:'PRO',    goal:2800, round:82, spawnMul:0.82, patMul:0.82, restockCost:55 },
+    { name:'LEGEND', goal:3800, round:85, spawnMul:0.68, patMul:0.68, restockCost:70 }
+  ];
+  function L(){ return LEVELS[LV]; }
+  function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+
+  // LEARN WHILE PLAYING — 12 entrepreneurship lessons, split into 3
+  // disjoint 4-fact slices (L1 → 0-3 · L2 → 4-7 · L3 → 8-11), shuffled per
+  // run and never repeated within a level nor across levels
   const FACTS=[
+    // LEVEL 1 · the basics
     ['💡','Start with a real problem people will pay to solve.'],
     ['😀','Happy customers come back — service matters.'],
     ['📦','Keep stock ready, but don\'t over-order and waste cash.'],
     ['🏷️','Price to cover costs AND make a profit.'],
+    // LEVEL 2 · running the shop
     ['⚡','Fast service = more customers served = more revenue.'],
     ['💰','Revenue minus costs = profit. Watch both.'],
     ['📣','Marketing brings customers — but spend wisely.'],
+    ['🔁','Repeat customers cost less to win than brand-new ones — treat them well.'],
+    // LEVEL 3 · scaling up
+    ['📊','Track your numbers daily — small trends become big problems if ignored.'],
+    ['🧯','Keep a cash cushion — slow days happen even to great businesses.'],
+    ['🤝','Your team\'s mood shows up in every customer interaction — support them too.'],
+    ['🚀','Reinvest some profit into growth, but never spend money you don\'t have.']
   ];
 
-  window.boInit=function(){ G=null; };  // playDistrictGame calls this before goTo
+  window.boInit=function(){ G=null; LV=0; };  // playDistrictGame calls this before goTo
 
   // Selectable shops (each themes the order menu + base price)
   const SHOPS={
@@ -36,12 +64,13 @@
   function reset(keepShop){
     const shop = keepShop || (G&&G.shopKey) || null;
     G={ phase: shop?'play':'pick', shopKey:shop,
-        revenue:0, stock:START_STOCK, happy:100, time:ROUND,
+        revenue:0, stock:START_STOCK, happy:100, time:L().round,
         served:0, lost:0, combo:0, bestCombo:0, tips:0,
         queue:[], parts:[], floats:[], coins:[],
         spawnT:0.6, last:0, started:performance.now(),
         shake:0, flash:0, turbo:0, mkt:0, restockPulse:0, lowWarn:0,
-        gateT:GATE_EVERY, gateIdx:0 };
+        gateT:GATE_EVERY, gateIdx:0,
+        facts:shuffle(FACTS.slice(LV*4,LV*4+4)) };
   }
 
   window.SCREENS.game_bizop=function(){
@@ -50,8 +79,8 @@
     return `<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,#3d2560,#2d1b4e 55%,#1a1030);overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
       <div style="position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:10px;padding:12px 16px;background:linear-gradient(180deg,rgba(26,16,48,.9),transparent)">
         <button onclick="boExit()" style="padding:7px 14px;border:1px solid rgba(168,85,247,.45);border-radius:9px;background:rgba(168,85,247,.12);color:#c084fc;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer;white-space:nowrap">← LAUNCH LAB</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.2em;color:#c084fc;flex:1;text-align:center">💼 BIZ OP</div>
-        <div id="boTime" style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fbbf24;min-width:42px;text-align:right">${ROUND}s</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.2em;color:#c084fc;flex:1;text-align:center">💼 BIZ OP · <span id="boLvl">LV ${LV+1}/3</span></div>
+        <div id="boTime" style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fbbf24;min-width:42px;text-align:right">${L().round}s</div>
       </div>
 
       <!-- Revenue + goal bar -->
@@ -61,7 +90,7 @@
           <span id="boRevTxt" style="font-family:'Anton',sans-serif;font-size:1.55rem;line-height:1;color:#34d399">$0</span>
         </div>
         <div style="height:9px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden;border:1px solid rgba(168,85,247,.3)"><div id="boRevBar" style="height:100%;width:0%;background:linear-gradient(90deg,#a855f7,#34d399);transition:width .25s"></div></div>
-        <div style="text-align:right;font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.1em;color:rgba(255,255,255,.4);margin-top:2px">GOAL $${GOAL}</div>
+        <div style="text-align:right;font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.1em;color:rgba(255,255,255,.4);margin-top:2px">GOAL $<span id="boGoalTxt">${L().goal}</span></div>
       </div>
 
       <!-- Stat chips -->
@@ -76,7 +105,7 @@
       <canvas id="boCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none"></canvas>
 
       <!-- Restock button -->
-      <button id="boRestock" onclick="boDoRestock()" style="position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:7;padding:13px 24px;border:none;border-radius:15px;background:linear-gradient(135deg,#a855f7,#7e22ce);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.08em;font-weight:900;cursor:pointer;box-shadow:0 6px 22px rgba(168,85,247,.5);display:none">📦 RESTOCK +${RESTOCK_QTY} <span style="opacity:.8;font-size:.6rem">(−$${RESTOCK_COST})</span></button>
+      <button id="boRestock" onclick="boDoRestock()" style="position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:7;padding:13px 24px;border:none;border-radius:15px;background:linear-gradient(135deg,#a855f7,#7e22ce);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.08em;font-weight:900;cursor:pointer;box-shadow:0 6px 22px rgba(168,85,247,.5);display:none">📦 RESTOCK +${RESTOCK_QTY} <span style="opacity:.8;font-size:.6rem">(−$<span id="boRestockCostTxt">${L().restockCost}</span>)</span></button>
 
       <div id="boHint" style="position:absolute;left:0;right:0;bottom:20px;text-align:center;z-index:5;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.1em;color:rgba(255,255,255,.42);pointer-events:none">TAP a customer to SERVE · keep STOCK up · serve fast for TIPS</div>
 
@@ -97,7 +126,7 @@
     p.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 22px">
       <div style="font-size:2.4rem;margin-bottom:4px">💼</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.2em;color:#c084fc;margin-bottom:6px">CHOOSE YOUR BUSINESS</div>
-      <p style="color:rgba(255,255,255,.6);margin:0 0 20px;font-size:.85rem">Serve every customer before they lose patience. Hit <b style="color:#34d399">$${GOAL}</b> revenue in ${ROUND}s!</p>
+      <p style="color:rgba(255,255,255,.6);margin:0 0 20px;font-size:.85rem">Serve every customer before they lose patience. Hit <b style="color:#34d399">$${L().goal}</b> revenue in ${L().round}s!</p>
       <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">${card('burger',SHOPS.burger)}${card('coffee',SHOPS.coffee)}${card('pizza',SHOPS.pizza)}</div>
     </div>`;
   }
@@ -168,7 +197,7 @@
     const shop=SHOPS[G.shopKey]||SHOPS.burger;
     const order=shop.menu[Math.floor(Math.random()*shop.menu.length)];
     const face=FACES[Math.floor(Math.random()*FACES.length)];
-    const patMax=4.2 - prog*1.4 + Math.random()*1.2;   // shrinks as game heats up
+    const patMax=(4.2 - prog*1.4 + Math.random()*1.2)*L().patMul;   // shrinks as game heats up + as level ramps
     G.queue.push({ slot, x:slotX(slot)-0.16, tx:slotX(slot), cy:QY, face, order, base:shop.base,
                    pat:patMax, patMax, state:'in', enter:0, bob:Math.random()*6.28, served:0, leave:0 });
   }
@@ -196,8 +225,9 @@
   window.boDoRestock=function(){
     if(!G||G.phase!=='play') return;
     if(G.stock>=STOCK_CAP){ floatTxt(0.5,0.5,'STOCK FULL','#c084fc'); return; }
-    if(G.revenue<RESTOCK_COST){ G.shake=0.18; floatTxt(0.5,0.5,'NEED $'+RESTOCK_COST,'#fca5a5'); return; }
-    G.revenue-=RESTOCK_COST;
+    const cost=L().restockCost;
+    if(G.revenue<cost){ G.shake=0.18; floatTxt(0.5,0.5,'NEED $'+cost,'#fca5a5'); return; }
+    G.revenue-=cost;
     G.stock=Math.min(STOCK_CAP,G.stock+RESTOCK_QTY);
     G.restockPulse=0; G.flash=0.25;
     burst(0.5,0.9,'#fbbf24',12);
@@ -209,12 +239,13 @@
     const tEl=document.getElementById('boTime'); if(tEl){ tEl.textContent=Math.ceil(G.time)+'s'; tEl.style.color=G.time<15?'#f87171':'#fbbf24'; }
     // KNOWLEDGE GATE every ~18s — pauses everything (customers/patience/timer freeze)
     G.gateT-=dt; if(G.gateT<=0){ return openGate(); }
-    const prog=1-(G.time/ROUND);
+    const prog=1-(G.time/L().round);
 
-    // spawn customers (marketing power-up speeds spawns)
+    // spawn customers (marketing power-up speeds spawns; per-level spawnMul
+    // makes higher levels throw customers at you faster)
     G.spawnT-=dt*(G.mkt>0?1.8:1);
     if(G.spawnT<=0){
-      G.spawnT=Math.max(0.9, 2.3 - prog*1.3) * (0.7+Math.random()*0.6);
+      G.spawnT=Math.max(0.9, 2.3 - prog*1.3) * (0.7+Math.random()*0.6) * L().spawnMul;
       spawnCustomer(prog);
       // occasional power-up gift instead of plain spawn pacing
     }
@@ -261,14 +292,16 @@
     setTxt('boHappyN',Math.round(G.happy)+'%');
     setTxt('boCombo','x'+G.combo);
     setTxt('boRevTxt','$'+G.revenue);
-    const rb=document.getElementById('boRevBar'); if(rb) rb.style.width=Math.min(100,G.revenue/GOAL*100)+'%';
+    setTxt('boGoalTxt',L().goal);
+    setTxt('boRestockCostTxt',L().restockCost);
+    const rb=document.getElementById('boRevBar'); if(rb) rb.style.width=Math.min(100,G.revenue/L().goal*100)+'%';
     const hb=document.getElementById('boHappyBar'); if(hb) hb.style.width=G.happy+'%';
     const sc=document.getElementById('boStock'); if(sc) sc.style.color = G.stock<=2 ? '#f87171' : '#fbbf24';
     // restock button glow when low
     const rbtn=document.getElementById('boRestock');
     if(rbtn){ const lit=G.stock<=3||G.restockPulse>0; rbtn.style.boxShadow= lit ? '0 0 26px rgba(251,191,36,.85),0 6px 22px rgba(168,85,247,.5)' : '0 6px 22px rgba(168,85,247,.5)'; rbtn.style.transform='translateX(-50%)'+(lit?' scale(1.05)':''); }
 
-    if(G.revenue>=GOAL) return end(true);
+    if(G.revenue>=L().goal) return end(true);
     if(G.happy<=0) return end(false);
   }
   function ease(t){ t=Math.max(0,Math.min(1,t)); return t*t*(3-2*t); }
@@ -382,30 +415,53 @@
   function end(win){
     if(G.phase==='over') return; G.phase='over';
     const score=G.revenue;
-    if(window.state){ state.coins=(state.coins||0)+score; if(window.cvAddXP) cvAddXP(Math.round(score/4),0); if(window.cvSave) cvSave();
-      state.gamesDone=state.gamesDone||{}; state.gamesDone['builder:0']=1; }
-    const won = win || G.revenue>=GOAL;
+    const won = win===true || G.revenue>=L().goal;                 // computed BEFORE awards (keep!)
+    const lvl=LV+1, isFinal=LV>=2;
+    let earned=0;
+    if(window.state){
+      state.gamesDone=state.gamesDone||{}; state.gamesDone['builder:0']=1;
+      const stars = won ? (G.happy>=80?3:G.happy>=50?2:1) : 0;
+      if(stars>=1 && window.cvAwardGame){
+        earned = cvAwardGame('game_bizop',{level:lvl,stars,badge:'Biz Tycoon',is3star:stars===3,isPerfect:stars===3,isFlagship:true});
+      } else if(!won){
+        earned=50; state.coins=(state.coins||0)+earned;   // small consolation, no farming value
+        if(window.cvAddXP) cvAddXP(10,0); if(window.cvSave) cvSave();
+      }
+    }
     const rb=document.getElementById('boRestock'); if(rb) rb.style.display='none';
     const o=document.getElementById('boOver'); if(!o) return; o.style.display='flex';
-    const reason = won ? 'REVENUE GOAL SMASHED!' : (G.happy<=0 ? 'CUSTOMERS WALKED OUT' : "TIME'S UP");
-    o.innerHTML=`<div style="max-width:430px;text-align:center;padding:34px 28px;border:1px solid ${won?'#34d399':'#a855f7'};border-radius:22px;background:linear-gradient(160deg,rgba(45,27,78,.97),rgba(26,16,48,.97));box-shadow:0 0 60px rgba(168,85,247,.45)">
-      <div style="font-size:3rem;margin-bottom:8px">${won?'🏆':'💼'}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#34d399':'#c084fc'};margin-bottom:8px">${reason}</div>
+    const P="padding:13px 26px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,#a855f7,#7e22ce);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;font-weight:900;cursor:pointer";
+    const GH="padding:13px 26px;margin:4px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer";
+    const title = won ? (isFinal ? '👑 ALL 3 LEVELS MASTERED!' : 'MISSION ACCOMPLISHED — LEVEL '+lvl+' ✔') : 'NICE TRY! POWER UP AND TRY AGAIN';
+    const sub = won ? 'REVENUE GOAL SMASHED!' : (G.happy<=0 ? 'OOPS — customers walked out' : "OOPS — the clock beat the goal");
+    const btns = won
+      ? (isFinal
+          ? '<button onclick="boRestart()" style="'+GH+'">↺ REPLAY L3</button><button onclick="boExit()" style="'+P+'">← HUB</button>'
+          : '<button onclick="boNextLevel()" style="'+P+'">LEVEL '+(lvl+1)+' ▶</button><button onclick="boRestart()" style="'+GH+'">↺ REPLAY</button><button onclick="boExit()" style="'+GH+'">← HUB</button>')
+      : '<button onclick="boRestart()" style="'+P+'">↺ TRY AGAIN</button><button onclick="boExit()" style="'+GH+'">← HUB</button>';
+    o.innerHTML=`<div style="max-width:430px;text-align:center;padding:34px 28px;border:1px solid ${won?'#fbbf24':'#a855f7'};border-radius:22px;background:linear-gradient(160deg,rgba(45,27,78,.97),rgba(26,16,48,.97));box-shadow:0 0 60px rgba(168,85,247,.45)">
+      <div style="font-size:3rem;margin-bottom:8px">${won?(isFinal?'👑':'🏆'):'💼'}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#fbbf24':'#c084fc'};margin-bottom:6px">${title}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:8px">${sub}</div>
       <h1 style="font-family:'Anton',sans-serif;font-size:2.2rem;margin:0 0 6px;color:#fff">$${score}</h1>
-      <p style="color:rgba(255,255,255,.65);margin:0 0 18px;font-size:.9rem">Served ${G.served} · Lost ${G.lost} · Tips $${G.tips} · Best combo x${G.bestCombo}<br>+${score} 🪙 earned</p>
-      <button onclick="boRestart()" style="padding:13px 26px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,#a855f7,#7e22ce);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;font-weight:900;cursor:pointer">▶ RUN AGAIN</button>
-      <button onclick="boExit()" style="padding:13px 26px;margin:4px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
+      <p style="color:rgba(255,255,255,.65);margin:0 0 18px;font-size:.9rem">LEVEL ${lvl}/3 · Served ${G.served} · Lost ${G.lost} · Tips $${G.tips} · Best combo x${G.bestCombo}<br>+${earned} 🪙 earned</p>
+      ${btns}
     </div>`;
   }
 
+  // full-screen Knowledge Gate — PAUSES the game (phase!=='play' freezes update())
+  // draws from THIS level's shuffled slice of 4 (G.facts); once all 4 shown,
+  // gates silently skip so no tip ever repeats within or across levels
   function openGate(){
-    if(!G||G.phase!=='play') return; G.phase='gate';
-    const f=FACTS[G.gateIdx%FACTS.length]; G.gateIdx++;
+    if(!G||G.phase!=='play') return;
+    if(G.gateIdx>=G.facts.length){ G.gateT=GATE_EVERY; return; }
+    G.phase='gate';
+    const f=G.facts[G.gateIdx]; G.gateIdx++;
     const o=document.getElementById('boGate'); if(!o){ G.phase='play'; G.gateT=GATE_EVERY; return; }
     o.style.display='flex';
     o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #a855f7;border-radius:22px;background:linear-gradient(160deg,rgba(61,37,96,.97),rgba(26,16,48,.97));box-shadow:0 0 50px rgba(168,85,247,.4);animation:boGateIn .35s ease">
       <style>@keyframes boGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}</style>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#c084fc;margin-bottom:10px">⛩️ KNOWLEDGE GATE · BIZ TIP</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#c084fc;margin-bottom:10px">⛩️ KNOWLEDGE GATE · BIZ TIP · LV ${LV+1}</div>
       <div style="font-size:2.4rem;margin-bottom:8px">${f[0]}</div>
       <p style="font-size:1.02rem;line-height:1.5;color:#fff;margin:0 0 18px">${f[1]}</p>
       <button onclick="boGateGo()" style="padding:13px 30px;border:none;border-radius:12px;background:linear-gradient(135deg,#a855f7,#7e22ce);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.12em;font-weight:900;cursor:pointer">GOT IT → +$120</button>
@@ -414,5 +470,28 @@
   window.boGateGo=function(){ if(!G)return; G.revenue+=120; G.gateT=GATE_EVERY; G.phase='play'; G.last=performance.now(); const o=document.getElementById('boGate'); if(o){o.style.display='none';o.innerHTML='';} };
 
   window.boRestart=function(){ if(G&&G._cleanup)G._cleanup(); const keep=G&&G.shopKey; reset(keep); ['boOver','boGate'].forEach(id=>{const o=document.getElementById(id); if(o){o.style.display='none';o.innerHTML='';}}); boBoot(); };
+  // advance to the next level IN PLACE: release listeners, re-init state at
+  // LV+1, refresh the level chip, then re-boot the canvas (boRestart-style) —
+  // mirrors boRestart's _cleanup()-before-reset() ordering so no listeners leak
+  window.boNextLevel=function(){
+    if(G&&G._cleanup)G._cleanup();
+    const keep=G&&G.shopKey;
+    LV=Math.min(2,LV+1);
+    reset(keep);
+    ['boOver','boGate'].forEach(id=>{const o=document.getElementById(id); if(o){o.style.display='none';o.innerHTML='';}});
+    const lt=document.getElementById('boLvl'); if(lt) lt.textContent='LV '+(LV+1)+'/3';
+    boBoot();
+  };
   window.boExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); G=null; if(window.state)state.viewingWorld=state._returnHub||'builder'; goTo('hub'); };
+
+  // ── DEBUG HOOK (G is module-private — expose read-only state + a
+  //    force-win helper for logic-level verification without a browser) ──
+  window._boDbg=function(){
+    return G ? { LV, phase:G.phase, revenue:G.revenue, goal:L().goal, happy:G.happy,
+                  shopKey:G.shopKey, gateIdx:G.gateIdx, factsThisLevel:G.facts,
+                  levelName:L().name, isFinal:LV>=2, restockCost:L().restockCost } : { LV, phase:'no-G' };
+  };
+  // force-win the current level instantly (test-only convenience — bypasses
+  // normal play to drive LV 0→1→2 and confirm the mastered banner at LV2)
+  window._boForceWin=function(){ if(!G) return false; if(G.phase==='pick') window.boPickShop('burger'); G.revenue=L().goal; G.happy=100; end(true); return true; };
 })();

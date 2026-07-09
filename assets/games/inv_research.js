@@ -3,6 +3,7 @@
    Mechanic: Spot & Match — Rate companies Strong Buy / Hold / Avoid
    Level 1 (Learn): 4 companies, clear metrics, 60s
    Level 2 (Master): 7 companies, news noise, analyst opinions, 75s
+   Level 3 (Pro): 10 companies, conflicting hype/panic signals, 90s
    Accent: #00C853 (Investopia green)
    ════════════════════════════════════════════════════════════════ */
 (function () {
@@ -141,11 +142,137 @@
     },
   ];
 
+  // Level 3 — Pro: 10 companies, disjoint from L1/L2. Hype/panic in the
+  // news+analyst columns deliberately CONTRADICTS the correct fundamentals
+  // rating on several cards — the whole point is to teach kids to trust
+  // Revenue/Earnings/Debt/Growth over headlines and hot takes.
+  const COMPANIES_L3 = [
+    {
+      name: 'QUANTA ROBOTICS', ticker: 'QTR', sector: 'Robotics', quarter: 'Q4',
+      revenue: '+27%', revenueDir: 1,
+      earnings: 'Strong', earningsDir: 1,
+      debt: 'Low', debtDir: 1,
+      growth: 'Fast', growthDir: 1,
+      news: 'Viral video shows robot dropping a tray 🤖',
+      analyst: 'Random blogger: "This stock is doomed"',
+      correct: 'buy',
+      hint: 'One clumsy robot video means nothing — revenue, earnings, and debt all say Strong Buy. Ignore the noise.',
+    },
+    {
+      name: 'HARBOR FREIGHT LINES', ticker: 'HFL', sector: 'Logistics', quarter: 'Q4',
+      revenue: '+2%', revenueDir: 0,
+      earnings: 'OK', earningsDir: 0,
+      debt: 'Mid', debtDir: 0,
+      growth: 'Steady', growthDir: 0,
+      news: 'CEO spotted buying a yacht 🛥️',
+      analyst: 'Talk show host: "To the moon!"',
+      correct: 'hold',
+      hint: 'A yacht purchase is not a metric. Fundamentals are flat and steady — this is a Hold, hype or not.',
+    },
+    {
+      name: 'VELOCITY MOTORS', ticker: 'VLM', sector: 'Automotive', quarter: 'Q4',
+      revenue: '-17%', revenueDir: -1,
+      earnings: 'Weak', earningsDir: -1,
+      debt: 'High', debtDir: -1,
+      growth: 'Shrinking', growthDir: -1,
+      news: 'Flashy new concept car unveiled 🏎️',
+      analyst: 'Influencer: "Best car ever, buy now!"',
+      correct: 'avoid',
+      hint: 'A cool concept car does not fix falling revenue, weak earnings, and high debt — Avoid.',
+    },
+    {
+      name: 'BRIGHTLEAF FOODS', ticker: 'BLF', sector: 'Consumer Staples', quarter: 'Q4',
+      revenue: '+9%', revenueDir: 1,
+      earnings: 'Strong', earningsDir: 1,
+      debt: 'Low', debtDir: 1,
+      growth: 'Fast', growthDir: 1,
+      news: 'Minor recall of one snack flavor 🍪',
+      analyst: 'Financial paper: Buy — fundamentals excellent',
+      correct: 'buy',
+      hint: 'A single flavor recall is a footnote; every core metric is strong — Strong Buy.',
+    },
+    {
+      name: 'SUMMIT MINERALS', ticker: 'SMT', sector: 'Mining', quarter: 'Q4',
+      revenue: '-11%', revenueDir: -1,
+      earnings: 'Weak', earningsDir: -1,
+      debt: 'High', debtDir: -1,
+      growth: 'Shrinking', growthDir: -1,
+      news: 'Rare metal discovery announced 💎',
+      analyst: 'Forum post: "Life-changing gains incoming!"',
+      correct: 'avoid',
+      hint: 'A discovery is a rumor until it shows up in revenue. Right now every metric says Avoid.',
+    },
+    {
+      name: 'PIXELWAVE STUDIOS', ticker: 'PXW', sector: 'Gaming', quarter: 'Q4',
+      revenue: '+34%', revenueDir: 1,
+      earnings: 'Strong', earningsDir: 1,
+      debt: 'Low', debtDir: 1,
+      growth: 'Fast', growthDir: 1,
+      news: 'Game delayed by two weeks 🎮',
+      analyst: 'Reddit thread: "Sell everything now"',
+      correct: 'buy',
+      hint: 'A two-week delay is routine. Explosive revenue, strong earnings, low debt — Strong Buy.',
+    },
+    {
+      name: 'CASCADE UTILITIES', ticker: 'CAS', sector: 'Utilities', quarter: 'Q4',
+      revenue: '+3%', revenueDir: 0,
+      earnings: 'OK', earningsDir: 0,
+      debt: 'Mid', debtDir: 0,
+      growth: 'Steady', growthDir: 0,
+      news: 'Local news praises reliability 📰',
+      analyst: 'Newsletter: "The next big breakout!"',
+      correct: 'hold',
+      hint: 'Nice press, but the numbers are just average — a steady Hold, not a "breakout."',
+    },
+    {
+      name: 'IRONVAULT SECURITY', ticker: 'IVS', sector: 'Cybersecurity', quarter: 'Q4',
+      revenue: '+21%', revenueDir: 1,
+      earnings: 'Strong', earningsDir: 1,
+      debt: 'Mid', debtDir: 0,
+      growth: 'Fast', growthDir: 1,
+      news: 'Minor data outage lasted 20 minutes ⚠️',
+      analyst: 'Podcast host: "I would avoid this one"',
+      correct: 'buy',
+      hint: 'A 20-minute outage is small; strong revenue, earnings, and growth outweigh one bad headline — Buy.',
+    },
+    {
+      name: 'DUNEWORTH REALTY', ticker: 'DWR', sector: 'Real Estate', quarter: 'Q4',
+      revenue: '-8%', revenueDir: -1,
+      earnings: 'Weak', earningsDir: -1,
+      debt: 'High', debtDir: -1,
+      growth: 'Slow', growthDir: -1,
+      news: 'Celebrity buys penthouse in their building 🏙️',
+      analyst: 'Social post: "This stock is unstoppable"',
+      correct: 'avoid',
+      hint: 'One celebrity sale does not offset falling revenue and high debt across the whole company — Avoid.',
+    },
+    {
+      name: 'AZURE BIOSCIENCE', ticker: 'AZB', sector: 'Biotech', quarter: 'Q4',
+      revenue: '+16%', revenueDir: 1,
+      earnings: 'Strong', earningsDir: 1,
+      debt: 'Low', debtDir: 1,
+      growth: 'Fast', growthDir: 1,
+      news: 'Lab trial results still pending 🧪',
+      analyst: 'Late-night TV joke about the stock 📺',
+      correct: 'buy',
+      hint: 'Pending trials are neutral, not bad — current revenue, earnings, and debt already justify a Buy.',
+    },
+  ];
+
   /* ─── GAME STATE ─────────────────────────────────────────────── */
   let G = null;
 
+  // Central per-level lookup — every level-scaling value lives here so
+  // adding/tuning a level never requires touching gameplay logic again.
+  const LEVEL_META = {
+    1: { companies: COMPANIES_L1, timeLimit: 60, hasNews: false },
+    2: { companies: COMPANIES_L2, timeLimit: 75, hasNews: true },
+    3: { companies: COMPANIES_L3, timeLimit: 90, hasNews: true },
+  };
+
   function newState(level) {
-    const companies = level === 1 ? shuffle([...COMPANIES_L1]) : shuffle([...COMPANIES_L2]);
+    const meta = LEVEL_META[level] || LEVEL_META[1];
+    const companies = shuffle([...meta.companies]);
     return {
       level,
       phase: 'play',          // play | end
@@ -154,7 +281,7 @@
       score: 0,
       correct: 0,
       total: companies.length,
-      timeLeft: level === 1 ? 60 : 75,
+      timeLeft: meta.timeLimit,
       answers: [],             // {company, rating, isCorrect}
       timerId: null,
       feedback: null,          // {text, ok, t}
@@ -245,6 +372,10 @@
         <div style="font-family:'Orbitron','Inter',sans-serif;font-size:13px;color:${HOLD_COL};font-weight:700;">LEVEL 2 — MASTER</div>
         <div style="font-size:12px;color:#8ab898;margin-top:4px;">7 companies · 75 seconds · News + analyst noise</div>
       </button>
+      <button onclick="window._rcStartLevel(3)" style="background:${PANEL_BG};border:1.5px solid ${AVOID_COL};border-radius:10px;padding:18px 16px;cursor:pointer;text-align:left;color:#fff;font-family:inherit;">
+        <div style="font-family:'Orbitron','Inter',sans-serif;font-size:13px;color:${AVOID_COL};font-weight:700;">LEVEL 3 — PRO</div>
+        <div style="font-size:12px;color:#8ab898;margin-top:4px;">10 companies · 90 seconds · Hype &amp; panic headlines that lie</div>
+      </button>
     </div>
 
     <div style="font-size:11px;color:#3a6a4a;text-align:center;margin-top:6px;">Read Revenue · Earnings · Debt · Growth</div>
@@ -263,6 +394,31 @@
       updateTopBar();
       renderCard();
       startTimer();
+    };
+
+    // DEBUG HOOK — module state is closure-private, expose read + force-win
+    // for QA. Not referenced by gameplay logic.
+    window._rcDbg = function () {
+      return G ? {
+        level: G.level, current: G.current, total: G.total,
+        score: G.score, correct: G.correct, timeLeft: G.timeLeft,
+        phase: G.phase, hasNews: !!(LEVEL_META[G.level] || LEVEL_META[1]).hasNews,
+        companies: G.companies.map(c => ({ name: c.name, correct: c.correct, hasNewsText: !!(c.news && c.analyst) })),
+      } : null;
+    };
+    // Rates every remaining card with its correct answer, one at a time,
+    // respecting the game's real async advance (setTimeout inside _rcRate).
+    // Calls `done(finalDbgSnapshot)` once G.current reaches G.total or G is
+    // reset (end screen shown). Mirrors real correct-tap play, just automated.
+    window._rcForceWin = function (done) {
+      function step() {
+        if (!G || G.phase !== 'play') { if (done) done(window._rcDbg()); return; }
+        if (G.current >= G.total) { if (done) done(window._rcDbg()); return; }
+        const co = G.companies[G.current];
+        window._rcRate(co.correct);
+        setTimeout(step, 650); // > 600ms correct-answer advance delay in _rcRate
+      }
+      step();
     };
   }
 
@@ -287,7 +443,7 @@
     const ring = q('#rc_timer_ring');
     if (!txt || !ring) return;
 
-    const maxTime = G.level === 1 ? 60 : 75;
+    const maxTime = (LEVEL_META[G.level] || LEVEL_META[1]).timeLimit;
     const pct = G.timeLeft / maxTime;
     const circumference = 125.66;
     const offset = circumference * (1 - pct);
@@ -351,7 +507,7 @@
     }
 
     const co = G.companies[G.current];
-    const isL2 = G.level === 2;
+    const hasNews = !!(LEVEL_META[G.level] || LEVEL_META[1]).hasNews;
 
     const metrics = [
       { label: 'Revenue', value: co.revenue, color: metricColor(co.revenueDir), arrow: metricArrow(co.revenueDir) },
@@ -367,7 +523,7 @@
       </div>
     `).join('');
 
-    const newsBlock = isL2 ? `
+    const newsBlock = hasNews ? `
       <div style="background:#030f08;border:1px solid #0d2a1a;border-radius:8px;padding:10px 12px;margin-top:2px;">
         <div style="font-size:10px;color:${ACCENT};letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Market News</div>
         <div style="font-size:12px;color:#c8e8d4;line-height:1.5;">${co.news || '—'}</div>
@@ -401,7 +557,7 @@
           </div>
         </div>
 
-        ${isL2 ? `<div style="padding:0 14px 10px;display:flex;flex-direction:column;gap:8px;">${newsBlock}</div>` : ''}
+        ${hasNews ? `<div style="padding:0 14px 10px;display:flex;flex-direction:column;gap:8px;">${newsBlock}</div>` : ''}
       </div>
 
       <!-- RATING PROMPT -->
@@ -466,8 +622,8 @@
     // Flash feedback
     showToast(
       isCorrect
-        ? '✓ Correct! +' + pts + ' pts'
-        : '✗ Wrong — correct: ' + ratingLabel(co.correct),
+        ? '✓ Nailed it! +' + pts + ' pts'
+        : 'OOPS — the real call was ' + ratingLabel(co.correct),
       isCorrect
     );
 

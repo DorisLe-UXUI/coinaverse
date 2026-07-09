@@ -3,6 +3,7 @@
    Portfolio Balance mechanic · Market Risk & Price Swings
    3 asset sliders (Cash / Crypto / Diversified) · Risk Meter
    Level 1: gentle swings · Level 2: crashes, bull runs, news
+   Level 3: contagion, de-pegs, whipsaws & compound macro shocks
    Win: finish above starting value · Lose: crash below threshold
    ════════════════════════════════════════════════════════════════ */
 (function () {
@@ -79,6 +80,19 @@
     { id:'etfapproval',label:'CRYPTO ETF APPROVED!',   icon:'📜', color:GOLD,   desc:'Regulatory green light — surge!',  affect:{ crypto:+18, div:+6 },  hint:'Diversified assets benefit too.' },
   ];
 
+  const EVENTS_LVL3 = [
+    { id:'depeg',      label:'STABLECOIN DE-PEGS!',    icon:'⛓️‍💥', color:DANGER, desc:'A "stable" coin breaks $1 and craters to 60¢.', affect:{ crypto:-32, cash:-6 },  hint:'Nothing is 100% safe — check backing, not just the label.' },
+    { id:'exchcollapse',label:'EXCHANGE COLLAPSES!',   icon:'🏦', color:DANGER, desc:'A major exchange freezes withdrawals overnight.', affect:{ crypto:-36, div:-16 }, hint:'Contagion spreads fast — this is why you diversify.' },
+    { id:'whipsaw',    label:'FLASH CRASH & SNAPBACK', icon:'⚡', color:WARN,   desc:'Price free-falls 25% then fully recovers in seconds.', affect:{ crypto:-30 },      hint:'Panic-selling here locks in a loss that reverses anyway.' },
+    { id:'dedollar',   label:'DE-DOLLARIZATION SHIFT', icon:'🌐', color:C_DIV,  desc:'Nations shift reserves away from the dollar.',    affect:{ cash:-10, crypto:+14 }, hint:'Currency shifts change what "safe" even means.' },
+    { id:'ratehike',   label:'SURPRISE RATE HIKE!',    icon:'📈', color:DANGER, desc:'Central bank hikes rates hard, unannounced.',     affect:{ crypto:-20, div:-14 }, hint:'Higher borrowing costs squeeze risky assets first.' },
+    { id:'supplyshock',label:'SUPPLY CHAIN SHOCK',     icon:'🚢', color:WARN,   desc:'A shipping crunch hits real-economy earnings.',   affect:{ div:-18, crypto:+6 }, hint:'Diversified holdings feel real-world shocks too.' },
+    { id:'rugpull',    label:'PROJECT INSOLVENCY!',    icon:'🕳️', color:DANGER, desc:'A top crypto project runs out of reserves and folds.', affect:{ crypto:-34, div:-8 }, hint:'Concentration in one project multiplies this pain.' },
+    { id:'swfmove',    label:'SOVEREIGN FUND SHIFT',   icon:'🏛️', color:GOLD,   desc:'A national wealth fund reallocates billions into crypto.', affect:{ crypto:+30, cash:-5 }, hint:'Big institutional money can move markets overnight.' },
+    { id:'algospike',  label:'ALGO-TRADING SPIKE',     icon:'🤖', color:AC2,    desc:'Automated trading bots trigger a violent swing.', affect:{ crypto:-24, div:+10 }, hint:'Machines can amplify moves faster than any headline.' },
+    { id:'creditfreeze',label:'CREDIT MARKET FREEZE',  icon:'🧊', color:DANGER, desc:'Lending dries up across the board — everyone sells.', affect:{ crypto:-20, div:-18, cash:+4 }, hint:'When credit freezes, even Cash allocation matters more.' },
+  ];
+
   /* ── risk meter config ────────────────────────────────────── */
   const SAFE_BAND_LOW  = 20;  // risk meter 0–100
   const SAFE_BAND_HIGH = 70;
@@ -113,7 +127,22 @@
       priceShiftScale: 1.2,
       stabilityBonus: 5,
     },
+    {
+      level: 3, title: 'LEGEND', subtitle: 'Contagion & Compound Shocks',
+      duration: 100,
+      eventPool: EVENTS_LVL3,
+      eventIntervalMs: 3500,
+      eventDurationMs: 3500,
+      maxSimultaneous: 3,
+      priceShiftScale: 1.6,
+      stabilityBonus: 7,
+    },
   ];
+
+  /* ── level config lookup (generic, off-by-one-proof) ──────── */
+  function getLevelCfg(lv) {
+    return LEVEL_CFG.find(c => c.level === lv) || LEVEL_CFG[0];
+  }
 
   /* ── module state ─────────────────────────────────────────── */
   let G = null;
@@ -144,6 +173,7 @@
   <div id="vvTopBar" style="position:absolute;top:0;left:0;right:0;height:54px;background:rgba(3,4,12,.85);border-bottom:1px solid ${AC}33;display:flex;align-items:center;padding:0 12px;gap:10px;z-index:50;backdrop-filter:blur(6px);">
     <button id="vvBackBtn" style="background:none;border:1px solid ${AC}55;color:${AC};font-family:Orbitron,monospace;font-size:11px;padding:6px 11px;border-radius:7px;cursor:pointer;letter-spacing:.08em;white-space:nowrap;flex-shrink:0;">← HUB</button>
     <div style="font-family:Orbitron,monospace;font-size:12px;font-weight:700;color:${AC};letter-spacing:1.5px;flex:1;text-align:center;text-shadow:0 0 12px ${AC}88;">VOLATILITY VORTEX</div>
+    <button id="vvHelpBtn" title="How to play" style="background:none;border:1px solid ${AC}55;color:${AC};font-size:12px;padding:6px 9px;border-radius:7px;cursor:pointer;flex-shrink:0;">❓</button>
     <div style="display:flex;align-items:center;gap:14px;flex-shrink:0;">
       <div style="text-align:center;">
         <div style="font-size:8px;color:#aaa;letter-spacing:1px;font-family:Orbitron,monospace;">PORTFOLIO</div>
@@ -223,6 +253,25 @@
     goTo('hub');
   };
 
+  /* ── debug hooks (dev/QA only — G is module-private) ──── */
+  window._vvDbg = () => G ? {
+    level: G.level,
+    portValue: Math.round(G.portValue),
+    startValue: G.startValue,
+    riskMeter: Math.round(G.riskMeter),
+    timeLeft: Math.round(G.timeLeft),
+    timeLeftRaw: G.timeLeft,   // unrounded — needed to verify pause/resume math to sub-second precision
+    phase: G.phase,
+    cfgTitle: G.cfg && G.cfg.title,
+  } : null;
+
+  window._vvForceAdvance = () => {
+    if (G) {
+      G.timeLeft = 0.01;
+      G.portValue = Math.max(G.portValue, G.startValue + 1);
+    }
+  };
+
   /* ── cleanup ──────────────────────────────────────────── */
   function cleanupGame() {
     G = null;
@@ -251,6 +300,10 @@
     const backBtn = document.getElementById('vvBackBtn');
     if (backBtn) backBtn.onclick = window.bsv_volatilityvortexExit;
 
+    /* help button — reopens the same HOW TO PLAY overlay shown at intro, without losing the run */
+    const helpBtn = document.getElementById('vvHelpBtn');
+    if (helpBtn) helpBtn.onclick = window.bsv_vvShowHelp;
+
     /* setup bg canvas */
     setupBgCanvas();
     setupParticles();
@@ -258,8 +311,8 @@
     /* bootstrap state */
     G = {
       level: 1,
-      cfg: LEVEL_CFG[0],
-      phase: 'play',       // 'play' | 'event' | 'between' | 'over'
+      cfg: getLevelCfg(1),
+      phase: 'intro',      // 'intro' | 'play' | 'event' | 'paused' | 'between' | 'over' — tick() only advances time/portfolio during 'play'/'event'
 
       /* portfolio */
       startValue: 10000,
@@ -280,13 +333,14 @@
       stabilityScore: 0,
 
       /* time */
-      timeLeft: LEVEL_CFG[0].duration,
+      timeLeft: getLevelCfg(1).duration,
       lastTick: performance.now(),
 
       /* events */
       activeEvents: [],
       eventCooldown: 2500,
       nextEventIn: 3500,
+      lastEventId: null,   // guards against firing the same event twice in a row
 
       /* dragging */
       dragging: null,
@@ -304,7 +358,55 @@
     buildSliders();
     updateAllVisuals();
     startLoop();
+    showHowToPlay();   // shown once automatically before Level 1 truly starts; tick() already no-ops
+                        // outside phase 'play'/'event', and refreshes G.lastTick every frame even
+                        // while paused (see tick(), line ~813) — so resuming needs no extra timestamp math.
   }
+
+  /* ── HOW-TO-PLAY overlay — shown once automatically before Level 1,
+     re-opened anytime via the ❓ button without losing the run.
+     Pausing = set G.phase = 'paused'. tick() keeps running every frame
+     (drawing the background) but skips ALL of timeLeft/portfolio/risk/
+     event logic while phase isn't 'play'/'event', and keeps G.lastTick
+     fresh every frame regardless of phase — so the instant we flip back
+     to 'play' the very next dt is just one frame's worth, never the
+     paused duration. No manual timestamp shifting needed here. ── */
+  function showHowToPlay() {
+    const overlay = document.getElementById('vvOver');
+    if (!overlay || !G) return;
+    const wasActive = G.phase === 'play' || G.phase === 'event';
+    if (wasActive) G.phase = 'paused';
+    overlay.style.display = 'flex';
+    overlay.innerHTML = `
+      <div style="max-width:360px;width:90%;text-align:center;padding:0 12px;">
+        <div style="font-family:Orbitron,monospace;font-size:11px;letter-spacing:2px;color:${AC};margin-bottom:10px;">HOW TO PLAY</div>
+        <div style="font-size:2.2rem;margin-bottom:8px;">🌪️</div>
+        <div style="font-family:Orbitron,monospace;font-size:16px;font-weight:900;color:${AC};text-shadow:0 0 20px ${AC}88;margin-bottom:16px;">VOLATILITY VORTEX</div>
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:13px 15px;margin-bottom:20px;text-align:left;">
+          <div style="display:flex;flex-direction:column;gap:9px;">
+            <div style="display:flex;gap:8px;align-items:flex-start;"><span style="font-size:14px;flex-shrink:0;">🎯</span><span style="font-size:11px;color:rgba(255,255,255,.8);line-height:1.5;">Split $10,000 across <b style="color:${C_CASH}">Cash</b>, <b style="color:${C_CRYPTO}">Crypto</b>, and <b style="color:${C_DIV}">Diversified</b> — finish above where you started.</span></div>
+            <div style="display:flex;gap:8px;align-items:flex-start;"><span style="font-size:14px;flex-shrink:0;">👆</span><span style="font-size:11px;color:rgba(255,255,255,.8);line-height:1.5;">Drag each slider to change how much you hold. All three always add up to 100%.</span></div>
+            <div style="display:flex;gap:8px;align-items:flex-start;"><span style="font-size:14px;flex-shrink:0;">⚡</span><span style="font-size:11px;color:rgba(255,255,255,.8);line-height:1.5;">Watch for market events — crashes, bull runs, and breaking news shift prices fast. Read the hint and rebalance.</span></div>
+            <div style="display:flex;gap:8px;align-items:flex-start;"><span style="font-size:14px;flex-shrink:0;">⚖️</span><span style="font-size:11px;color:rgba(255,255,255,.8);line-height:1.5;">Keep the <b style="color:${AC}">Risk Meter</b> needle in the cyan band — too safe misses gains, too risky risks a crash.</span></div>
+            <div style="display:flex;gap:8px;align-items:flex-start;"><span style="font-size:14px;flex-shrink:0;">⏱️</span><span style="font-size:11px;color:rgba(255,255,255,.8);line-height:1.5;">Same rules on all 3 levels — later levels just bring faster, bigger swings.</span></div>
+          </div>
+        </div>
+        <button id="vvHowtoDismiss" style="padding:13px 30px;border-radius:10px;cursor:pointer;background:${AC}22;border:1.5px solid ${AC};color:${AC};font-family:Orbitron,monospace;font-size:12px;letter-spacing:1px;font-weight:700;">${wasActive ? '▶ RESUME' : 'GOT IT — START ▶'}</button>
+      </div>`;
+    document.getElementById('vvHowtoDismiss').onclick = () => {
+      overlay.style.display = 'none';
+      overlay.innerHTML = '';
+      if (G && (G.phase === 'intro' || G.phase === 'paused')) {
+        G.phase = 'play';
+      }
+    };
+  }
+
+  // ── ❓ re-open the how-to-play overlay mid-game without losing the run ──
+  window.bsv_vvShowHelp = function () {
+    if (!G || G.phase === 'over' || G.phase === 'between' || G.phase === 'intro') return;
+    showHowToPlay();
+  };
 
   /* ══════════════════════════════════════════════════════════
      BACKGROUND VORTEX CANVAS
@@ -789,13 +891,14 @@
       // time expired
       if (G.timeLeft <= 0) {
         G.timeLeft = 0;
-        if (G.level === 1 && G.portValue > G.startValue) {
-          // advance to level 2
-          advanceToLevel2();
+        const profitable = G.portValue > G.startValue;
+        if (profitable && G.level < LEVEL_CFG.length) {
+          // profitable finish, more levels remain — advance (lvl1->2, lvl2->3, ...)
+          advanceToLevel(G.level + 1);
           return;
         } else {
-          const won = G.portValue > G.startValue;
-          triggerGameOver(won);
+          // final level reached, OR not profitable — this run ends here
+          triggerGameOver(profitable);
           return;
         }
       }
@@ -833,8 +936,9 @@
       totalReturn += tick;
     });
 
-    // small random noise
-    totalReturn += (Math.random() - 0.5) * 0.0004 * (dt / 1000) * G.portValue;
+    // small random noise (fractional rate, like the other terms above — do NOT multiply by
+    // G.portValue here, since it's applied via G.portValue * totalReturn below already)
+    totalReturn += (Math.random() - 0.5) * 0.0004 * (dt / 1000);
 
     G.portValue += G.portValue * totalReturn;
     G.portValue = Math.max(100, G.portValue);
@@ -852,7 +956,16 @@
   function fireEvent() {
     if (!G) return;
     const pool = G.cfg.eventPool;
-    const ev = pool[Math.floor(Math.random() * pool.length)];
+    let ev = pool[Math.floor(Math.random() * pool.length)];
+    // avoid firing the exact same event back-to-back (small UX guard; safe no-op if pool has 1 entry)
+    if (pool.length > 1 && ev.id === G.lastEventId) {
+      let attempts = 0;
+      while (ev.id === G.lastEventId && attempts < 5) {
+        ev = pool[Math.floor(Math.random() * pool.length)];
+        attempts++;
+      }
+    }
+    G.lastEventId = ev.id;
     const instance = {
       ...ev,
       timeLeft: G.cfg.eventDurationMs,
@@ -916,30 +1029,32 @@
     if (banner) banner.style.display = 'none';
   }
 
-  /* ── advance to level 2 ───────────────────────────────── */
-  function advanceToLevel2() {
+  /* ── advance to an arbitrary level (generic, N-level safe) ── */
+  function advanceToLevel(lv) {
     if (!G) return;
-    G.level = 2;
-    G.cfg = LEVEL_CFG[1];
-    G.timeLeft = LEVEL_CFG[1].duration;
+    G.level = lv;
+    G.cfg = getLevelCfg(lv);
+    G.timeLeft = G.cfg.duration;
     G.activeEvents = [];
     G.nextEventIn = 2000;
+    G.lastEventId = null;
     G.lastTick = performance.now();
     hideEventBanner();
 
     const badge = document.getElementById('vvLevelBadge');
-    if (badge) badge.textContent = 'LVL 2 · MASTER';
+    if (badge) badge.textContent = `LVL ${lv} · ${G.cfg.title}`;
 
     // show level-up flash
-    showLevelUpFlash();
+    showLevelUpFlash(lv);
   }
 
-  function showLevelUpFlash() {
+  function showLevelUpFlash(lv) {
     const root = document.getElementById('vvRoot');
     if (!root) return;
+    const cfg = getLevelCfg(lv);
     const flash = document.createElement('div');
     flash.style.cssText = `position:absolute;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;background:rgba(0,255,255,.08);pointer-events:none;animation:vvFlash .7s ease forwards;`;
-    flash.innerHTML = `<div style="font-family:Orbitron,monospace;font-size:28px;font-weight:900;color:${AC};text-shadow:0 0 30px ${AC};text-align:center;letter-spacing:3px;">LEVEL 2<br><span style="font-size:14px;color:#fff;">MASTER MODE — BRACE FOR IMPACT</span></div>`;
+    flash.innerHTML = `<div style="font-family:Orbitron,monospace;font-size:28px;font-weight:900;color:${AC};text-shadow:0 0 30px ${AC};text-align:center;letter-spacing:3px;">LEVEL ${lv}<br><span style="font-size:14px;color:#fff;">${cfg.title} MODE — BRACE FOR IMPACT</span></div>`;
     root.appendChild(flash);
     setTimeout(() => { if (flash.parentNode) flash.parentNode.removeChild(flash); }, 1200);
   }
@@ -972,7 +1087,7 @@
     if (!stars && !won) stars = 0;
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_bsv_volatilityvortex', { level: 1, is3star, isPerfect: is3star })
+      ? cvAwardGame('game_bsv_volatilityvortex', { level: G.level, is3star, isPerfect: is3star })
       : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
     if (stars < 1 && window.cvSave) cvSave();
 

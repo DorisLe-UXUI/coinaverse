@@ -33,8 +33,29 @@
     { id:'t13', from:'Mia',     to:'Bob',    amount:500,  valid:false },
   ];
 
-  const CRYPTO_KEYS_L1 = [0, 1, 2]; // indices into KEYS array
-  const CRYPTO_KEYS_L2 = [0, 1, 2, 3, 4];
+  // Level 3 exclusive pool — disjoint valid transactions + disjoint fakes for
+  // the 3-chain expert tier (so L3 never repeats what L1/L2 already used).
+  const TX_POOL_L3 = [
+    { id:'t14', from:'Nora',    to:'Omar',   amount:35,   valid:true  },
+    { id:'t15', from:'Omar',    to:'Piper',  amount:90,   valid:true  },
+    { id:'t16', from:'Piper',   to:'Quinn',  amount:55,   valid:true  },
+    { id:'t17', from:'Quinn',   to:'Ravi',   amount:110,  valid:true  },
+    { id:'t18', from:'Ravi',    to:'Sara',   amount:25,   valid:true  },
+    { id:'t19', from:'Sara',    to:'Tariq',  amount:70,   valid:true  },
+    { id:'t20', from:'Tariq',   to:'Uma',    amount:95,   valid:true  },
+    { id:'t21', from:'Uma',     to:'Victor', amount:40,   valid:true  },
+    { id:'t22', from:'Victor',  to:'Wren',   amount:130,  valid:true  },
+    { id:'t23', from:'Wren',    to:'Nora',   amount:60,   valid:true  },
+    { id:'t24', from:'PHANTOM', to:'Omar',   amount:-50,  valid:false },
+    { id:'t25', from:'Piper',   to:'Piper',  amount:777,  valid:false },
+    { id:'t26', from:'0x0000',  to:'0x0000', amount:0,    valid:false },
+    { id:'t27', from:'CloneBot',to:'Quinn',  amount:110,  valid:false },
+    { id:'t28', from:'Ravi',    to:'Sara',   amount:9999, valid:false },
+  ];
+
+  // Number of decoy keys shown alongside the correct one in showKeyChoice(),
+  // per level — L3 shows one extra decoy (all 5 KEYS in play) for a harder guess.
+  const KEY_DECOYS_BY_LEVEL = { 1: 2, 2: 2, 3: 3 };
 
   let G = null;
 
@@ -113,6 +134,10 @@
             <div style="font-family:Orbitron,sans-serif;font-size:.75rem;letter-spacing:.18em;color:${WARN};margin-bottom:6px">LVL 2 — MASTER</div>
             <div style="font-size:.75rem;color:rgba(255,255,255,.65);line-height:1.5">2 parallel chains · 8 blocks · Hacker attacks<br>Fake transactions mixed in · Repair corrupted blocks</div>
           </div>
+          <div onclick="bsv_startLevel(3)" style="cursor:pointer;padding:20px 18px;border:1px solid rgba(255,77,157,.35);border-radius:14px;background:rgba(255,77,157,.06);transition:all .2s" onmouseover="this.style.background='rgba(255,77,157,.13)'" onmouseout="this.style.background='rgba(255,77,157,.06)'">
+            <div style="font-family:Orbitron,sans-serif;font-size:.75rem;letter-spacing:.18em;color:#ff4d9d;margin-bottom:6px">LVL 3 — EXPERT</div>
+            <div style="font-size:.75rem;color:rgba(255,255,255,.65);line-height:1.5">3 parallel chains · 10 blocks · Rapid hacker attacks<br>5 fake transactions to reject · Tightest tolerance</div>
+          </div>
         </div>
         <div style="margin-top:22px;font-size:.65rem;color:rgba(255,255,255,.3);line-height:1.6">
           Drag blocks to reorder · Tap to validate · Match key to seal · Reject fakes
@@ -127,31 +152,36 @@
   };
 
   // ─── Game State ───────────────────────────────────────────────
+  // Per-level tuning table — every level-specific number lives here so
+  // startGame() never needs an if/else ladder that could silently miss L3.
+  const LEVEL_TUNING = {
+    1: { chainCount: 1, blocksPerChain: [5],          fakeCount: 0, time: 90,  maxCorrupted: 0, hackerInterval: 8,   hackerFloor: 5,   fakeSpawnGap: 4000 },
+    2: { chainCount: 2, blocksPerChain: [4, 4],        fakeCount: 3, time: 120, maxCorrupted: 3, hackerInterval: 8,   hackerFloor: 5,   fakeSpawnGap: 4000 },
+    3: { chainCount: 3, blocksPerChain: [4, 3, 3],     fakeCount: 5, time: 150, maxCorrupted: 2, hackerInterval: 5.5, hackerFloor: 3,   fakeSpawnGap: 2800 },
+  };
+  const CHAIN_LABELS = ['CHAIN A', 'CHAIN B', 'CHAIN C'];
+
   function startGame(level) {
-    // Build chains
-    const validTxs = TX_POOL.filter(t => t.valid);
-    const fakeTxs  = TX_POOL.filter(t => !t.valid);
+    const tune = LEVEL_TUNING[level] || LEVEL_TUNING[1];
 
-    let chains = [];
-    let incomingFakes = [];
-    let totalBlocks = 0;
+    // Level 3 draws from its own disjoint transaction pool (never repeats L1/L2 content);
+    // L1/L2 keep drawing from the original TX_POOL as before.
+    const sourcePool = level === 3 ? TX_POOL_L3 : TX_POOL;
+    const validTxs = shuffle(sourcePool.filter(t => t.valid));
+    const fakeTxs  = shuffle(sourcePool.filter(t => !t.valid));
 
-    if (level === 1) {
-      // Single chain, 5 valid blocks, shuffled
-      const picks = shuffle(validTxs.slice(0, 5)).map((tx, i) => makeBlock(tx, i, false));
-      chains = [{ id: 0, blocks: picks, completed: false, label: 'CHAIN A' }];
-      totalBlocks = 5;
-    } else {
-      // Two chains, 4 blocks each from valid pool
-      const pool1 = shuffle(validTxs.slice(0, 4)).map((tx, i) => makeBlock(tx, i, false));
-      const pool2 = shuffle(validTxs.slice(4, 8)).map((tx, i) => makeBlock(tx, i, false));
-      chains = [
-        { id: 0, blocks: pool1, completed: false, label: 'CHAIN A' },
-        { id: 1, blocks: pool2, completed: false, label: 'CHAIN B' },
-      ];
-      incomingFakes = shuffle(fakeTxs).slice(0, 3).map(tx => makeFakeBlock(tx));
-      totalBlocks = 8;
-    }
+    // Build N chains per the tuning table's blocksPerChain split
+    let cursor = 0;
+    const chains = tune.blocksPerChain.map((count, ci) => {
+      const slice = validTxs.slice(cursor, cursor + count);
+      cursor += count;
+      const blocks = shuffle(slice).map((tx, i) => makeBlock(tx, i, false));
+      return { id: ci, blocks, completed: false, label: CHAIN_LABELS[ci] || `CHAIN ${ci + 1}` };
+    });
+    const totalBlocks = tune.blocksPerChain.reduce((a, b) => a + b, 0);
+    const incomingFakes = tune.fakeCount > 0
+      ? shuffle(fakeTxs).slice(0, tune.fakeCount).map(tx => makeFakeBlock(tx))
+      : [];
 
     // Set correct order index (the "right" order is 0..N based on original index)
     // Blocks have a correctPos; player drags them into correct order
@@ -172,12 +202,14 @@
       rejected: 0,
       badAdmitted: 0,     // fakes that slipped into chain
       score: 0,
-      time: level === 1 ? 90 : 120,
-      timeLeft: level === 1 ? 90 : 120,
-      maxCorrupted: level === 1 ? 0 : 3,
+      time: tune.time,
+      timeLeft: tune.time,
+      maxCorrupted: tune.maxCorrupted,
+      fakeSpawnGap: tune.fakeSpawnGap,
       phase: 'play',      // play | won | lost
       hackerTimer: 0,
-      hackerInterval: 8,  // seconds between hacker attacks
+      hackerInterval: tune.hackerInterval,  // seconds between hacker attacks
+      hackerFloor: tune.hackerFloor,        // interval never ramps down past this
       fakeSpawnTimer: 0,
       fakeSpawnInterval: 10,
       // Drag state
@@ -203,8 +235,8 @@
     // Inject UI panels
     renderUILayer();
 
-    // Spawn first fake for level 2
-    if (level === 2 && G.incomingFakes.length > 0) {
+    // Spawn first fake for any level that has fakes queued (L2, L3, ...)
+    if (G.incomingFakes.length > 0) {
       spawnNextFake();
     }
 
@@ -317,8 +349,9 @@
       </div>`;
     });
 
-    // Fake feed panel (level 2)
-    if (G.level === 2) {
+    // Fake feed panel (any level that has incoming fakes queued — L2, L3, ...)
+    const hasFakeFeed = G.incomingFakes.length > 0 || G.fakeFeed.length > 0;
+    if (hasFakeFeed) {
       html += `<div id="bsv_fakefeed" style="
         position:absolute;
         bottom:10px;
@@ -334,7 +367,7 @@
 
     // Hint bar
     html += `<div id="bsv_hint" style="
-      position:absolute;bottom:${G.level===2?'68px':'12px'};left:0;right:0;
+      position:absolute;bottom:${hasFakeFeed?'68px':'12px'};left:0;right:0;
       text-align:center;font-size:.6rem;color:rgba(255,255,255,.35);
       font-family:Orbitron,sans-serif;letter-spacing:.1em;pointer-events:none
     ">Drag to reorder · Tap ✓ to validate · Match 🔑 to seal</div>`;
@@ -638,10 +671,11 @@
     const block = findBlock(chainId, blockId);
     if (!block) return;
 
-    // Pick 3 random keys including the correct one
+    // Pick N decoy keys including the correct one — decoy count scales with level
+    const decoyCount = KEY_DECOYS_BY_LEVEL[G && G.level] || 2;
     const pool = [...KEYS];
     const correct = correctKey;
-    const shuffled = shuffle(pool.filter(k => k !== correct)).slice(0, 2);
+    const shuffled = shuffle(pool.filter(k => k !== correct)).slice(0, decoyCount);
     const choices = shuffle([correct, ...shuffled]);
 
     const ov = document.getElementById('bsv_overlay');
@@ -748,13 +782,13 @@
 
     // Spawn next fake with delay
     if (G.incomingFakes.length > 0) {
-      setTimeout(spawnNextFake, 4000);
+      setTimeout(spawnNextFake, G.fakeSpawnGap || 4000);
     }
   }
 
-  // ─── Hacker attacks (level 2) ─────────────────────────────────
+  // ─── Hacker attacks (level 2 and up) ──────────────────────────
   function triggerHackerAttack() {
-    if (!G || G.level !== 2) return;
+    if (!G || G.level < 2) return;
     // Pick a random validated or ordered block and corrupt it
     const candidates = [];
     G.chains.forEach((ch, ci) => {
@@ -787,6 +821,13 @@
   }
 
   // ─── Win / Loss check ────────────────────────────────────────
+  // Star thresholds scale with totalBlocks so L3's larger chains (more blocks
+  // sealed = more raw score) require proportionally the same mastery bar as L1/L2.
+  function starThresholds() {
+    const perBlock = 40; // ~50 max/block minus a margin for imperfect play
+    return { t3: G.totalBlocks * perBlock, t2: G.totalBlocks * perBlock * 0.6 };
+  }
+
   function checkWin() {
     if (!G || G.phase !== 'play') return;
     const allSealed = G.chains.every(ch => ch.blocks.every(b => b.state === 'sealed'));
@@ -794,7 +835,8 @@
       // Calculate time bonus
       const timeBonus = Math.max(0, Math.floor((G.timeLeft / G.time) * 50));
       G.score += timeBonus;
-      const stars = G.score >= 200 ? 3 : G.score >= 120 ? 2 : 1;
+      const { t3, t2 } = starThresholds();
+      const stars = G.score >= t3 ? 3 : G.score >= t2 ? 2 : 1;
       // Set phase to 'ending' to stop the game loop without triggering endGame's guard
       G.phase = 'ending';
       setTimeout(() => endGame(stars), 800);
@@ -867,17 +909,18 @@
       if (G.timeLeft <= 0) {
         G.timeLeft = 0;
         updateTimerDisplay();
-        const stars = G.score >= 200 ? 3 : G.score >= 120 ? 2 : G.score > 0 ? 1 : 0;
+        const { t3, t2 } = starThresholds();
+        const stars = G.score >= t3 ? 3 : G.score >= t2 ? 2 : G.score > 0 ? 1 : 0;
         endGame(stars);
         return;
       }
 
-      // Hacker timer (level 2)
-      if (G.level === 2) {
+      // Hacker timer (level 2 and up)
+      if (G.level >= 2) {
         G.hackerTimer += dt;
         if (G.hackerTimer >= G.hackerInterval) {
           G.hackerTimer = 0;
-          G.hackerInterval = Math.max(5, G.hackerInterval - 0.5);
+          G.hackerInterval = Math.max(G.hackerFloor || 5, G.hackerInterval - 0.5);
           triggerHackerAttack();
         }
       }
@@ -1016,7 +1059,7 @@
 
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_bsv_blockchainblvd', { level: 1, is3star, isPerfect: is3star })
+      ? cvAwardGame('game_bsv_blockchainblvd', { level: G.level, is3star, isPerfect: is3star })
       : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
     if (stars < 1 && window.cvSave) cvSave();
 
@@ -1026,7 +1069,7 @@
     const starStr = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
     const accLabel = G.rejected > 0
       ? `+${G.rejected * 20} REJECTION BONUS`
-      : G.badAdmitted === 0 && G.level === 2
+      : G.badAdmitted === 0 && G.level >= 2
         ? 'FLAWLESS CHAIN!'
         : '';
 
@@ -1049,7 +1092,7 @@
             <div style="font-family:Orbitron,sans-serif;font-size:.4rem;color:rgba(0,255,255,.6);margin-bottom:3px">BLOCKS SEALED</div>
             <div style="font-family:Orbitron,sans-serif;font-size:1rem;color:${ACCENT}">${G.sealed} / ${G.totalBlocks}</div>
           </div>
-          ${G.level === 2 ? `<div style="padding:10px 14px;background:rgba(0,220,100,.05);border:1px solid rgba(0,220,100,.15);border-radius:10px">
+          ${G.level >= 2 ? `<div style="padding:10px 14px;background:rgba(0,220,100,.05);border:1px solid rgba(0,220,100,.15);border-radius:10px">
             <div style="font-family:Orbitron,sans-serif;font-size:.4rem;color:rgba(0,220,100,.6);margin-bottom:3px">FAKES REJECTED</div>
             <div style="font-family:Orbitron,sans-serif;font-size:1rem;color:#00DC82">${G.rejected}</div>
           </div>` : ''}
@@ -1077,6 +1120,24 @@
     G = null;
     bgParticles = null;
     showLevelSelect();
+  };
+
+  /* ── DEBUG HOOK (dev/QA only) ───────────────────────────────── */
+  window._bbDbg = () => G ? {
+    level: G.level, phase: G.phase, score: G.score,
+    chainCount: G.chains.length,
+    blocksPerChain: G.chains.map(c => c.blocks.length),
+    totalBlocks: G.totalBlocks, sealed: G.sealed, rejected: G.rejected,
+    badAdmitted: G.badAdmitted, maxCorrupted: G.maxCorrupted,
+    incomingFakesLeft: G.incomingFakes.length, fakeFeedShown: G.fakeFeed.length,
+    hackerInterval: G.hackerInterval, hackerFloor: G.hackerFloor,
+    starThresholds: starThresholds(),
+  } : null;
+  window._bbForceWin = () => {
+    if (!G) return 'no active game — call bsv_startLevel(1|2|3) first';
+    G.chains.forEach(ch => ch.blocks.forEach(b => { b.state = 'sealed'; }));
+    checkWin();
+    return 'all blocks force-sealed, checkWin() invoked';
   };
 
 })();

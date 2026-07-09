@@ -4,14 +4,16 @@
    Catch falling savings tokens to build your emergency fund.
    Shield strength = fund % of goal. Emergencies strike randomly;
    tap Pay Now or Defer. Savings = zero → instant loss.
+   Level 3: bigger goal, tighter timer, faster/more emergencies, slower token rate.
    ════════════════════════════════════════════════════════════════ */
 (function(){
 
   /* ─── CONSTANTS ─────────────────────────────────────────────── */
   const ACCENT='#1a2a4a', GOLD='#f59e0b', SHIELD='#38bdf8', RED='#ef4444', GREEN='#22c55e';
   const LEVELS=[
-    { label:'LEVEL 1 — STARTER',  goal:500,  duration:90,  tokenRate:1.8, emergencyRate:18, maxActive:1 },
-    { label:'LEVEL 2 — MASTERY',  goal:3000, duration:120, tokenRate:1.4, emergencyRate:12, maxActive:3 }
+    { label:'LEVEL 1 — STARTER',  goal:500,   duration:90,  tokenRate:1.8, emergencyRate:18, maxActive:1 },
+    { label:'LEVEL 2 — MASTERY',  goal:3000,  duration:120, tokenRate:1.4, emergencyRate:12, maxActive:3 },
+    { label:'LEVEL 3 — GUARDIAN', goal:6500,  duration:150, tokenRate:1.1, emergencyRate:9,  maxActive:4 }
   ];
   const TOKENS=[
     { kind:'coin',  emoji:'🪙', value:15,   color:'#f59e0b', prob:0.42 },
@@ -23,7 +25,8 @@
     { id:'car',    icon:'🚗', name:'Car Repair',    baseCost:380, desc:'Radiator blew — needs immediate fix.' },
     { id:'job',    icon:'💼', name:'Job Loss',       baseCost:600, desc:'Unexpected layoff. Bills still due.' },
     { id:'hospital',icon:'🏥',name:'Hospital Visit', baseCost:450, desc:'ER visit — insurance didn\'t cover it.' },
-    { id:'home',   icon:'🏠', name:'Home Repair',   baseCost:320, desc:'Roof leak during the storm last night.' }
+    { id:'home',   icon:'🏠', name:'Home Repair',   baseCost:320, desc:'Roof leak during the storm last night.' },
+    { id:'pet',    icon:'🐾', name:'Emergency Vet Bill', baseCost:520, desc:'Your dog swallowed something and needs surgery tonight.' }
   ];
   const FACTS=[
     {icon:'🛟','text':'Even $500 in savings prevents most people from falling into debt during emergencies.'},
@@ -103,6 +106,53 @@
     goTo('hub');
   };
 
+  /* ─── debug hook (dev/test only) ──────────────────────────────
+     window._bvDbg()                    -> snapshot of current state
+     window._bvTest('forceWin')          -> instantly fill savings to goal and end the round as a win
+     window._bvTest('forceLose')         -> instantly zero savings and end the round as a loss
+     window._bvTest('setSavings', 1234)  -> set savings directly (for mid-round inspection)
+  ── */
+  window._bvDbg = function(){
+    if(!G) return null;
+    const lv = LEVELS[G.level];
+    return {
+      phase: G.phase,
+      levelIdx: G.level,
+      levelLabel: lv ? lv.label : null,
+      goal: lv ? lv.goal : null,
+      duration: lv ? lv.duration : null,
+      maxActive: lv ? lv.maxActive : null,
+      savings: G.savings,
+      score: G.score,
+      time: G.time,
+      activeEmergencies: G.emergencies.length,
+      emgHandled: G.emgHandled,
+    };
+  };
+  window._bvTest = function(action, arg){
+    if(!G) return null;
+    if(action === 'setSavings'){
+      G.savings = arg;
+      updateHUD();
+      return window._bvDbg();
+    }
+    if(action === 'forceWin'){
+      const lv = LEVELS[G.level];
+      G.savings = lv.goal;
+      G.emgHandled = Math.max(G.emgHandled, 1);
+      G.zeroBalance = false;
+      endGame(calcStars());
+      return window._bvDbg();
+    }
+    if(action === 'forceLose'){
+      G.savings = 0;
+      G.zeroBalance = true;
+      endGame(0);
+      return window._bvDbg();
+    }
+    return null;
+  };
+
   /* ─── INIT ──────────────────────────────────────────────────── */
   function initGame(){
     canvas=document.getElementById('bvCanvas');
@@ -164,10 +214,10 @@
       <div style="display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px">
         ${LEVELS.map((lv,i)=>`
           <button onclick="bvStartLevel(${i})" style="padding:16px 20px;border:1px solid rgba(56,189,248,.4);border-radius:14px;background:rgba(26,42,74,.7);color:#e2e8f0;font-family:'Inter',sans-serif;font-size:.82rem;cursor:pointer;text-align:left;display:flex;align-items:center;gap:14px;transition:background .2s">
-            <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem">${i===0?'🎓':'🏆'}</div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem">${i===0?'🎓':i===1?'🏆':'🛡️'}</div>
             <div>
               <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.15em;color:#38bdf8;margin-bottom:3px">${lv.label}</div>
-              <div style="color:#94a3b8;font-size:.72rem">Goal: <span style="color:#22c55e;font-weight:700">$${lv.goal.toLocaleString()}</span> · ${lv.duration}s · ${i===0?'One emergency at a time':'Multiple simultaneous emergencies'}</div>
+              <div style="color:#94a3b8;font-size:.72rem">Goal: <span style="color:#22c55e;font-weight:700">$${lv.goal.toLocaleString()}</span> · ${lv.duration}s · ${i===0?'One emergency at a time':i===1?'Up to 3 simultaneous emergencies':'Up to 4 simultaneous emergencies'}</div>
             </div>
           </button>`).join('')}
       </div>`;
@@ -389,8 +439,12 @@
     if(!pool.length) return;
     const def=pool[Math.floor(Math.random()*pool.length)];
 
-    // scale cost slightly with level
-    const cost=Math.round(def.baseCost*(G.level===0?0.9:1+(Math.random()*0.3)));
+    // scale cost with level: L1 discounted, L2 moderate bump, L3 highest + widest random swing
+    const costMultiplier =
+      G.level===0 ? 0.9 :
+      G.level===1 ? 1 + (Math.random()*0.3) :
+      1.25 + (Math.random()*0.45); // L3: baseline +25%, up to +70%
+    const cost=Math.round(def.baseCost*costMultiplier);
 
     const emg={
       id:def.id, icon:def.icon, name:def.name, desc:def.desc,

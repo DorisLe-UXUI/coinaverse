@@ -1,47 +1,101 @@
 /* ════════════════════════════════════════════════════════════════
    SCORE TOWER — G2 CredTech Galaxy mini-game
-   Stack credit factor blocks to build your FICO score toward 720.
-   Slide-and-drop mechanic. 90-second session. Financial literacy embedded.
+   Stack credit factor blocks to build your FICO score toward the
+   level target. Slide-and-drop mechanic. 3 LEVELS · disjoint block
+   pools + facts per level · faster/harder each level.
    ════════════════════════════════════════════════════════════════ */
 (function(){
-  const TARGET_FICO = 720;
   const START_FICO  = 300;
-  const ROUND       = 90;
-  const GATE_EVERY  = 22;
+  let curLevel = 1;
+
+  /* ── Level configs: higher target, less time, faster slide ──── */
+  const LEVELS = [
+    { n:1, name:'CADET',     target:680, round:90, gateEvery:22, speedStart:0.45, speedStep:0.012, speedCap:0.80 },
+    { n:2, name:'PILOT',     target:750, round:75, gateEvery:19, speedStart:0.55, speedStep:0.016, speedCap:0.95 },
+    { n:3, name:'COMMANDER', target:800, round:62, gateEvery:16, speedStart:0.65, speedStep:0.020, speedCap:1.15 },
+  ];
+  function cfgFor(level){ return LEVELS[level-1] || LEVELS[0]; }
+
   let G = null;
 
-  /* ── Block catalogue ─────────────────────────────────────────── */
-  const BLOCKS = [
+  /* ── Block catalogue — DISJOINT set per level ────────────────── */
+  // Level 1 · the core 5 FICO factors (fundamentals)
+  const BLOCKS_L1 = [
     { id:'payment',    label:'PAYMENT HISTORY',     pts:+35, color:'#34d399', glow:'#34d399', dark:'#064e3b', weight:4 },
     { id:'utiliz',     label:'CREDIT UTILIZATION',  pts:+30, color:'#38bdf8', glow:'#38bdf8', dark:'#0c4a6e', weight:3 },
     { id:'age',        label:'CREDIT AGE',           pts:+15, color:'#fbbf24', glow:'#fbbf24', dark:'#78350f', weight:3 },
     { id:'mix',        label:'CREDIT MIX',           pts:+10, color:'#a78bfa', glow:'#a78bfa', dark:'#4c1d95', weight:2 },
-    { id:'inquiry',    label:'NEW INQUIRY',          pts: -8, color:'#fb923c', glow:'#f97316', dark:'#7c2d12', weight:2 },
     { id:'late',       label:'LATE PAYMENT',         pts:-20, color:'#ef4444', glow:'#ef4444', dark:'#7f1d1d', weight:2 },
-    { id:'maxcard',    label:'MAXED CARD',           pts:-25, color:'#f43f5e', glow:'#f43f5e', dark:'#881337', weight:2 },
   ];
+  // Level 2 · smart moves vs sneaky traps (new set, harder swings)
+  const BLOCKS_L2 = [
+    { id:'autopay',    label:'AUTOPAY SET UP',       pts:+28, color:'#34d399', glow:'#34d399', dark:'#064e3b', weight:3 },
+    { id:'oldacct',    label:'KEPT OLD ACCOUNT',      pts:+22, color:'#2dd4bf', glow:'#2dd4bf', dark:'#134e4a', weight:3 },
+    { id:'inquiry',    label:'NEW INQUIRY',           pts: -14, color:'#fb923c', glow:'#f97316', dark:'#7c2d12', weight:3 },
+    { id:'maxcard',    label:'MAXED CARD',            pts:-32, color:'#f43f5e', glow:'#f43f5e', dark:'#881337', weight:3 },
+    { id:'fullpay',    label:'PAID FULL BALANCE',     pts:+26, color:'#38bdf8', glow:'#38bdf8', dark:'#0c4a6e', weight:2 },
+    { id:'cashadv',    label:'CASH ADVANCE',          pts:-18, color:'#ef4444', glow:'#ef4444', dark:'#7f1d1d', weight:2 },
+  ];
+  // Level 3 · expert moves vs credit wreckers (biggest swings, fastest pace)
+  const BLOCKS_L3 = [
+    { id:'freeze',     label:'CREDIT FREEZE SET',     pts:+24, color:'#38bdf8', glow:'#38bdf8', dark:'#0c4a6e', weight:2 },
+    { id:'dispute',     label:'DISPUTED ERROR',        pts:+30, color:'#34d399', glow:'#34d399', dark:'#064e3b', weight:2 },
+    { id:'mixhealthy',  label:'HEALTHY CREDIT MIX',    pts:+20, color:'#a78bfa', glow:'#a78bfa', dark:'#4c1d95', weight:2 },
+    { id:'collections', label:'SENT TO COLLECTIONS',   pts:-40, color:'#f43f5e', glow:'#f43f5e', dark:'#881337', weight:3 },
+    { id:'default',     label:'LOAN DEFAULT',          pts:-45, color:'#dc2626', glow:'#dc2626', dark:'#450a0a', weight:3 },
+    { id:'idtheft',      label:'IDENTITY THEFT HIT',    pts:-30, color:'#ef4444', glow:'#ef4444', dark:'#7f1d1d', weight:2 },
+    { id:'snowball',      label:'DEBT SNOWBALL PLAN',    pts:+28, color:'#fbbf24', glow:'#fbbf24', dark:'#78350f', weight:2 },
+  ];
+  const BLOCK_SETS = [BLOCKS_L1, BLOCKS_L2, BLOCKS_L3];
 
-  const FACTS = [
+  const FACTS_L1 = [
     ['📊','Payment history is the biggest factor — 35% of your FICO score!'],
     ['💳','Keep credit utilization below 30% to protect your score.'],
     ['⏳','Older accounts boost your score — don\'t close them!'],
     ['🔀','Having a mix of credit types (cards + loans) helps your score.'],
-    ['🔍','Too many new credit applications create hard inquiries — limit them.'],
     ['❌','One late payment can drop your FICO score by 100+ points.'],
-    ['🚨','Maxing out a card spikes your utilization — pay it down fast.'],
   ];
+  const FACTS_L2 = [
+    ['📅','Autopay for at least the minimum prevents accidental late payments.'],
+    ['🏦','Keeping your oldest account open protects your average credit age.'],
+    ['🔍','Too many new credit applications create hard inquiries — limit them.'],
+    ['🚨','Maxing out a card spikes your utilization — pay it down fast.'],
+    ['💰','Paying your full statement balance avoids interest entirely.'],
+    ['🏧','Cash advances start charging interest and fees the moment you take them.'],
+  ];
+  const FACTS_L3 = [
+    ['🧊','A credit freeze blocks identity thieves from opening new accounts in your name.'],
+    ['📝','Disputing a report error you didn\'t cause can restore lost points.'],
+    ['🧩','A healthy mix of cards + installment loans can nudge your score up.'],
+    ['⚠️','Collections accounts can stay on your report for up to 7 years.'],
+    ['🧨','Defaulting on a loan is one of the most damaging events for your score.'],
+    ['🦹','Identity theft can tank your score fast — freeze and monitor your credit.'],
+    ['⛄','A debt snowball (smallest balance first) builds momentum to pay off debt.'],
+  ];
+  const FACT_SETS = [FACTS_L1, FACTS_L2, FACTS_L3];
 
-  /* ── Weighted random block picker ───────────────────────────── */
-  const BLOCK_POOL = [];
-  BLOCKS.forEach(b => { for(let i=0;i<b.weight;i++) BLOCK_POOL.push(b); });
+  let BLOCKS = BLOCKS_L1, FACTS = FACTS_L1;
+
+  /* ── Weighted random block picker (rebuilt per level) ────────── */
+  let BLOCK_POOL = [];
+  function buildPool(level){
+    BLOCKS = BLOCK_SETS[level-1] || BLOCK_SETS[0];
+    FACTS  = FACT_SETS[level-1]  || FACT_SETS[0];
+    BLOCK_POOL = [];
+    BLOCKS.forEach(b => { for(let i=0;i<b.weight;i++) BLOCK_POOL.push(b); });
+  }
   function randBlock(){ return BLOCK_POOL[Math.floor(Math.random()*BLOCK_POOL.length)]; }
 
   /* ── State ───────────────────────────────────────────────────── */
   function reset(){
+    const cfg = cfgFor(curLevel);
+    buildPool(curLevel);
     G = {
       phase:'play',
+      level: cfg.n,
+      cfg: cfg,
       fico: START_FICO,
-      time: ROUND,
+      time: cfg.round,
       score: 0,
       blocksDropped: 0,
       blocksLanded: 0,
@@ -49,7 +103,7 @@
       block: null,
       blockX: 0,        // 0..1 normalized
       blockDir: 1,      // 1=right, -1=left
-      blockSpeed: 0.45, // normalized units/sec
+      blockSpeed: cfg.speedStart, // normalized units/sec
       dropping: false,
       dropY: 0,         // 0..1, animates down
       dropResult: null, // {pts, label, color}
@@ -61,11 +115,29 @@
       /* ui */
       shake: 0, flash: 0, flashColor:'#38bdf8',
       last: 0,
-      gateT: GATE_EVERY, gateIdx: 0,
+      gateT: cfg.gateEvery, gateIdx: 0,
       /* input gate */
       inputLocked: false,
     };
     spawnBlock();
+    updateLevelChrome();
+  }
+
+  /* ── Sync top-bar / target chrome to current level (called on
+     reset + level-advance since the HTML shell is only built once) ── */
+  function updateLevelChrome(){
+    if(!G) return;
+    const cfg = G.cfg;
+    const title = document.getElementById('stTitle');
+    if(title) title.textContent = `🏦 SCORE TOWER · LV ${cfg.n}/3`;
+    const tEl = document.getElementById('stTime');
+    if(tEl) tEl.textContent = cfg.round + 's';
+    const targetVal = document.getElementById('stTargetVal');
+    if(targetVal) targetVal.textContent = cfg.target;
+    const marker = document.getElementById('stTargetMarker');
+    if(marker) marker.style.left = ((cfg.target - START_FICO) / (850 - START_FICO) * 100).toFixed(1) + '%';
+    const scaleTarget = document.getElementById('stScaleTarget');
+    if(scaleTarget) scaleTarget.textContent = cfg.target + ' TARGET';
   }
 
   /* ── Drop-zone center (normalized) ─────────────────────────── */
@@ -83,8 +155,9 @@
     G.dropping  = false;
     G.dropY     = 0;
     G.inputLocked = false;
-    // Slightly speed up every 5 blocks
-    G.blockSpeed = Math.min(0.80, 0.45 + G.blocksDropped * 0.012);
+    // Slightly speed up every block, capped per-level
+    const cfg = G.cfg || cfgFor(curLevel);
+    G.blockSpeed = Math.min(cfg.speedCap, cfg.speedStart + G.blocksDropped * cfg.speedStep);
   }
 
   /* ── Screen ─────────────────────────────────────────────────── */
@@ -92,14 +165,15 @@
 
   window.SCREENS.game_scoretower = function(){
     G = null;
+    curLevel = 1; // fresh entry from hub always starts at Level 1
     setTimeout(stBoot, 40);
     return `<div id="stWrap" style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,#0a1628,#03040c 60%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none">
 
       <!-- TOP BAR -->
       <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:10px;padding:11px 16px;background:linear-gradient(180deg,rgba(3,4,12,.92),transparent)">
         <button onclick="scoretowerExit()" style="padding:7px 13px;border:1px solid rgba(251,191,36,.35);border-radius:9px;background:rgba(251,191,36,.08);color:#fde68a;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.12em;cursor:pointer">← CREDTECH</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.2em;color:#fbbf24;flex:1;text-align:center">🏦 SCORE TOWER</div>
-        <div id="stTime" style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:#38bdf8;min-width:44px;text-align:right">${ROUND}s</div>
+        <div id="stTitle" style="font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.2em;color:#fbbf24;flex:1;text-align:center">🏦 SCORE TOWER · LV 1/3</div>
+        <div id="stTime" style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:#38bdf8;min-width:44px;text-align:right">${LEVELS[0].round}s</div>
       </div>
 
       <!-- FICO + TARGET -->
@@ -109,14 +183,14 @@
             <span style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.45)">FICO SCORE</span>
             <span id="stFico" style="font-family:'Orbitron',sans-serif;font-size:1.45rem;font-weight:900;color:#fbbf24;margin-left:8px;text-shadow:0 0 20px rgba(251,191,36,.6)">${START_FICO}</span>
           </div>
-          <div style="font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.1em;color:rgba(255,255,255,.5)">TARGET: <span style="color:#38bdf8">${TARGET_FICO}</span></div>
+          <div style="font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.1em;color:rgba(255,255,255,.5)">TARGET: <span id="stTargetVal" style="color:#38bdf8">${LEVELS[0].target}</span></div>
         </div>
         <div style="position:relative;height:12px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);overflow:visible">
           <div id="stFicoBar" style="height:100%;border-radius:8px;background:linear-gradient(90deg,#fbbf24,#f59e0b);transition:width .35s ease;width:0%"></div>
           <!-- target marker -->
-          <div style="position:absolute;top:-3px;bottom:-3px;width:2px;background:#38bdf8;border-radius:2px;box-shadow:0 0 8px #38bdf8;left:${((TARGET_FICO-START_FICO)/(850-START_FICO)*100).toFixed(1)}%"></div>
+          <div id="stTargetMarker" style="position:absolute;top:-3px;bottom:-3px;width:2px;background:#38bdf8;border-radius:2px;box-shadow:0 0 8px #38bdf8;left:${((LEVELS[0].target-START_FICO)/(850-START_FICO)*100).toFixed(1)}%"></div>
         </div>
-        <div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.36rem;color:rgba(255,255,255,.3);margin-top:2px;letter-spacing:.08em"><span>300</span><span>720 TARGET</span><span>850</span></div>
+        <div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.36rem;color:rgba(255,255,255,.3);margin-top:2px;letter-spacing:.08em"><span>300</span><span id="stScaleTarget">${LEVELS[0].target} TARGET</span><span>850</span></div>
       </div>
 
       <!-- CANVAS -->
@@ -252,7 +326,7 @@
     if(fd){ fd.textContent = Math.max(300, Math.min(850, Math.round(G.fico))); }
 
     /* win check */
-    if(G.fico >= TARGET_FICO && G.phase === 'play'){ return endGame(); }
+    if(G.fico >= G.cfg.target && G.phase === 'play'){ return endGame(); }
   }
 
   /* ── Land block ─────────────────────────────────────────────── */
@@ -573,7 +647,7 @@
     if(!G || G.phase !== 'play') return;
     G.phase = 'gate';
     const f = FACTS[G.gateIdx % FACTS.length]; G.gateIdx++;
-    const o = document.getElementById('stGate'); if(!o){ G.phase='play'; G.gateT=GATE_EVERY; return; }
+    const o = document.getElementById('stGate'); if(!o){ G.phase='play'; G.gateT=G.cfg.gateEvery; return; }
     o.style.display = 'flex';
     o.innerHTML = `<div style="max-width:420px;text-align:center;padding:32px 26px;border:1px solid rgba(251,191,36,.6);border-radius:22px;background:linear-gradient(160deg,rgba(10,6,2,.97),rgba(3,4,12,.97));box-shadow:0 0 60px rgba(251,191,36,.3);animation:stGateIn .32s ease">
       <style>@keyframes stGateIn{0%{transform:scale(.9);opacity:0}100%{transform:scale(1);opacity:1}}</style>
@@ -586,7 +660,7 @@
 
   window.stGateGo = function(){
     if(!G) return;
-    G.gateT   = GATE_EVERY;
+    G.gateT   = G.cfg.gateEvery;
     G.phase   = 'play';
     G.last    = performance.now();
     const o = document.getElementById('stGate');
@@ -599,12 +673,14 @@
     if(!G || G.phase === 'over') return;
     G.phase = 'over';
 
+    const cfg    = G.cfg;
     const fico   = Math.max(300, Math.min(850, Math.round(G.fico)));
-    const stars  = fico >= TARGET_FICO ? 3 : fico >= 600 ? 2 : 1;
-    const won    = fico >= TARGET_FICO;
+    const stars  = fico >= cfg.target ? 3 : fico >= (cfg.target - 120) ? 2 : 1;
+    const won    = fico >= cfg.target;
+    const isFinalLevel = curLevel >= LEVELS.length;
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_scoretower', { level: 1, stars, is3star, isPerfect: won && is3star, badge: 'Score Tower Master' })
+      ? cvAwardGame('game_scoretower', { level: curLevel, stars, is3star, isPerfect: won && is3star && isFinalLevel, badge: 'Score Tower Master' })
       : (stars===3?150:stars===2?100:50);
     if (stars >= 1 && window.cvHubMeter) cvHubMeter('credtech_trust', stars*4);
     if(window.state){
@@ -614,19 +690,21 @@
     }
 
     const starStr  = '⭐'.repeat(stars) + '☆'.repeat(3-stars);
-    const accentC  = won ? '#fbbf24' : fico >= 600 ? '#38bdf8' : '#ef4444';
-    const headline = won ? 'TARGET REACHED!' : fico >= 600 ? 'GOOD SCORE!' : 'KEEP BUILDING!';
-    const emoji    = won ? '🏆' : fico >= 600 ? '📈' : '🔧';
+    const accentC  = won ? '#fbbf24' : fico >= (cfg.target - 120) ? '#38bdf8' : '#ef4444';
+    const headline = won ? (isFinalLevel ? 'MISSION ACCOMPLISHED!' : 'TARGET REACHED!') : fico >= (cfg.target - 120) ? 'GOOD SCORE!' : 'NICE TRY! POWER UP AND TRY AGAIN';
+    const emoji    = won ? '🏆' : fico >= (cfg.target - 120) ? '📈' : '🔧';
+    const canAdvance = won && stars >= 1 && !isFinalLevel;
 
     const o = document.getElementById('stOver'); if(!o) return;
     o.style.display = 'flex';
     o.innerHTML = `<div style="max-width:440px;width:90%;text-align:center;padding:34px 26px;border:1px solid ${accentC}44;border-radius:24px;background:linear-gradient(160deg,rgba(10,8,2,.98),rgba(3,4,12,.98));box-shadow:0 0 70px ${hexA(accentC,0.35)};animation:stOverIn .4s ease">
       <style>@keyframes stOverIn{0%{transform:translateY(30px);opacity:0}100%{transform:translateY(0);opacity:1}}</style>
       <div style="font-size:3rem;margin-bottom:6px">${emoji}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.18em;color:rgba(255,255,255,.4);margin-bottom:4px">LEVEL ${curLevel} · ${cfg.name}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.22em;color:${accentC};margin-bottom:10px">${headline}</div>
       <div style="font-size:1.8rem;margin-bottom:4px">${starStr}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:2.6rem;font-weight:900;color:#fbbf24;text-shadow:0 0 30px rgba(251,191,36,.6);line-height:1.1;margin-bottom:2px">${fico}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.44rem;letter-spacing:.12em;color:rgba(255,255,255,.45);margin-bottom:18px">FINAL FICO SCORE</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.44rem;letter-spacing:.12em;color:rgba(255,255,255,.45);margin-bottom:18px">FINAL FICO SCORE · TARGET WAS ${cfg.target}</div>
       <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:13px;padding:13px 16px;margin-bottom:18px;text-align:left">
         <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:#fde68a;margin-bottom:7px">📚 CREDIT LESSON</div>
         <p style="margin:0;font-size:.88rem;line-height:1.55;color:rgba(255,255,255,.85)">Your credit score is built by <strong style="color:#fbbf24">5 factors</strong> — payment history matters most at <strong style="color:#34d399">35%</strong>, followed by utilization (30%), credit age (15%), credit mix (10%), and new inquiries (10%). Pay on time, keep balances low!</p>
@@ -635,12 +713,19 @@
         <span style="font-size:1.2rem">🪙</span>
         <span style="font-family:'Orbitron',sans-serif;font-size:1rem;font-weight:900;color:#fbbf24">+${coins} COINS EARNED</span>
       </div>
+      ${canAdvance ? `<button onclick="stNextLevel()" style="width:100%;margin-bottom:10px;padding:14px;border:none;border-radius:13px;background:linear-gradient(90deg,#fbbf24,#f59e0b);color:#1a0d00;font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.1em;font-weight:900;cursor:pointer">LEVEL ${curLevel+1} · ${LEVELS[curLevel].name} ▶</button>` : ''}
       <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-        <button onclick="stRestart()" style="padding:13px 26px;border:none;border-radius:13px;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#03040c;font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.1em;font-weight:900;cursor:pointer">▶ PLAY AGAIN</button>
+        <button onclick="stRestart()" style="padding:13px 26px;border:none;border-radius:13px;background:${canAdvance?'rgba(255,255,255,.08)':'linear-gradient(135deg,#fbbf24,#f59e0b)'};color:${canAdvance?'#fff':'#03040c'};font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.1em;font-weight:900;cursor:pointer;border:${canAdvance?'1px solid rgba(255,255,255,.2)':'none'}">↺ ${canAdvance ? 'REPLAY LEVEL' : 'PLAY AGAIN'}</button>
         <button onclick="scoretowerExit()" style="padding:13px 26px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
       </div>
     </div>`;
   }
+
+  window.stNextLevel = function(){
+    if(curLevel >= LEVELS.length) return;
+    curLevel++;
+    window.stRestart();
+  };
 
   window.stRestart = function(){
     ['stOver','stGate'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}});
@@ -655,8 +740,13 @@
     window._stLoopGen = (window._stLoopGen || 0) + 1; // kill any running loop
     clearTimeout(window._stFactT); window._stFactT = null;
     G = null;
+    curLevel = 1;
     if(window.state) state.viewingWorld = 'credtech';
     goTo('credtech_hub');
   };
+
+  /* ── QA debug hook ──────────────────────────────────────────── */
+  window._stDbg = function(){ return G ? { level: G.level, curLevel, fico: G.fico, target: G.cfg.target, time: G.time, phase: G.phase } : null; };
+  window._stForceWin = function(){ if(!G) return; G.fico = G.cfg.target; };
 
 })();

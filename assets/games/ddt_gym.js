@@ -16,8 +16,11 @@
   const DIM     = '#03040c';   // near-black bg
 
   /* ── star thresholds ─────────────────────────────────────────── */
-  const STAR3 = 800;
-  const STAR2 = 450;
+  /* Calibrated against the full 3-level circuit (L1+L2+L3): a mixed-skill run
+     scores roughly 20k–43k total, so these require real progress into Level 3
+     for 2★ and full Level-3 completion with solid form for 3★. */
+  const STAR3 = 34000;
+  const STAR2 = 20000;
 
   /* ── exercise definitions ────────────────────────────────────── */
   const EXERCISES = [
@@ -80,6 +83,16 @@
       tempo: 1.0,
       exercises: [0, 1, 2, 3, 0, 2, 1, 3],  // combo routine
       distract: true,
+      guideArrow: false
+    },
+    {
+      name: 'ELITE',
+      tempo: 1.35,            // fastest hold/sequence windows in the routine
+      // 12-move elite circuit: every exercise 3x, ordered so the same move never repeats twice in a row
+      exercises: [2, 0, 3, 1, 2, 3, 0, 2, 1, 3, 0, 1],
+      distract: true,
+      distractRate: 1.15,     // pop-ups spawn nearly 2x as often as MASTER
+      distractMax: 3,         // up to 3 on screen at once instead of 2
       guideArrow: false
     }
   ];
@@ -721,7 +734,7 @@
       }
     }
 
-    // distraction pop-ups (level 2)
+    // distraction pop-ups (level 2+)
     if (level.distract && G.phase === 'input') {
       G.distracts.forEach((d, i) => {
         d.life -= dt;
@@ -734,8 +747,10 @@
           }
         }
       });
-      // spawn new distractions occasionally
-      if (Math.random() < dt * 0.6 && G.distracts.length < 2) {
+      // spawn new distractions occasionally — rate/max scale up on higher levels
+      const distractRate = level.distractRate || 0.6;
+      const distractMax  = level.distractMax  || 2;
+      if (Math.random() < dt * distractRate && G.distracts.length < distractMax) {
         spawnDistraction();
       }
     }
@@ -1270,6 +1285,30 @@
     G = null;
     if (window.state) state.viewingWorld = 'rebuilder';
     goTo('hub');
+  };
+
+  /* ── debug hook (dev-only; safe no-op in prod if never called) ── */
+  window._ddtGymDbg = function () {
+    return G ? {
+      levelIdx: G.levelIdx,
+      levelName: LEVELS[G.levelIdx] ? LEVELS[G.levelIdx].name : null,
+      exIdx: G.exIdx,
+      exercisesInLevel: LEVELS[G.levelIdx] ? LEVELS[G.levelIdx].exercises.length : null,
+      repsDone: G.repsDone,
+      score: G.score,
+      stamina: G.stamina,
+      totalLevels: LEVELS.length,
+    } : null;
+  };
+  /* force-jump straight to the start of Level 3 (index 2), for QA */
+  window._ddtGymForceLevel3 = function () {
+    if (!G) return false;
+    G.levelIdx = LEVELS.length - 1;  // index 2 = Level 3
+    G.exIdx = 0;
+    G.repsDone = 0;
+    updateLevelBadge();
+    beginExercise();
+    return true;
   };
 
 })();

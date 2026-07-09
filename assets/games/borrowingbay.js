@@ -1,7 +1,7 @@
 /**
  * BORROWING BAY — Coinaverse District 2 / CredTech
  * GDD-accurate loan approval game
- * 987 lines
+ * 3 LEVELS · disjoint loan sets · tighter budget + faster cards each level
  */
 
 (() => {
@@ -12,16 +12,22 @@
   const DISTRICT_ID = 'credtech';
   const DISTRICT_N  = 'district 2';
 
-  const MONTHLY_INCOME   = 3200;
-  const FIXED_EXPENSES   = 1400;
-  const BUDGET_START     = MONTHLY_INCOME - FIXED_EXPENSES; // 1800
-  const SESSION_SECS     = 90;
-  const CARD_SECS        = 8;
   const PTS_CORRECT      = 200;
   const PTS_WRONG        = 100;
   const COINS_PER_STAR   = 40;
 
-  const LOANS = [
+  /* ── Level configs: tighter budget headroom + less time per card ── */
+  const LEVELS = [
+    { n: 1, name: 'FIRST NATIONAL',  income: 3200, fixed: 1400, sessionSecs: 90, cardSecs: 8 },
+    { n: 2, name: 'HARBOR TRUST',    income: 2800, fixed: 1500, sessionSecs: 80, cardSecs: 6 },
+    { n: 3, name: 'APEX CAPITAL',    income: 2500, fixed: 1600, sessionSecs: 70, cardSecs: 5 },
+  ];
+  function cfgFor(level) { return LEVELS[level - 1] || LEVELS[0]; }
+
+  let curLevel = 1;
+
+  /* ── Level 1 · fundamentals (predatory vs. standard loans) ────── */
+  const LOANS_L1 = [
     {
       id: 'student',
       title: 'Student Loan',
@@ -120,6 +126,227 @@
     },
   ];
 
+  /* ── Level 2 · sneakier traps + trickier "approve" cases ───────── */
+  const LOANS_L2 = [
+    {
+      id: 'titleloan',
+      title: 'Car Title Loan',
+      subtitle: '30-day loan against your car title',
+      amount: 1000,
+      apr: 300,
+      monthly: 250,
+      term: '30 days',
+      answer: 'DECLINE',
+      reason: '300% APR, and missing payment risks losing your car. A predatory short-term trap.',
+      fact: 'Title loans let lenders repossess your vehicle if you fall behind — never worth the fast cash.',
+    },
+    {
+      id: 'creditbuilder',
+      title: 'Credit-Builder Loan',
+      subtitle: 'Credit union — savings-secured',
+      amount: 1000,
+      apr: 6.0,
+      monthly: 88,
+      term: '12 months',
+      answer: 'APPROVE',
+      reason: 'Low APR, the loan proceeds stay in a locked savings account, and on-time payments build credit history safely.',
+      fact: 'Credit-builder loans report to all 3 bureaus while the money sits safely in savings — a low-risk way to start a credit file.',
+    },
+    {
+      id: 'rentowncenter',
+      title: 'Rent-to-Own Furniture',
+      subtitle: 'Weekly payments — 18-mo contract',
+      amount: 1800,
+      apr: 189,
+      monthly: 260,
+      term: '18 months',
+      answer: 'DECLINE',
+      reason: 'Effective APR near 189% — you would pay nearly 3x the furniture\'s retail price by the end.',
+      fact: 'Rent-to-own deals advertise low weekly payments but hide sky-high effective interest across the full contract.',
+    },
+    {
+      id: 'medicalloan',
+      title: 'Medical Procedure Loan',
+      subtitle: '0% promotional — hospital financing partner',
+      amount: 4000,
+      apr: 0,
+      monthly: 167,
+      term: '24 months (0% promo)',
+      answer: 'APPROVE',
+      reason: 'True 0% APR with a fixed 24-month term and no deferred-interest clause fits the budget with zero finance cost.',
+      fact: 'Some medical financing offers genuine 0% APR — always confirm in writing there is no deferred or retroactive interest.',
+    },
+    {
+      id: 'consolidationscam',
+      title: '"Debt Relief" Consolidation Offer',
+      subtitle: 'Upfront fee required before any relief',
+      amount: 6000,
+      apr: 18,
+      monthly: 310,
+      term: '48 months',
+      answer: 'DECLINE',
+      reason: 'Legitimate consolidation never demands a large upfront fee before providing any service — a classic scam pattern.',
+      fact: 'The FTC warns that real debt-relief companies do not charge fees until they actually settle or reduce your debt.',
+    },
+    {
+      id: 'applianceloan',
+      title: 'Appliance Financing',
+      subtitle: 'Store card — deferred interest 12-mo',
+      amount: 1500,
+      apr: 27.99,
+      monthly: 210,
+      term: '12 months (deferred)',
+      answer: 'DECLINE',
+      reason: 'Deferred-interest store cards charge the full 28% APR retroactively from day one if not paid off exactly on time.',
+      fact: 'Store-brand deferred interest cards are riskier than they look — one late payment triggers interest on the entire original balance.',
+    },
+    {
+      id: 'peertopeer',
+      title: 'Peer-to-Peer Personal Loan',
+      subtitle: 'Online marketplace — fixed rate',
+      amount: 5000,
+      apr: 9.9,
+      monthly: 165,
+      term: '36 months',
+      answer: 'APPROVE',
+      reason: 'A competitive fixed rate from a reputable marketplace lender, with a manageable payment inside the budget.',
+      fact: 'Peer-to-peer lenders can offer lower rates than banks because they cut out some overhead — compare APRs carefully either way.',
+    },
+    {
+      id: 'heloc2',
+      title: 'Second HELOC (Stacked)',
+      subtitle: 'On top of an existing home equity line',
+      amount: 15000,
+      apr: 9.5,
+      monthly: 320,
+      term: '60 months',
+      answer: 'DECLINE',
+      reason: 'Stacking a second loan against the same home equity sharply raises default risk and monthly obligations.',
+      fact: 'Borrowing against the same collateral twice compounds risk — if home values dip, you can end up owing more than the home is worth.',
+    },
+  ];
+
+  /* ── Level 3 · expert-level nuance, biggest numbers, fastest pace ── */
+  const LOANS_L3 = [
+    {
+      id: 'balloonauto',
+      title: 'Balloon-Payment Auto Loan',
+      subtitle: 'Low payments, huge payoff at month 48',
+      amount: 24000,
+      apr: 6.9,
+      monthly: 310,
+      term: '48 months + $9,000 balloon',
+      answer: 'DECLINE',
+      reason: 'The advertised low monthly hides a $9,000 lump-sum balloon due at the end — most borrowers cannot pay it and must refinance at a worse rate.',
+      fact: 'Balloon loans trade a smaller monthly bill today for a massive bill later — read the full amortization schedule, not just the payment.',
+    },
+    {
+      id: 'smallbiz',
+      title: 'SBA-Backed Small Business Loan',
+      subtitle: 'Equipment purchase — government guaranteed',
+      amount: 35000,
+      apr: 7.5,
+      monthly: 420,
+      term: '84 months',
+      answer: 'APPROVE',
+      reason: 'SBA-guaranteed loans carry below-market rates and longer terms specifically to make business financing affordable and sustainable.',
+      fact: 'The SBA guarantees a portion of these loans to the bank, which is why they offer better rates and terms than a typical business loan.',
+    },
+    {
+      id: 'heloc3',
+      title: 'HELOC During Falling Home Prices',
+      subtitle: 'Home equity line — market declining 8%/yr',
+      amount: 20000,
+      apr: 8.2,
+      monthly: 340,
+      term: '60 months',
+      answer: 'DECLINE',
+      reason: 'Borrowing against equity while home prices are actively falling risks going "underwater" — owing more than the home is worth.',
+      fact: 'Home equity shrinks fast in a falling market. Lenders and borrowers alike should slow down home-equity borrowing during price declines.',
+    },
+    {
+      id: 'refistudent',
+      title: 'Student Loan Refinance',
+      subtitle: 'Private refinance of federal loans at lower rate',
+      amount: 18500,
+      apr: 4.2,
+      monthly: 180,
+      term: '10 years',
+      answer: 'DECLINE',
+      reason: 'Refinancing federal loans into a private loan permanently forfeits income-driven repayment and forgiveness protections — a bad trade even at a lower rate.',
+      fact: 'Federal student loan protections (forbearance, forgiveness, income-driven plans) disappear forever once refinanced into a private loan.',
+    },
+    {
+      id: 'invoicefactor',
+      title: 'Invoice Factoring',
+      subtitle: 'Sell unpaid invoices for immediate cash',
+      amount: 10000,
+      apr: 42,
+      monthly: 380,
+      term: '90 days',
+      answer: 'DECLINE',
+      reason: 'Effective annualized cost of ~42% is extremely expensive cash — only justifiable in a true emergency, not routine cash flow.',
+      fact: 'Invoice factoring converts unpaid bills into fast cash, but the fees compound into some of the highest effective rates in business financing.',
+    },
+    {
+      id: 'greenloan',
+      title: 'Solar Panel Loan',
+      subtitle: 'Energy-efficient upgrade — utility rebate program',
+      amount: 16000,
+      apr: 5.9,
+      monthly: 265,
+      term: '120 months',
+      answer: 'APPROVE',
+      reason: 'Low fixed rate, a matching utility rebate, and monthly energy savings that offset a large share of the payment make this affordable.',
+      fact: 'Green-energy loans often pair a low rate with rebates or tax credits — always subtract those savings before judging affordability.',
+    },
+    {
+      id: 'margincall',
+      title: 'Margin Loan Against Investments',
+      subtitle: 'Borrow against a volatile stock portfolio',
+      amount: 12000,
+      apr: 11,
+      monthly: 300,
+      term: 'Open (subject to margin call)',
+      answer: 'DECLINE',
+      reason: 'If the portfolio value drops, the lender can force an immediate sale at a loss — an unpredictable risk with no fixed schedule.',
+      fact: 'Margin loans can be called at any time if collateral value falls, forcing forced sales at the worst possible moment.',
+    },
+    {
+      id: 'bridgeloan',
+      title: 'Bridge Loan Between Home Sales',
+      subtitle: 'Short-term financing while selling old home',
+      amount: 40000,
+      apr: 9.0,
+      monthly: 300,
+      term: '6 months interest-only',
+      answer: 'APPROVE',
+      reason: 'A short, interest-only bridge loan with a clear 6-month exit (the pending home sale) is a standard, well-understood use case.',
+      fact: 'Bridge loans work best with a certain, near-term payoff event — like a home sale already under contract.',
+    },
+  ];
+
+  const LOAN_SETS = [LOANS_L1, LOANS_L2, LOANS_L3];
+  let LOANS = LOANS_L1; // current level's active loan set, reassigned by setLevel()
+
+  /* ── derived level values (mutable — recomputed by setLevel()) ── */
+  let MONTHLY_INCOME  = LEVELS[0].income;
+  let FIXED_EXPENSES  = LEVELS[0].fixed;
+  let BUDGET_START    = MONTHLY_INCOME - FIXED_EXPENSES;
+  let SESSION_SECS    = LEVELS[0].sessionSecs;
+  let CARD_SECS       = LEVELS[0].cardSecs;
+
+  function setLevel(level) {
+    curLevel = Math.max(1, Math.min(LEVELS.length, level));
+    const cfg = cfgFor(curLevel);
+    LOANS           = LOAN_SETS[curLevel - 1] || LOAN_SETS[0];
+    MONTHLY_INCOME  = cfg.income;
+    FIXED_EXPENSES  = cfg.fixed;
+    BUDGET_START    = MONTHLY_INCOME - FIXED_EXPENSES;
+    SESSION_SECS    = cfg.sessionSecs;
+    CARD_SECS       = cfg.cardSecs;
+  }
+
   /* ─────────────────────────────────────────────
      1.  STATE
   ───────────────────────────────────────────── */
@@ -128,6 +355,7 @@
   function freshState() {
     return {
       phase:        'idle',   // idle | playing | gate | ended
+      level:        curLevel,
       cardIndex:    0,
       results:      [],       // 'correct' | 'wrong' | 'timeout' | null per card
       score:        0,
@@ -137,7 +365,7 @@
       sessionTimer: null,
       cardTimer:    null,
       startTime:    0,
-      coinsEarned:  0,
+      coinsEarned:  null,
     };
   }
 
@@ -148,6 +376,7 @@
     if (!window.SCREENS) { window.SCREENS = {}; }
     window.SCREENS[SCREEN_ID] = function() {
       if (window.state) window.state.viewingWorld = 'credtech';
+      setLevel(1); // fresh entry from hub always starts at Level 1
       gs = freshState();
       const html = `<style>${CSS}</style><div id="bb-root"><canvas id="bb-stars"></canvas>${renderTopBar()}${renderBudgetStrip()}${renderProgressDots()}<div id="bb-stage"></div></div>`;
       setTimeout(function(){
@@ -227,10 +456,10 @@
     return `
       <div id="bb-topbar">
         <button class="bb-back" onclick="borrowingbayExit()">&#8592;</button>
-        <div id="bb-title">BORROWING BAY</div>
+        <div id="bb-title">BORROWING BAY <span id="bb-level-badge" style="color:#38bdf8">· LV ${curLevel}/3</span></div>
         <div id="bb-hud-right">
           <span id="bb-score-val" class="bb-gold">0 pts</span>
-          <span id="bb-session-timer" class="bb-cyan">1:30</span>
+          <span id="bb-session-timer" class="bb-cyan">${Math.floor(SESSION_SECS/60)}:${(SESSION_SECS%60).toString().padStart(2,'0')}</span>
         </div>
       </div>
       <div id="bb-session-bar-wrap">
@@ -244,11 +473,11 @@
       <div id="bb-budget-strip">
         <div class="bb-budget-cell">
           <div class="bb-budget-label">Monthly Income</div>
-          <div class="bb-budget-val bb-green">$${fmt(MONTHLY_INCOME)}</div>
+          <div class="bb-budget-val bb-green" id="bb-income-val">$${fmt(MONTHLY_INCOME)}</div>
         </div>
         <div class="bb-budget-cell">
           <div class="bb-budget-label">Fixed Expenses</div>
-          <div class="bb-budget-val bb-red">-$${fmt(FIXED_EXPENSES)}</div>
+          <div class="bb-budget-val bb-red" id="bb-fixed-val">-$${fmt(FIXED_EXPENSES)}</div>
         </div>
         <div class="bb-budget-cell">
           <div class="bb-budget-label">Budget Left</div>
@@ -374,24 +603,28 @@
     // coins already awarded once in endGame() — only display the stored value here
     if (gs.coinsEarned == null) gs.coinsEarned = stars * COINS_PER_STAR;
 
+    const isFinalLevel = curLevel >= LEVELS.length;
+    const canAdvance   = stars >= 1 && !isFinalLevel;
     const starStr = '★'.repeat(stars) + '☆'.repeat(3 - stars);
 
     let lesson = '';
-    if (stars === 3)      lesson = 'Outstanding! You have a banker\'s instinct for risk assessment.';
+    if (stars === 3)      lesson = isFinalLevel ? 'MISSION ACCOMPLISHED! You have a banker\'s instinct for risk assessment at every level.' : 'Outstanding! You have a banker\'s instinct for risk assessment.';
     else if (stars === 2) lesson = 'Good work! Review high-APR traps and DTI limits to go further.';
     else if (stars === 1) lesson = 'You\'re learning! Focus on APR comparison and monthly budget math.';
-    else                  lesson = 'Keep practicing! Every loan rejected is a lesson earned.';
+    else                  lesson = 'NICE TRY! Power up and try again — every loan reviewed is a lesson earned.';
 
     stage.innerHTML = `
       <div class="bb-end">
+        <div class="bb-end-level">LEVEL ${curLevel} · ${cfgFor(curLevel).name}</div>
         <div class="bb-end-stars">${starStr}</div>
         <div class="bb-end-score">${gs.score} pts</div>
         <div class="bb-end-correct">${correct} / ${LOANS.length} correct decisions</div>
         <div class="bb-end-coins">+${gs.coinsEarned} <span class="bb-gold">coins</span></div>
         <div class="bb-end-lesson">${lesson}</div>
         <div class="bb-end-breakdown">${renderBreakdown()}</div>
+        ${canAdvance ? `<button class="bb-end-next" onclick="bbNextLevel()">LEVEL ${curLevel + 1} · ${cfgFor(curLevel + 1).name} ▶</button>` : ''}
         <div class="bb-end-btns">
-          <button class="bb-end-again" onclick="bbPlayAgain()">Play Again</button>
+          <button class="bb-end-again" onclick="bbPlayAgain()">${canAdvance ? 'Replay Level' : 'Play Again'}</button>
           <button class="bb-end-hub"   onclick="borrowingbayExit()">Hub</button>
         </div>
       </div>
@@ -635,8 +868,9 @@
     const correct = gs.results.filter(r => r === 'correct').length;
     const stars   = correct >= 7 ? 3 : correct >= 5 ? 2 : correct >= 3 ? 1 : 0;
     const _bb3s = stars === 3;
+    const isFinalLevel = curLevel >= LEVELS.length;
     gs.coinsEarned = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_borrowingbay', { level: 1, stars, is3star: _bb3s, isPerfect: correct >= LOANS.length, badge: 'Loan Expert' })
+      ? cvAwardGame('game_borrowingbay', { level: curLevel, stars, is3star: _bb3s, isPerfect: correct >= LOANS.length && isFinalLevel, badge: 'Loan Expert' })
       : stars * COINS_PER_STAR;
     if (stars >= 1 && window.cvHubMeter) cvHubMeter('credtech_trust', stars*4);
     if (stars < 1 && window.cvSave) cvSave();
@@ -653,6 +887,7 @@
   ───────────────────────────────────────────── */
   window.borrowingbayExit = function() {
     onExit();
+    curLevel = 1;
     if (window.state) { window.state.viewingWorld = DISTRICT_ID; } // 'credtech'
     if (typeof window.goTo === 'function') {
       window.goTo('credtech_hub');
@@ -663,6 +898,7 @@
 
   window.bbPlayAgain = function() {
     onExit(); // clears timers + rAF + listeners
+    setLevel(curLevel); // replay the SAME level just finished, not a reset to Lv1
     gs = freshState();
     const stage = document.getElementById('bb-stage');
     if (stage) {
@@ -670,7 +906,30 @@
     }
     startSession();
     updateHUD();
+    updateLevelBadge();
   };
+
+  window.bbNextLevel = function() {
+    if (curLevel >= LEVELS.length) return;
+    setLevel(curLevel + 1);
+    onExit();
+    gs = freshState();
+    const stage = document.getElementById('bb-stage');
+    if (stage) { renderStage(); }
+    startSession();
+    updateHUD();
+    updateLevelBadge();
+  };
+
+  function updateLevelBadge() {
+    const el = document.getElementById('bb-level-badge');
+    if (el) el.textContent = `· LV ${curLevel}/3`;
+    const incEl = document.getElementById('bb-income-val');
+    if (incEl) incEl.textContent = '$' + fmt(MONTHLY_INCOME);
+    const fixEl = document.getElementById('bb-fixed-val');
+    if (fixEl) fixEl.textContent = '-$' + fmt(FIXED_EXPENSES);
+    // bb-session-timer / bb-budget-val are refreshed by updateHUD() right after this call
+  }
 
   /* ─────────────────────────────────────────────
      17. INPUT — KEYBOARD + TOUCH/SWIPE
@@ -1069,6 +1328,14 @@
       text-align: center;
       animation: bbCardIn 0.4s ease;
     }
+    .bb-end-level {
+      font-family: 'Orbitron', monospace, sans-serif;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: #64748b;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
     .bb-end-stars { font-size: 36px; color: #fbbf24; margin-bottom: 8px; letter-spacing: 4px; }
     .bb-end-score {
       font-family: 'Orbitron', monospace, sans-serif;
@@ -1113,6 +1380,24 @@
     .bb-breakdown-icon { font-size: 14px; width: 16px; text-align: center; }
     .bb-breakdown-name { flex: 1; color: #94a3b8; }
     .bb-breakdown-ans { font-family: 'Orbitron', monospace, sans-serif; font-size: 10px; color: #475569; letter-spacing: 1px; }
+
+    .bb-end-next {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      margin-bottom: 10px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-family: 'Orbitron', monospace, sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      color: #1a0d00;
+      transition: opacity 0.2s;
+    }
+    .bb-end-next:hover { opacity: 0.85; }
 
     .bb-end-btns { display: flex; gap: 12px; }
     .bb-end-again, .bb-end-hub {
@@ -1170,8 +1455,24 @@
 
   // expose for direct HTML invocation
   window.borrowingbayInit = function(container) {
+    setLevel(1);
     gs = freshState();
     renderGame(container);
+  };
+
+  /* ── QA debug hook ─────────────────────────────────────────── */
+  window._bbDbg = function(){
+    return gs ? {
+      level: curLevel, phase: gs.phase, income: MONTHLY_INCOME, fixed: FIXED_EXPENSES,
+      budgetStart: BUDGET_START, sessionSecs: SESSION_SECS, cardSecs: CARD_SECS,
+      loanIds: LOANS.map(l => l.id), cardIndex: gs.cardIndex, results: gs.results.slice(),
+    } : null;
+  };
+  window._bbForceWin = function(){
+    if (!gs) return;
+    gs.results = LOANS.map(() => 'correct');
+    gs.cardIndex = LOANS.length;
+    endGame();
   };
 
 })();

@@ -1,8 +1,9 @@
 /* ════════════════════════════════════════════════════════════════
    INVESTOR PITCH ARENA — Launch Lab Hub · Coinaverse v25
-   Quiz + Timing mechanic · Fundraising & Business Communication
+   Timed Q&A challenge · Fundraising & Business Communication
    Level 1: friendly investors, generous timers, clear best answers
    Level 2: tough follow-ups, investor personalities, walk-outs
+   Level 3: skeptical board, no personality hints, tightest timer
    Win: fill Investor Confidence to funding goal before time expires
    ════════════════════════════════════════════════════════════════ */
 (function () {
@@ -189,6 +190,93 @@
     },
   ];
 
+  const QUESTIONS_LVL3 = [
+    {
+      q: 'What is your exit strategy?',
+      context: null,
+      answers: [
+        { text: 'We plan to IPO — it\'s the only real exit.', score: -1, tag: 'WEAK', prefTags: [] },
+        { text: 'We haven\'t thought that far ahead — we just want to build something great.', score: -2, tag: 'WEAK', prefTags: [] },
+        { text: 'Strategic acquisition is most likely — two companies in our space have already been acquired at 6-8x revenue, and we\'re building relationships with both potential acquirers now.', score: 3, tag: 'BEST', prefTags: ['RISK','DATA'] },
+      ],
+      lesson: 'An "exit" just means how investors eventually get their money back — acquisition or IPO. Naming a realistic path (with real market comps) shows you understand how investors get paid.',
+      best: 'BEST',
+      prefer: ['RISK','DATA'],
+    },
+    {
+      q: 'Walk me through your cap table. How much of the company will I own?',
+      context: 'CONCERN',
+      answers: [
+        { text: 'Founders hold 68% after this round, employee option pool is 12%, and this round gives you 15% for your investment — fully documented and ready to sign.', score: 3, tag: 'BEST', prefTags: ['DATA','RISK'] },
+        { text: 'We haven\'t finalized the split yet — let\'s figure it out after you commit.', score: -2, tag: 'WEAK', prefTags: [] },
+        { text: 'Enough that you\'ll be happy with the returns.', score: -1, tag: 'WEAK', prefTags: [] },
+      ],
+      lesson: 'A cap table just tracks who owns what percent of the company. Knowing your exact numbers — down to the decimal — proves you\'re running a real business, not guessing.',
+      best: 'BEST',
+      prefer: ['DATA','RISK'],
+    },
+    {
+      q: 'Your gross margin looks strong, but what does it look like after support and infrastructure costs?',
+      context: 'RISK',
+      answers: [
+        { text: 'Gross margin is 74%, but once you subtract customer support and server costs, our net margin is 31% — still healthy, and improving 2 points per quarter as we automate support.', score: 3, tag: 'BEST', prefTags: ['DATA','RISK'] },
+        { text: 'Gross margin is what matters most to investors.', score: -1, tag: 'WEAK', prefTags: [] },
+        { text: 'We haven\'t separated those costs out yet.', score: -2, tag: 'WEAK', prefTags: [] },
+      ],
+      lesson: 'Gross margin is money left after making the product; net margin is what\'s left after running the whole business. Investors want the honest, full-cost number, not just the flattering one.',
+      best: 'BEST',
+      prefer: ['DATA','RISK'],
+    },
+    {
+      q: 'What is your customer churn rate, and why do people leave?',
+      context: null,
+      answers: [
+        { text: 'Churn is basically zero — our customers love us.', score: -2, tag: 'WEAK', prefTags: [] },
+        { text: 'Monthly churn is 3.2%. Exit surveys show most leave over price, not the product — so we\'re testing a lower-priced tier next quarter.', score: 3, tag: 'BEST', prefTags: ['DATA','GROWTH'] },
+        { text: 'Some people leave, but we gain more than we lose.', score: 0, tag: 'OK', prefTags: ['VISION'] },
+      ],
+      lesson: 'Churn means the percent of customers who stop using your product each month. Investors trust founders who track WHY customers leave, not just that some do.',
+      best: 'BEST',
+      prefer: ['DATA','GROWTH'],
+    },
+    {
+      q: 'This industry is heavily regulated. What is your legal and compliance exposure?',
+      context: 'RISK',
+      answers: [
+        { text: 'We\'ve consulted a compliance lawyer, we\'re registered in the two states that require it, and we budget $30K/year for ongoing legal review as we expand.', score: 3, tag: 'BEST', prefTags: ['RISK','DATA'] },
+        { text: 'We\'ll deal with regulations once we\'re bigger and it actually matters.', score: -2, tag: 'WEAK', prefTags: [] },
+        { text: 'Our lawyer friend said we\'re probably fine.', score: -1, tag: 'WEAK', prefTags: [] },
+      ],
+      lesson: 'Regulatory risk means the chance that laws or government rules could block or slow your business. Investors need proof you\'ve planned for the rules of your industry, not just its opportunity.',
+      best: 'BEST',
+      prefer: ['RISK'],
+    },
+    {
+      q: 'Frankly, your valuation seems high for where you are. Why should I believe that number?',
+      context: 'OBJECTION',
+      answers: [
+        { text: 'Comparable companies at our stage and revenue have raised at similar multiples — here are three recent deals, plus our 22% MoM growth justifies the premium.', score: 3, tag: 'BEST', prefTags: ['DATA','RISK'] },
+        { text: 'We\'re worth it because our team is exceptional.', score: 0, tag: 'OK', prefTags: ['VISION'] },
+        { text: 'If you don\'t like the number, other investors will take the deal.', score: -2, tag: 'WEAK', prefTags: [] },
+      ],
+      lesson: 'Valuation is just the price tag on your company. Defending it with real comparable deals and growth data — not attitude — is what separates confidence from bluffing.',
+      best: 'BEST',
+      prefer: ['DATA','RISK'],
+    },
+    {
+      q: 'Every startup says they\'ll succeed. What is your Plan B if this fails?',
+      context: 'CONCERN',
+      answers: [
+        { text: 'Failure is not an option for us.', score: -1, tag: 'WEAK', prefTags: [] },
+        { text: 'If growth stalls, our technology and customer base still have standalone value — we\'d pursue a smaller acquihire rather than shut down, protecting most of your capital.', score: 3, tag: 'BEST', prefTags: ['RISK','VISION'] },
+        { text: 'We\'d just try a completely different idea with the same team.', score: -1, tag: 'WEAK', prefTags: [] },
+      ],
+      lesson: 'A "Plan B" shows you\'ve thought about the downside, not just the dream. Investors fund founders who plan for both outcomes — it makes the upside easier to believe too.',
+      best: 'BEST',
+      prefer: ['RISK','VISION'],
+    },
+  ];
+
   /* ── level configurations ─────────────────────────────────── */
   const LEVEL_CFG = [
     {
@@ -224,11 +312,37 @@
       ],
       questions: QUESTIONS_LVL2,
     },
+    {
+      level: 3,
+      title: 'FOUNDER',
+      subtitle: 'Skeptical Board · Every Word Counts',
+      pitchTimeSec: 65,
+      answerTimeSec: 5,
+      fundingGoal: 750,
+      penaltyOnWrong: 55,
+      partialTimeBonus: 14,
+      investors: [
+        { name: 'Priya Malhotra', type: 'DATA',   avatar: '👩‍⚖️', confidence: 100, minConf: 0, canWalkOut: true },
+        { name: 'Nathaniel Cross', type: 'RISK',   avatar: '🧔',   confidence: 100, minConf: 0, canWalkOut: true },
+        { name: 'Wei Lin',         type: 'GROWTH', avatar: '👩‍🔬', confidence: 100, minConf: 0, canWalkOut: true },
+        { name: 'Elena Rossi',     type: 'VISION', avatar: '🧑‍💼', confidence: 100, minConf: 0, canWalkOut: true },
+      ],
+      questions: QUESTIONS_LVL3,
+    },
   ];
 
   /* ── star thresholds (confidence points) ──────────────────── */
+  /* NOTE: kept for backward compatibility / reference — no longer used directly
+     in triggerGameOver(). A win always requires totalConf >= cfg.fundingGoal,
+     so any flat point-threshold below a level's own goal is auto-satisfied by
+     every winning run (480/300 vs. L3's 750 goal would make 3★ automatic on
+     every win). Stars are now computed from pitch-time remaining at the moment
+     of winning — see STAR3_TIME_PCT / STAR2_TIME_PCT below — which scales
+     automatically to any level's pitchTimeSec/fundingGoal without new constants. */
   const STAR3_CONF = 480;
   const STAR2_CONF = 300;
+  const STAR3_TIME_PCT = 0.45;   // >=45% of pitch time left at win = crushed it
+  const STAR2_TIME_PCT = 0.18;   // >=18% of pitch time left at win = solid finish
 
   /* ── module state ─────────────────────────────────────────── */
   let G = null;
@@ -306,6 +420,11 @@
         <div style="font-size:13px;font-weight:600;margin-bottom:3px;">Tough Room · Read Personalities</div>
         <div style="font-size:11px;color:rgba(255,255,255,.5);">Investor types matter · 7s per answer · Walk-outs possible</div>
       </button>
+      <button id="ipaLvl3Btn" style="padding:16px;background:linear-gradient(135deg,#2a0006,#0d0002);border:1px solid ${DANGER}55;border-radius:12px;color:#fff;cursor:pointer;text-align:left;transition:all .2s;">
+        <div style="font-family:Orbitron,monospace;font-size:11px;letter-spacing:1.5px;color:${GOLD};margin-bottom:4px;">LEVEL 3 — FOUNDER</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:3px;">Skeptical Board · Every Word Counts</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.5);">No personality hints · 5s per answer · Highest funding goal</div>
+      </button>
     </div>
   </div>
 
@@ -370,8 +489,10 @@
     /* level select buttons */
     const lvl1Btn = document.getElementById('ipaLvl1Btn');
     const lvl2Btn = document.getElementById('ipaLvl2Btn');
+    const lvl3Btn = document.getElementById('ipaLvl3Btn');
     if (lvl1Btn) lvl1Btn.onclick = () => startLevel(0);
     if (lvl2Btn) lvl2Btn.onclick = () => startLevel(1);
+    if (lvl3Btn) lvl3Btn.onclick = () => startLevel(2);
 
     /* start bg draw loop */
     drawBg();
@@ -470,7 +591,7 @@
     }
 
     /* check if all investors walked out */
-    if (G.cfg.level === 2) {
+    if (G.cfg.level >= 2) {
       const active = G.investors.filter(iv => iv.confidence > 0);
       if (active.length === 0) {
         triggerGameOver(false, 'All investors walked out. The room is empty.');
@@ -656,18 +777,20 @@
     G.investors.forEach((iv, i) => {
       if (iv.confidence <= 0) return; /* already walked out */
       let d = delta;
-      /* lvl2 personality multiplier */
-      if (G.cfg.level === 2 && prefTags && prefTags.length) {
+      /* lvl2+ personality multiplier — sharper spread at lvl3 ("read the room" matters most) */
+      if (G.cfg.level >= 2 && prefTags && prefTags.length) {
+        const hitMult  = G.cfg.level >= 3 ? 1.8 : 1.5;
+        const missMult = G.cfg.level >= 3 ? 0.25 : 0.4;
         if (prefTags.includes(iv.type)) {
-          d = delta > 0 ? delta * 1.5 : delta * 0.5;
+          d = delta > 0 ? delta * hitMult : delta * 0.5;
         } else if (delta > 0) {
-          d = delta * 0.4;
+          d = delta * missMult;
         }
       }
       iv.confidence = Math.max(0, Math.min(100, iv.confidence + d));
 
       /* walk out logic */
-      if (G.cfg.level === 2 && iv.canWalkOut && iv.confidence === 0) {
+      if (G.cfg.level >= 2 && iv.canWalkOut && iv.confidence === 0) {
         iv.walkedOut = true;
         showWalkout(iv);
       }
@@ -767,8 +890,12 @@
     clearInterval(G.answerInterval);
     clearInterval(G._countdownUI);
 
+    /* stars scale with any level's own pitchTimeSec/fundingGoal — a win always
+       satisfies totalConf >= fundingGoal, so time-remaining is the signal that
+       actually separates a narrow win from a dominant one, at every level. */
+    const timeLeftPct = won ? (G.pitchTimeLeft / G.cfg.pitchTimeSec) : 0;
     const stars = won
-      ? (G.totalConf >= STAR3_CONF ? 3 : G.totalConf >= STAR2_CONF ? 2 : 1)
+      ? (timeLeftPct >= STAR3_TIME_PCT ? 3 : timeLeftPct >= STAR2_TIME_PCT ? 2 : 1)
       : 0;
 
     const is3star = stars === 3;
@@ -1000,5 +1127,27 @@
       }, i * 40);
     }
   }
+
+  /* ══════════════════════════════════════════════════════════
+     DEBUG HOOK — G is closure-private, expose a read-only peek
+     and a force-win helper for manual/automated verification.
+  ══════════════════════════════════════════════════════════ */
+  window._ipaDbg = () => G ? {
+    lvlIdx: G.lvlIdx,
+    level: G.cfg.level,
+    totalConf: G.totalConf,
+    goal: G.cfg.fundingGoal,
+    pitchTimeLeft: G.pitchTimeLeft,
+    pitchTimeSec: G.cfg.pitchTimeSec,
+    phase: G.phase,
+    investors: G.investors.map(iv => ({ name: iv.name, conf: iv.confidence, walkedOut: !!iv.walkedOut })),
+  } : null;
+
+  window._ipaForceWin = () => {
+    if (G) {
+      G.totalConf = G.cfg.fundingGoal;
+      nextQuestion();
+    }
+  };
 
 })();

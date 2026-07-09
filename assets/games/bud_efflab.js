@@ -4,6 +4,8 @@
    assign robot assistants, optimize Money + Time + Energy usage.
    Level 1 (Learn): 5 tasks, comfortable budgets, no disruptions.
    Level 2 (Master): 12 tasks + live disruptive events.
+   Level 3 (Commander): 16 tasks, tighter budgets, faster + more
+   severe disruptive events including two Level-3-exclusive crises.
    Screen ID : game_bud_efflab
    Hub       : strategist (#1a2a4a)
    Exit fn   : window.bud_efflabExit
@@ -47,21 +49,28 @@
     { id:'bank',      label:'Bank Errand',      emoji:'🏦', time:1,  money:+10,  energy:-5,  required:false },
     { id:'repairs',   label:'Home Repairs',     emoji:'🔧', time:3,  money:-70,  energy:-20, required:false },
     { id:'overtime',  label:'Overtime',         emoji:'⏰', time:4,  money:+90,  energy:-40, required:false },
+    { id:'invoice',   label:'Send Invoice',     emoji:'🧾', time:1,  money:+70,  energy:-10, required:true  },
+    { id:'networking',label:'Networking Event', emoji:'🤝', time:3,  money:0,    energy:-15, required:false },
+    { id:'carmaint',  label:'Car Maintenance',  emoji:'🚗', time:2,  money:-90,  energy:-15, required:false },
+    { id:'insure2',   label:'Renew Insurance',  emoji:'📄', time:1,  money:-110, energy:-5,  required:true  },
   ];
 
   /* ── level configs ─────────────────────────────────────────── */
   const LEVEL1_IDS  = ['work','cook','bills','shop','exercise'];
   const LEVEL2_IDS  = ['work','cook','bills','shop','study','sidejob','commute','laundry','sleep','socialize','bank','repairs'];
+  const LEVEL3_IDS  = ['work','cook','bills','shop','invoice','insure2','study','sidejob','commute','laundry','sleep','socialize','bank','repairs','networking','carmaint'];
 
   // Starting resources
   const L1_RESOURCES = { money: 300, time: 24, energy: 100 };
   const L2_RESOURCES = { money: 250, time: 24, energy: 80 };
+  const L3_RESOURCES = { money: 220, time: 24, energy: 75 };
 
   // Star thresholds: efficiency = resources remaining / starting resources (avg %)
   const STAR3_THRESHOLD = 0.50;  // at least 50% of any single resource above 50%
   const STAR2_THRESHOLD = 0.20;  // at least 20% of resources remain
 
-  /* ── disruptive events (Level 2) ───────────────────────────── */
+  /* ── disruptive events. minLevel gates eligibility (undefined = ─┐
+     available from Level 2 up). Level 3 adds two exclusive crises. */
   const EVENTS = [
     {
       id:'traffic',
@@ -96,6 +105,29 @@
       desc:'Overtime task added — earns +90 Money but costs -40 Energy.',
       color: GREEN,
       injectTask: 'overtime',
+      duration: 0,
+    },
+    {
+      id:'clientlate',
+      label:'📉 Client Paid Late!',
+      desc:'Invoice & Side Job tasks earn 40% less Money for 2 tasks.',
+      color: RED,
+      minLevel: 3,
+      apply: (task, G) => {
+        if (task.id === 'invoice' || task.id === 'sidejob') {
+          return { money: task.money > 0 ? Math.floor(task.money * 0.6) : task.money };
+        }
+        return null;
+      },
+      duration: 2,
+    },
+    {
+      id:'rentspike',
+      label:'🏠 Rent Spike!',
+      desc:'A surprise Car Maintenance bill has been injected into your queue!',
+      color: '#ff9800',
+      minLevel: 3,
+      injectTask: 'carmaint',
       duration: 0,
     },
   ];
@@ -430,6 +462,29 @@
     G.eventsFired = [];
     updateHUD();
     document.getElementById('ef_level').textContent = '2';
+    scheduleEvent();
+  }
+
+  function buildLevel3() {
+    const ids = LEVEL3_IDS;
+    G.level = 3;
+    G.resources = { ...L3_RESOURCES };
+    G.startResources = { ...L3_RESOURCES };
+    G.taskPool = ids.map(id => ALL_TASKS.find(t => t.id === id)).filter(Boolean).map(t => ({ ...t }));
+    G.required = ids.filter(id => {
+      const t = ALL_TASKS.find(tt => tt.id === id);
+      return t && t.required;
+    });
+    G.beltQueue = [];
+    G.completed = [];
+    G.robots = 2;
+    G.maxRobots = 2;
+    G.tasksTotal = ids.length;
+    G.activeEvent = null;
+    G.eventTurnsLeft = 0;
+    G.eventsFired = [];
+    updateHUD();
+    document.getElementById('ef_level').textContent = '3';
     scheduleEvent();
   }
 
@@ -1068,6 +1123,7 @@
   }
 
   /* ── win check ─────────────────────────────────────────────── */
+  const FINAL_LEVEL = 3; // last playable level — completing this is the true win
   function checkWinCondition() {
     if (!G) return;
 
@@ -1078,20 +1134,22 @@
     const poolEmpty   = G.taskPool.length === 0 && G.beltQueue.length === 0;
 
     if (allRequired && poolEmpty) {
-      // All tasks processed
-      if (G.level === 1) {
-        // Advance to level 2
-        showLevelTransition();
+      // All tasks processed for this level
+      if (G.level < FINAL_LEVEL) {
+        // Advance to the next level
+        showLevelTransition(G.level, G.level + 1);
       } else {
         triggerWin();
       }
-    } else if (allRequired && G.taskPool.length === 0 && G.beltQueue.length === 0) {
-      if (G.level === 1) showLevelTransition();
-      else triggerWin();
     }
   }
 
-  function showLevelTransition() {
+  const LEVEL_BUILDERS = { 2: buildLevel2, 3: buildLevel3 };
+  const LEVEL_TRANSITION_MSG = {
+    2: 'Nice optimization! Now the <span style="color:' + AMBER + '">real world hits back</span> — disruptions incoming. Adapt your routing plan.',
+    3: 'Efficiency confirmed! Brace for <span style="color:' + AMBER + '">Commander tier</span> — more tasks, tighter resources, faster crises.',
+  };
+  function showLevelTransition(fromLevel, toLevel) {
     if (!G) return;
     G.phase = 'transition';
     const root = document.getElementById('ef_root');
@@ -1105,28 +1163,30 @@
       display:flex;flex-direction:column;align-items:center;justify-content:center;
       gap:16px;animation:ef_result_in .4s ease both;
     `;
+    const msg = LEVEL_TRANSITION_MSG[toLevel] || LEVEL_TRANSITION_MSG[2];
     overlay.innerHTML = `
       <div style="font-size:2.5rem">🏭</div>
-      <div style="font-family:Orbitron,sans-serif;font-size:1rem;color:${GREEN};letter-spacing:.2em;text-shadow:0 0 16px ${GREEN}">LEVEL 1 COMPLETE!</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:1rem;color:${GREEN};letter-spacing:.2em;text-shadow:0 0 16px ${GREEN}">MISSION ${fromLevel} ACCOMPLISHED!</div>
       <div style="font-size:.75rem;color:#aaa;text-align:center;max-width:260px;line-height:1.6">
-        Nice optimization! Now the <span style="color:${AMBER}">real world hits back</span> — disruptions incoming. Adapt your routing plan.
+        ${msg}
       </div>
-      <div style="font-family:Orbitron,sans-serif;font-size:.62rem;color:${AMBER};letter-spacing:.12em;">Level 2 starts in 3…</div>
+      <div class="ef-transition-countdown" style="font-family:Orbitron,sans-serif;font-size:.62rem;color:${AMBER};letter-spacing:.12em;">Level ${toLevel} starts in 3…</div>
     `;
     root.appendChild(overlay);
 
     let count = 3;
-    const countEl = overlay.querySelector('[style*="starts in"]');
+    const countEl = overlay.querySelector('.ef-transition-countdown');
     G._countdownTimer = setInterval(() => {
       if (!G) { clearInterval(G && G._countdownTimer); return; }
       count--;
-      if (countEl) countEl.textContent = `Level 2 starts in ${count}…`;
+      if (countEl) countEl.textContent = `Level ${toLevel} starts in ${count}…`;
       if (count <= 0) {
         clearInterval(G._countdownTimer);
         G._countdownTimer = null;
         overlay.remove();
         G.phase = 'playing';
-        buildLevel2();
+        const builder = LEVEL_BUILDERS[toLevel];
+        if (builder) builder();
         renderAll();
       }
     }, 1000);
@@ -1178,7 +1238,7 @@
   function endGame(stars, won) {
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_bud_efflab', { level: 1, stars, badge: 'Efficiency Master', is3star, isPerfect: is3star })
+      ? cvAwardGame('game_bud_efflab', { level: G ? G.level : 1, stars, badge: 'Efficiency Master', is3star, isPerfect: is3star })
       : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
     if (stars < 1 && window.cvSave) cvSave();
 
@@ -1309,6 +1369,44 @@
     initGame();
   };
 
+  /* ── DEBUG HOOKS (dev/QA only — no UI wiring) ─────────────────── */
+  window._efDbg = function () {
+    if (!G) return null;
+    return {
+      level: G.level,
+      tasksTotal: G.tasksTotal,
+      taskPoolIds: G.taskPool.map(t => t.id),
+      requiredIds: G.required,
+      completedIds: G.completed.map(e => e.task.id),
+      resources: { ...G.resources },
+      startResources: { ...G.startResources },
+      activeEvent: G.activeEvent ? G.activeEvent.id : null,
+      eventsFired: [...G.eventsFired],
+      phase: G.phase,
+      score: G.score,
+    };
+  };
+  // action: 'finishlevel' completes every required task instantly (forces checkWinCondition to fire)
+  window._efTest = function (action) {
+    if (!G) return null;
+    if (action === 'finishlevel') {
+      // Move every required task straight to completed, bypassing the belt/animation.
+      G.required.forEach(id => {
+        if (G.completed.find(e => e.task.id === id)) return;
+        let t = G.taskPool.find(tt => tt.id === id);
+        if (t) { G.taskPool = G.taskPool.filter(tt => tt.id !== id); }
+        else { t = ALL_TASKS.find(tt => tt.id === id); }
+        if (t) G.completed.push({ task: { ...t }, robot: false });
+      });
+      // Clear remaining pool/belt so poolEmpty check passes too
+      G.taskPool = [];
+      G.beltQueue = [];
+      checkWinCondition();
+      return window._efDbg();
+    }
+    return window._efDbg();
+  };
+
   /* ═══════════════════════════════════════════════════════════════
      HUD UPDATE
   ═══════════════════════════════════════════════════════════════ */
@@ -1350,12 +1448,13 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════
-     DISRUPTIVE EVENTS (Level 2)
+     DISRUPTIVE EVENTS (Level 2 and up — Level 3 fires them faster
+     and unlocks two Level-3-exclusive crises via minLevel)
   ═══════════════════════════════════════════════════════════════ */
   function scheduleEvent() {
     if (!G || G.level < 2 || G.phase !== 'playing') return;
     clearTimeout(G._eventTimer);
-    const delay = 8000 + Math.random() * 10000;
+    const delay = G.level >= 3 ? (5000 + Math.random() * 7000) : (8000 + Math.random() * 10000);
     G._eventTimer = setTimeout(() => {
       if (!G || G.level < 2 || G.phase !== 'playing') return;
       fireRandomEvent();
@@ -1365,7 +1464,7 @@
   function fireRandomEvent() {
     if (!G || G.activeEvent) return;  // already have one running
 
-    const eligible = EVENTS.filter(e => !G.eventsFired.includes(e.id));
+    const eligible = EVENTS.filter(e => !G.eventsFired.includes(e.id) && (!e.minLevel || G.level >= e.minLevel));
     if (!eligible.length) return;
 
     const ev = eligible[Math.floor(Math.random() * eligible.length)];

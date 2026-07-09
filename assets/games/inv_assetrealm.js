@@ -3,6 +3,7 @@
    Investopia Hub · investor world · accent #00C853
    Level 1: obvious Buy vs Avoid sort
    Level 2: gray-area assets with cost/tax/market factors
+   Level 3: expert traps — subtle red flags disguised as good deals
    Canvas city skyline grows with good picks; crumbles with bad.
    ════════════════════════════════════════════════════════════════ */
 (function () {
@@ -15,7 +16,9 @@
   const CARD_BG    = '#060e10';
   const RED        = '#FF3D3D';
   const GOLD       = '#FFD600';
-  const ROUND_TIME = 60;          // seconds per level
+  const EXPERT     = '#FF7A1A';    // level 3 accent — signals "hardest" tier
+  const ROUND_TIME = 60;          // seconds per level (levels 1 & 2)
+  const ROUND_TIME_L3 = 50;       // seconds for level 3 — tighter clock, harder game
   const CARD_DELAY = 400;         // ms before next card appears after choice
 
   /* ── asset catalogue ─────────────────────────────────────────── */
@@ -60,6 +63,27 @@
     { id:'bord2',emoji:'🏦', name:'Blue-Chip Dividend Stock',cat:'Stocks',   good:true,  value:73, hint:'Established companies paying dividends build compound wealth over decades.' },
   ];
 
+  const LEVEL3_ASSETS = [
+    // Good — subtle, needs real evaluation
+    { id:'divg', emoji:'🏛️', name:'Utility Dividend Stock',   cat:'Stocks',       good:true,  value:68, hint:'Regulated utilities pay modest but sustainable dividends backed by real cash flow — steady compounding, not flashy.' },
+    { id:'rare', emoji:'🖋️', name:'Rare First-Edition Book',  cat:'Collectible',  good:true,  value:64, hint:'Provable scarcity, verified authenticity, and steady auction demand make true rarities a real (if illiquid) store of value.' },
+    { id:'frbg', emoji:'🍔', name:'Proven Franchise Unit',     cat:'Business',     good:true,  value:70, hint:'A franchise with strong unit economics — low turnover, healthy margins — compounds like any solid small business.' },
+    { id:'grid', emoji:'🔌', name:'Infrastructure Fund',       cat:'Real Estate',  good:true,  value:66, hint:'Toll roads, pipelines, and power grids collect steady fees for decades — unglamorous but durable.' },
+    { id:'ladr', emoji:'📄', name:'Short-Term Bond Ladder',    cat:'Stocks',       good:true,  value:58, hint:'Staggered short maturities reduce interest-rate risk while still earning steady, predictable income.' },
+    { id:'rntg', emoji:'🏘️', name:'Cash-Flowing Rental Duplex',cat:'Real Estate',  good:true,  value:74, hint:'Positive monthly cash flow after ALL expenses — mortgage, taxes, repairs — is what makes a rental an asset, not a liability.' },
+    // Bad — subtle traps that sound good but aren't
+    { id:'divtrap', emoji:'📉', name:'"Too-Good" Dividend Stock', cat:'Stocks',    good:false, value:35, hint:'A dividend yield far above the industry norm often means the payout is unsustainable — the price crashed, or a cut is coming.' },
+    { id:'flip', emoji:'🔨', name:'Fixer-Upper Flip House',   cat:'Real Estate',  good:false, value:38, hint:'Renovation costs and delays routinely run over budget — many flips lose money once labor, permits, and holding costs are counted.' },
+    { id:'reitlev', emoji:'🏗️', name:'Overleveraged Trendy REIT', cat:'Real Estate', good:false, value:30, hint:'Heavy debt loads make a REIT fragile when rates rise or occupancy dips — high yield often signals hidden risk, not skill.' },
+    { id:'rentbad', emoji:'🏚️', name:'Rental in Declining Area', cat:'Real Estate', good:false, value:22, hint:'Falling population and jobs mean falling rents and resale value — cheap purchase price does not offset a shrinking market.' },
+    { id:'guar', emoji:'📜', name:'"Guaranteed Return" Plan', cat:'Impulse Buy',  good:false, value:6,  hint:'No legitimate investment can guarantee a fixed high return — this is the single biggest red flag for a scam.' },
+    { id:'stake', emoji:'🥩', name:'"Get-Rich" Crypto Staking',cat:'Crypto',      good:false, value:9,  hint:'Sky-high staking APYs are usually paid from new depositors’ money, not real profit — a pattern that always collapses.' },
+    { id:'annu', emoji:'📋', name:'High-Fee Annuity',         cat:'Business',     good:false, value:33, hint:'Layered management, surrender, and rider fees can quietly eat 3%+ per year — often outweighing any guaranteed benefit.' },
+    // Borderline — genuinely close calls, context decides
+    { id:'bord3', emoji:'🏦', name:'Emerging-Market Bond Fund', cat:'Stocks',     good:true,  value:52, hint:'Higher yields reward real currency and default risk — reasonable in a small, diversified slice, risky as a core holding.' },
+    { id:'bord4', emoji:'🎨', name:'Mid-Career Artist’s Work', cat:'Collectible', good:true, value:48, hint:'Unproven artists can appreciate sharply — or go to zero. A real but genuinely speculative bet, not a sure thing.' },
+  ];
+
   /* ── facts shown at level transitions ───────────────────────── */
   const FACTS = [
     '💡 Real wealth comes from owning things that grow in value over time.',
@@ -67,6 +91,8 @@
     '🏗️ An asset should work for you: produce income, grow in value, or both.',
     '⏳ Time is the most powerful wealth multiplier — start appreciating assets early.',
     '📊 Diversify: real estate + stocks + business stakes reduce overall risk.',
+    '🚩 If a return sounds "guaranteed" or too high for the risk, that is the red flag itself.',
+    '🔎 The best investors check the real numbers — cash flow, fees, debt — not just the pitch.',
   ];
 
   /* ── state ───────────────────────────────────────────────────── */
@@ -82,6 +108,7 @@
       <div id="arBar" style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent)">
         <button id="arBack" style="padding:6px 12px;border:1px solid ${ACCENT}44;border-radius:8px;background:${ACCENT}18;color:${ACCENT};font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.1em;cursor:pointer">← EXIT</button>
         <div style="font-family:Orbitron,sans-serif;font-size:.65rem;letter-spacing:.2em;color:${ACCENT};flex:1;text-align:center">🏙 ASSET REALM</div>
+        <button id="arHelpBtn" title="How to play" style="padding:6px 10px;border:1px solid ${ACCENT}44;border-radius:8px;background:${ACCENT}18;color:${ACCENT};cursor:pointer;font-size:.8rem">❓</button>
         <div id="arTimer" style="font-family:Orbitron,sans-serif;font-size:.8rem;color:${GOLD};min-width:40px;text-align:right">60s</div>
       </div>
       <!-- HUD ROW -->
@@ -147,7 +174,7 @@
 
     // init state
     G = {
-      phase:       'play',    // play | between | done
+      phase:       'intro',   // intro | play | paused | between | done — gated until tutorial dismissed
       level:       1,         // 1 or 2
       score:       0,
       wealth:      500,       // wealth meter 0-1000
@@ -193,15 +220,71 @@
     if (binBuy)   binBuy.onclick   = () => handleChoice(true);
     if (binAvoid) binAvoid.onclick = () => handleChoice(false);
 
+    // wire ❓ help button (reopens same tutorial mid-game, pausing safely)
+    const helpBtn = document.getElementById('arHelpBtn');
+    if (helpBtn) helpBtn.onclick = () => window.arShowHelp();
+
     // keyboard
     document.addEventListener('keydown', onKey);
 
-    // first card
+    // HUD/city ready underneath — tutorial overlay covers them until dismissed
     updateHUD();
-    showCard();
     drawCity();
     updateLevelBadge();
+    showHowToPlay();
   }
+
+  /* ── How-to-play tutorial — shown once automatically before Level 1 starts,
+     reopenable anytime via the ❓ button without losing time or progress.
+     One explanation covers all 3 levels (same Buy/Avoid mechanic throughout —
+     later levels just add factor tags and a tighter clock). ── */
+  function showHowToPlay() {
+    const overlay = document.getElementById('arOverlay');
+    if (!overlay) return;
+    const wasPlay = G && G.phase === 'play';
+    overlay.style.display = 'flex';
+    overlay.innerHTML = `
+      <div style="max-width:340px;width:92%;text-align:center;padding:26px 22px;background:linear-gradient(145deg,${CARD_BG},#0a1520);border:1.5px solid ${ACCENT}55;border-radius:18px;box-shadow:0 0 40px rgba(0,200,83,.15)">
+        <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.2em;color:${ACCENT};margin-bottom:10px">HOW TO PLAY</div>
+        <div style="font-size:2rem;margin-bottom:8px">🏙️</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:.95rem;margin-bottom:14px;color:#eee">ASSET REALM</div>
+        <ul style="list-style:none;margin:0 0 16px;padding:0;text-align:left;font-size:.72rem;color:rgba(255,255,255,.75);line-height:1.7">
+          <li style="margin-bottom:8px">🎯 <b style="color:${ACCENT}">Goal:</b> build your city's wealth by sorting each asset card correctly.</li>
+          <li style="margin-bottom:8px">👆 <b style="color:${ACCENT}">How:</b> drag the card left/right, tap BUY/AVOID, or press K (buy) / J (avoid).</li>
+          <li style="margin-bottom:8px">📈 <b style="color:${ACCENT}">BUY</b> things that grow in value over time — real estate, stocks, businesses.</li>
+          <li style="margin-bottom:8px">🚫 <b style="color:${RED}">AVOID</b> things that lose value fast — flashy cars, gadgets, impulse buys.</li>
+          <li>⏱️ Watch the clock — later rounds move faster and hide sneakier traps in the fine print.</li>
+        </ul>
+        <button id="arHelpDismiss" style="padding:12px 30px;border:none;border-radius:11px;background:${ACCENT};color:#000;font-family:Orbitron,sans-serif;font-size:.68rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${wasPlay ? '▶ RESUME' : 'GOT IT — START ▶'}</button>
+      </div>`;
+    const btn = document.getElementById('arHelpDismiss');
+    if (btn) btn.onclick = () => window.arCloseHelp();
+  }
+
+  // Re-open the tutorial mid-game via the ❓ button. This pauses the game by
+  // setting G.phase='paused' — tickTimer(), handleChoice(), and onKey() all
+  // already guard on `G.phase !== 'play'` and no-op instead of advancing, so
+  // the setInterval keeps firing harmlessly in the background but G.time
+  // never decrements while paused. No time-shift math is needed (unlike a
+  // Date.now()-elapsed timer): the countdown simply resumes from wherever it
+  // left off the instant G.phase flips back to 'play'.
+  window.arShowHelp = function () {
+    if (!G || G.phase === 'between' || G.phase === 'done') return;
+    if (G.phase === 'play') G.phase = 'paused';
+    showHowToPlay();
+  };
+
+  window.arCloseHelp = function () {
+    const overlay = document.getElementById('arOverlay');
+    if (overlay) { overlay.style.display = 'none'; overlay.innerHTML = ''; }
+    if (!G) return;
+    if (G.phase === 'intro') {
+      G.phase = 'play';
+      showCard();       // first card was withheld while phase was 'intro'
+    } else if (G.phase === 'paused') {
+      G.phase = 'play';
+    }
+  };
 
   /* ── skyline ─────────────────────────────────────────────────── */
   function buildSkyline() {
@@ -356,9 +439,11 @@
     if (!zone) return;
     const asset  = currentAsset();
     if (!asset) {
-      // deck exhausted in level 1 — move to level 2
+      // deck exhausted — advance through the 1 → 2 → 3 → finish chain
       if (G.level === 1) {
         startLevel2();
+      } else if (G.level === 2) {
+        startLevel3();
       } else {
         finishGame();
       }
@@ -368,16 +453,16 @@
     const isGood = asset.good;
     const wealthRatio = G.wealth / 1000;
 
-    // Level 2 shows extra factor tags
+    // Levels 2 and 3 show extra factor tags (level 3 gets trickier/more factors — see genFactors)
     let factorHTML = '';
-    if (G.level === 2) {
-      const factors = genFactors(asset);
+    if (G.level >= 2) {
+      const factors = genFactors(asset, G.level);
       factorHTML = `<div style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-top:8px">
         ${factors.map(f => `<span style="font-size:.58rem;padding:3px 8px;border-radius:20px;background:${f.pos ? ACCENT+'22' : RED+'22'};color:${f.pos ? ACCENT : RED};border:1px solid ${f.pos ? ACCENT+'44' : RED+'44'}">${f.label}</span>`).join('')}
       </div>`;
     }
 
-    // value indicator only in level 1
+    // value indicator only in level 1 — levels 2+ require real judgment, no hand-holding tag
     const valHTML = G.level === 1 ? `
       <div style="display:flex;align-items:center;gap:6px;justify-content:center;margin-top:6px">
         <span style="font-size:1rem">${isGood ? '📈' : '📉'}</span>
@@ -401,7 +486,7 @@
         <div style="position:absolute;top:10px;right:12px;font-size:.55rem;font-family:Orbitron,sans-serif;letter-spacing:.12em;padding:3px 8px;border-radius:20px;background:${ACCENT}18;color:${ACCENT}88;border:1px solid ${ACCENT}22">${asset.cat}</div>
         <div style="font-size:3.2rem;text-align:center;margin-bottom:10px;line-height:1">${asset.emoji}</div>
         <div style="font-family:Orbitron,sans-serif;font-size:.85rem;letter-spacing:.05em;text-align:center;margin-bottom:4px;color:#eee">${asset.name}</div>
-        <div style="font-size:.65rem;color:#667;text-align:center;line-height:1.5">${G.level === 1 ? asset.hint : '🤔 Evaluate carefully — consider long-term factors.'}</div>
+        <div style="font-size:.65rem;color:#667;text-align:center;line-height:1.5">${G.level === 1 ? asset.hint : G.level === 2 ? '🤔 Evaluate carefully — consider long-term factors.' : '🔥 Look past the pitch — what is REALLY driving this return?'}</div>
         ${valHTML}
         ${factorHTML}
         <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
@@ -430,7 +515,7 @@
     }
   }
 
-  function genFactors(asset) {
+  function genFactors(asset, level) {
     const factors = [];
     if (asset.good) {
       factors.push({ pos: true,  label: '📍 Good Location' });
@@ -443,6 +528,18 @@
       factors.push({ pos: false, label: '💸 High Carrying Cost' });
       factors.push({ pos: false, label: '🧊 Illiquid Asset' });
       if (Math.random() > 0.5) factors.push({ pos: true,  label: '✨ Emotional Appeal' });
+    }
+    // Level 3: extra trap-flavored tags — some positive-sounding labels attach to bad
+    // assets on purpose (a "high yield" or "guaranteed" pitch is exactly the disguise
+    // a real trap wears), forcing the player to reason past the label, not just the color.
+    if (level === 3) {
+      if (asset.good) {
+        if (Math.random() > 0.4) factors.push({ pos: true,  label: '🧱 Real Cash Flow' });
+      } else {
+        if (Math.random() > 0.35) factors.push({ pos: true,  label: '💰 High Advertised Yield' });
+        if (Math.random() > 0.5)  factors.push({ pos: true,  label: '🗣️ Hyped by Influencers' });
+        if (Math.random() > 0.55) factors.push({ pos: false, label: '📑 Fine-Print Fees' });
+      }
     }
     return factors;
   }
@@ -535,13 +632,14 @@
     G.sorted++;
     if (correct) G.correct++;
 
-    // score delta
+    // score delta — strictly harder-scoring each level, both directions
     const pts = correct
-      ? (G.level === 1 ? 20 : 30)
-      : (G.level === 1 ? -10 : -15);
+      ? (G.level === 1 ? 20 : G.level === 2 ? 30 : 45)
+      : (G.level === 1 ? -10 : G.level === 2 ? -15 : -22);
     G.score = Math.max(0, G.score + pts);
 
-    // wealth meter
+    // wealth meter — formula already scales with G.level directly (no branch needed);
+    // level 3 multiplies to level*20=60 / level*15=45, confirmed still reading G.level.
     const wDelta = correct
       ? (asset.value * 0.8 + (G.level * 20))
       : -(asset.value * 0.6 + (G.level * 15));
@@ -618,11 +716,19 @@
   function updateLevelBadge() {
     const el = document.getElementById('arLevelBadge');
     if (!el || !G) return;
-    const label = G.level === 1
-      ? '▸ LEVEL 1 · LEARN — Sort obvious assets'
-      : '▸ LEVEL 2 · MASTER — Evaluate gray-area assets';
+    let label, color;
+    if (G.level === 1) {
+      label = '▸ LEVEL 1 · LEARN — Sort obvious assets';
+      color = ACCENT + '88';
+    } else if (G.level === 2) {
+      label = '▸ LEVEL 2 · MASTER — Evaluate gray-area assets';
+      color = GOLD + '88';
+    } else {
+      label = '▸ LEVEL 3 · EXPERT — Spot the subtle traps';
+      color = EXPERT + '88';
+    }
     el.textContent = label;
-    el.style.color = G.level === 1 ? ACCENT + '88' : GOLD + '88';
+    el.style.color = color;
   }
 
   /* ── timer ───────────────────────────────────────────────────── */
@@ -633,6 +739,8 @@
     if (G.time <= 0) {
       if (G.level === 1) {
         startLevel2();
+      } else if (G.level === 2) {
+        startLevel3();
       } else {
         finishGame();
       }
@@ -664,7 +772,7 @@
       zone.innerHTML = `
         <div style="max-width:320px;width:90%;text-align:center;padding:24px;background:linear-gradient(145deg,${CARD_BG},#0a1520);border:1.5px solid ${ACCENT}44;border-radius:18px">
           <div style="font-size:2rem;margin-bottom:10px">🏙️</div>
-          <div style="font-family:Orbitron,sans-serif;font-size:.75rem;color:${ACCENT};letter-spacing:.15em;margin-bottom:6px">LEVEL 1 COMPLETE</div>
+          <div style="font-family:Orbitron,sans-serif;font-size:.75rem;color:${ACCENT};letter-spacing:.15em;margin-bottom:6px">LEVEL 1 CLEARED!</div>
           <div style="font-size:.7rem;color:#888;margin-bottom:4px">Accuracy: <span style="color:${ACCENT}">${G.total > 0 ? Math.round((G.correct / G.total) * 100) : 0}%</span></div>
           <div style="font-size:.7rem;color:#888;margin-bottom:14px">Wealth Meter: <span style="color:${GOLD}">$${Math.round(G.wealth)}</span></div>
           <div style="font-size:.65rem;color:#555;margin-bottom:18px;line-height:1.6">${FACTS[0]}</div>
@@ -676,6 +784,48 @@
         G.phase   = 'play';
         G.time    = ROUND_TIME;
         G.deck    = shuffle(LEVEL2_ASSETS.slice());
+        G.cardIdx = 0;
+        G.waiting = false;
+        G.timerHandle = setInterval(tickTimer, 1000);
+        updateLevelBadge();
+        showCard();
+        updateHUD();
+      };
+    }
+  }
+
+  /* ── level 3 transition ──────────────────────────────────────── */
+  function startLevel3() {
+    if (!G) return;
+    G.phase   = 'between';
+    if (G.timerHandle) clearInterval(G.timerHandle);
+
+    function shuffle(arr) {
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    const zone = document.getElementById('arCardZone');
+    if (zone) {
+      zone.innerHTML = `
+        <div style="max-width:320px;width:90%;text-align:center;padding:24px;background:linear-gradient(145deg,${CARD_BG},#0a1520);border:1.5px solid ${EXPERT}44;border-radius:18px">
+          <div style="font-size:2rem;margin-bottom:10px">🏙️</div>
+          <div style="font-family:Orbitron,sans-serif;font-size:.75rem;color:${EXPERT};letter-spacing:.15em;margin-bottom:6px">LEVEL 2 CLEARED!</div>
+          <div style="font-size:.7rem;color:#888;margin-bottom:4px">Accuracy: <span style="color:${ACCENT}">${G.total > 0 ? Math.round((G.correct / G.total) * 100) : 0}%</span></div>
+          <div style="font-size:.7rem;color:#888;margin-bottom:14px">Wealth Meter: <span style="color:${GOLD}">$${Math.round(G.wealth)}</span></div>
+          <div style="font-size:.65rem;color:#555;margin-bottom:18px;line-height:1.6">${FACTS[1]}</div>
+          <button id="arNextLevel" style="padding:10px 28px;border:none;border-radius:10px;background:${EXPERT};color:#000;font-family:Orbitron,sans-serif;font-size:.65rem;letter-spacing:.1em;cursor:pointer">LEVEL 3 →</button>
+        </div>`;
+      const btn = document.getElementById('arNextLevel');
+      if (btn) btn.onclick = () => {
+        G.level   = 3;
+        G.phase   = 'play';
+        G.time    = ROUND_TIME_L3;
+        G.deck    = shuffle(LEVEL3_ASSETS.slice());
         G.cardIdx = 0;
         G.waiting = false;
         G.timerHandle = setInterval(tickTimer, 1000);
@@ -853,6 +1003,38 @@
     removeDragListeners();
     if (window.state) state.viewingWorld = 'investor';
     goTo('hub');
+  };
+
+  /* ── debug hooks (dev/QA only — G is module-private, not on window) ── */
+  window._arDbg = () => G ? {
+    level: G.level, phase: G.phase, deckLen: G.deck.length,
+    cardIdx: G.cardIdx, score: G.score, wealth: G.wealth, time: G.time,
+  } : null;
+
+  // Jumps straight to a fully-populated, distinct level-3 deck — bypasses the
+  // level-2 playthrough entirely so QA can verify level 3 without grinding levels 1-2.
+  window._arForceLevel3 = () => {
+    if (!G) return 'no game running';
+    function shuffle(arr) {
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+    if (G.timerHandle) clearInterval(G.timerHandle);
+    G.level   = 3;
+    G.phase   = 'play';
+    G.time    = ROUND_TIME_L3;
+    G.deck    = shuffle(LEVEL3_ASSETS.slice());
+    G.cardIdx = 0;
+    G.waiting = false;
+    G.timerHandle = setInterval(tickTimer, 1000);
+    updateLevelBadge();
+    showCard();
+    updateHUD();
+    return 'forced — now on level 3, deck of ' + G.deck.length + ' cards, badge/timer/scoring all live';
   };
 
 })();

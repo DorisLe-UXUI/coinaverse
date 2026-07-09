@@ -1,7 +1,7 @@
 /* ════════════════════════════════════════════════════════════════
    RISK CONTROL CENTER — Defensive Investing Mini-Game
    Investopia Hub · Coinaverse v25
-   Shield & Balance mechanic · 2 levels · Radar threat system
+   Shield & Balance mechanic · 3 levels · Radar threat system
    ════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -48,6 +48,13 @@
       intervalMs: 3200, responseWindow: 4500,
       threatPool: ['crash','recession','inflation','geo','sector','crash','liquidity','recession','crash'],
       growthPerDefend: 2, growthPerBestAction: 4,
+    },
+    {
+      level: 3, title: 'PRO', subtitle: 'Black Swan Event',
+      threatCount: 12, simultaneousMax: 4,
+      intervalMs: 2200, responseWindow: 3200,
+      threatPool: ['crash','sector','recession','crash','geo','sector','inflation','crash','recession','liquidity','sector','crash'],
+      growthPerDefend: 1, growthPerBestAction: 3,
     },
   ];
 
@@ -208,6 +215,32 @@
 
     // Init G state placeholder (not started yet)
     G = { started: false };
+
+    // DEBUG HOOK — G is module-private; expose read + force-advance for QA.
+    // Not referenced by gameplay logic.
+    window._rccDbg = function () {
+      return G ? {
+        started: G.started, levelIdx: G.levelIdx, levelNumber: G.cfg ? G.cfg.level : null,
+        health: G.health, growth: G.growth, score: G.score, finished: G.finished,
+        totalThreats: G.totalThreats, activeThreatCount: G.activeThreats ? G.activeThreats.length : 0,
+        totalConfiguredLevels: LEVEL_CFG.length,
+      } : null;
+    };
+    // Instantly resolves every active/incoming threat with its best action
+    // until the whole campaign (all LEVEL_CFG entries) finishes, then calls
+    // done(finalDbgSnapshot). Mirrors real optimal play, just automated.
+    window._rccForceWinAll = function (done) {
+      function pump() {
+        if (!G) { if (done) done(null); return; }
+        if (!G.started && G.finished) { if (done) done(window._rccDbg()); return; }
+        if (G.activeThreats && G.activeThreats.length) {
+          // Resolve every active threat optimally
+          G.activeThreats.slice().forEach(t => triggerAction(t.bestAction));
+        }
+        setTimeout(pump, 120);
+      }
+      pump();
+    };
   }
 
   /* ── action panel ──────────────────────────────────────────── */
@@ -678,23 +711,28 @@
   function finishLevel() {
     if (!G || G.finished) return;
 
-    if (G.levelIdx === 0) {
-      // Advance to level 2
+    const isLastLevel = G.levelIdx >= LEVEL_CFG.length - 1;
+
+    if (!isLastLevel) {
+      // Advance to the next level in the campaign
+      const nextIdx = G.levelIdx + 1;
+      const finishedCfg = G.cfg;
+      const nextCfg = LEVEL_CFG[nextIdx];
       G.finished = true;
-      showFeedback('LEVEL 1 COMPLETE!', AC);
-      setTip('Excellent defense! Preparing crisis storm...');
+      showFeedback(`MISSION ${finishedCfg.level} ACCOMPLISHED!`, AC);
+      setTip(`Excellent defense! Preparing ${nextCfg.subtitle.toLowerCase()}...`);
       setTimeout(() => {
         const savedHealth = G.health;
         const savedGrowth = G.growth;
         const savedScore  = G.score;
-        beginLevel(1);
+        beginLevel(nextIdx);
         G.health  = savedHealth;
         G.growth  = savedGrowth;
         G.score   = savedScore;
         updateHUD();
       }, 2200);
     } else {
-      // Level 2 done — end game
+      // Final level done — end game
       G.finished = true;
       setTimeout(() => endGame(), 800);
     }
@@ -744,7 +782,7 @@
 
     // Populate end overlay
     document.getElementById('rcc-end-title').textContent =
-      G.health > 0 ? 'MISSION COMPLETE' : 'PORTFOLIO LOST';
+      G.health > 0 ? 'MISSION ACCOMPLISHED' : 'PORTFOLIO LOST';
 
     document.getElementById('rcc-end-stars').textContent =
       '⭐'.repeat(stars) + '☆'.repeat(3 - stars);

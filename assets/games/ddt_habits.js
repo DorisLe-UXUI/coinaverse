@@ -30,8 +30,12 @@
   const SPEED_BONUS  = 60;       // extra if matched within 4s of selection
   const MISMATCH_PEN = 30;       // score penalty per wrong tap
   const MAX_ERRORS   = 5;        // errors before game over
-  const STAR3_SCORE  = 900;
-  const STAR2_SCORE  = 500;
+  /* Calibrated against all 3 levels (4 L1 pairs + 6 L2 + 6 L3 = 16 correct
+     answers total). A full clean L1+L2 run alone scores ~2.3k–2.9k, so these
+     require real progress into Level 3 for 2★ and a full, mostly-clean
+     Level 3 finish for 3★ — reaching Level 3 has to matter for the rating. */
+  const STAR3_SCORE  = 4200;
+  const STAR2_SCORE  = 2600;
 
   /* ── habit data ─────────────────────────────────────────────── */
   // Level 1: simple, obvious pairs
@@ -113,6 +117,78 @@
         { label: 'Pay Extra When Possible', icon: '💪', isCorrect: true,  reason: 'Slashes interest accumulation fastest' },
         { label: 'Spending Plan',     icon: '📋', isCorrect: false, reason: 'Good tool but doesn\'t attack existing debt' },
         { label: '24-Hour Rule',      icon: '⏳', isCorrect: false, reason: 'Helps future purchases, not existing debt' },
+      ]
+    },
+  ];
+
+  // Level 3: compound triage — TWO bad habits stacked in one scenario.
+  // Player must pick which one to fix FIRST, ranked by real financial priority
+  // (highest-cost or highest-risk problem wins, not just "any correct fix").
+  const L3_SCENARIOS = [
+    {
+      id: 'triage_lateplusdebt',
+      bad:  { label: 'Late Bills',        icon: '🔴', desc: 'You often miss the due date on your $180/month card payment' },
+      bad2: { label: 'Minimum Payments',  icon: '💳', desc: 'You owe $6,000 at 26% APR and only ever pay the $40 minimum' },
+      prompt: 'Both habits are hurting you. Which do you fix FIRST?',
+      options: [
+        { label: 'Set AutoPay',             icon: '⚡', isCorrect: false, reason: 'Fixes the smaller leak — a $35 late fee is real, but it is a fraction of what 26% interest costs every month' },
+        { label: 'Pay Extra When Possible', icon: '💪', isCorrect: true,  reason: 'The 26% APR balance is bleeding far more money than the late fee ever will — attack the biggest cost first' },
+        { label: '24-Hour Rule',            icon: '⏳', isCorrect: false, reason: 'Prevents new impulse debt, but does nothing about the $6,000 already compounding at 26%' },
+      ]
+    },
+    {
+      id: 'triage_nobudgetplusimpulse',
+      bad:  { label: 'No Budget',        icon: '🤷', desc: 'You earn $2,800/month and have no idea where it actually goes' },
+      bad2: { label: 'Impulse Shopping', icon: '🛍️', desc: 'You also buy trending items on a whim several times a week' },
+      prompt: 'Both habits are stacking. Which do you fix FIRST?',
+      options: [
+        { label: '24-Hour Rule',      icon: '⏳', isCorrect: false, reason: 'Slows down individual purchases, but you still won\'t know your overall cash flow' },
+        { label: 'Spending Plan',     icon: '📋', isCorrect: true,  reason: 'Without visibility into where money goes, you can\'t even tell how much the impulse buying is really costing you — fix the blind spot first' },
+        { label: 'Set AutoPay',       icon: '⚡', isCorrect: false, reason: 'Automates bills, but does nothing for either the visibility gap or the impulse spending' },
+      ]
+    },
+    {
+      id: 'triage_ccplusgig',
+      bad:  { label: 'Carrying Balance', icon: '💸', desc: 'You carry $2,400 on a 27% APR card, paying only the minimum' },
+      bad2: { label: 'No Budget',        icon: '🤷', desc: 'You also freelance with irregular income and no spending plan' },
+      prompt: 'Both habits are stacking. Which do you fix FIRST?',
+      options: [
+        { label: 'Pay Extra When Possible', icon: '💪', isCorrect: false, reason: 'You can\'t reliably pay extra on debt if you don\'t yet know how much irregular income you actually have to work with' },
+        { label: 'Spending Plan',           icon: '📋', isCorrect: true,  reason: 'With irregular income, mapping cash flow first tells you exactly how much you can safely throw at the 27% debt each month' },
+        { label: '24-Hour Rule',            icon: '⏳', isCorrect: false, reason: 'Useful for future purchases, but doesn\'t address the income visibility problem driving both issues' },
+      ]
+    },
+    {
+      id: 'triage_lateplusnobudget',
+      bad:  { label: 'Late Bills', icon: '🔴', desc: 'You\'ve missed your phone and utility due dates twice this year' },
+      bad2: { label: 'No Budget',  icon: '🤷', desc: 'You also don\'t track spending, so bills catch you by surprise' },
+      prompt: 'Both habits are stacking. Which do you fix FIRST?',
+      options: [
+        { label: 'Set AutoPay',       icon: '⚡', isCorrect: true,  reason: 'AutoPay removes the immediate risk (fees, service shutoffs) instantly, while a full budget takes longer to build — stop the bleeding first' },
+        { label: 'Spending Plan',     icon: '📋', isCorrect: false, reason: 'Valuable long-term, but building a full plan takes time — meanwhile the next due date is still at risk of being missed' },
+        { label: 'Pay Extra',         icon: '💪', isCorrect: false, reason: 'There is no debt-paydown problem described here — this doesn\'t address either habit' },
+      ]
+    },
+    {
+      id: 'triage_stressplusdebt',
+      bad:  { label: 'Stress Shopping',  icon: '😤', desc: 'You shop online when anxious, adding $150–200/month in regretted purchases' },
+      bad2: { label: 'Minimum Payments', icon: '💳', desc: 'You also owe $3,200 at 22% APR, paying only the minimum' },
+      prompt: 'Both habits are stacking. Which do you fix FIRST?',
+      options: [
+        { label: '24-Hour Rule',            icon: '⏳', isCorrect: true,  reason: 'Every new stress purchase adds fuel to the debt fire — stop the bleeding at the source before attacking the existing balance' },
+        { label: 'Pay Extra When Possible', icon: '💪', isCorrect: false, reason: 'Extra payments get erased if new stress-driven charges keep landing on the same card every month' },
+        { label: 'Set AutoPay',             icon: '⚡', isCorrect: false, reason: 'Solves missed due dates, not emotional spending or the existing high-interest balance' },
+      ]
+    },
+    {
+      id: 'triage_allfour',
+      bad:  { label: 'Impulse Shopping', icon: '🛍️', desc: 'You buy on a whim and also carry a growing card balance' },
+      bad2: { label: 'Carrying Balance', icon: '💸', desc: 'That balance sits at $4,500 on a 25% APR card, minimum payments only' },
+      prompt: 'Both habits are stacking. Which do you fix FIRST?',
+      options: [
+        { label: 'Pay Extra When Possible', icon: '💪', isCorrect: false, reason: 'Paying extra helps, but if impulse purchases keep landing on the same card, the balance can grow faster than you pay it down' },
+        { label: '24-Hour Rule',            icon: '⏳', isCorrect: true,  reason: 'At 25% APR, every new impulse purchase compounds the problem — close the leak first, then the paydown actually sticks' },
+        { label: 'Spending Plan',           icon: '📋', isCorrect: false, reason: 'Helpful eventually, but a budget alone doesn\'t stop an in-the-moment impulse buy from happening' },
       ]
     },
   ];
@@ -272,6 +348,25 @@
     goTo('hub');
   };
 
+  /* ── debug hook (dev-only; safe no-op in prod if never called) ── */
+  window._ddtHabitsDbg = function () {
+    return G ? {
+      level: G.level,
+      score: G.score,
+      matchedCount: G.matchedCount,
+      totalPairs: G.totalPairs,
+      currentScenarioIdx: G.currentScenarioIdx,
+      scenarioArrLen: G.scenarioArr ? G.scenarioArr.length : null,
+      errors: G.errors,
+    } : null;
+  };
+  /* force-jump straight into Level 3 (scenario-MCQ mode), for QA */
+  window._ddtHabitsForceLevel3 = function () {
+    if (!G) return false;
+    startLevel(3);
+    return true;
+  };
+
   /* ── init ──────────────────────────────────────────────────── */
   function initGame() {
     const root = document.getElementById('ddt_root');
@@ -299,7 +394,8 @@
       connecting: false,
       selectionTime: 0,
       machineLevel: 0,        // how many machines activated
-      // L2
+      // Scenario-MCQ levels (L2 and L3 both use this shared flow)
+      scenarioArr: null,       // active scenario array — L2_SCENARIOS or L3_SCENARIOS
       currentScenarioIdx: 0,
       l2Order: [],
     };
@@ -404,6 +500,12 @@
   }
 
   /* ── level setup ───────────────────────────────────────────── */
+  const LEVEL_LABELS = {
+    1: 'LEVEL 1 — LEARN',
+    2: 'LEVEL 2 — MASTER',
+    3: 'LEVEL 3 — STRATEGIST',
+  };
+
   function startLevel(lvl) {
     G.level = lvl;
     G.selectedBad = null;
@@ -414,13 +516,14 @@
     G.timeLeft = LEVEL_TIME;
     updateTimer();
 
-    document.getElementById('ddt_levelind').textContent =
-      lvl === 1 ? 'LEVEL 1 — LEARN' : 'LEVEL 2 — MASTER';
+    document.getElementById('ddt_levelind').textContent = LEVEL_LABELS[lvl] || LEVEL_LABELS[1];
 
     if (lvl === 1) {
       buildLevel1();
+    } else if (lvl === 2) {
+      buildScenarioLevel(L2_SCENARIOS);
     } else {
-      buildLevel2();
+      buildScenarioLevel(L3_SCENARIOS);
     }
 
     startTimer();
@@ -564,21 +667,29 @@
   }
 
   /* ── level 2 UI ─────────────────────────────────────────────── */
-  function buildLevel2() {
-    G.l2Order = shuffleArr(L2_SCENARIOS.map((_, i) => i));
+  /* buildScenarioLevel: shared setup for any MCQ-scenario level (L2 or L3) —
+     stores the active scenario array on G so renderScenario()/handleL2Choice()
+     stay level-agnostic and never hardcode which array is "current". */
+  function buildScenarioLevel(scenarioArr) {
+    G.scenarioArr = scenarioArr;
+    G.l2Order = shuffleArr(scenarioArr.map((_, i) => i));
     G.currentScenarioIdx = 0;
-    G.totalPairs = L2_SCENARIOS.length;
+    G.totalPairs = scenarioArr.length;
     G.matched = new Array(G.totalPairs).fill(false);
-    renderL2Scenario();
+    renderScenario();
   }
 
-  function renderL2Scenario() {
+  function renderScenario() {
     if (!G || G.currentScenarioIdx >= G.l2Order.length) {
-      // All done
-      endGame(calcStars());
+      // All done with this level's scenarios
+      if (G.level < 3) {
+        showLevelTransition();
+      } else {
+        endGame(calcStars());
+      }
       return;
     }
-    const scenario = L2_SCENARIOS[G.l2Order[G.currentScenarioIdx]];
+    const scenario = G.scenarioArr[G.l2Order[G.currentScenarioIdx]];
     const arena = document.getElementById('ddt_arena');
     arena.innerHTML = '';
 
@@ -602,19 +713,21 @@
     scenLabel.textContent = `Challenge ${G.currentScenarioIdx + 1} of ${G.totalPairs}`;
     arena.appendChild(scenLabel);
 
-    // Bad habit card
+    // Bad habit card (compound scenarios show a #1/#2 label + a second card)
+    const isCompound = !!scenario.bad2;
+    const badLabelText = isCompound ? '⚠ HARMFUL HABIT #1' : '⚠ HARMFUL HABIT';
     const badCard = document.createElement('div');
     badCard.style.cssText = `
       width:100%;max-width:420px;align-self:center;
       background:linear-gradient(135deg,rgba(239,68,68,.15),rgba(13,8,24,.9));
       border:2px solid rgba(239,68,68,.5);border-radius:14px;
-      padding:16px;margin-bottom:16px;
+      padding:16px;margin-bottom:${isCompound ? '10px' : '16px'};
     `;
     badCard.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <span style="font-size:28px">${scenario.bad.icon}</span>
         <div>
-          <div style="font-size:11px;color:rgba(252,165,165,.6);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">⚠ HARMFUL HABIT</div>
+          <div style="font-size:11px;color:rgba(252,165,165,.6);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">${badLabelText}</div>
           <div style="font-size:15px;font-weight:700;color:rgba(252,165,165,1)">${scenario.bad.label}</div>
         </div>
       </div>
@@ -624,13 +737,38 @@
     `;
     arena.appendChild(badCard);
 
+    if (isCompound) {
+      const bad2Card = document.createElement('div');
+      bad2Card.style.cssText = `
+        width:100%;max-width:420px;align-self:center;
+        background:linear-gradient(135deg,rgba(239,68,68,.15),rgba(13,8,24,.9));
+        border:2px solid rgba(239,68,68,.5);border-radius:14px;
+        padding:16px;margin-bottom:16px;
+      `;
+      bad2Card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span style="font-size:28px">${scenario.bad2.icon}</span>
+          <div>
+            <div style="font-size:11px;color:rgba(252,165,165,.6);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">⚠ HARMFUL HABIT #2</div>
+            <div style="font-size:15px;font-weight:700;color:rgba(252,165,165,1)">${scenario.bad2.label}</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:rgba(255,255,255,.75);line-height:1.6;background:rgba(0,0,0,.3);padding:10px;border-radius:8px">
+          📋 <em>${scenario.bad2.desc}</em>
+        </div>
+      `;
+      arena.appendChild(bad2Card);
+    }
+
     // Question
     const qLabel = document.createElement('div');
     qLabel.style.cssText = `
       font-size:12px;color:${GOLD2};text-align:center;
       margin-bottom:12px;letter-spacing:.5px;font-weight:600;
     `;
-    qLabel.textContent = '↓ Choose the BEST replacement habit ↓';
+    qLabel.textContent = isCompound
+      ? `↓ ${scenario.prompt || 'Which do you fix FIRST?'} ↓`
+      : '↓ Choose the BEST replacement habit ↓';
     arena.appendChild(qLabel);
 
     // Options
@@ -790,8 +928,11 @@
       if (G.matchedCount >= G.totalPairs) {
         setTimeout(() => {
           clearInterval(G.timerHandle);
+          // handleCorrectMatch is only ever wired up by buildLevel1() (createBadNode/
+          // createGoodNode below), so G.level is always 1 here — Level 2 and Level 3
+          // use the scenario-MCQ flow (renderScenario/handleL2Choice) instead, which
+          // has its own level-aware completion check.
           if (G.level === 1) {
-            // Transition to level 2
             showLevelTransition();
           } else {
             endGame(calcStars());
@@ -922,15 +1063,40 @@
       G.l2StartTime = Date.now();
       if (G.currentScenarioIdx >= G.l2Order.length) {
         clearInterval(G.timerHandle);
-        setTimeout(() => endGame(calcStars()), 300);
+        if (G.level < 3) {
+          // Level 2 scenarios exhausted → advance to Level 3, do NOT end the game
+          setTimeout(() => showLevelTransition(), 300);
+        } else {
+          // Level 3 (final level) scenarios exhausted → real end of game
+          setTimeout(() => endGame(calcStars()), 300);
+        }
       } else {
-        renderL2Scenario();
+        renderScenario();
       }
     }, isCorrect ? 1400 : 2000);
   }
 
   /* ── level transition ────────────────────────────────────────── */
+  /* level-transition copy, keyed by the level that JUST finished */
+  const LEVEL_TRANSITION_COPY = {
+    1: {
+      title: 'LEVEL 1 COMPLETE!',
+      desc: 'You\'ve learned the basic habit pairs.<br>Now test your judgment in real scenarios.',
+      unlockLabel: '🔓 LEVEL 2 — MASTER MODE',
+      btnLabel: 'BEGIN LEVEL 2 →',
+      nextLevel: 2,
+    },
+    2: {
+      title: 'LEVEL 2 COMPLETE!',
+      desc: 'You can pick the single best fix. Now two habits stack at once —<br>you\'ll have to decide which one to fix FIRST.',
+      unlockLabel: '🔓 LEVEL 3 — STRATEGIST MODE',
+      btnLabel: 'BEGIN LEVEL 3 →',
+      nextLevel: 3,
+    },
+  };
+
   function showLevelTransition() {
+    const copy = LEVEL_TRANSITION_COPY[G.level] || LEVEL_TRANSITION_COPY[1];
     const arena = document.getElementById('ddt_arena');
     arena.innerHTML = `
       <div style="
@@ -939,28 +1105,28 @@
       ">
         <div style="font-size:48px;animation:ddt_pulse 1s infinite">🏆</div>
         <div style="font-family:'Orbitron',monospace;font-size:20px;font-weight:900;color:${GOLD};letter-spacing:2px">
-          LEVEL 1 COMPLETE!
+          ${copy.title}
         </div>
         <div style="font-size:13px;color:${VIOLET};max-width:300px;line-height:1.6">
-          You've learned the basic habit pairs.<br>Now test your judgment in real scenarios.
+          ${copy.desc}
         </div>
         <div style="
           background:rgba(75,45,143,.25);border:1px solid ${ACCENT};
           border-radius:10px;padding:12px 20px;
           font-family:'Orbitron',monospace;font-size:14px;color:${PURPLE2};
         ">
-          🔓 LEVEL 2 — MASTER MODE
+          ${copy.unlockLabel}
         </div>
         <button id="ddt_next_lvl" style="
           background:linear-gradient(135deg,${ACCENT},${PURPLE});
           border:none;color:#fff;padding:13px 32px;border-radius:10px;
           font-family:'Orbitron',monospace;font-size:13px;font-weight:700;
           cursor:pointer;letter-spacing:1px;margin-top:8px;
-        ">BEGIN LEVEL 2 →</button>
+        ">${copy.btnLabel}</button>
       </div>
     `;
     document.getElementById('ddt_next_lvl').addEventListener('click', () => {
-      startLevel(2);
+      startLevel(copy.nextLevel);
     });
     ensureKeyframes();
   }

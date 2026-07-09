@@ -5,6 +5,9 @@
    Bad match → Failed Idea, energy drain.
    Level 1: Simple pairings, low pressure, few cards.
    Level 2: Customer segments, budgets, demographics, disruptors.
+   Level 3: Everything in L2, PLUS matches must also fit the active
+            segment's budget range, faster segment rotation, faster
+            disruptor cadence, and 2 new disruptors (recession, copycat).
    WIN: Generate enough successful startups before time expires.
    ════════════════════════════════════════════════════════════════ */
 (function () {
@@ -23,17 +26,26 @@
   /* ── level config ────────────────────────────────────────────── */
   const CFG = {
     1: { time: 90,  need: 5,  maxFail: 3, cards: 4, label: 'LEARN' },
-    2: { time: 75,  need: 7,  maxFail: 3, cards: 6, label: 'MASTER' }
+    2: { time: 75,  need: 7,  maxFail: 3, cards: 6, label: 'MASTER' },
+    3: { time: 60,  need: 8,  maxFail: 3, cards: 6, label: 'FOUNDER' }
   };
 
   /* ── star thresholds (successful matches) ────────────────────── */
   const STAR3_L1 = 5, STAR2_L1 = 3;
   const STAR3_L2 = 7, STAR2_L2 = 5;
+  const STAR3_L3 = 8, STAR2_L3 = 6;
+
+  /* ── star thresholds lookup (keyed by level, avoids duplicated ternaries) */
+  const STAR3_BY_LEVEL = { 1: STAR3_L1, 2: STAR3_L2, 3: STAR3_L3 };
+  const STAR2_BY_LEVEL = { 1: STAR2_L1, 2: STAR2_L2, 3: STAR2_L3 };
 
   /* ══════════════════════════════════════════════════════════════
      CARD DATA
      Each pair: { id, problem, solution, category, emoji, tags[] }
-     Level 2 only: customer segments w/ budget + age
+     Level 2+: customer segments w/ budget + age
+     Level 3: also checks the pair's `energy` value against the active
+              segment's budget range (see SEGMENTS below) — no new
+              fields needed on ALL_PAIRS itself, backward compatible.
   ══════════════════════════════════════════════════════════════ */
   const ALL_PAIRS = [
     /* ── food & delivery ──────────────────────────────────────── */
@@ -132,9 +144,17 @@
     },
   ];
 
-  /* ── Level 2 customer segments (add mismatch risk) ─────────── */
+  /* ── Level 2 + 3 customer segments (add mismatch risk) ───────
+     NOTE on budget[1] ceilings: Level 3 checks each pair's `energy`
+     value (25-40 across ALL_PAIRS) against these ranges. Teen's
+     ceiling is 25 (not 20) so at least the 2 cheapest teen-relevant
+     cards (grocery=25, skills=25) are still winnable — a ceiling of
+     20 would make Teen mathematically un-matchable at Level 3 since
+     no card in ALL_PAIRS has energy below 25. Keep this in mind if
+     new cards or segments are ever added: verify every CAT_SEGS-
+     compatible category has at least one card whose energy fits. */
   const SEGMENTS = [
-    { label: 'Teen (14-17)',   age: [14,17], budget: [0,20],   icon: '🧑',  id:'teen'   },
+    { label: 'Teen (14-17)',   age: [14,17], budget: [0,25],   icon: '🧑',  id:'teen'   },
     { label: 'College (18-24)',age: [18,24], budget: [5,40],   icon: '🎓',  id:'college'},
     { label: 'Parent (30-45)',  age: [30,45], budget: [20,100], icon: '👨‍👩‍👧', id:'parent' },
     { label: 'Senior (55+)',   age: [55,99], budget: [10,60],  icon: '👴',  id:'senior' },
@@ -151,12 +171,21 @@
     pets:      ['parent','senior'],
   };
 
-  /* ── disruptors (Level 2) ───────────────────────────────────── */
+  /* ── disruptors (Level 2+) ─────────────────────────────────── */
   const DISRUPTORS = [
     { id:'patent',  icon:'⚖️',  text: 'Competitor filed a patent! Drain -15 energy.', effect: 'energy', val: -15 },
     { id:'trend',   icon:'📉',  text: 'Market trend shifted! Next match must change category.', effect: 'block', val: 0 },
     { id:'investor',icon:'💼',  text: 'Investor day! Next correct match worth double!',  effect: 'double', val: 0 },
     { id:'pivot',   icon:'🔄',  text: 'Pivot needed! Discard current Problem card.',     effect: 'discard', val: 0 },
+  ];
+
+  /* ── Level 3 ONLY disruptors (new, disjoint from Level 2 set) ─
+     Recession: market downturn, all energy gains cut for a short window.
+     Copycat:   a rival clones a random unmatched solution card, forcing
+                a re-shuffle so the founder must re-scan the board fast. */
+  const DISRUPTORS_L3 = [
+    { id:'recession', icon:'📊',  text: 'Market downturn! Energy gains halved for a bit.', effect: 'recession', val: 0.5 },
+    { id:'copycat',    icon:'🐑',  text: 'A copycat startup shook up the board! Solutions reshuffled.', effect: 'copycat', val: 0 },
   ];
 
   /* ══════════════════════════════════════════════════════════════
@@ -182,6 +211,7 @@
   <div id="iiTopBar" style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(180deg,rgba(3,4,12,.97) 70%,transparent)">
     <button id="iiBack" style="padding:6px 13px;border:1px solid ${ACC}55;border-radius:8px;background:${ACC}18;color:${ACC2};font-family:Orbitron,sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;flex-shrink:0">← HUB</button>
     <div style="font-family:Orbitron,sans-serif;font-size:.65rem;letter-spacing:.2em;color:${ACC2};flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">IDEA INCUBATOR</div>
+    <button onclick="window.iiShowHelp()" title="How to play" style="padding:6px 10px;border:1px solid ${ACC}55;border-radius:8px;background:${ACC}18;color:${ACC2};cursor:pointer;flex-shrink:0;font-size:.75rem">❓</button>
     <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
       <div style="text-align:right">
         <div style="font-family:Orbitron,sans-serif;font-size:.5rem;letter-spacing:.1em;color:rgba(255,255,255,.4)">SCORE</div>
@@ -245,6 +275,9 @@
   <!-- End overlay -->
   <div id="iiOver" style="position:absolute;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.94);backdrop-filter:blur(6px)"></div>
 
+  <!-- How-to-play overlay (first-time intro + ❓ re-open) -->
+  <div id="iiHelp" style="position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.94);backdrop-filter:blur(6px)"></div>
+
 </div>`;
   };
 
@@ -278,7 +311,60 @@
     drawBgGrid();
 
     startLevel(1);
+
+    /* first-time how-to-play, shown right as gameplay begins — pauses the
+       just-started RAF loop so no time drains while the player reads */
+    showHowToPlay();
   }
+
+  /* ══════════════════════════════════════════════════════════════
+     HOW-TO-PLAY — shown once automatically on first launch, and
+     re-openable anytime via the ❓ button without losing progress.
+     Pause trick: freeze the RAF loop (cancelAnimationFrame already
+     stops tick() from running, so G.timeLeft stops draining), and
+     on resume reset G.lastTick = performance.now() right before
+     restarting the loop so the very next dt excludes the paused
+     duration. No separate pause timestamp needed since tick()
+     already recomputes dt from G.lastTick every frame.
+  ══════════════════════════════════════════════════════════════ */
+  function showHowToPlay () {
+    const overlay = document.getElementById('iiHelp');
+    if (!overlay) return;
+    const wasPlay = G && G.phase === 'play';
+    if (wasPlay) {
+      G.phase = 'paused';
+      cancelAnimationFrame(_raf);
+    }
+    overlay.style.display = 'flex';
+    overlay.innerHTML = `
+      <div style="max-width:380px;width:90%;padding:26px 22px;background:rgba(10,5,22,.97);border:1.5px solid ${ACC}88;border-radius:18px;text-align:center;box-shadow:0 0 50px ${ACC}33;max-height:90vh;overflow-y:auto">
+        <div style="font-family:Orbitron,sans-serif;font-size:.56rem;letter-spacing:.2em;color:${ACC2};margin-bottom:8px">HOW TO PLAY</div>
+        <div style="font-size:2rem;margin-bottom:6px">💡</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:.95rem;margin-bottom:14px">IDEA INCUBATOR</div>
+        <ul style="text-align:left;font-size:.74rem;color:rgba(255,255,255,.82);line-height:1.6;margin:0 0 18px;padding-left:18px">
+          <li style="margin-bottom:8px"><b style="color:${ACC2}">Goal:</b> launch as many startups as you can before time runs out.</li>
+          <li style="margin-bottom:8px"><b style="color:${ACC2}">How to play:</b> drag a ⚡ Problem card onto the 💡 Solution card that fixes it, then let go.</li>
+          <li style="margin-bottom:8px"><b style="color:${ACC2}">Watch out:</b> from Level 2 on, match the right customer type too, and keep an eye on the ⚡ energy bar and ⏱ timer — surprise events can shake things up.</li>
+          <li><b style="color:${ACC2}">Scoring:</b> good matches earn points and energy; more correct matches and fewer misses mean more stars at the end.</li>
+        </ul>
+        <button onclick="window.iiCloseHelp()" style="padding:12px 30px;border:none;border-radius:11px;background:linear-gradient(90deg,${ACC},${ACC2});color:#fff;font-family:Orbitron,sans-serif;font-size:.66rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${wasPlay ? '▶ RESUME' : 'GOT IT — START ▶'}</button>
+      </div>`;
+  }
+
+  window.iiShowHelp = function () {
+    if (!G || G.phase === 'over') return;
+    showHowToPlay();
+  };
+
+  window.iiCloseHelp = function () {
+    const overlay = document.getElementById('iiHelp');
+    if (overlay) overlay.style.display = 'none';
+    if (G && G.phase === 'paused') {
+      G.phase = 'play';
+      G.lastTick = performance.now();   // exclude paused duration from next dt
+      _raf = requestAnimationFrame(tick);
+    }
+  };
 
   /* ── background holographic grid ─────────────────────────────── */
   function drawBgGrid () {
@@ -352,6 +438,7 @@
       doubleNext:  false,
       blockCat:    null,        // must change category (disruptor)
       disruptCooldown: 0,
+      recessionUntil: 0,        // Level 3: performance.now() timestamp energy-gain penalty ends
       startMs:     performance.now(),
     };
 
@@ -380,8 +467,8 @@
     const visibleCount = Math.min(cfg.cards, G.pool.length);
     const pairs = G.pool.slice(0, visibleCount);
 
-    /* ── segment panel (Level 2 only) ─────────────────────────── */
-    if (G.level === 2) {
+    /* ── segment panel (Level 2 + Level 3) ────────────────────── */
+    if (G.level === 2 || G.level === 3) {
       const segRow = document.createElement('div');
       segRow.id = 'iiSegRow';
       segRow.style.cssText = `display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px;scrollbar-width:none`;
@@ -400,8 +487,9 @@
 
       /* budget display */
       const budgetBar = document.createElement('div');
-      budgetBar.style.cssText = `display:flex;align-items:center;gap:6px;margin-bottom:10px`;
-      budgetBar.innerHTML = `<span style="font-family:Orbitron,sans-serif;font-size:.44rem;letter-spacing:.1em;color:rgba(255,255,255,.4)">CUSTOMER BUDGET:</span><span style="font-family:Orbitron,sans-serif;font-size:.6rem;color:${GOLD}">$${activeSeg.budget[0]}–$${activeSeg.budget[1]}/mo</span><span style="font-size:.7rem">${activeSeg.icon}</span>`;
+      budgetBar.id = 'iiBudgetBar';
+      budgetBar.style.cssText = `display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap`;
+      budgetBar.innerHTML = budgetBarHTML(activeSeg);
       play.appendChild(budgetBar);
     }
 
@@ -458,6 +546,12 @@
   /* ── pick a random segment ───────────────────────────────────── */
   function pickRandomSeg () {
     return SEGMENTS[Math.floor(Math.random() * SEGMENTS.length)];
+  }
+
+  /* ── budget bar inner HTML (shared by renderCards + refillCards
+     rotation, so the $ range on screen always matches G.activeSeg) ── */
+  function budgetBarHTML (seg) {
+    return `<span style="font-family:Orbitron,sans-serif;font-size:.44rem;letter-spacing:.1em;color:rgba(255,255,255,.4)">CUSTOMER BUDGET:</span><span style="font-family:Orbitron,sans-serif;font-size:.6rem;color:${GOLD}">$${seg.budget[0]}–$${seg.budget[1]}/mo</span><span style="font-size:.7rem">${seg.icon}</span>${G.level === 3 ? `<span style="font-family:Orbitron,sans-serif;font-size:.4rem;letter-spacing:.08em;color:${NEON};margin-left:4px">⚙ MUST FIT BUDGET TOO!</span>` : ''}`;
   }
 
   /* ── build a problem card ─────────────────────────────────────── */
@@ -652,9 +746,10 @@
     if (!prob || !sol || prob.matched || sol.matched) return;
 
     let correct = (probId === solId);
+    let budgetMiss = false; /* Level 3 only: right segment, but priced outside their budget */
 
-    /* Level 2: check segment compatibility */
-    if (G.level === 2 && correct && G.activeSeg) {
+    /* Level 2 + Level 3: check segment compatibility (L3 gets everything L2 has) */
+    if ((G.level === 2 || G.level === 3) && correct && G.activeSeg) {
       const compatSegs = CAT_SEGS[prob.category] || [];
       if (!compatSegs.includes(G.activeSeg.id)) {
         correct = false; /* demographic mismatch */
@@ -668,10 +763,22 @@
       }
     }
 
+    /* Level 3 ONLY: on top of segment fit, the business's price (energy used
+       as the $/mo proxy) must also land inside the active segment's budget
+       range — teaches "budget fit", not just "does this customer type" match. */
+    if (G.level === 3 && correct && G.activeSeg) {
+      const price = prob.energy || 30;
+      const [lo, hi] = G.activeSeg.budget;
+      if (price < lo || price > hi) {
+        correct = false;
+        budgetMiss = true; /* used by onWrongMatch for the right feedback string */
+      }
+    }
+
     if (correct) {
       onCorrectMatch(prob, sol);
     } else {
-      onWrongMatch(prob, sol);
+      onWrongMatch(prob, sol, budgetMiss);
     }
   }
 
@@ -696,6 +803,11 @@
     if (G.combo >= 3) {
       pts  += 50 * (G.combo - 2);
       energy += 10;
+    }
+
+    /* Level 3 ONLY: recession disruptor halves energy gains while active */
+    if (G.level === 3 && G.recessionUntil && performance.now() < G.recessionUntil) {
+      energy *= 0.5;
     }
 
     G.energy  = Math.min(G.maxEnergy, G.energy + energy * 0.4);
@@ -723,7 +835,7 @@
     }, 600);
   }
 
-  function onWrongMatch (prob, sol) {
+  function onWrongMatch (prob, sol, budgetMiss) {
     G.fails++;
     G.combo = 0;
     G.energy = Math.max(0, G.energy - 20);
@@ -732,11 +844,15 @@
     animateCard('prob_' + prob.id, false);
     animateCard('sol_'  + sol.id,  false);
 
-    /* Level 2: demographic mismatch message */
-    if (G.level === 2 && prob.id === sol.id && G.activeSeg) {
-      flashFeedback(`❌ WRONG SEGMENT!`, DANGER, false);
+    /* Level 3: priced outside the active segment's budget (checked first —
+       this is the more specific case since id already matched here) */
+    if (G.level === 3 && budgetMiss) {
+      flashFeedback('❌ OOPS — OUT OF BUDGET!', DANGER, false);
+    /* Level 2 + 3: demographic mismatch message */
+    } else if ((G.level === 2 || G.level === 3) && prob.id === sol.id && G.activeSeg) {
+      flashFeedback('❌ OOPS — SEGMENT MISMATCH!', DANGER, false);
     } else {
-      flashFeedback('❌ FAILED IDEA!', DANGER, false);
+      flashFeedback('❌ NICE TRY — FAILED IDEA!', DANGER, false);
     }
 
     updateHUD();
@@ -817,8 +933,10 @@
       });
     });
 
-    /* Level 2: rotate segment occasionally */
-    if (G.level === 2 && G.hits > 0 && G.hits % 2 === 0) {
+    /* Level 2: rotate segment every 2 hits. Level 3: every hit — faster
+       cadence is the whole point of Level 3 being harder than Level 2. */
+    const rotateEvery = G.level === 3 ? 1 : 2;
+    if ((G.level === 2 || G.level === 3) && G.hits > 0 && G.hits % rotateEvery === 0) {
       G.activeSeg = pickRandomSeg();
       const segRow = document.getElementById('iiSegRow');
       if (segRow) {
@@ -831,15 +949,22 @@
           chip.style.boxShadow    = active ? `0 0 8px ${ACC}55` : 'none';
         });
       }
+      /* keep the on-screen $ range in sync with the new active segment */
+      const budgetBar = document.getElementById('iiBudgetBar');
+      if (budgetBar) budgetBar.innerHTML = budgetBarHTML(G.activeSeg);
     }
   }
 
   /* ══════════════════════════════════════════════════════════════
-     DISRUPTORS (Level 2)
+     DISRUPTORS (Level 2 + Level 3)
   ══════════════════════════════════════════════════════════════ */
   function triggerDisruptor () {
     if (!G || G.phase !== 'play') return;
-    const d = DISRUPTORS[Math.floor(Math.random() * DISRUPTORS.length)];
+    /* Level 3 draws from the full pool (L2 classics + the 2 new L3-only
+       types) so it stays disjoint from L2 while still feeling escalated,
+       not just a swap. Level 2 keeps its original 4-type pool untouched. */
+    const activePool = G.level === 3 ? DISRUPTORS.concat(DISRUPTORS_L3) : DISRUPTORS;
+    const d = activePool[Math.floor(Math.random() * activePool.length)];
 
     const banner = document.getElementById('iiDisrupt');
     document.getElementById('iiDisrIcon').textContent = d.icon;
@@ -870,10 +995,27 @@
         }
         break;
       }
+      case 'recession': {
+        /* Level 3 only: energy gains halved for 8s (checked in onCorrectMatch) */
+        G.recessionUntil = performance.now() + 8000;
+        break;
+      }
+      case 'copycat': {
+        /* Level 3 only: shuffle the unmatched solution cards' DOM order so
+           the founder has to re-scan the board — same cards, new layout. */
+        const solCol = document.getElementById('iiSolCol');
+        if (solCol) {
+          const children = Array.from(solCol.children);
+          shuffle(children).forEach(child => solCol.appendChild(child));
+        }
+        break;
+      }
     }
 
     setTimeout(() => { banner.style.display = 'none'; }, 3000);
-    G.disruptCooldown = G.level === 2 ? 18 : 999;
+    /* cooldown: Level 2 = 18s, Level 3 = 12s (faster cadence = harder),
+       Level 1 = effectively disabled (disruptors never trigger there). */
+    G.disruptCooldown = G.level === 2 ? 18 : G.level === 3 ? 12 : 999;
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -965,8 +1107,8 @@
 
   function calcStars () {
     const cfg = CFG[G.level];
-    const s3  = G.level === 1 ? STAR3_L1 : STAR3_L2;
-    const s2  = G.level === 1 ? STAR2_L1 : STAR2_L2;
+    const s3  = STAR3_BY_LEVEL[G.level];
+    const s2  = STAR2_BY_LEVEL[G.level];
     if (G.hits >= s3 && G.fails === 0)     return 3;
     if (G.hits >= s3)                       return 2;
     if (G.hits >= s2)                       return 2;
@@ -989,8 +1131,8 @@
       G.timeLeft = 0;
       G.phase    = 'over';
       G.won      = G.hits >= CFG[G.level].need;
-      const stars = G.hits >= (G.level === 1 ? STAR3_L1 : STAR3_L2) ? 3
-                  : G.hits >= (G.level === 1 ? STAR2_L1 : STAR2_L2) ? 2
+      const stars = G.hits >= STAR3_BY_LEVEL[G.level] ? 3
+                  : G.hits >= STAR2_BY_LEVEL[G.level] ? 2
                   : G.hits > 0 ? 1 : 0;
       updateHUD();
       if (stars > 0) endGame(stars);
@@ -998,8 +1140,8 @@
       return;
     }
 
-    /* disruptor cooldown (Level 2) */
-    if (G.level === 2) {
+    /* disruptor cooldown (Level 2 + Level 3) */
+    if (G.level === 2 || G.level === 3) {
       G.disruptCooldown -= dt;
       if (G.disruptCooldown <= 0) {
         triggerDisruptor();
@@ -1107,6 +1249,7 @@
         </div>
 
         ${level === 1 && won ? `<div style="margin-bottom:10px"><button id="iiLevel2Btn" style="padding:10px 20px;border-radius:10px;border:1.5px solid ${GOLD};background:rgba(251,191,36,.15);color:${GOLD};font-family:Orbitron,sans-serif;font-size:.62rem;letter-spacing:.12em;cursor:pointer">▶ LEVEL 2: MASTER</button></div>` : ''}
+        ${level === 2 && won ? `<div style="margin-bottom:10px"><button id="iiLevel3Btn" style="padding:10px 20px;border-radius:10px;border:1.5px solid ${NEON};background:rgba(56,189,248,.15);color:${NEON};font-family:Orbitron,sans-serif;font-size:.62rem;letter-spacing:.12em;cursor:pointer">▶ LEVEL 3: FOUNDER</button></div>` : ''}
 
         <div style="display:flex;gap:8px;justify-content:center;margin-top:4px">
           <button id="iiPlayAgain" style="padding:10px 18px;border-radius:10px;border:1.5px solid ${ACC}66;background:${ACC}22;color:${ACC2};font-family:Orbitron,sans-serif;font-size:.62rem;letter-spacing:.12em;cursor:pointer">↺ PLAY AGAIN</button>
@@ -1131,6 +1274,12 @@
       el.style.display = 'none';
       startLevel(2);
     };
+
+    const l3Btn = document.getElementById('iiLevel3Btn');
+    if (l3Btn) l3Btn.onclick = () => {
+      el.style.display = 'none';
+      startLevel(3);
+    };
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -1143,5 +1292,19 @@
     }
     return arr;
   }
+
+  /* ══════════════════════════════════════════════════════════════
+     DEBUG HOOK — introspect / force-win from devtools console.
+     G is closure-private, so this is the only way to peek at it
+     from outside the module. Not referenced by gameplay code.
+  ══════════════════════════════════════════════════════════════ */
+  window._iiDbg = () => G ? {
+    level: G.level, hits: G.hits, fails: G.fails,
+    need: CFG[G.level] ? CFG[G.level].need : null,
+    energy: G.energy, timeLeft: G.timeLeft, phase: G.phase,
+    activeSeg: G.activeSeg ? G.activeSeg.id : null,
+    disruptCooldown: G.disruptCooldown
+  } : null;
+  window._iiForceWin = () => { if (G) { G.hits = CFG[G.level].need; checkWin(); } };
 
 })();

@@ -2,28 +2,151 @@
    G7 REPORT OBSERVATORY — CredTech Galaxy mini-game
    Spot-the-Difference / Error-Finding mechanic.
    Concept: "Read reports & fix errors"
-   90-second session · 6 errors hidden in a credit report doc
+   3 LEVELS · disjoint report scenarios · 6→7→8 hidden errors, less time, subtler bugs
    ════════════════════════════════════════════════════════════════ */
 (function(){
   let G = null;
+  let curLevel = 1;   // 1|2|3 — chosen on hub entry, advances via end-screen "NEXT LEVEL"
 
-  /* ─── ERROR DEFINITIONS ─────────────────────────────────────── */
-  // Each error item has: section, id, an errorType for rendering, and a hint shown after found
-  const ERRORS = [
-    { id:'unknown_account',   section:'accounts',     hint:'Unknown accounts may signal identity theft or a reporting mistake.' },
-    { id:'missed_bill',       section:'payments',     hint:'Paid bills showing as missed is a common credit report error — dispute it!' },
-    { id:'unknown_inquiry',   section:'inquiries',    hint:'You have the right to dispute unauthorized hard inquiries on your report.' },
-    { id:'collection_active', section:'collections',  hint:'Collections you have paid must be marked PAID or removed — not stay ACTIVE.' },
-    { id:'duplicate_account', section:'accounts',     hint:'Duplicate accounts inflate your debt load — always dispute them.' },
-    { id:'wrong_balance',     section:'accounts',     hint:'Incorrect balances affect your utilization ratio and credit score.' },
+  /* ─── LEVEL CONFIGS ───────────────────────────────────────────── */
+  const LEVELS = [
+    { n:1, name:'CADET REVIEW',     time:90, reportId:'GCB-88142-X', reportDate:'06/30/2026', star3:6, star2:4 },
+    { n:2, name:'AGENT REVIEW',     time:85, reportId:'GCB-91765-Y', reportDate:'07/14/2026', star3:7, star2:5 },
+    { n:3, name:'COMMANDER REVIEW', time:80, reportId:'GCB-94420-Z', reportDate:'08/02/2026', star3:8, star2:6 },
   ];
 
+  /* ─── REPORT CONTENT — DISJOINT per level, harder/subtler each level ──
+     Every row is either {id, clean:true, ...display} or {id, error:true, hint, ...display}.
+     personalError (when present) marks the Personal Information block itself as the error. */
+
+  // LEVEL 1 · the basics (6 errors) — familiar, obvious mistakes
+  const REPORT_L1 = {
+    personal: { name:'JAYDEN W.', addr:'123 Galaxy Way, Star City, SC 77401', dob:'01/15/2000', ssn:'••••-••••-3821' },
+    summary: { fico:720, ficoLabel:'GOOD', payHist:'GOOD', util:'30%', utilSub:'Keep below 30%', openAccts:5 },
+    accounts: [
+      { id:'galaxy_card', clean:true, name:'💳 Galaxy Card', chip:'CURRENT', chipCls:'ok', limit:1000, bal:200, utilPct:'20%', utilCol:'#15803d' },
+      { id:'nebula_card', clean:true, name:'💳 Nebula Card', chip:'CURRENT', chipCls:'ok', limit:2500, bal:1250, utilPct:'50%', utilCol:'#b45309' },
+      { id:'star_card_a', clean:true, name:'💳 Star Card', chip:'MAXED', chipCls:'warn', limit:500, bal:500, utilPct:'100%', utilCol:'#dc2626' },
+      { id:'unknown_account', error:true, name:'💳 Unknown Lender', chip:'DELINQUENT', chipCls:'bad', limit:300, bal:300, utilPct:'100%', utilCol:'#dc2626',
+        hint:'Unknown accounts may signal identity theft or a reporting mistake.' },
+      { id:'wrong_balance', error:true, name:'💳 Nebula Card', chip:'DELINQUENT', chipCls:'bad', limit:2500, bal:2450, utilPct:'98%', utilCol:'#dc2626',
+        hint:'Incorrect balances affect your utilization ratio and credit score.' },
+      { id:'duplicate_account', error:true, name:'💳 Star Card', chip:'MAXED', chipCls:'warn', limit:500, bal:500, utilPct:'100%', utilCol:'#dc2626',
+        hint:'Duplicate accounts inflate your debt load — always dispute them.' },
+    ],
+    payments: [
+      { id:'pay_galaxy', clean:true, name:'Galaxy Card', dots:'✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅' },
+      { id:'pay_nebula', clean:true, name:'Nebula Card', dots:'✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅⚠✅✅✅✅' },
+      { id:'pay_star', clean:true, name:'Star Card', dots:'✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅' },
+      { id:'missed_bill', error:true, name:'MISSED BILL', dots:'❌ MISSED — $150 — 04/2025',
+        hint:'Paid bills showing as missed is a common credit report error — dispute it!' },
+    ],
+    inquiries: [
+      { id:'inq_bank', clean:true, name:'🏦 Bank of Star City', date:'05/12/2024', type:'Auto Loan' },
+      { id:'inq_galactic', clean:true, name:'🌌 Galactic Finance', date:'04/22/2024', type:'Personal Loan' },
+      { id:'unknown_inquiry', error:true, name:'❓ Unknown Lender', date:'03/10/2024', type:'Unknown',
+        hint:'You have the right to dispute unauthorized hard inquiries on your report.' },
+      { id:'inq_mega', clean:true, name:'🏪 Mega Store Card', date:'04/22/2024', type:'Retail Credit' },
+    ],
+    collections: [
+      { id:'collection_active', error:true, name:'⚠ Premier Collections', detail:'Original creditor: Orbit Utility Co. — Opened: 08/2023', chip:'ACTIVE', amt:'$2,450',
+        hint:'Collections you have paid must be marked PAID or removed — not stay ACTIVE.' },
+    ],
+  };
+
+  // LEVEL 2 · subtler errors (7) — math, dates & status mismatches, not just "unknown" items
+  const REPORT_L2 = {
+    personal: { name:'MAYA R.', addr:'87 Comet Circle, Nova Heights, NV 55210', dob:'09/03/1999', ssn:'••••-••••-4417' },
+    personalError: { id:'wrong_dob', hint:'This date of birth would make the account holder too young to have opened a loan years ago — check the DOB field.' },
+    summary: { fico:695, ficoLabel:'GOOD', payHist:'FAIR', util:'46%', utilSub:'Keep below 30%', openAccts:4 },
+    accounts: [
+      { id:'comet_card', clean:true, name:'💳 Comet Card', chip:'CURRENT', chipCls:'ok', limit:1500, bal:450, utilPct:'30%', utilCol:'#15803d' },
+      { id:'orbit_auto', clean:true, name:'🚗 Orbit Auto Loan', chip:'CURRENT', chipCls:'ok', limit:12000, bal:8100, utilPct:'68%', utilCol:'#b45309' },
+      { id:'closed_still_open', error:true, name:'💳 Meteor Card', chip:'OPEN', chipCls:'ok', limit:800, bal:0, utilPct:'0%', utilCol:'#15803d',
+        hint:'This account was closed last year — a closed account should never show as OPEN.' },
+      { id:'limit_math_error', error:true, name:'💳 Asteroid Card', chip:'CURRENT', chipCls:'ok', limit:400, bal:520, utilPct:'20%', utilCol:'#15803d',
+        hint:'Balance ($520) is higher than the limit ($400) — that is over 100% utilization, not 20%.' },
+    ],
+    payments: [
+      { id:'pay_comet', clean:true, name:'Comet Card', dots:'✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅' },
+      { id:'pay_orbit', clean:true, name:'Orbit Auto Loan', dots:'✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅' },
+      { id:'payment_before_open', error:true, name:'Meteor Card', dots:'✅ Payment logged 02/2022 (account opened 06/2022)',
+        hint:'A payment cannot happen before the account existed — that entry is a reporting error.' },
+      { id:'current_chip_missed_history', error:true, name:'Asteroid Card', dots:'❌❌❌ 3 missed payments — but account still shows CURRENT above',
+        hint:'An account with 3 missed payments in its history should not still be labeled CURRENT.' },
+    ],
+    inquiries: [
+      { id:'inq_lunar', clean:true, name:'🌙 Lunar Credit Union', date:'02/18/2025', type:'Personal Loan' },
+      { id:'future_dated_inquiry', error:true, name:'🛰️ Satellite Bank', date:'12/31/2026', type:'Credit Card',
+        hint:'This inquiry is dated in the future — an impossible date is always a reporting error.' },
+    ],
+    collections: [
+      { id:'wrong_creditor', error:true, name:'⚠ Halcyon Collections', detail:'Original creditor listed: Comet Card — but Comet Card is open & current above', chip:'ACTIVE', amt:'$310',
+        hint:'The same account cannot be both open & current AND sent to collections — the original creditor listed here is wrong.' },
+    ],
+  };
+
+  // LEVEL 3 · hardest (8) — identity/fraud patterns & compounding math errors across sections
+  const REPORT_L3 = {
+    personal: { name:'DEVON K.', addr:'450 Pulsar Ave, Quasar City, QC 90812', dob:'11/27/2001', ssn:'••••-••••-2298 / ••••-••••-7734' },
+    personalError: { id:'two_ssns', hint:'Two different SSNs on one report is a strong identity-theft red flag — the SSN field itself is the error here.' },
+    summary: { fico:610, ficoLabel:'FAIR', payHist:'FAIR', util:'38%', utilSub:'Keep below 30%', openAccts:6 },
+    accounts: [
+      { id:'nova_card', clean:true, name:'💳 Nova Card', chip:'CURRENT', chipCls:'ok', limit:2000, bal:600, utilPct:'30%', utilCol:'#15803d' },
+      { id:'pulsar_loan', clean:true, name:'🎓 Pulsar Student Loan', chip:'CURRENT', chipCls:'ok', limit:15000, bal:9200, utilPct:'61%', utilCol:'#b45309' },
+      { id:'negative_balance_delinquent', error:true, name:'💳 Quasar Card', chip:'DELINQUENT', chipCls:'bad', limit:1000, bal:-45, utilPct:'—', utilCol:'#dc2626',
+        hint:'A negative balance means the lender owes YOU money — that cannot be marked DELINQUENT.' },
+      { id:'identity_theft_account', error:true, name:'💳 Binary Bank Card', chip:'CURRENT', chipCls:'ok', limit:5000, bal:4800, utilPct:'96%', utilCol:'#dc2626',
+        hint:'This exact lender also shows up below as a hard inquiry you never made — a classic identity-theft pattern.' },
+      { id:'utilization_math_error', error:true, name:'💳 Eclipse Card', chip:'CURRENT', chipCls:'ok', limit:2000, bal:1800, utilPct:'40%', utilCol:'#b45309',
+        hint:'$1,800 balance on a $2,000 limit is 90% utilization, not the 40% printed here.' },
+    ],
+    payments: [
+      { id:'pay_nova', clean:true, name:'Nova Card', dots:'✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅' },
+      { id:'pay_pulsar', clean:true, name:'Pulsar Loan', dots:'✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅' },
+      { id:'too_many_months', error:true, name:'Binary Bank Card', dots:'24 months of history shown — but account opened only 5 months ago',
+        hint:'An account open for 5 months cannot have 24 months of payment history — the dates do not add up.' },
+    ],
+    inquiries: [
+      { id:'inq_cosmos', clean:true, name:'🌌 Cosmos Credit Union', date:'01/09/2025', type:'Auto Loan' },
+      { id:'identity_theft_inquiry', error:true, name:'💳 Binary Bank Card', date:'03/02/2025', type:'Credit Card',
+        hint:'Binary Bank Card already appears above as an open account you supposedly manage — you cannot also be newly applying for it.' },
+      { id:'employer_mismatch_inquiry', error:true, name:'🏢 Stellar Staffing Co.', date:'05/20/2025', type:'Employment Check',
+        hint:'This employer does not match any job history on file — an unrecognized employment inquiry should be disputed.' },
+    ],
+    collections: [
+      { id:'fico_summary_mismatch', error:true, name:'⚠ Vortex Recovery Group', detail:'Reported utilization used for FICO calc: 75% — Credit Summary above shows 38%', chip:'ACTIVE', amt:'$1,120',
+        hint:'The FICO summary utilization and this collection record utilization do not match — one of them is wrong.' },
+    ],
+  };
+
+  const REPORTS = [REPORT_L1, REPORT_L2, REPORT_L3];
+
+  // Flatten a report's error rows (incl. personalError) into one lookup, keyed by id → hint
+  function buildErrorIndex(report){
+    const idx = {};
+    if (report.personalError) idx[report.personalError.id] = report.personalError.hint;
+    for (const sec of ['accounts','payments','inquiries','collections']) {
+      for (const row of report[sec]) if (row.error) idx[row.id] = row.hint;
+    }
+    return idx;
+  }
+
+  function totalErrorCount(report){ return Object.keys(buildErrorIndex(report)).length; }
+
   /* ─── STATE ─────────────────────────────────────────────────── */
-  function newGame(){
+  function newGame(level){
+    const L = LEVELS[(level||curLevel)-1] || LEVELS[0];
+    const report = REPORTS[L.n-1];
     return {
       phase: 'play',
+      level: L.n,
+      cfg: L,
+      report: report,
+      errorIdx: buildErrorIndex(report),
+      goal: totalErrorCount(report),
       score: 0,
-      timeLeft: 90,
+      timeLeft: L.time,
       errorsFound: 0,
       wrongTaps: 0,
       // track each error: found | penalized (clean item tapped)
@@ -38,6 +161,7 @@
   /* ─── SCREEN ────────────────────────────────────────────────── */
   window.SCREENS.game_reportobservatory = function(){
     G = null;
+    curLevel = 1;   // fresh hub entry always starts the campaign at Level 1
     setTimeout(initGame, 40);
     return `<div id="roRoot" style="position:absolute;inset:0;background:#0d0920;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
 
@@ -47,7 +171,7 @@
       <!-- TOP BAR -->
       <div style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;padding:12px 14px;gap:10px;background:linear-gradient(180deg,rgba(13,9,32,.98) 70%,transparent);flex-shrink:0">
         <button onclick="roExit()" style="padding:7px 13px;border:1px solid rgba(139,92,246,.4);border-radius:9px;background:rgba(139,92,246,.12);color:#a78bfa;font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.14em;cursor:pointer;white-space:nowrap;flex-shrink:0">← HUB</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:#a78bfa;flex:1;text-align:center;text-shadow:0 0 16px rgba(139,92,246,.6)">REPORT OBSERVATORY</div>
+        <div id="roTitle" style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:#a78bfa;flex:1;text-align:center;text-shadow:0 0 16px rgba(139,92,246,.6)">REPORT OBSERVATORY · LV 1/3</div>
         <div style="display:flex;gap:10px;align-items:center;flex-shrink:0">
           <div id="roScore" style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:#fbbf24;font-variant-numeric:tabular-nums;text-shadow:0 0 10px rgba(251,191,36,.4);min-width:52px;text-align:right">0</div>
           <div id="roTimer" style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:#e2e8f0;font-variant-numeric:tabular-nums;min-width:36px;text-align:right">90s</div>
@@ -73,249 +197,8 @@
       <!-- REPORT SCROLL AREA -->
       <div id="roScroll" style="position:absolute;top:140px;left:0;right:0;bottom:0;overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10;padding:12px 12px 32px">
 
-        <!-- THE CREDIT REPORT DOCUMENT -->
-        <div id="roDoc" style="background:#f5f4f0;border-radius:14px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,.5),0 0 0 1px rgba(139,92,246,.25);color:#1a1625;font-family:'Inter',sans-serif">
-
-          <!-- REPORT HEADER -->
-          <div style="background:linear-gradient(135deg,#2d1b69,#1a0f3c);padding:18px 20px;color:#fff">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start">
-              <div>
-                <div style="font-family:'Orbitron',sans-serif;font-size:.85rem;letter-spacing:.18em;color:#a78bfa;margin-bottom:2px">GALAXY CREDIT BUREAU</div>
-                <div style="font-size:.7rem;color:rgba(221,214,254,.7);letter-spacing:.06em">OFFICIAL CONSUMER CREDIT REPORT</div>
-              </div>
-              <div style="text-align:right">
-                <div style="font-size:.6rem;color:rgba(221,214,254,.6)">Report Date</div>
-                <div style="font-family:'Orbitron',sans-serif;font-size:.68rem;color:#e2d9f3">06/30/2026</div>
-                <div style="font-size:.58rem;color:rgba(221,214,254,.4);margin-top:2px">Report #GCB-88142-X</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- SECTION: PERSONAL INFO -->
-          <div class="ro-section">
-            <div class="ro-section-head">PERSONAL INFORMATION</div>
-            <div class="ro-section-body">
-              <div class="ro-field-row">
-                <div class="ro-field-label">Full Name</div>
-                <div class="ro-field-value">JAYDEN W.</div>
-              </div>
-              <div class="ro-field-row">
-                <div class="ro-field-label">Address</div>
-                <div class="ro-field-value">123 Galaxy Way, Star City, SC 77401</div>
-              </div>
-              <div class="ro-field-row">
-                <div class="ro-field-label">Date of Birth</div>
-                <div class="ro-field-value">01/15/2000</div>
-              </div>
-              <div class="ro-field-row">
-                <div class="ro-field-label">SSN (last 4)</div>
-                <div class="ro-field-value">••••-••••-3821</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- SECTION: CREDIT SUMMARY -->
-          <div class="ro-section">
-            <div class="ro-section-head">CREDIT SUMMARY</div>
-            <div style="padding:14px 16px">
-              <div style="display:flex;gap:10px;flex-wrap:wrap">
-                <div class="ro-stat-card">
-                  <div class="ro-stat-label">FICO SCORE</div>
-                  <div class="ro-stat-val" style="color:#15803d;font-size:1.5rem">720</div>
-                  <div class="ro-stat-sub">GOOD</div>
-                </div>
-                <div class="ro-stat-card">
-                  <div class="ro-stat-label">PAYMENT HISTORY</div>
-                  <div class="ro-stat-val" style="color:#15803d">GOOD</div>
-                  <div class="ro-stat-sub">35% of score</div>
-                </div>
-                <div class="ro-stat-card">
-                  <div class="ro-stat-label">UTILIZATION</div>
-                  <div class="ro-stat-val" style="color:#b45309">30%</div>
-                  <div class="ro-stat-sub">Keep below 30%</div>
-                </div>
-                <div class="ro-stat-card">
-                  <div class="ro-stat-label">OPEN ACCOUNTS</div>
-                  <div class="ro-stat-val">5</div>
-                  <div class="ro-stat-sub">Active</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- SECTION: ACCOUNTS -->
-          <div class="ro-section">
-            <div class="ro-section-head">OPEN ACCOUNTS</div>
-            <div style="padding:10px 14px;display:flex;flex-direction:column;gap:8px">
-
-              <!-- Clean account 1: Galaxy Card -->
-              <div class="ro-account-row clean" data-id="galaxy_card" onclick="roTapItem('galaxy_card',false,this)">
-                <div class="ro-acc-name">💳 Galaxy Card</div>
-                <div class="ro-acc-details">
-                  <span class="ro-acc-chip ok">CURRENT</span>
-                  <span class="ro-acc-meta">Limit <strong>$1,000</strong></span>
-                  <span class="ro-acc-meta">Balance <strong>$200</strong></span>
-                  <span class="ro-acc-meta" style="color:#15803d">20% util</span>
-                </div>
-              </div>
-
-              <!-- Clean account 2: Nebula Card -->
-              <div class="ro-account-row clean" data-id="nebula_card" onclick="roTapItem('nebula_card',false,this)">
-                <div class="ro-acc-name">💳 Nebula Card</div>
-                <div class="ro-acc-details">
-                  <span class="ro-acc-chip ok">CURRENT</span>
-                  <span class="ro-acc-meta">Limit <strong>$2,500</strong></span>
-                  <span class="ro-acc-meta">Balance <strong>$1,250</strong></span>
-                  <span class="ro-acc-meta" style="color:#b45309">50% util</span>
-                </div>
-              </div>
-
-              <!-- Clean account 3: Star Card -->
-              <div class="ro-account-row clean" data-id="star_card_a" onclick="roTapItem('star_card_a',false,this)">
-                <div class="ro-acc-name">💳 Star Card</div>
-                <div class="ro-acc-details">
-                  <span class="ro-acc-chip warn">MAXED</span>
-                  <span class="ro-acc-meta">Limit <strong>$500</strong></span>
-                  <span class="ro-acc-meta">Balance <strong>$500</strong></span>
-                  <span class="ro-acc-meta" style="color:#dc2626">100% util</span>
-                </div>
-              </div>
-
-              <!-- ERROR: Unknown account -->
-              <div class="ro-account-row error-item" data-id="unknown_account" onclick="roTapItem('unknown_account',true,this)">
-                <div class="ro-acc-name">💳 Unknown Lender</div>
-                <div class="ro-acc-details">
-                  <span class="ro-acc-chip bad">DELINQUENT</span>
-                  <span class="ro-acc-meta">Limit <strong>$300</strong></span>
-                  <span class="ro-acc-meta">Balance <strong>$300</strong></span>
-                  <span class="ro-acc-meta" style="color:#dc2626">100% util</span>
-                </div>
-              </div>
-
-              <!-- ERROR: Wrong balance (Nebula Card duplicate showing wrong balance) -->
-              <div class="ro-account-row error-item" data-id="wrong_balance" onclick="roTapItem('wrong_balance',true,this)">
-                <div class="ro-acc-name">💳 Nebula Card</div>
-                <div class="ro-acc-details">
-                  <span class="ro-acc-chip bad">DELINQUENT</span>
-                  <span class="ro-acc-meta">Limit <strong>$2,500</strong></span>
-                  <span class="ro-acc-meta">Balance <strong>$2,450</strong></span>
-                  <span class="ro-acc-meta" style="color:#dc2626">98% util</span>
-                </div>
-              </div>
-
-              <!-- ERROR: Duplicate Star Card -->
-              <div class="ro-account-row error-item" data-id="duplicate_account" onclick="roTapItem('duplicate_account',true,this)">
-                <div class="ro-acc-name">💳 Star Card</div>
-                <div class="ro-acc-details">
-                  <span class="ro-acc-chip warn">MAXED</span>
-                  <span class="ro-acc-meta">Limit <strong>$500</strong></span>
-                  <span class="ro-acc-meta">Balance <strong>$500</strong></span>
-                  <span class="ro-acc-meta" style="color:#dc2626">100% util</span>
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          <!-- SECTION: PAYMENT HISTORY -->
-          <div class="ro-section">
-            <div class="ro-section-head">PAYMENT HISTORY</div>
-            <div style="padding:10px 14px;display:flex;flex-direction:column;gap:6px">
-              <div style="font-size:.62rem;color:#374151;margin-bottom:4px">Last 24 months — ✅ = On Time &nbsp;|&nbsp; ⚠ = Late &nbsp;|&nbsp; ❌ = Missed</div>
-
-              <!-- Payment row: clean -->
-              <div class="ro-pay-row clean" data-id="pay_galaxy" onclick="roTapItem('pay_galaxy',false,this)">
-                <div class="ro-pay-name">Galaxy Card</div>
-                <div class="ro-pay-dots">✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅</div>
-              </div>
-
-              <!-- Payment row: clean -->
-              <div class="ro-pay-row clean" data-id="pay_nebula" onclick="roTapItem('pay_nebula',false,this)">
-                <div class="ro-pay-name">Nebula Card</div>
-                <div class="ro-pay-dots">✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅⚠✅✅✅✅</div>
-              </div>
-
-              <!-- Payment row: clean -->
-              <div class="ro-pay-row clean" data-id="pay_star" onclick="roTapItem('pay_star',false,this)">
-                <div class="ro-pay-name">Star Card</div>
-                <div class="ro-pay-dots">✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅</div>
-              </div>
-
-              <!-- ERROR: Missed bill entry that shouldn't be here -->
-              <div class="ro-pay-row error-item" data-id="missed_bill" onclick="roTapItem('missed_bill',true,this)">
-                <div class="ro-pay-name">MISSED BILL</div>
-                <div class="ro-pay-dots" style="color:#dc2626;font-size:.65rem;font-weight:700">❌ MISSED — $150 — 04/2025</div>
-              </div>
-
-            </div>
-          </div>
-
-          <!-- SECTION: INQUIRIES -->
-          <div class="ro-section">
-            <div class="ro-section-head">HARD INQUIRIES</div>
-            <div style="padding:10px 14px;display:flex;flex-direction:column;gap:6px">
-
-              <div class="ro-inq-row clean" data-id="inq_bank" onclick="roTapItem('inq_bank',false,this)">
-                <div class="ro-inq-name">🏦 Bank of Star City</div>
-                <div class="ro-inq-date">05/12/2024</div>
-                <div class="ro-inq-type">Auto Loan</div>
-              </div>
-
-              <div class="ro-inq-row clean" data-id="inq_galactic" onclick="roTapItem('inq_galactic',false,this)">
-                <div class="ro-inq-name">🌌 Galactic Finance</div>
-                <div class="ro-inq-date">04/22/2024</div>
-                <div class="ro-inq-type">Personal Loan</div>
-              </div>
-
-              <!-- ERROR: Unknown lender inquiry -->
-              <div class="ro-inq-row error-item" data-id="unknown_inquiry" onclick="roTapItem('unknown_inquiry',true,this)">
-                <div class="ro-inq-name">❓ Unknown Lender</div>
-                <div class="ro-inq-date">03/10/2024</div>
-                <div class="ro-inq-type">Unknown</div>
-              </div>
-
-              <div class="ro-inq-row clean" data-id="inq_mega" onclick="roTapItem('inq_mega',false,this)">
-                <div class="ro-inq-name">🏪 Mega Store Card</div>
-                <div class="ro-inq-date">04/22/2024</div>
-                <div class="ro-inq-type">Retail Credit</div>
-              </div>
-
-            </div>
-          </div>
-
-          <!-- SECTION: COLLECTIONS -->
-          <div class="ro-section" style="margin-bottom:0">
-            <div class="ro-section-head">COLLECTIONS</div>
-            <div style="padding:10px 14px;display:flex;flex-direction:column;gap:8px">
-
-              <!-- ERROR: Collection showing ACTIVE when it was paid -->
-              <div class="ro-coll-row error-item" data-id="collection_active" onclick="roTapItem('collection_active',true,this)">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-                  <div>
-                    <div class="ro-coll-name">⚠ Premier Collections</div>
-                    <div class="ro-coll-detail">Original creditor: Orbit Utility Co. — Opened: 08/2023</div>
-                  </div>
-                  <div style="text-align:right">
-                    <span class="ro-acc-chip bad">ACTIVE</span>
-                    <div class="ro-coll-amt">$2,450</div>
-                  </div>
-                </div>
-              </div>
-
-              <div style="padding:10px 12px;background:rgba(15,118,110,.08);border:1px solid rgba(15,118,110,.2);border-radius:8px">
-                <div style="font-size:.6rem;color:#374151">No other collection accounts on file.</div>
-              </div>
-
-            </div>
-          </div>
-
-          <!-- REPORT FOOTER -->
-          <div style="padding:14px 20px;background:#f0eef8;border-top:1px solid #e0d9f0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-            <div style="font-size:.56rem;color:#6b7280">Dispute any errors at GalaxyCredit.com/dispute</div>
-            <div style="font-size:.54rem;color:#9ca3af">© 2026 Galaxy Credit Bureau</div>
-          </div>
-
-        </div>
+        <!-- THE CREDIT REPORT DOCUMENT — filled by renderReport() per level, data-driven -->
+        <div id="roDoc" style="background:#f5f4f0;border-radius:14px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,.5),0 0 0 1px rgba(139,92,246,.25);color:#1a1625;font-family:'Inter',sans-serif"></div>
       </div>
 
       <!-- END OVERLAY -->
@@ -336,6 +219,9 @@
           border-bottom:1px solid #ddd6f5;
         }
         .ro-section-body { padding:10px 14px;display:flex;flex-direction:column;gap:6px; }
+        .ro-section-body.clean:hover { box-shadow:inset 0 0 0 2px rgba(21,128,61,.25); }
+        .ro-section-body.error-item { background:#fffbfb; }
+        .ro-section-body.error-item:hover { box-shadow:inset 0 0 0 2px rgba(185,28,28,.18); }
         .ro-field-row { display:flex;gap:10px;align-items:baseline;padding:4px 0;border-bottom:1px solid #f0ecfc; }
         .ro-field-row:last-child { border-bottom:none; }
         .ro-field-label { font-size:.6rem;color:#6b7280;min-width:100px;flex-shrink:0;letter-spacing:.02em; }
@@ -408,7 +294,8 @@
         .ro-account-row.error-item::after,
         .ro-pay-row.error-item::after,
         .ro-inq-row.error-item::after,
-        .ro-coll-row.error-item::after {
+        .ro-coll-row.error-item::after,
+        .ro-section-body.error-item::after {
           content:'';
           display:inline-block;
           width:5px;height:5px;
@@ -469,11 +356,171 @@
     </div>`;
   };
 
+  /* ─── RENDER — build the roDoc innerHTML from the level's report data ─── */
+  function fmtMoney(n){ return (n<0?'-$':'$') + Math.abs(n).toLocaleString(); }
+
+  function renderReport(){
+    const r = G.report, cfg = G.cfg, p = r.personal;
+    const personalIsError = !!r.personalError;
+    const personalId = personalIsError ? r.personalError.id : null;
+
+    const accountsHTML = r.accounts.map(a => `
+      <div class="ro-account-row ${a.error?'error-item':'clean'}" data-id="${a.id}" onclick="roTapItem('${a.id}',${!!a.error},this)">
+        <div class="ro-acc-name">${a.name}</div>
+        <div class="ro-acc-details">
+          <span class="ro-acc-chip ${a.chipCls}">${a.chip}</span>
+          <span class="ro-acc-meta">Limit <strong>${fmtMoney(a.limit)}</strong></span>
+          <span class="ro-acc-meta">Balance <strong>${fmtMoney(a.bal)}</strong></span>
+          <span class="ro-acc-meta" style="color:${a.utilCol}">${a.utilPct} util</span>
+        </div>
+      </div>`).join('');
+
+    const paymentsHTML = r.payments.map(pm => `
+      <div class="ro-pay-row ${pm.error?'error-item':'clean'}" data-id="${pm.id}" onclick="roTapItem('${pm.id}',${!!pm.error},this)">
+        <div class="ro-pay-name">${pm.name}</div>
+        <div class="ro-pay-dots" ${pm.error?'style="color:#dc2626;font-size:.65rem;font-weight:700"':''}>${pm.dots}</div>
+      </div>`).join('');
+
+    const inquiriesHTML = r.inquiries.map(iq => `
+      <div class="ro-inq-row ${iq.error?'error-item':'clean'}" data-id="${iq.id}" onclick="roTapItem('${iq.id}',${!!iq.error},this)">
+        <div class="ro-inq-name">${iq.name}</div>
+        <div class="ro-inq-date">${iq.date}</div>
+        <div class="ro-inq-type">${iq.type}</div>
+      </div>`).join('');
+
+    const collectionsHTML = r.collections.map(c => `
+      <div class="ro-coll-row ${c.error?'error-item':'clean'}" data-id="${c.id}" onclick="roTapItem('${c.id}',${!!c.error},this)">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+          <div>
+            <div class="ro-coll-name">${c.name}</div>
+            <div class="ro-coll-detail">${c.detail}</div>
+          </div>
+          <div style="text-align:right">
+            <span class="ro-acc-chip bad">${c.chip}</span>
+            <div class="ro-coll-amt">${c.amt}</div>
+          </div>
+        </div>
+      </div>`).join('') + `
+      <div style="padding:10px 12px;background:rgba(15,118,110,.08);border:1px solid rgba(15,118,110,.2);border-radius:8px">
+        <div style="font-size:.6rem;color:#374151">No other collection accounts on file.</div>
+      </div>`;
+
+    // Personal Information block — sometimes IS the error (two_ssns, wrong_dob, etc.)
+    // Needs the same clean/error-item class as every other tappable row so roTapItem's
+    // classList bookkeeping (remove 'error-item', add 'ro-found') behaves consistently.
+    const personalBlock = personalIsError
+      ? `<div class="ro-section-body error-item" data-id="${personalId}" onclick="roTapItem('${personalId}',true,this)" style="cursor:pointer">
+          <div class="ro-field-row"><div class="ro-field-label">Full Name</div><div class="ro-field-value">${p.name}</div></div>
+          <div class="ro-field-row"><div class="ro-field-label">Address</div><div class="ro-field-value">${p.addr}</div></div>
+          <div class="ro-field-row"><div class="ro-field-label">Date of Birth</div><div class="ro-field-value">${p.dob}</div></div>
+          <div class="ro-field-row"><div class="ro-field-label">SSN (last 4)</div><div class="ro-field-value">${p.ssn}</div></div>
+        </div>`
+      : `<div class="ro-section-body clean">
+          <div class="ro-field-row"><div class="ro-field-label">Full Name</div><div class="ro-field-value">${p.name}</div></div>
+          <div class="ro-field-row"><div class="ro-field-label">Address</div><div class="ro-field-value">${p.addr}</div></div>
+          <div class="ro-field-row"><div class="ro-field-label">Date of Birth</div><div class="ro-field-value">${p.dob}</div></div>
+          <div class="ro-field-row"><div class="ro-field-label">SSN (last 4)</div><div class="ro-field-value">${p.ssn}</div></div>
+        </div>`;
+
+    const doc = document.getElementById('roDoc');
+    if(!doc) return;
+    doc.innerHTML = `
+      <!-- REPORT HEADER -->
+      <div style="background:linear-gradient(135deg,#2d1b69,#1a0f3c);padding:18px 20px;color:#fff">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:.85rem;letter-spacing:.18em;color:#a78bfa;margin-bottom:2px">GALAXY CREDIT BUREAU</div>
+            <div style="font-size:.7rem;color:rgba(221,214,254,.7);letter-spacing:.06em">OFFICIAL CONSUMER CREDIT REPORT</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:.6rem;color:rgba(221,214,254,.6)">Report Date</div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:.68rem;color:#e2d9f3">${cfg.reportDate}</div>
+            <div style="font-size:.58rem;color:rgba(221,214,254,.4);margin-top:2px">Report #${cfg.reportId}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION: PERSONAL INFO -->
+      <div class="ro-section">
+        <div class="ro-section-head">PERSONAL INFORMATION${personalIsError?' ⚠':''}</div>
+        ${personalBlock}
+      </div>
+
+      <!-- SECTION: CREDIT SUMMARY -->
+      <div class="ro-section">
+        <div class="ro-section-head">CREDIT SUMMARY</div>
+        <div style="padding:14px 16px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <div class="ro-stat-card">
+              <div class="ro-stat-label">FICO SCORE</div>
+              <div class="ro-stat-val" style="color:#15803d;font-size:1.5rem">${r.summary.fico}</div>
+              <div class="ro-stat-sub">${r.summary.ficoLabel}</div>
+            </div>
+            <div class="ro-stat-card">
+              <div class="ro-stat-label">PAYMENT HISTORY</div>
+              <div class="ro-stat-val" style="color:#15803d">${r.summary.payHist}</div>
+              <div class="ro-stat-sub">35% of score</div>
+            </div>
+            <div class="ro-stat-card">
+              <div class="ro-stat-label">UTILIZATION</div>
+              <div class="ro-stat-val" style="color:#b45309">${r.summary.util}</div>
+              <div class="ro-stat-sub">${r.summary.utilSub}</div>
+            </div>
+            <div class="ro-stat-card">
+              <div class="ro-stat-label">OPEN ACCOUNTS</div>
+              <div class="ro-stat-val">${r.summary.openAccts}</div>
+              <div class="ro-stat-sub">Active</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION: ACCOUNTS -->
+      <div class="ro-section">
+        <div class="ro-section-head">OPEN ACCOUNTS</div>
+        <div style="padding:10px 14px;display:flex;flex-direction:column;gap:8px">${accountsHTML}</div>
+      </div>
+
+      <!-- SECTION: PAYMENT HISTORY -->
+      <div class="ro-section">
+        <div class="ro-section-head">PAYMENT HISTORY</div>
+        <div style="padding:10px 14px;display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:.62rem;color:#374151;margin-bottom:4px">Last 24 months — ✅ = On Time &nbsp;|&nbsp; ⚠ = Late &nbsp;|&nbsp; ❌ = Missed</div>
+          ${paymentsHTML}
+        </div>
+      </div>
+
+      <!-- SECTION: INQUIRIES -->
+      <div class="ro-section">
+        <div class="ro-section-head">HARD INQUIRIES</div>
+        <div style="padding:10px 14px;display:flex;flex-direction:column;gap:6px">${inquiriesHTML}</div>
+      </div>
+
+      <!-- SECTION: COLLECTIONS -->
+      <div class="ro-section" style="margin-bottom:0">
+        <div class="ro-section-head">COLLECTIONS</div>
+        <div style="padding:10px 14px;display:flex;flex-direction:column;gap:8px">${collectionsHTML}</div>
+      </div>
+
+      <!-- REPORT FOOTER -->
+      <div style="padding:14px 20px;background:#f0eef8;border-top:1px solid #e0d9f0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div style="font-size:.56rem;color:#6b7280">Dispute any errors at GalaxyCredit.com/dispute</div>
+        <div style="font-size:.54rem;color:#9ca3af">© 2026 Galaxy Credit Bureau</div>
+      </div>`;
+  }
+
   /* ─── INIT ──────────────────────────────────────────────────── */
   function initGame(){
     const root = document.getElementById('roRoot');
     if(!root) return;
-    G = newGame();
+    G = newGame(curLevel);
+    renderReport();
+    const titleEl = document.getElementById('roTitle');
+    if(titleEl) titleEl.textContent = `REPORT OBSERVATORY · LV ${curLevel}/3`;
+    const ec = document.getElementById('roErrorCounter');
+    if(ec) ec.textContent = `0 / ${G.goal}`;
+    const tEl = document.getElementById('roTimer');
+    if(tEl) tEl.textContent = G.timeLeft + 's';
     drawStars();
     G.timerId = setInterval(tick, 1000);
     G.last = performance.now();
@@ -508,21 +555,21 @@
       // Append "found" badge
       const badge = document.createElement('div');
       badge.style.cssText = 'margin-top:6px;display:flex;align-items:center;gap:5px;font-size:.6rem;font-weight:600;color:#15803d;';
-      const errDef = ERRORS.find(e => e.id === id);
+      const hintText = G.errorIdx[id];
       badge.innerHTML = '✅ <span>ERROR FOUND! +150 pts</span>';
       el.appendChild(badge);
 
       // Hint tooltip below badge
-      if(errDef){
+      if(hintText){
         const hint = document.createElement('div');
         hint.style.cssText = 'font-size:.56rem;color:#374151;margin-top:3px;line-height:1.4;font-style:italic;';
-        hint.textContent = errDef.hint;
+        hint.textContent = hintText;
         el.appendChild(hint);
       }
 
       showToast('ERROR FOUND! +150', '#34d399', '#052e16');
       updateUI();
-      if(G.errorsFound >= 6){ G._endTimer = setTimeout(() => endGame(), 500); }
+      if(G.errorsFound >= G.goal){ G._endTimer = setTimeout(() => endGame(), 500); }
     } else {
       // Wrong tap — penalty
       G.wrongTaps++;
@@ -543,9 +590,9 @@
     const sc = document.getElementById('roScore');
     if(sc) sc.textContent = G.score;
     const ec = document.getElementById('roErrorCounter');
-    if(ec) ec.textContent = G.errorsFound + ' / 6';
+    if(ec) ec.textContent = G.errorsFound + ' / ' + G.goal;
     const eb = document.getElementById('roErrBar');
-    if(eb) eb.style.width = (G.errorsFound / 6 * 100) + '%';
+    if(eb) eb.style.width = (G.errorsFound / G.goal * 100) + '%';
   }
 
   /* ─── TOAST ─────────────────────────────────────────────────── */
@@ -586,12 +633,16 @@
     clearInterval(G.timerId);
 
     const found = G.errorsFound;
+    const goal = G.goal;
     const timeBonus = G.timeLeft > 0 ? Math.floor(G.timeLeft * 2) : 0;
     const totalScore = G.score + timeBonus;
-    const stars = found >= 6 ? 3 : found >= 4 ? 2 : 1;
+    // Level-scoped star thresholds — same error COUNT means fewer stars on a harder level
+    // (matches original leniency: any session, even 0 found, still awards at least 1 star)
+    const stars = found >= G.cfg.star3 ? 3 : found >= G.cfg.star2 ? 2 : 1;
     const is3star = stars === 3;
+    const showNext = stars >= 1 && curLevel < 3;
     const coins = window.cvAwardGame
-      ? cvAwardGame('game_reportobservatory', { level: 1, stars, is3star, isPerfect: found >= 6 && G.wrongTaps === 0, badge: 'Fraud Hunter' })
+      ? cvAwardGame('game_reportobservatory', { level: G.level, stars, is3star, isPerfect: found >= goal && G.wrongTaps === 0, badge: 'Fraud Hunter' })
       : (stars===3?150:stars===2?100:50);
     if (stars >= 1 && window.cvHubMeter) cvHubMeter('credtech_trust', stars*4);
     if (window.cvSave) cvSave();
@@ -600,12 +651,15 @@
     if(!over) return;
 
     const starStr = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
-    const pctFull = Math.round(found / 6 * 100);
+    const pctFull = Math.round(found / goal * 100);
+    const headline = stars >= 1
+      ? (curLevel >= 3 ? '👑 MISSION ACCOMPLISHED — ALL 3 LEVELS!' : `MISSION ACCOMPLISHED · LV ${curLevel}`)
+      : 'NICE TRY! Power up and try again';
 
     over.innerHTML = `
-      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.3em;color:#a78bfa;margin-bottom:10px">REPORT ANALYSIS COMPLETE</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.3em;color:#a78bfa;margin-bottom:10px">${headline}</div>
       <div style="font-size:2.2rem;margin-bottom:6px;letter-spacing:.08em">${starStr}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem;color:#fff;margin-bottom:2px;text-shadow:0 0 24px rgba(167,139,250,.7)">${found}/6 ERRORS</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem;color:#fff;margin-bottom:2px;text-shadow:0 0 24px rgba(167,139,250,.7)">${found}/${goal} ERRORS</div>
       <div style="font-size:.68rem;color:rgba(221,214,254,.6);margin-bottom:14px">Found ${pctFull}% of report errors</div>
 
       <div style="display:flex;gap:16px;justify-content:center;margin-bottom:18px">
@@ -634,36 +688,37 @@
         </div>
       </div>
 
+      ${showNext ? `<button onclick="roNextLevel()" style="width:100%;max-width:340px;margin-bottom:10px;padding:13px;border:none;border-radius:10px;background:linear-gradient(90deg,#8b5cf6,#a78bfa);color:#1a0f3c;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;font-weight:900;cursor:pointer;box-shadow:0 4px 20px rgba(139,92,246,.4)">LEVEL ${curLevel+1} ▶ ${LEVELS[curLevel].name}</button>` : ''}
       <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
-        <button onclick="roPlayAgain()" style="padding:12px 26px;border:2px solid #8b5cf6;border-radius:10px;background:rgba(139,92,246,.2);color:#a78bfa;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.14em;cursor:pointer">PLAY AGAIN</button>
+        <button onclick="roPlayAgain()" style="padding:12px 26px;border:2px solid #8b5cf6;border-radius:10px;background:rgba(139,92,246,.2);color:#a78bfa;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.14em;cursor:pointer">${showNext ? 'REPLAY LV '+curLevel : 'PLAY AGAIN'}</button>
         <button onclick="roExit()" style="padding:12px 26px;border:1px solid rgba(255,255,255,.15);border-radius:10px;background:rgba(255,255,255,.06);color:rgba(255,255,255,.75);font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.14em;cursor:pointer">← HUB</button>
       </div>
     `;
     over.style.display = 'flex';
   }
 
-  /* ─── PLAY AGAIN ────────────────────────────────────────────── */
+  /* ─── PLAY AGAIN (replays curLevel) / NEXT LEVEL / EXIT ──────── */
   window.roPlayAgain = function(){
     if(G){ clearInterval(G.timerId); clearTimeout(G._endTimer); }
-    G = null;
     const over = document.getElementById('roOver');
-    if(over) over.style.display = 'none';
-    // Reset all tappable elements
-    document.querySelectorAll('.ro-found').forEach(el => {
-      el.classList.remove('ro-found','ro-flash-found');
-      el.classList.add('error-item');
-      // Remove appended badges/hints
-      [...el.querySelectorAll('div:not(.ro-acc-name):not(.ro-acc-details):not(.ro-inq-name):not(.ro-pay-name)')].forEach(d => {
-        // only remove the ones we injected (with green color)
-        if(d.style.color === 'rgb(21, 128, 61)' || d.style.fontStyle === 'italic') d.remove();
-      });
-    });
-    // Re-initialize
-    G = newGame();
+    if(over){ over.style.display = 'none'; over.innerHTML = ''; }
+
+    // Re-initialize at curLevel — renderReport() fully rebuilds roDoc from scratch,
+    // so no manual DOM scrubbing of old .ro-found/badges is needed (it's all replaced).
+    G = newGame(curLevel);
+    renderReport();
+    const titleEl = document.getElementById('roTitle');
+    if(titleEl) titleEl.textContent = `REPORT OBSERVATORY · LV ${curLevel}/3`;
     G.timerId = setInterval(tick, 1000);
     updateUI();
     const el = document.getElementById('roTimer');
-    if(el){ el.textContent = '90s'; el.style.color = '#e2e8f0'; }
+    if(el){ el.textContent = G.timeLeft + 's'; el.style.color = '#e2e8f0'; }
+  };
+
+  window.roNextLevel = function(){
+    if(curLevel >= 3) return;
+    curLevel++;
+    window.roPlayAgain();   // rebuilds via newGame(curLevel), now reads the bumped level
   };
 
   /* ─── EXIT ──────────────────────────────────────────────────── */
@@ -673,6 +728,11 @@
     if(window.state) state.viewingWorld = 'credtech';
     goTo('credtech_hub');
   };
+
+  /* ─── QA debug hook ───────────────────────────────────────────── */
+  window._roDbg = function(){ return G ? { curLevel, level: G.level, goal: G.goal, found: G.errorsFound, score: G.score, timeLeft: G.timeLeft } : { curLevel, G: null }; };
+  window._roForceLevel = function(n){ curLevel = Math.max(1, Math.min(3, n)); window.roPlayAgain(); };
+  window._roForceWin = function(){ if(!G) return; G.errorsFound = G.goal; G.score = 9999; G.timeLeft = 0; endGame(); };
 
   /* ─── SCORE SHAKE ANIMATION ─────────────────────────────────── */
   (function injectStyles(){

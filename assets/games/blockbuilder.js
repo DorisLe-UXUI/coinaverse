@@ -4,37 +4,63 @@
    BLOCK → MINE it onto the chain. TAP a ⚠️ FRAUD txn = penalty + shake.
    Let fraud scroll off safely. Grab ⚡ / 🛡️ power-ups. Mine N blocks
    or hit the score target before integrity drains. ~75s, ramping.
+   3-LEVEL MISSION LADDER: L1 Rookie → L2 Pro (higher goal, faster tiles,
+   more fraud, rarer power-ups) → L3 Legend (highest goal, fastest tiles,
+   heaviest fraud pressure, rarest power-ups, extra lane).
+   Each level has its OWN 4 blockchain lessons (never repeated within a
+   level, never repeated across levels).
    Loads after the main script; overrides stub window.SCREENS.game_blockbuilder.
    ════════════════════════════════════════════════════════════════ */
 (function(){
-  const TOKEN='risktaker', GOAL_SCORE=900, GOAL_BLOCKS=6, ROUND=75, TXN_PER_BLOCK=4;
+  const TOKEN='risktaker', TXN_PER_BLOCK=4;
   const GATE_EVERY=18;   // seconds between Knowledge Gates
-  let G=null, raf=null;
+  let G=null, raf=null, LV=0;   // LV = current level index (0..2)
 
-  // LEARN WHILE PLAYING — blockchain lessons mapped to GDD concept table
+  // ── 3-LEVEL SYSTEM — real scaling knobs per level ────────────────────
+  //    goal/blocks: targets to win · round: seconds · tileSpd: base tile
+  //    speed multiplier · spawnMul: spawn-interval multiplier (lower=faster)
+  //    fraudBase/fraudRamp: fraud-tile odds · powerChance: power-up odds
+  //    (rarer on higher levels) · lanes: number of scrolling lanes
+  const LEVELS=[
+    { name:'ROOKIE', goal:900,  blocks:6,  round:75, tileSpd:1.0,  spawnMul:1.0,  fraudBase:0.30, fraudRamp:0.22, powerChance:0.07, lanes:4 },
+    { name:'PRO',    goal:1300, blocks:8,  round:78, tileSpd:1.22, spawnMul:0.85, fraudBase:0.36, fraudRamp:0.26, powerChance:0.05, lanes:5 },
+    { name:'LEGEND', goal:1800, blocks:10, round:82, tileSpd:1.48, spawnMul:0.72, fraudBase:0.42, fraudRamp:0.30, powerChance:0.035,lanes:5 }
+  ];
+  function L(){ return LEVELS[LV]; }
+  function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+
+  // LEARN WHILE PLAYING — 12 blockchain lessons, split into 3 disjoint
+  // 4-fact slices (L1 → 0-3 · L2 → 4-7 · L3 → 8-11), shuffled per run and
+  // never repeated within a level nor across levels
   const FACTS=[
+    // LEVEL 1 · fundamentals
     ['⛓️','A block is a container that holds a batch of transactions — fill it, lock it, link it to the chain!'],
     ['✅','Validation checks each transaction before the block can lock. No valid proof = no new block.'],
     ['#️⃣','Every block gets a unique hash — like a fingerprint. Change one byte and the whole hash changes.'],
     ['🔗','Each block stores the hash of the block before it. That\'s the "chain" — one bad link breaks everything.'],
+    // LEVEL 2 · trust & security
     ['🔒','Immutability: once a block is written, it can\'t be quietly changed. Hackers have to rewrite every block after it — that\'s why chains are so hard to hack.'],
     ['🗳️','Consensus means enough validators agree the block is correct. One node saying yes isn\'t enough — the whole network must agree.'],
     ['🌐','Decentralization means no single owner controls the chain. Thousands of nodes share the ledger — you can\'t bribe or hack just one.'],
     ['⚠️','Fraud transactions — fake amounts, double-spends, bad signatures — must be rejected before they enter a block. Let them scroll off safely.'],
+    // LEVEL 3 · advanced concepts
     ['🤖','Smart contracts are rules that run automatically when conditions are met — no middleman needed.'],
-    ['🛡️','Network security = layered defenses: hashing, validation, consensus, and firewalls working together.']
+    ['🛡️','Network security = layered defenses: hashing, validation, consensus, and firewalls working together.'],
+    ['⏱️','Miners race to solve a puzzle first — the winner adds the next block and earns a reward.'],
+    ['📡','Nodes broadcast new blocks to every peer on the network so everyone\'s ledger copy stays in sync.']
   ];
 
-  window.bbInit=function(){ G=null; };  // playDistrictGame calls this before goTo
+  window.bbInit=function(){ G=null; LV=0; };  // playDistrictGame calls this before goTo
 
   function reset(){
     G={ phase:'play', score:0, blocks:0, fills:0, combo:0, bestCombo:0,
-        accepted:0, fraudHits:0, missed:0, integrity:100, time:ROUND,
+        accepted:0, fraudHits:0, missed:0, integrity:100, time:L().round,
         tiles:[], parts:[], floats:[], links:[], code:[],
         spawnT:0.6, last:0, started:performance.now(),
         shake:0, flash:0, flashColor:'#38bdf8', mineGlow:0,
-        shield:0, validator:0, lanes:4,
-        gateT:GATE_EVERY, gateIdx:0 };
+        shield:0, validator:0, lanes:L().lanes,
+        gateT:GATE_EVERY, gateIdx:0,
+        facts:shuffle(FACTS.slice(LV*4,LV*4+4)) };
     // matrix code columns (subtle background)
     for(let i=0;i<26;i++){ G.code.push({x:Math.random(),y:Math.random(),sp:0.05+Math.random()*0.18,ch:rch(),al:0.04+Math.random()*0.1}); }
   }
@@ -59,8 +85,8 @@
     return `<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,#051829,#031019 55%,#020e1a);overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
       <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(180deg,rgba(2,14,26,.88),transparent)">
         <button onclick="bbExit()" style="padding:7px 14px;border:1px solid rgba(56,189,248,.4);border-radius:9px;background:rgba(56,189,248,.1);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← BITSTREAM</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.2em;color:#38bdf8;flex:1;text-align:center">⛓️ BLOCK BUILDER</div>
-        <div id="bbTime" style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:#38bdf8;min-width:46px;text-align:right">${ROUND}s</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.2em;color:#38bdf8;flex:1;text-align:center">⛓️ BLOCK BUILDER · <span id="bbLvl">LV ${LV+1}/3</span></div>
+        <div id="bbTime" style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:#38bdf8;min-width:46px;text-align:right">${L().round}s</div>
       </div>
       <div style="position:absolute;top:52px;left:0;right:0;z-index:5;display:flex;gap:8px;padding:0 18px;justify-content:center">
         ${hud('SCORE','bbScore','#7dd3fc')}${hud('BLOCKS','bbBlocks','#38bdf8')}${hud('STREAK','bbCombo','#fbbf24')}
@@ -145,7 +171,7 @@
     // add a chain link visual + celebratory burst at the stack
     G.links.push({born:performance.now()});
     for(let i=0;i<22;i++){ const a=Math.random()*7,s=0.2+Math.random()*0.6; G.parts.push({x:0.5,y:0.82,vx:Math.cos(a)*s,vy:Math.sin(a)*s-0.4,s:2+Math.random()*4,c:i%2?'#38bdf8':'#a5f3fc',life:0.7+Math.random()*0.4,max:1.1}); }
-    if(G.blocks>=GOAL_BLOCKS || G.score>=GOAL_SCORE){ end(true); return; }
+    if(G.blocks>=L().blocks || G.score>=L().goal){ end(true); return; }
     // every block mined → Knowledge Gate (also resets the periodic timer)
     openGate();
   }
@@ -163,24 +189,26 @@
   function update(dt,W,H){
     G.time-=dt; if(G.time<=0){ G.time=0; return end(); }
     const tEl=document.getElementById('bbTime'); if(tEl) tEl.textContent=Math.ceil(G.time)+'s';
-    const prog=1-(G.time/ROUND);
+    const prog=1-(G.time/L().round);
 
     // Knowledge Gate every ~GATE_EVERY seconds — pauses everything until GOT IT
     G.gateT-=dt; if(G.gateT<=0){ openGate(); return; }
 
-    // spawn scrolling transaction tiles across lanes (left → right)
+    // spawn scrolling transaction tiles across lanes (left → right) —
+    // per-level tileSpd/spawnMul/fraud/powerChance make each level distinct
     G.spawnT-=dt;
     if(G.spawnT<=0){
-      G.spawnT=Math.max(0.42,1.0-prog*0.5);
+      G.spawnT=Math.max(0.42,(1.0-prog*0.5)*L().spawnMul);
       const lane=Math.floor(Math.random()*G.lanes);
-      const laneY=0.30+lane*0.10;          // lanes sit in the upper play field
-      const speed=0.16+prog*0.22+Math.random()*0.06;
+      const laneY=0.30+lane*(G.lanes>4?0.082:0.10);          // lanes sit in the upper play field
+      const speed=(0.16+prog*0.22+Math.random()*0.06)*L().tileSpd;
       const roll=Math.random();
-      const fraudChance=0.30+prog*0.22;
-      if(roll<0.06){ // power-up (rare)
+      const fraudChance=L().fraudBase+prog*L().fraudRamp;
+      const powerChance=L().powerChance;
+      if(roll<powerChance){ // power-up (rarer on higher levels)
         const p=Math.random()<0.5?'shield':'validator';
         G.tiles.push({x:-0.14,y:laneY,vx:speed*0.85,kind:'power',p,e:p==='shield'?'🛡️':'⚡',t:p==='shield'?'Hash Shield':'Lightning Validator'});
-      } else if(roll<0.06+fraudChance){
+      } else if(roll<powerChance+fraudChance){
         const f=FRAUD[Math.floor(Math.random()*FRAUD.length)];
         G.tiles.push({x:-0.14,y:laneY,vx:speed,kind:'fraud',e:'⚠️',t:f.t});
       } else {
@@ -215,7 +243,7 @@
     for(const c of G.code){ c.y+=c.sp*dt; if(c.y>1.05){ c.y=-0.05; c.x=Math.random(); c.ch=rch(); } if(Math.random()<0.02) c.ch=rch(); }
 
     // HUD sync
-    setTxt('bbScore',G.score); setTxt('bbBlocks',G.blocks+'/'+GOAL_BLOCKS); setTxt('bbCombo','x'+G.combo);
+    setTxt('bbScore',G.score); setTxt('bbBlocks',G.blocks+'/'+L().blocks); setTxt('bbCombo','x'+G.combo);
     const ib=document.getElementById('bbIntBar'); if(ib){ ib.style.width=G.integrity+'%'; ib.style.background=G.integrity<35?'linear-gradient(90deg,#ef4444,#f87171)':'linear-gradient(90deg,#38bdf8,#7dd3fc)'; }
     const it2=document.getElementById('bbIntTxt'); if(it2) it2.textContent=Math.round(G.integrity)+'%';
 
@@ -374,14 +402,18 @@
   }
 
   // full-screen Knowledge Gate — PAUSES the game (phase!=='play' freezes update())
+  // draws from THIS level's shuffled slice of 4 (G.facts); once all 4 shown,
+  // gates silently skip so no tip ever repeats within or across levels
   function openGate(){
-    if(!G||G.phase!=='play') return; G.phase='gate';
-    const f=FACTS[G.gateIdx%FACTS.length]; G.gateIdx++;
+    if(!G||G.phase!=='play') return;
+    if(G.gateIdx>=G.facts.length){ G.gateT=GATE_EVERY; return; }
+    G.phase='gate';
+    const f=G.facts[G.gateIdx]; G.gateIdx++;
     const o=document.getElementById('bbGate'); if(!o){ G.phase='play'; G.gateT=GATE_EVERY; return; }
     o.style.display='flex';
     o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #38bdf8;border-radius:22px;background:linear-gradient(160deg,rgba(5,30,48,.97),rgba(3,16,25,.97));box-shadow:0 0 50px rgba(56,189,248,.4);animation:bbGateIn .35s ease">
       <style>@keyframes bbGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}</style>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#7dd3fc;margin-bottom:10px">⛓️ KNOWLEDGE GATE · BITSTREAM VALLEY</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#7dd3fc;margin-bottom:10px">⛓️ KNOWLEDGE GATE · BITSTREAM VALLEY · LV ${LV+1}</div>
       <div style="font-size:2.4rem;margin-bottom:8px">${f[0]}</div>
       <p style="font-size:1.02rem;line-height:1.5;color:#fff;margin:0 0 18px">${f[1]}</p>
       <button onclick="bbGateGo()" style="padding:13px 30px;border:none;border-radius:12px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);color:#031019;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.12em;font-weight:900;cursor:pointer">GOT IT → +40</button>
@@ -408,13 +440,14 @@
   function end(win){
     if(G.phase==='over') return; G.phase='over';
     const score=G.score;
-    const won=win || G.blocks>=GOAL_BLOCKS || score>=GOAL_SCORE;
+    const won=win || G.blocks>=L().blocks || score>=L().goal;
+    const lvl=LV+1, isFinal=LV>=2;
     let _bbCoins=0;
     if(window.state){
       state.gamesDone=state.gamesDone||{}; state.gamesDone['risktaker:0']=1;
       if(won && window.cvAwardGame){
         const stars=G.integrity>70?3:(G.integrity>40?2:1);
-        _bbCoins=cvAwardGame('game_blockbuilder',{level:1,stars,badge:'Chain Master',is3star:stars===3,isPerfect:stars===3,isFlagship:true});
+        _bbCoins=cvAwardGame('game_blockbuilder',{level:lvl,stars,badge:'Chain Master',is3star:stars===3,isPerfect:stars===3,isFlagship:true});
       } else {
         _bbCoins=50; state.coins=(state.coins||0)+_bbCoins;   // consolation, no farming value
         if(window.cvAddXP) cvAddXP(10,0); if(window.cvSave) cvSave();
@@ -424,21 +457,44 @@
     // pick lesson based on how many gates were shown (cycles through concepts)
     const lesson=END_LESSONS[G.gateIdx % END_LESSONS.length];
     const o=document.getElementById('bbOver'); if(!o) return; o.style.display='flex';
+    const P="padding:13px 26px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);color:#031019;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;font-weight:900;cursor:pointer";
+    const GH="padding:13px 26px;margin:4px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer";
+    const title = won ? (isFinal ? '👑 ALL 3 LEVELS MASTERED!' : 'MISSION ACCOMPLISHED — LEVEL '+lvl+' ✔') : 'NICE TRY! POWER UP AND TRY AGAIN';
+    const sub = won ? 'CHAIN VALIDATED!' : (survived?"OOPS — the clock beat the chain":'OOPS — chain integrity hit zero');
+    const btns = won
+      ? (isFinal
+          ? '<button onclick="bbRestart()" style="'+GH+'">↺ REPLAY L3</button><button onclick="bbExit()" style="'+P+'">← HUB</button>'
+          : '<button onclick="bbNextLevel()" style="'+P+'">LEVEL '+(lvl+1)+' ▶</button><button onclick="bbRestart()" style="'+GH+'">↺ REPLAY</button><button onclick="bbExit()" style="'+GH+'">← HUB</button>')
+      : '<button onclick="bbRestart()" style="'+P+'">↺ TRY AGAIN</button><button onclick="bbExit()" style="'+GH+'">← HUB</button>';
     o.innerHTML=`<div style="max-width:440px;text-align:center;padding:34px 28px;border:1px solid ${won?'#38bdf8':(survived?'#7dd3fc':'#ef4444')};border-radius:22px;background:linear-gradient(160deg,rgba(5,30,48,.97),rgba(3,16,25,.97));box-shadow:0 0 60px rgba(56,189,248,.4)">
-      <div style="font-size:3rem;margin-bottom:8px">${won?'⛓️':(survived?'🧊':'💥')}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#38bdf8':(survived?'#7dd3fc':'#ef4444')};margin-bottom:8px">${won?'CHAIN VALIDATED!':(survived?"TIME'S UP":'INTEGRITY LOST')}</div>
+      <div style="font-size:3rem;margin-bottom:8px">${won?(isFinal?'👑':'⛓️'):(survived?'🧊':'💥')}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#fbbf24':(survived?'#7dd3fc':'#ef4444')};margin-bottom:6px">${title}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:8px">${sub}</div>
       <h1 style="font-family:'Anton',sans-serif;font-size:2rem;margin:0 0 6px">${score} pts</h1>
-      <p style="color:rgba(255,255,255,.65);margin:0 0 14px;font-size:.9rem">${G.blocks} blocks mined · best streak x${G.bestCombo} · ${G.fraudHits} fraud accepted · +${_bbCoins} 🪙</p>
+      <p style="color:rgba(255,255,255,.65);margin:0 0 14px;font-size:.9rem">LEVEL ${lvl}/3 · ${G.blocks} blocks mined · best streak x${G.bestCombo} · ${G.fraudHits} fraud accepted · +${_bbCoins} 🪙</p>
       <div style="background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.3);border-radius:14px;padding:14px 16px;margin-bottom:18px;text-align:left">
         <div style="font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.16em;color:#7dd3fc;margin-bottom:6px">⛓️ BLOCKCHAIN CONCEPT · ${lesson.concept.toUpperCase()}</div>
         <div style="font-size:1.5rem;margin-bottom:6px">${lesson.icon}</div>
         <p style="font-size:.82rem;line-height:1.55;color:rgba(255,255,255,.88);margin:0">${lesson.text}</p>
       </div>
-      <button onclick="bbRestart()" style="padding:13px 26px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);color:#031019;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;font-weight:900;cursor:pointer">▶ PLAY AGAIN</button>
-      <button onclick="bbExit()" style="padding:13px 26px;margin:4px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
+      ${btns}
     </div>`;
   }
 
   window.bbRestart=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); clearTimeout(window._bbFactT); reset(); ['bbOver','bbGate'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); const ft=document.getElementById('bbFact'); if(ft)ft.style.display='none'; bbBoot(); };
+  // advance to the next level IN PLACE: release listeners, re-init state at
+  // LV+1, refresh the level chip, then re-boot the canvas (bbRestart-style)
+  window.bbNextLevel=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); clearTimeout(window._bbFactT); LV=Math.min(2,LV+1); reset(); ['bbOver','bbGate'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); const ft=document.getElementById('bbFact'); if(ft)ft.style.display='none'; const lt=document.getElementById('bbLvl'); if(lt) lt.textContent='LV '+(LV+1)+'/3'; bbBoot(); };
   window.bbExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); clearTimeout(window._bbFactT); G=null; if(window.state)state.viewingWorld=state._returnHub||'risktaker'; goTo('hub'); };
+
+  // ── DEBUG HOOK (G is module-private — expose read-only state + a
+  //    force-win helper for logic-level verification without a browser) ──
+  window._bbDbg=function(){
+    return G ? { LV, phase:G.phase, score:G.score, blocks:G.blocks, goal:L().goal,
+                  goalBlocks:L().blocks, integrity:G.integrity, gateIdx:G.gateIdx,
+                  factsThisLevel:G.facts, levelName:L().name, isFinal:LV>=2 } : { LV, phase:'no-G' };
+  };
+  // force-win the current level instantly (test-only convenience — bypasses
+  // normal play to drive LV 0→1→2 and confirm the mastered banner at LV2)
+  window._bbForceWin=function(){ if(!G) return false; G.blocks=L().blocks; G.score=L().goal; G.integrity=100; end(true); return true; };
 })();

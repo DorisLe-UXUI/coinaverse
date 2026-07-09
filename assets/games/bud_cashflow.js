@@ -4,6 +4,8 @@
    correct column, monitor the Budget Meter, survive the month.
    Level 1: One paycheck, 5 expenses — calm tutorial.
    Level 2: Variable income + random shock events mid-month.
+   Level 3: Freelance-grade income chaos + frequent shocks — the
+            full Cashflow Commander gauntlet, fastest clock.
    ════════════════════════════════════════════════════════════════ */
 (function(){
   'use strict';
@@ -60,6 +62,36 @@
         { id:'pet',      label:'Vet Bill!',      icon:'🐾', extraAmt:410,  msg:'Pet emergency vet visit!' },
       ],
       shockChance: 0.35,   // probability each shock slot fires
+    },
+    {
+      name: 'COMMANDER: Freelance Chaos',
+      desc: 'Five gig-economy income streams. Frequent shocks. Fast clock!',
+      monthDur: 75,
+      greenBonus: 1700,
+      income: [
+        { id:'gig1',      label:'Client Invoice',  icon:'🧾', amt:1450 },
+        { id:'gig2',      label:'Design Contract',  icon:'🖌️', amt:900  },
+        { id:'gig3',      label:'Tutoring Gig',     icon:'📖', amt:260  },
+        { id:'refund',    label:'Tax Refund',       icon:'💵', amt:380  },
+        { id:'stipend',   label:'Scholarship',      icon:'🎓', amt:300  },
+      ],
+      expenses: [
+        { id:'rent',      label:'Rent',             icon:'🏠', amt:1350 },
+        { id:'food',      label:'Food',              icon:'🍔', amt:410  },
+        { id:'internet',  label:'Internet',          icon:'📡', amt:95   },
+        { id:'insurance', label:'Insurance',         icon:'🛡️', amt:150  },
+        { id:'transit',   label:'Transit Pass',      icon:'🚆', amt:110  },
+        { id:'savings',   label:'Savings Transfer',  icon:'🏦', amt:200  },
+      ],
+      shocks: [
+        { id:'brokenphone', label:'Phone Cracked!',  icon:'📱', extraAmt:340, msg:'Phone screen shattered — repair now!' },
+        { id:'lateclient',  label:'Client Chargeback!', icon:'⚠️', extraAmt:600, msg:'A client reversed payment — cover the gap!' },
+        { id:'taxbill',     label:'Surprise Tax Bill!', icon:'🧮', extraAmt:520, msg:'Quarterly estimated taxes are due!' },
+        { id:'apptowed',    label:'Car Towed!',      icon:'🚨', extraAmt:275, msg:'Parked in the wrong zone — towing fee!' },
+        { id:'subrenew',    label:'Annual Renewal!', icon:'🔁', extraAmt:190, msg:'A yearly subscription auto-renewed!' },
+        { id:'petvet2',     label:'Pet Surgery!',    icon:'🐾', extraAmt:640, msg:'Pet needs emergency surgery!' },
+      ],
+      shockChance: 0.55,   // higher than level 2 — chaos is the point
     },
   ];
 
@@ -151,7 +183,7 @@
       shockActive: [],   // active shock tiles
       shockScheduled: false,
       shockTimer: 0,
-      shockDelay: levelIdx===1 ? (10 + Math.random()*12) : 9999,
+      shockDelay: (lv.shocks && lv.shocks.length > 0) ? (10 + Math.random()*(levelIdx>=2?8:12)) : 9999,
       shocksPool: [...lv.shocks].sort(()=>Math.random()-.5),
       shockIdx: 0,
       gateEvery: 22,
@@ -598,13 +630,13 @@
       const timerEl = document.getElementById('bcTimer');
       if(timerEl) timerEl.textContent = Math.max(0,Math.ceil(G.month)) + 's';
 
-      // Shock events (level 2)
-      if(G.level === 1 && G.shockIdx < G.lv.shocks.length * G.lv.shockChance + 1){
+      // Shock events (any level with shocks configured — level 2 and level 3)
+      if(G.lv.shocks.length > 0 && G.shockIdx < G.lv.shocks.length * G.lv.shockChance + 1){
         G.shockTimer += dt;
         if(G.shockTimer >= G.shockDelay){
           triggerShock();
           G.shockTimer = 0;
-          G.shockDelay = 15 + Math.random() * 20;
+          G.shockDelay = G.level>=2 ? (10 + Math.random()*14) : (15 + Math.random()*20);
         }
       }
 
@@ -684,7 +716,7 @@
     ctx.textAlign = 'left';
   }
 
-  /* ── Shock events (level 2) ─────────────────────────────────── */
+  /* ── Shock events (any level with a shocks pool configured) ──── */
   function triggerShock(){
     const lv = G.lv;
     if(!lv.shocks || lv.shocks.length === 0) return;
@@ -876,15 +908,15 @@
           <div style="background:rgba(26,42,74,.5);border:1px solid rgba(26,42,74,.8);border-radius:8px;padding:6px 12px;font-family:'Orbitron',monospace;font-size:.48rem;color:#93b4e8">EARNED<br><span style="color:${GOLD};font-size:.75rem">+${coins} 🪙</span></div>
         </div>
         <p style="font-size:.78rem;line-height:1.6;color:rgba(255,255,255,.7);margin:0 0 20px;font-style:italic">"${lesson}"</p>
-        ${G.level===0?`<button id="bcLv2Btn" style="padding:12px 22px;margin:4px;border:none;border-radius:12px;background:linear-gradient(135deg,#1a2a4a,#2a4a8a);color:#fff;font-family:'Orbitron',monospace;font-size:.65rem;letter-spacing:.1em;cursor:pointer;border:1px solid rgba(90,127,192,.5)">⚡ LEVEL 2</button>` : ''}
+        ${win && G.level < LEVELS.length-1 ?`<button id="bcNextLvBtn" style="padding:12px 22px;margin:4px;border:none;border-radius:12px;background:linear-gradient(135deg,#1a2a4a,#2a4a8a);color:#fff;font-family:'Orbitron',monospace;font-size:.65rem;letter-spacing:.1em;cursor:pointer;border:1px solid rgba(90,127,192,.5)">⚡ LEVEL ${G.level+2}</button>` : ''}
         <button id="bcPlayAgainBtn" style="padding:12px 22px;margin:4px;border:none;border-radius:12px;background:linear-gradient(135deg,#22d3a5,#059669);color:#03040c;font-family:'Orbitron',monospace;font-size:.65rem;letter-spacing:.1em;font-weight:900;cursor:pointer">▶ PLAY AGAIN</button>
         <button id="bcHubBtn" style="padding:12px 22px;margin:4px;border:1px solid rgba(255,255,255,.15);border-radius:12px;background:rgba(255,255,255,.05);color:#fff;font-family:'Orbitron',monospace;font-size:.65rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
       </div>`;
 
     document.getElementById('bcPlayAgainBtn').onclick = ()=>{ restartGame(G.level); };
     document.getElementById('bcHubBtn').onclick = window.bud_cashflowExit;
-    const lv2Btn = document.getElementById('bcLv2Btn');
-    if(lv2Btn) lv2Btn.onclick = ()=>{ restartGame(1); };
+    const nextLvBtn = document.getElementById('bcNextLvBtn');
+    if(nextLvBtn) nextLvBtn.onclick = ()=>{ restartGame(G.level + 1); };
   }
 
   function restartGame(levelIdx){
@@ -904,6 +936,36 @@
     }
     resetGame(levelIdx);
   }
+
+  /* ── DEBUG HOOKS (dev/QA only — no UI wiring) ─────────────────── */
+  window._bcDbg = function(){
+    if(!G) return null;
+    return {
+      level: G.level,               // 0-indexed
+      levelNum: G.level + 1,        // 1-indexed (what UI shows)
+      levelName: G.lv.name,
+      levelCount: LEVELS.length,
+      net: G.placedIncome - G.placedExpense,
+      score: G.score,
+      shockChance: G.lv.shockChance,
+      shocksConfigured: G.lv.shocks.length,
+      shocksActive: G.shockActive.map(s=>s.id),
+      monthLeft: G.month,
+    };
+  };
+  // action: 'goto'(levelIdx) | 'win' | 'lose'
+  window._bcTest = function(action, arg){
+    if(action === 'goto'){ restartGame(arg); return window._bcDbg(); }
+    if(!G) return null;
+    if(action === 'win'){
+      // force a winning net flow, then end immediately
+      G.placedIncome = 999999; G.placedExpense = 0;
+      endGame(false);
+      return window._bcDbg();
+    }
+    if(action === 'lose'){ endGame(true); return window._bcDbg(); }
+    return window._bcDbg();
+  };
 
   /* ── EXIT ───────────────────────────────────────────────────── */
   window.bud_cashflowExit = function(){

@@ -4,42 +4,93 @@
    ←  NEED  ·  ↓  WANT  ·  →  SAVE   (tap a bin or drag the item too).
    Sort right → score, combo, budget health, fill the GOAL meter.
    Sort wrong / let it fall → lose budget health, reset combo, screen shake.
+   3-LEVEL MISSION LADDER: L1 Rookie → L2 Pro (higher goal, faster falls,
+   more want-decoys) → L3 Legend (highest goal, rarer powers, faster gates).
+   Each level has its OWN item mix + its own 4 budget tips (never repeated
+   within a level, never repeated across levels).
    Loads after the main script; overrides the stub window.SCREENS.game_goalquest.
    ════════════════════════════════════════════════════════════════ */
 (function(){
-  const TOKEN='strategist', GOAL=300, ROUND=70, GATE_EVERY=18;
-  let G=null, raf=null;
+  const TOKEN='strategist';
+  let G=null, raf=null, LV=0;            // LV = current level index (0..2)
 
-  // ── LEARN WHILE PLAYING: budgeting lessons (one card at a time) ──────
+  // ── 3-LEVEL SYSTEM — real scaling knobs per level ────────────────────
+  //    goal: GOAL meter target · round: seconds · gate: secs between tips
+  //    fall: item fall-speed multiplier · spawn: spawn-interval multiplier
+  //    mix: spawn odds (power rarer + want-decoys heavier on higher levels)
+  const LEVELS=[
+    { name:'ROOKIE', goal:300, round:70, gate:18, fall:1.0,  spawn:1.0,  mix:{power:0.07, save:0.13,  want:0.40} },
+    { name:'PRO',    goal:420, round:70, gate:16, fall:1.22, spawn:0.85, mix:{power:0.055,save:0.115, want:0.46} },
+    { name:'LEGEND', goal:560, round:70, gate:13, fall:1.45, spawn:0.72, mix:{power:0.035,save:0.10,  want:0.495} }
+  ];
+  function L(){ return LEVELS[LV]; }
+  function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+
+  // ── LEARN WHILE PLAYING: 12 budgeting lessons — each level owns a
+  //    disjoint slice of 4 (L1 → 0-3 · L2 → 4-7 · L3 → 8-11), shuffled per
+  //    run and never shown twice within a level nor across levels ────────
   const FACTS=[
+    // LEVEL 1 · basics
     ['🧠','A budget gives every dollar a job before you spend it.'],
     ['🍞','Needs (food, rent, transport) come before wants.'],
     ['📊','Try 50/30/20: needs / wants / savings.'],
-    ['✂️','Cut one small want and send it to savings.'],
     ['🎯','Plan to a goal — vague goals rarely get funded.'],
-    ['💧','Track spending; small leaks sink the budget.'],
-    ['🛟','Budget in an emergency buffer for surprises.']
+    // LEVEL 2 · habits
+    ['✂️','Cut one small want each week and send it straight to savings.'],
+    ['💧','Track spending — small leaks sink big budgets.'],
+    ['🛟','An emergency buffer turns surprises into small bumps, not disasters.'],
+    ['🧾','Check receipts against your plan — a budget only works if you look at it.'],
+    // LEVEL 3 · pro moves
+    ['⏳','Pay yourself first: save the moment money arrives, not from leftovers.'],
+    ['📈','Savings grow with compound interest — money earns money over time.'],
+    ['🎪','Impulse buys love pressure. Wait 24 hours before big wants.'],
+    ['🏦','Separate accounts for each goal make it harder to raid your dreams.']
   ];
 
-  window.gqInit=function(){ G=null; };   // playDistrictGame calls this before goTo
+  window.gqInit=function(){ G=null; LV=0; };   // playDistrictGame calls this before goTo
 
   function reset(){
     G={ phase:'play', score:0, goal:0, health:100, combo:0, best:0, sorted:0, perfect:0,
-        time:ROUND, items:[], parts:[], floats:[], rings:[],
+        time:L().round, items:[], parts:[], floats:[], rings:[],
         spawnT:0.6, last:0, started:performance.now(), shake:0, flash:0, flashC:'#60a5fa',
-        x2:0, slow:0, lastBin:-1, bins:[0.18,0.5,0.82], gateT:GATE_EVERY, gateIdx:0 };
+        x2:0, slow:0, lastBin:-1, bins:[0.18,0.5,0.82], gateT:L().gate, gateIdx:0,
+        facts:shuffle(FACTS.slice(LV*4,LV*4+4)) };
   }
 
-  // ── item catalogue ────────────────────────────────────────────────
+  // ── item catalogue — EACH LEVEL has its own item/label mix ───────────
   const NEEDS=[
-    {e:'🍞',t:'Groceries'},{e:'💊',t:'Medicine'},{e:'🚌',t:'Bus fare'},
-    {e:'📚',t:'School books'},{e:'🏠',t:'Rent'},{e:'⚡',t:'Electric bill'}
+    [ // L1 · everyday basics
+      {e:'🍞',t:'Groceries'},{e:'💊',t:'Medicine'},{e:'🚌',t:'Bus fare'},
+      {e:'📚',t:'School books'},{e:'🏠',t:'Rent'},{e:'⚡',t:'Electric bill'}
+    ],
+    [ // L2 · household reality
+      {e:'🦷',t:'Dentist'},{e:'🧼',t:'Soap & shampoo'},{e:'🚰',t:'Water bill'},
+      {e:'🎒',t:'School bag'},{e:'🧥',t:'Winter coat'},{e:'📱',t:'Phone bill'}
+    ],
+    [ // L3 · grown-up needs
+      {e:'🩹',t:'First aid'},{e:'🥦',t:'Veggies'},{e:'🔌',t:'Internet bill'},
+      {e:'👓',t:'Glasses'},{e:'🧺',t:'Laundry'},{e:'🚑',t:'Insurance'}
+    ]
   ];
   const WANTS=[
-    {e:'🎮',t:'New game'},{e:'👟',t:'Sneakers'},{e:'🍭',t:'Candy'},
-    {e:'🧸',t:'Toy'},{e:'🕶',t:'Shades'},{e:'🍕',t:'Extra pizza'}
+    [ // L1 · classic wants
+      {e:'🎮',t:'New game'},{e:'👟',t:'Sneakers'},{e:'🍭',t:'Candy'},
+      {e:'🧸',t:'Toy'},{e:'🕶',t:'Shades'},{e:'🍕',t:'Extra pizza'}
+    ],
+    [ // L2 · sneaky decoys that sound need-ish
+      {e:'🎧',t:'Headphones'},{e:'🛹',t:'Skateboard'},{e:'🍦',t:'Ice cream'},
+      {e:'🎬',t:'Movie night'},{e:'🍱',t:'Gourmet lunch'},{e:'💅',t:'Nail art'}
+    ],
+    [ // L3 · deluxe temptations
+      {e:'🧋',t:'Boba run'},{e:'🎡',t:'Theme park'},{e:'👑',t:'Designer cap'},
+      {e:'📸',t:'New camera'},{e:'🥤',t:'Brand-name water'},{e:'🎤',t:'Karaoke set'}
+    ]
   ];
-  const SAVES=[ {e:'💰',t:'Paycheck'},{e:'💵',t:'Bonus'},{e:'🤑',t:'Birthday $'} ];
+  const SAVES=[
+    [ {e:'💰',t:'Paycheck'},{e:'💵',t:'Bonus'},{e:'🤑',t:'Birthday $'} ],            // L1
+    [ {e:'🏦',t:'Allowance'},{e:'💎',t:'Gift money'},{e:'📈',t:'Interest'} ],         // L2
+    [ {e:'🪙',t:'Side hustle'},{e:'💌',t:'Lucky money'},{e:'🏆',t:'Prize cash'} ]     // L3
+  ];
   const POWERS=[ {e:'⏰',k:'time',t:'+5s'},{e:'✨',k:'x2',t:'Double pts'} ];
   // bin index: 0 NEED · 1 WANT · 2 SAVE
   const BIN_COL=['#34d399','#f472b6','#60a5fa'];
@@ -51,8 +102,8 @@
     return `<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,#1e293b,#0f172a 62%,#070d18);overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
       <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(180deg,rgba(7,13,24,.85),transparent)">
         <button onclick="gqExit()" style="padding:7px 14px;border:1px solid rgba(59,130,246,.4);border-radius:9px;background:rgba(59,130,246,.12);color:#93c5fd;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← BUDGETRON</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.2em;color:#60a5fa;flex:1;text-align:center">🎯 GOAL QUEST · BUDGET BOSS</div>
-        <div id="gqTime" style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fbbf24;min-width:46px;text-align:right">${ROUND}s</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.2em;color:#60a5fa;flex:1;text-align:center">🎯 GOAL QUEST · <span id="gqLvl">LV ${LV+1}/3</span></div>
+        <div id="gqTime" style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fbbf24;min-width:46px;text-align:right">${L().round}s</div>
       </div>
       <div style="position:absolute;top:52px;left:0;right:0;z-index:5;display:flex;gap:8px;padding:0 18px;justify-content:center">
         ${hud('SCORE','gqScore','#93c5fd')}${hud('COMBO','gqCombo','#fbbf24')}${hud('SORTED','gqSorted','#a78bfa')}
@@ -60,7 +111,7 @@
       <div style="position:absolute;top:118px;left:18px;right:18px;z-index:5">
         <div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:4px"><span>💙 BUDGET HEALTH</span><span id="gqHpTxt">100%</span></div>
         <div style="height:9px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden;border:1px solid rgba(248,113,113,.25)"><div id="gqHpBar" style="height:100%;width:100%;background:linear-gradient(90deg,#22c55e,#86efac);transition:width .2s,background .3s"></div></div>
-        <div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin:8px 0 4px"><span>🎯 GOAL METER</span><span id="gqGoalTxt">0 / ${GOAL}</span></div>
+        <div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin:8px 0 4px"><span>🎯 GOAL METER</span><span id="gqGoalTxt">0 / ${L().goal}</span></div>
         <div style="height:11px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden;border:1px solid rgba(59,130,246,.3)"><div id="gqGoalBar" style="height:100%;width:0%;background:linear-gradient(90deg,#2563eb,#60a5fa);transition:width .2s"></div></div>
       </div>
       <canvas id="gqCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none"></canvas>
@@ -143,7 +194,7 @@
       const base = it.kind==='save'?22:15;
       const gain = base*mult;
       G.score += gain;
-      G.goal = Math.min(GOAL, G.goal + Math.round(base/2)*(G.x2>0?2:1));
+      G.goal = Math.min(L().goal, G.goal + Math.round(base/2)*(G.x2>0?2:1));
       G.health = Math.min(100, G.health + (it.kind==='save'?5:3));
       ring(it.x,it.y,BIN_COL[bi]); burst(it.x,it.y,BIN_COL[bi],11);
       floatTxt(it.x,it.y,'+'+gain,'#fde68a');
@@ -152,7 +203,7 @@
     } else {
       G.combo=0; G.health=Math.max(0,G.health-14); G.shake=0.42;
       burst(it.x,it.y,'#f87171',13);
-      floatTxt(it.x,it.y, it.bin===0?'That\'s a NEED!':it.bin===1?'That\'s a WANT!':'SAVE that!','#fca5a5');
+      floatTxt(it.x,it.y, it.bin===0?'OOPS — that\'s a NEED!':it.bin===1?'OOPS — that\'s a WANT!':'OOPS — SAVE that!','#fca5a5');
       // brief teachable nudge reinforcing the budgeting rule
       const TIP=it.bin===0?'Needs come first':it.bin===1?'Wants after needs':'Pay your future self';
       floatTxt(it.x, Math.min(0.92,it.y+0.07), TIP, '#93c5fd');
@@ -173,28 +224,29 @@
     // timer
     G.time-=dt; if(G.time<=0){ G.time=0; return end(); }
     const tEl=document.getElementById('gqTime'); if(tEl) tEl.textContent=Math.ceil(G.time)+'s';
-    // knowledge gate every ~18s — pauses play, shows one lesson card
+    // knowledge gate — pauses play, shows one lesson card (faster on higher levels)
     G.gateT-=dt; if(G.gateT<=0){ openGate(); return; }
-    const prog=1-(G.time/ROUND);
+    const prog=1-(G.time/L().round);
     const slowF = G.slow>0?0.45:1;
 
-    // spawn — items fall faster + more often as time runs down
+    // spawn — items fall faster + more often as time runs down; per-level
+    // fall/spawn multipliers + item-mix odds make each level feel different
     G.spawnT-=dt;
     if(G.spawnT<=0){
-      G.spawnT=Math.max(0.55,1.25-prog*0.7);
-      const roll=Math.random();
-      if(roll<0.07){ // power-up
+      G.spawnT=Math.max(0.4,(1.25-prog*0.7)*L().spawn);
+      const roll=Math.random(), M=L().mix, F=L().fall;
+      if(roll<M.power){ // power-up (rarer on higher levels)
         const p=POWERS[Math.floor(Math.random()*POWERS.length)];
-        G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:0.26+prog*0.3,e:p.e,kind:'power',pk:p.k,t:p.t,bin:-1,r:20,spin:0});
-      } else if(roll<0.2){ // save / bonus item → SAVE bin
-        const s=SAVES[Math.floor(Math.random()*SAVES.length)];
-        G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:0.3+prog*0.5+Math.random()*0.15,e:s.e,kind:'save',t:s.t,bin:2,r:23,spin:0});
-      } else if(roll<0.6){ // need
-        const n=NEEDS[Math.floor(Math.random()*NEEDS.length)];
-        G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:0.32+prog*0.55+Math.random()*0.2,e:n.e,kind:'need',t:n.t,bin:0,r:22,spin:0});
-      } else { // want
-        const w=WANTS[Math.floor(Math.random()*WANTS.length)];
-        G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:0.32+prog*0.55+Math.random()*0.2,e:w.e,kind:'want',t:w.t,bin:1,r:22,spin:0});
+        G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:(0.26+prog*0.3)*F,e:p.e,kind:'power',pk:p.k,t:p.t,bin:-1,r:20,spin:0});
+      } else if(roll<M.power+M.save){ // save / bonus item → SAVE bin
+        const s=SAVES[LV][Math.floor(Math.random()*SAVES[LV].length)];
+        G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:(0.3+prog*0.5+Math.random()*0.15)*F,e:s.e,kind:'save',t:s.t,bin:2,r:23,spin:0});
+      } else if(roll<1-M.want){ // need
+        const n=NEEDS[LV][Math.floor(Math.random()*NEEDS[LV].length)];
+        G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:(0.32+prog*0.55+Math.random()*0.2)*F,e:n.e,kind:'need',t:n.t,bin:0,r:22,spin:0});
+      } else { // want (decoy-heavy on L2/L3)
+        const w=WANTS[LV][Math.floor(Math.random()*WANTS[LV].length)];
+        G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:(0.32+prog*0.55+Math.random()*0.2)*F,e:w.e,kind:'want',t:w.t,bin:1,r:22,spin:0});
       }
     }
 
@@ -232,18 +284,18 @@
     setTxt('gqScore',G.score); setTxt('gqCombo','x'+G.combo); setTxt('gqSorted',G.sorted);
     const hb=document.getElementById('gqHpBar'); if(hb){ hb.style.width=G.health+'%'; hb.style.background = G.health>50?'linear-gradient(90deg,#22c55e,#86efac)':G.health>25?'linear-gradient(90deg,#f59e0b,#fcd34d)':'linear-gradient(90deg,#ef4444,#fca5a5)'; }
     const ht=document.getElementById('gqHpTxt'); if(ht) ht.textContent=Math.round(G.health)+'%';
-    const gb=document.getElementById('gqGoalBar'); if(gb) gb.style.width=(G.goal/GOAL*100)+'%';
-    const gt=document.getElementById('gqGoalTxt'); if(gt) gt.textContent=G.goal+' / '+GOAL;
+    const gb=document.getElementById('gqGoalBar'); if(gb) gb.style.width=(G.goal/L().goal*100)+'%';
+    const gt=document.getElementById('gqGoalTxt'); if(gt) gt.textContent=G.goal+' / '+L().goal;
 
     if(G.health<=0) return end(false);
-    if(G.goal>=GOAL) return end(true);
+    if(G.goal>=L().goal) return end(true);
   }
 
   // power-ups: granted via resolve() too — intercept there
   function resolve(it,bi){
     if(it.kind==='power'){
       it.dead=1;
-      if(it.pk==='time'){ G.time=Math.min(ROUND,G.time+5); floatTxt(it.x,it.y,'+5 SEC','#5eead4'); }
+      if(it.pk==='time'){ G.time=Math.min(L().round,G.time+5); floatTxt(it.x,it.y,'+5 SEC','#5eead4'); }
       else if(it.pk==='x2'){ G.x2=8; floatTxt(it.x,it.y,'POINTS x2!','#fde68a'); }
       burst(it.x,it.y,'#a78bfa',12); ring(it.x,it.y,'#a78bfa');
       G.flash=0.25; G.flashC='#a78bfa';
@@ -385,39 +437,53 @@
   function end(win){
     if(G.phase==='over') return; G.phase='over';
     const score=G.score;
-    const won = win===true || G.goal>=GOAL;
-    const acc = G.sorted>0?Math.round(G.perfect/G.sorted*100):0;
+    const won = win===true || G.goal>=L().goal;                     // computed BEFORE awards (keep!)
+    const acc = G.sorted>0?Math.round(G.perfect/G.sorted*100):0;    // computed BEFORE awards (keep!)
+    const lvl=LV+1, isFinal=LV>=2;
     let earned=0;
     if(window.state){
       state.gamesDone=state.gamesDone||{}; state.gamesDone['strategist:0']=1;
       const stars = won ? (acc>=90?3:acc>=70?2:1) : 0;
       if(stars>=1 && window.cvAwardGame){
-        earned = cvAwardGame('game_goalquest',{level:1,stars,badge:'Budget Boss',is3star:stars===3,isPerfect:stars===3,isFlagship:true});
+        earned = cvAwardGame('game_goalquest',{level:lvl,stars,badge:'Budget Boss',is3star:stars===3,isPerfect:stars===3,isFlagship:true});
       } else if(!won){
         earned=50; state.coins=(state.coins||0)+earned;   // small consolation, no farming value
         if(window.cvSave) cvSave();
       }
     }
     const o=document.getElementById('gqOver'); if(!o) return; o.style.display='flex';
-    o.innerHTML=`<div style="max-width:420px;text-align:center;padding:34px 28px;border:1px solid ${won?'#fbbf24':'#3b82f6'};border-radius:22px;background:linear-gradient(160deg,rgba(30,41,59,.97),rgba(7,13,24,.97));box-shadow:0 0 60px rgba(59,130,246,.4)">
-      <div style="font-size:3rem;margin-bottom:8px">${won?'🏆':G.health<=0?'💸':'⏱'}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#fbbf24':'#60a5fa'};margin-bottom:8px">${won?'GOAL FUNDED — BUDGET BOSS!':G.health<=0?'BUDGET BUSTED':"TIME'S UP"}</div>
+    const P="padding:13px 26px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;font-weight:900;cursor:pointer";
+    const GH="padding:13px 26px;margin:4px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer";
+    const title = won ? (isFinal ? '👑 ALL 3 LEVELS MASTERED!' : 'MISSION ACCOMPLISHED — LEVEL '+lvl+' ✔') : 'NICE TRY! POWER UP AND TRY AGAIN';
+    const sub = won ? 'GOAL FUNDED — BUDGET BOSS!' : (G.health<=0 ? 'OOPS — the budget ran dry' : 'OOPS — the clock beat the goal');
+    const btns = won
+      ? (isFinal
+          ? '<button onclick="gqRestart()" style="'+GH+'">↺ REPLAY L3</button><button onclick="gqExit()" style="'+P+'">← HUB</button>'
+          : '<button onclick="gqNextLevel()" style="'+P+'">LEVEL '+(lvl+1)+' ▶</button><button onclick="gqRestart()" style="'+GH+'">↺ REPLAY</button><button onclick="gqExit()" style="'+GH+'">← HUB</button>')
+      : '<button onclick="gqRestart()" style="'+P+'">↺ TRY AGAIN</button><button onclick="gqExit()" style="'+GH+'">← HUB</button>';
+    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:34px 28px;border:1px solid ${won?'#fbbf24':'#3b82f6'};border-radius:22px;background:linear-gradient(160deg,rgba(30,41,59,.97),rgba(7,13,24,.97));box-shadow:0 0 60px rgba(59,130,246,.4)">
+      <div style="font-size:3rem;margin-bottom:8px">${won?(isFinal?'👑':'🏆'):G.health<=0?'💸':'⏱'}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#fbbf24':'#60a5fa'};margin-bottom:6px">${title}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:8px">${sub}</div>
       <h1 style="font-family:'Anton',sans-serif;font-size:2rem;margin:0 0 6px">${score} pts</h1>
-      <p style="color:rgba(255,255,255,.65);margin:0 0 18px;font-size:.9rem">Goal ${G.goal}/${GOAL} 🎯 · Accuracy ${acc}% · Best combo x${G.best} · +${earned} 🪙</p>
-      <button onclick="gqRestart()" style="padding:13px 26px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;font-weight:900;cursor:pointer">▶ PLAY AGAIN</button>
-      <button onclick="gqExit()" style="padding:13px 26px;margin:4px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
+      <p style="color:rgba(255,255,255,.65);margin:0 0 18px;font-size:.9rem">LEVEL ${lvl}/3 · Goal ${G.goal}/${L().goal} 🎯 · Accuracy ${acc}% · Best combo x${G.best} · +${earned} 🪙</p>
+      ${btns}
     </div>`;
   }
 
-  // ── KNOWLEDGE GATE — pauses play, shows one budgeting lesson ─────────
+  // ── KNOWLEDGE GATE — pauses play, shows one budgeting lesson from this
+  //    level's shuffled slice of 4; once all are shown, gates silently
+  //    skip so no tip ever repeats ───────────────────────────────────────
   function openGate(){
-    if(!G || G.phase!=='play') return; G.phase='gate';
-    const f=FACTS[G.gateIdx%FACTS.length]; G.gateIdx++;
-    const o=document.getElementById('gqGate'); if(!o){ G.phase='play'; G.gateT=GATE_EVERY; return; }
+    if(!G || G.phase!=='play') return;
+    if(G.gateIdx>=G.facts.length){ G.gateT=L().gate; return; }   // all 4 tips shown this level → never repeat
+    G.phase='gate';
+    const f=G.facts[G.gateIdx]; G.gateIdx++;
+    const o=document.getElementById('gqGate'); if(!o){ G.phase='play'; G.gateT=L().gate; return; }
     o.style.display='flex';
     o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #3b82f6;border-radius:22px;background:linear-gradient(160deg,rgba(30,41,59,.97),rgba(7,13,24,.97));box-shadow:0 0 50px rgba(59,130,246,.4);animation:gqGateIn .35s ease">
       <style>@keyframes gqGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}</style>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#93c5fd;margin-bottom:10px">⛩️ KNOWLEDGE GATE · BUDGET TIP</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#93c5fd;margin-bottom:10px">⛩️ KNOWLEDGE GATE · BUDGET TIP · LV ${LV+1}</div>
       <div style="font-size:2.4rem;margin-bottom:8px">${f[0]}</div>
       <p style="font-size:1.02rem;line-height:1.5;color:#fff;margin:0 0 18px">${f[1]}</p>
       <button onclick="gqGateGo()" style="padding:13px 30px;border:none;border-radius:12px;background:linear-gradient(135deg,#60a5fa,#2563eb);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.12em;font-weight:900;cursor:pointer">GOT IT → +10 HEALTH</button>
@@ -426,12 +492,15 @@
   window.gqGateGo=function(){
     if(!G) return;
     G.health=Math.min(100,G.health+10); G.score+=40;
-    G.gateT=GATE_EVERY; G.phase='play';
+    G.gateT=L().gate; G.phase='play';
     const o=document.getElementById('gqGate'); if(o){ o.style.display='none'; o.innerHTML=''; }
     G.last=performance.now();   // avoid a dt jump on resume
     G.flash=0.25; G.flashC='#60a5fa';
   };
 
   window.gqRestart=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); reset(); ['gqGate','gqOver'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); gqBoot(); };
+  // advance to the next level IN PLACE: release listeners, re-init state at
+  // LV+1, refresh the level chip, then re-boot the canvas (gqRestart-style)
+  window.gqNextLevel=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); LV=Math.min(2,LV+1); reset(); ['gqGate','gqOver'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); const lt=document.getElementById('gqLvl'); if(lt) lt.textContent='LV '+(LV+1)+'/3'; gqBoot(); };
   window.gqExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); G=null; if(window.state)state.viewingWorld=state._returnHub||'strategist'; goTo('hub'); };
 })();

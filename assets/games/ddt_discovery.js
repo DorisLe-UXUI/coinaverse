@@ -1,8 +1,9 @@
 /* ════════════════════════════════════════════════════════════════
    DEBT DISCOVERY · DEBT DETOX DISTRICT — Drag-sort mini-game
-   Sort 20 debt cards into Good Debt / Bad Debt before time runs out.
-   Level 1 (10 cards): Clear-cut examples.
-   Level 2 (10 cards): Situational — same loan type, different context.
+   Sort 25 debt cards into Good Debt / Bad Debt before time runs out.
+   Level 1 (8 cards): Clear-cut examples.
+   Level 2 (8 cards): Situational — same loan type, different context.
+   Level 3 (9 cards): Multi-factor — weigh rate + income + timing + purpose at once.
    Screen ID : game_ddt_discovery
    Hub       : rebuilder (#4B2D8F)
    ════════════════════════════════════════════════════════════════ */
@@ -17,14 +18,15 @@
   const DIM      = '#0A060F';   // near-black bg
 
   /* ── game constants ──────────────────────────────────────────── */
-  const TOTAL_CARDS  = 20;
-  const LEVEL_SIZE   = 10;
-  const CARD_TIMEOUT = 12000;   // ms per card before auto-miss
+  const LEVEL_SIZES  = [8, 8, 9];                          // cards per level (1,2,3)
+  const TOTAL_CARDS  = LEVEL_SIZES.reduce((a, b) => a + b, 0); // 25
+  const CARD_TIMEOUT = 12000;   // ms per card before auto-miss (L1/L2)
+  const CARD_TIMEOUT_L3 = 9000; // ms per card on Level 3 — faster, multi-factor cards
   const SPEED_BONUS_MS = 2500;  // sort under this → speed bonus
   const COMBO_THRESHOLD = 3;    // consecutive correct → combo bonus
   const ERROR_MAX    = 6;       // max wrong before game over
-  const STAR3_SCORE  = 220;
-  const STAR2_SCORE  = 140;
+  const STAR3_SCORE  = 300;
+  const STAR2_SCORE  = 180;
 
   /* ── debt card catalogue ─────────────────────────────────────── */
   const LEVEL1 = [
@@ -37,8 +39,6 @@
       note: 'Funds income-generating assets — can return far more than it costs.' },
     { e: '🚗', t: 'Affordable Car Loan',cat: 'good',
       note: 'Enables commuting to work with manageable payments and low interest.' },
-    { e: '⚡', t: 'Solar Panel Loan',   cat: 'good',
-      note: 'Cuts monthly utility bills and adds home value over time.' },
     // BAD DEBT — clear cut
     { e: '💸', t: 'Payday Loan',        cat: 'bad',
       note: '300–400% APR traps borrowers in a cycle of fees and renewals.' },
@@ -48,8 +48,6 @@
       note: '"Buy Now Pay Later" for non-essentials adds hidden fees and spending habits that harm budgets.' },
     { e: '🎰', t: 'Gambling Debt',      cat: 'bad',
       note: 'No asset created — pure liability with no path to repayment income.' },
-    { e: '💄', t: 'Luxury Debt',        cat: 'bad',
-      note: 'Financing vacations or designer goods at high interest destroys net worth.' },
   ];
 
   const LEVEL2 = [
@@ -75,11 +73,6 @@
       note: 'No income gain + $60 K debt = financial damage disguised as education.'
     },
     {
-      e: '🏠', t: 'Vacation Home Mortgage',cat: 'bad',
-      ctx: 'You still have $25 000 in high-interest credit card debt. The second mortgage is interest-only.',
-      note: 'Adding secured debt before clearing toxic debt compounds risk dangerously.'
-    },
-    {
       e: '🏪', t: 'Business Expansion Loan',cat: 'good',
       ctx: 'Your bakery\'s revenue doubled. A $50 000 loan funds a second location with projected breakeven in 8 months.',
       note: 'Data-backed expansion with a clear payback timeline — textbook good debt.'
@@ -95,16 +88,83 @@
       note: 'High-rate revolving balance with no benefit erodes net worth every cycle.'
     },
     {
-      e: '🏥', t: 'Medical Payment Plan',  cat: 'good',
-      ctx: 'Hospital offers 0% interest over 24 months for a necessary procedure.',
-      note: 'Zero-interest structured repayment for a health necessity — manageable and unavoidable.'
-    },
-    {
       e: '🏖️', t: 'Vacation Loan',        cat: 'bad',
       ctx: '14% APR personal loan to fund a two-week holiday. No asset created.',
       note: 'Paying 14% interest for a memory means the trip costs 30–40% more than the sticker price.'
     },
   ];
+
+  const LEVEL3 = [
+    // Multi-factor — must weigh rate + income + timing + purpose together, no easy tell
+    {
+      e: '🏠', t: 'HELOC to Pay Off Cards', cat: 'bad',
+      ctx: 'You have $18,000 in credit card debt at 24% APR. A HELOC offers 9% — but it puts your house up as collateral and you have no plan to stop overspending.',
+      note: 'Lower rate is real, but securing unsecured debt against your home without fixing the spending root cause risks losing the house over a habit, not an emergency.'
+    },
+    {
+      e: '🎓', t: 'Trade Certification Loan', cat: 'good',
+      ctx: 'A $9,000 loan funds a 6-month electrician certification. Licensed electricians in your area earn $28,000/yr more than your current job, and demand is high.',
+      note: 'Short program, verified local demand, and a clear multi-year salary jump — the ROI math clears fast even on a modest loan.'
+    },
+    {
+      e: '🚗', t: 'Lease Buyout at Peak Value', cat: 'bad',
+      ctx: 'Your lease ends in 2 months. You\'d buy the car for $3,000 more than its trade-in value, financed at 12% APR, just to avoid the hassle of shopping around.',
+      note: 'Paying above market value plus double-digit interest for convenience is a bad trade — a little shopping effort saves real money.'
+    },
+    {
+      e: '🏪', t: 'Inventory Loan — Seasonal Spike', cat: 'good',
+      ctx: 'Your shop takes a $15,000 short-term loan to stock up before the holiday season, based on 3 years of proven sales data, repaid in full by January.',
+      note: 'Data-backed, short-term, self-liquidating — the loan pays for itself from predictable revenue before it\'s even due.'
+    },
+    {
+      e: '💳', t: '0% Card Used for New Debt', cat: 'bad',
+      ctx: 'You transferred old debt to a 0% APR card, then kept swiping it for daily purchases you can\'t otherwise afford, growing the balance every month.',
+      note: 'A 0% rate only helps if the balance shrinks — spending it back up erases the benefit and sets up a bigger bill once the intro rate expires.'
+    },
+    {
+      e: '⚡', t: 'Home Efficiency Retrofit Loan', cat: 'good',
+      ctx: 'A $7,000 loan at 5% funds insulation and a heat pump. Verified quotes show $110/month in energy savings — the loan payment is $95/month.',
+      note: 'The monthly savings exceed the monthly payment from day one — this debt pays for itself immediately, not eventually.'
+    },
+    {
+      e: '🎰', t: '"Debt Consolidation" for Betting Losses', cat: 'bad',
+      ctx: 'A personal loan consolidates gambling losses into one payment at 16% APR — but the betting habit that created the debt hasn\'t changed.',
+      note: 'Consolidating the number doesn\'t fix the behavior — without stopping the root cause, new debt just refills the hole.'
+    },
+    {
+      e: '🏥', t: 'Planned Dental Work — 0% Plan', cat: 'good',
+      ctx: 'A needed dental procedure costs $2,400. The dentist offers 0% APR over 12 months, and the fixed $200/month fits comfortably in your budget.',
+      note: 'Necessary care, zero interest, and a payment that fits your budget without strain — this checks every good-debt box.'
+    },
+    {
+      e: '📈', t: 'Margin Loan to Buy Volatile Stock', cat: 'bad',
+      ctx: 'You borrow against your brokerage account at 11% interest to buy a single speculative stock, risking a forced sale if the price drops.',
+      note: 'Borrowing to bet on one volatile asset — with a margin call risk — is speculation with debt attached, not investing.'
+    },
+  ];
+
+  /* ── deck / level-boundary helpers ───────────────────────────── */
+  const ALL_LEVEL_DECKS = [LEVEL1, LEVEL2, LEVEL3];
+
+  /* cumulative deckIdx at which each level ENDS, e.g. [8,16,25] */
+  const LEVEL_END_IDX = (() => {
+    const out = [];
+    let running = 0;
+    for (const size of LEVEL_SIZES) { running += size; out.push(running); }
+    return out;
+  })();
+
+  function buildFullDeck() {
+    return ALL_LEVEL_DECKS.reduce((acc, lvlArr) => acc.concat(shuffle([...lvlArr])), []);
+  }
+
+  /* given a deckIdx, which level (1-based) is that card in? */
+  function levelForDeckIdx(idx) {
+    for (let i = 0; i < LEVEL_END_IDX.length; i++) {
+      if (idx < LEVEL_END_IDX[i]) return i + 1;
+    }
+    return LEVEL_SIZES.length;
+  }
 
   /* ── state object ────────────────────────────────────────────── */
   let G = null;
@@ -304,8 +364,8 @@
     const root = document.getElementById('ddt_root');
     if (!root) return;
 
-    /* build shuffled deck */
-    const deck = shuffle([...LEVEL1]).concat(shuffle([...LEVEL2]));
+    /* build shuffled deck: L1 cards, then L2 cards, then L3 cards */
+    const deck = buildFullDeck();
 
     G = {
       deck,
@@ -488,8 +548,8 @@
       return;
     }
 
-    /* level transition announcement */
-    if (G.deckIdx === LEVEL_SIZE) {
+    /* level transition announcement — fires at the end of L1 and end of L2 */
+    if (LEVEL_END_IDX.slice(0, -1).includes(G.deckIdx)) {
       showLevelUp();
       return;
     }
@@ -505,9 +565,9 @@
     const old = document.getElementById('ddt_active_card');
     if (old) old.remove();
 
-    /* level 2 context banner */
-    const isL2 = G.level === 2 && card.ctx;
-    const ctxHtml = isL2 ? `
+    /* level 2+ context banner — situational cards hide the giveaway note and show ctx instead */
+    const showCtx = G.level >= 2 && card.ctx;
+    const ctxHtml = showCtx ? `
       <div style="
         background:rgba(75,45,143,.25);border:1px solid rgba(123,82,239,.3);
         border-radius:10px;padding:8px 12px;margin-top:10px;
@@ -535,7 +595,7 @@
       <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${VIOLET},transparent);border-radius:20px 20px 0 0"></div>
       <div style="font-size:2.8rem;line-height:1;margin-bottom:10px">${card.e}</div>
       <div style="font-family:Orbitron,sans-serif;font-size:.85rem;letter-spacing:.05em;color:#fff;margin-bottom:6px">${card.t}</div>
-      ${isL2 ? '' : `<div style="font-size:.65rem;color:rgba(255,255,255,.4);line-height:1.5;max-width:230px;margin:0 auto">${card.note}</div>`}
+      ${showCtx ? '' : `<div style="font-size:.65rem;color:rgba(255,255,255,.4);line-height:1.5;max-width:230px;margin:0 auto">${card.note}</div>`}
       ${ctxHtml}
       <div style="margin-top:14px;display:flex;justify-content:center;gap:20px">
         <div style="font-family:Orbitron,sans-serif;font-size:.48rem;color:${GOLD}88;letter-spacing:.12em">← GOOD</div>
@@ -568,12 +628,13 @@
   /* ── card timeout ────────────────────────────────────────────── */
   function startCardTimeout(cardEl) {
     if (G.cardTimeout) clearTimeout(G.cardTimeout);
+    const timeoutMs = G.level >= 3 ? CARD_TIMEOUT_L3 : CARD_TIMEOUT;
     const bar = document.getElementById('ddt_timeout_bar');
     if (bar) {
       bar.style.transition = 'none';
       bar.style.width = '100%';
       requestAnimationFrame(() => {
-        bar.style.transition = `width ${CARD_TIMEOUT}ms linear`;
+        bar.style.transition = `width ${timeoutMs}ms linear`;
         bar.style.width = '0%';
       });
     }
@@ -581,7 +642,7 @@
       if (!G || G.done || !G.active) return;
       /* timed out → count as miss */
       registerSort(null, cardEl);
-    }, CARD_TIMEOUT);
+    }, timeoutMs);
   }
 
   /* ── drag system ─────────────────────────────────────────────── */
@@ -870,15 +931,34 @@
   }
 
   /* ── level up transition ─────────────────────────────────────── */
+  const LEVEL_UP_COPY = {
+    2: {
+      badgeText: 'LEVEL 2 · MASTER',
+      badgeColor: GOLD,
+      unlockText: 'LEVEL 2 UNLOCKED',
+      modeText: 'MASTER MODE',
+      desc: 'Now context matters — the same debt type can be Good or Bad depending on interest rate, income, and purpose.'
+    },
+    3: {
+      badgeText: 'LEVEL 3 · STRATEGIST',
+      badgeColor: TEAL,
+      unlockText: 'LEVEL 3 UNLOCKED',
+      modeText: 'STRATEGIST MODE',
+      desc: 'Multiple factors stack at once — rate, timing, purpose, and habit all matter together. The clock is faster now, too.'
+    }
+  };
+
   function showLevelUp() {
     G.active = false;
-    G.level  = 2;
+    const targetLevel = levelForDeckIdx(G.deckIdx);
+    G.level = targetLevel;
+    const copy = LEVEL_UP_COPY[targetLevel] || LEVEL_UP_COPY[2];
 
     const badge = document.getElementById('ddt_level_badge');
     if (badge) {
-      badge.textContent = 'LEVEL 2 · MASTER';
-      badge.style.borderColor = `rgba(245,200,66,.5)`;
-      badge.style.color = GOLD;
+      badge.textContent = copy.badgeText;
+      badge.style.borderColor = `${copy.badgeColor}80`;
+      badge.style.color = copy.badgeColor;
     }
 
     const stage = document.getElementById('ddt_stage');
@@ -891,10 +971,10 @@
     `;
     banner.innerHTML = `
       <div style="font-size:2rem;margin-bottom:10px">🔓</div>
-      <div style="font-family:Orbitron,sans-serif;font-size:1.1rem;letter-spacing:.12em;color:${GOLD};text-shadow:0 0 16px ${GOLD}88;margin-bottom:8px">LEVEL 2 UNLOCKED</div>
-      <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.15em;color:${VIOLET};margin-bottom:14px">MASTER MODE</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:1.1rem;letter-spacing:.12em;color:${copy.badgeColor};text-shadow:0 0 16px ${copy.badgeColor}88;margin-bottom:8px">${copy.unlockText}</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.15em;color:${VIOLET};margin-bottom:14px">${copy.modeText}</div>
       <div style="font-size:.72rem;color:rgba(255,255,255,.6);text-align:center;max-width:260px;line-height:1.6;margin-bottom:20px">
-        Now context matters — the same debt type can be Good or Bad depending on interest rate, income, and purpose.
+        ${copy.desc}
       </div>
       <button id="ddt_continue_btn" style="
         font-family:Orbitron,sans-serif;font-size:.65rem;letter-spacing:.15em;
@@ -1120,7 +1200,7 @@
     const root = document.getElementById('ddt_root');
     if (!root) return;
 
-    const deck = shuffle([...LEVEL1]).concat(shuffle([...LEVEL2]));
+    const deck = buildFullDeck();
 
     G = {
       deck,
@@ -1166,6 +1246,29 @@
     G = null;
     if (window.state) state.viewingWorld = 'rebuilder';
     goTo('hub');
+  };
+
+  /* ── debug hook (dev-only; safe no-op in prod if never called) ── */
+  window._ddtDiscoveryDbg = function () {
+    return G ? {
+      level: G.level,
+      deckIdx: G.deckIdx,
+      deckLen: G.deck.length,
+      levelEndIdx: LEVEL_END_IDX,
+      score: G.score,
+      errors: G.errors,
+    } : null;
+  };
+  /* force-jump straight to the first card of Level 3, for QA */
+  window._ddtDiscoveryForceLevel3 = function () {
+    if (!G) return false;
+    if (G.cardTimeout) { clearTimeout(G.cardTimeout); G.cardTimeout = null; }
+    const old = document.getElementById('ddt_active_card');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    G.deckIdx = LEVEL_END_IDX[1];   // first index of level 3
+    G.active = false;
+    showNextCard();
+    return true;
   };
 
   /* ── utils ───────────────────────────────────────────────────── */

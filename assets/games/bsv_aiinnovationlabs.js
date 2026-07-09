@@ -196,6 +196,7 @@
       <div id="ailTop" style="position:absolute;top:0;left:0;right:0;z-index:30;display:flex;align-items:center;gap:8px;padding:10px 12px 8px;background:linear-gradient(180deg,rgba(3,4,12,.95) 60%,transparent)">
         <button id="ailBack" style="padding:5px 11px;border:1px solid rgba(0,255,255,.35);border-radius:7px;background:rgba(0,255,255,.08);color:${ACCENT};font-size:.52rem;letter-spacing:.12em;cursor:pointer;font-family:inherit;white-space:nowrap">← HUB</button>
         <div style="font-size:.54rem;letter-spacing:.2em;color:${ACCENT};flex:1;text-align:center;font-weight:800;text-shadow:0 0 12px ${ACCENT}">AI INNOVATION LABS</div>
+        <button id="ailHelpBtn" onclick="window.ailShowHelp()" title="How to play" style="padding:5px 9px;border:1px solid rgba(0,255,255,.35);border-radius:7px;background:rgba(0,255,255,.08);color:${ACCENT};cursor:pointer;font-size:.62rem;font-family:inherit">❓</button>
         <div style="display:flex;gap:6px;align-items:center">
           <div style="text-align:right">
             <div style="font-size:.34rem;letter-spacing:.1em;color:rgba(255,255,255,.35)">SCORE</div>
@@ -251,10 +252,19 @@
         <div style="font-size:.38rem;letter-spacing:.25em;color:rgba(0,255,255,.5)">BITSTREAM VALLEY</div>
         <div style="font-size:1.3rem;font-weight:900;letter-spacing:.1em;color:${ACCENT};text-shadow:0 0 30px ${ACCENT};text-align:center;line-height:1.2">AI INNOVATION<br>LABS</div>
         <div style="width:48px;height:2px;background:linear-gradient(90deg,transparent,${ACCENT},transparent)"></div>
-        <div style="font-size:.48rem;letter-spacing:.1em;color:rgba(255,255,255,.45);text-align:center;max-width:300px;line-height:1.8">
-          Sort incoming data cards into bins.<br>
-          Feed the AI only <span style="color:#00e676">accurate data</span> — reject everything else.
+
+        <!-- HOW TO PLAY — shown automatically before the player picks a level -->
+        <div style="width:100%;max-width:320px;background:rgba(255,255,255,.04);border:1px solid rgba(0,255,255,.2);border-radius:12px;padding:12px 14px;text-align:left">
+          <div style="font-size:.4rem;letter-spacing:.16em;color:${ACCENT};font-weight:800;margin-bottom:8px;text-align:center">❓ HOW TO PLAY</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:.55rem;flex-shrink:0">🎯</span><span style="font-size:.44rem;color:rgba(255,255,255,.75);line-height:1.5">Data cards float by — decide if each one is <b style="color:#00e676">good data</b> or <b style="color:#ff6e6e">bad data</b>.</span></div>
+            <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:.55rem;flex-shrink:0">👆</span><span style="font-size:.44rem;color:rgba(255,255,255,.75);line-height:1.5">Drag (or tap, then drag on mobile) each card into the <b style="color:#00e676">TRAIN AI</b> bin or the <b style="color:#ff6e6e">DISCARD</b> bin.</span></div>
+            <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:.55rem;flex-shrink:0">⚠️</span><span style="font-size:.44rem;color:rgba(255,255,255,.75);line-height:1.5">Watch for false claims, biased opinions, and spam — only true, fair, real data belongs in TRAIN AI.</span></div>
+            <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:.55rem;flex-shrink:0">📊</span><span style="font-size:.44rem;color:rgba(255,255,255,.75);line-height:1.5">Good calls raise your <b style="color:#a78bfa">AI IQ</b> meter and score; missed calls lower AI IQ — keep it high to win.</span></div>
+            <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:.55rem;flex-shrink:0">⏱️</span><span style="font-size:.44rem;color:rgba(255,255,255,.75);line-height:1.5">Same rules on all 3 levels — later levels just spawn cards faster with trickier data.</span></div>
+          </div>
         </div>
+
         <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:320px">
           <button class="ailLvBtn" data-lv="0" style="width:100%;padding:14px 18px;border:1px solid ${ACCENT};border-radius:10px;background:rgba(0,255,255,.07);color:${ACCENT};font-size:.6rem;letter-spacing:.12em;cursor:pointer;font-weight:700;text-align:left">
             ⚡ LEVEL 1 &mdash; LEARN MODE
@@ -381,6 +391,54 @@
     G.lastSpawn = -cfg.spawnInterval; // spawn first card immediately
     raf = requestAnimationFrame(loop);
   }
+
+  /* ── HOW-TO-PLAY re-open (❓ button during gameplay) ───────────
+     Pauses the RAF loop by flipping phase to 'paused' (loop() below
+     already refuses to run unless phase === 'play', so this freezes
+     timeLeft, card spawns and IQ instantly with no extra code there).
+     On resume we shift G.last AND G.lastSpawn forward by the exact
+     real-world pause duration, so the next dt/spawn-check is computed
+     as if no time passed at all — no time lost, none gained. ── */
+  let _ailPauseStartTs = null;
+  window.ailShowHelp = function () {
+    if (!G || G.phase === 'over') return;   // nothing to pause once results are shown
+    if (G.phase === 'play') {
+      _ailPauseStartTs = performance.now();
+      G.phase = 'paused';
+    }
+    const overlay = document.getElementById('ailOver');
+    if (!overlay) return;
+    overlay.style.display = 'flex';
+    overlay.innerHTML = `
+      <div style="font-size:.4rem;letter-spacing:.16em;color:${ACCENT};font-weight:800">❓ HOW TO PLAY</div>
+      <div style="width:100%;max-width:300px;background:rgba(255,255,255,.04);border:1px solid rgba(0,255,255,.2);border-radius:12px;padding:12px 14px;text-align:left">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:.55rem;flex-shrink:0">🎯</span><span style="font-size:.44rem;color:rgba(255,255,255,.75);line-height:1.5">Decide if each floating card is <b style="color:#00e676">good data</b> or <b style="color:#ff6e6e">bad data</b>.</span></div>
+          <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:.55rem;flex-shrink:0">👆</span><span style="font-size:.44rem;color:rgba(255,255,255,.75);line-height:1.5">Drag it into <b style="color:#00e676">TRAIN AI</b> or <b style="color:#ff6e6e">DISCARD</b>.</span></div>
+          <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:.55rem;flex-shrink:0">⚠️</span><span style="font-size:.44rem;color:rgba(255,255,255,.75);line-height:1.5">False claims, biased opinions, and spam all belong in DISCARD.</span></div>
+          <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:.55rem;flex-shrink:0">📊</span><span style="font-size:.44rem;color:rgba(255,255,255,.75);line-height:1.5">Good calls raise your <b style="color:#a78bfa">AI IQ</b> meter and score; missed calls lower it.</span></div>
+        </div>
+      </div>
+      <button onclick="window.ailCloseHelp()" style="padding:12px 26px;border:1px solid ${ACCENT};border-radius:10px;background:rgba(0,255,255,.1);color:${ACCENT};font-size:.6rem;letter-spacing:.12em;cursor:pointer;font-weight:700;font-family:inherit">${G.phase === 'paused' ? '▶ RESUME' : 'GOT IT — START ▶'}</button>
+    `;
+  };
+  window.ailCloseHelp = function () {
+    const overlay = document.getElementById('ailOver');
+    if (overlay) overlay.style.display = 'none';
+    if (G && G.phase === 'paused') {
+      const pausedMs = performance.now() - _ailPauseStartTs;
+      G.last += pausedMs;         // shift so next dt excludes the pause
+      G.lastSpawn += pausedMs;    // shift so the spawn cadence isn't disturbed either
+      _ailPauseStartTs = null;
+      G.phase = 'play';
+      raf = requestAnimationFrame(loop);   // loop() had stopped rescheduling itself while paused
+    }
+  };
+
+  /* ── QA debug hook (module state is private; this is the read/probe surface) ── */
+  window._ailDbg = function () {
+    return G ? { phase: G.phase, timeLeft: +G.timeLeft.toFixed(2), iq: Math.round(G.iq), score: G.score, lvIdx: G.lvIdx, cardCount: G.cards.length } : null;
+  };
 
   /* ── MAIN LOOP ───────────────────────────────────────────────── */
   function loop(now) {

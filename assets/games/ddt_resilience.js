@@ -3,6 +3,7 @@
    Navigate emotionally charged financial scenarios with calm decisions.
    Level 1 (7 scenarios): Clear healthy vs impulsive choices.
    Level 2 (7 scenarios): Complex trade-offs requiring real reasoning.
+   Level 3 (7 scenarios): High-pressure, multi-step trade-offs with real stakes.
    Screen ID : game_ddt_resilience
    Hub       : rebuilder (#4B2D8F)
    ════════════════════════════════════════════════════════════════ */
@@ -24,13 +25,19 @@
   const TOTAL_PILLARS   = 7;     // pillars in the hall = Level 1 count
   const LEVEL1_COUNT    = 7;
   const LEVEL2_COUNT    = 7;
-  const TOTAL_SCENARIOS = LEVEL1_COUNT + LEVEL2_COUNT;
+  const LEVEL3_COUNT    = 7;
+  const TOTAL_SCENARIOS = LEVEL1_COUNT + LEVEL2_COUNT + LEVEL3_COUNT;
   const METER_MAX       = 100;
   const METER_GAIN      = 14;    // correct choice fills meter
   const METER_DRAIN     = 22;    // wrong drains meter
   const TIMER_DRAIN     = 10;    // waiting too long drains this much
-  const STAR3_SCORE     = 280;
-  const STAR2_SCORE     = 180;
+  // Star thresholds scale with the full 21-scenario campaign (verified by
+  // simulation): max theoretical score ≈858, current values keep the same
+  // difficulty proportion (~52% / ~33% of max) as the original 14-scenario
+  // 280/180 thresholds did against their ~543 max, so reaching 3★ genuinely
+  // requires strong performance through Level 3, not just Levels 1-2.
+  const STAR3_SCORE     = 442;
+  const STAR2_SCORE     = 284;
 
   /* ── scenario catalogue ──────────────────────────────────────── */
   /* Each option: { text, type: 'calm'|'impulsive'|'fearful', pts: number } */
@@ -261,8 +268,151 @@
     },
   ];
 
+  /* Level 3 — high-pressure, multi-step trade-offs with real stakes.
+     Harder than Level 2: each scenario blends two decisions at once
+     (a tactic to resist AND a plan to act on), not just a single choice. */
+  const LEVEL3_SCENARIOS = [
+    {
+      id: 'debt_collector_call',
+      situation: 'A debt collector calls saying you owe $600 and must pay "right now" by gift card or you\'ll be arrested.',
+      emotion: '📞 Collector Pressure',
+      options: [
+        { text: 'Hang up, then verify the debt in writing before paying anyone anything.',    type: 'calm',    pts: 25,
+          reason: 'Correct — real collectors must send written validation. Threats of arrest for debt and gift-card payment demands are classic scam signatures.' },
+        { text: 'Ask them to mail proof of the debt, then research the company\'s name.',       type: 'calm',    pts: 22,
+          reason: 'Solid — staying on the line but demanding paperwork is fine, as long as you never pay before verifying.' },
+        { text: 'Pay with a gift card immediately to avoid legal trouble.',                      type: 'fearful', pts: -10,
+          reason: 'This is a scam pattern. No legitimate debt is ever collected by gift card, and no one is arrested for owing money in the U.S.' },
+      ],
+      feedback: {
+        calm:     'Debt collection has strict rules: written notice, no threats, no gift-card demands. Fear is the tactic — verification is your defense.',
+        fearful:  'Untraceable payment methods like gift cards are always the biggest red flag in a collections call. Legitimate creditors accept normal payments.',
+      }
+    },
+    {
+      id: 'cosign_request',
+      situation: 'Your cousin asks you to co-sign a $12,000 car loan. If they miss a payment, you are legally responsible for the full balance.',
+      emotion: '🖊️ Co-Signing Pressure',
+      options: [
+        { text: 'Decline — co-signing puts your own credit at risk for someone else\'s payment history.', type: 'calm', pts: 25,
+          reason: 'Correct — co-signing is a full legal obligation, not a favor with no cost. Your credit report is exposed to every payment they make or miss.' },
+        { text: 'Offer to help them build credit a safer way instead, like a secured card.',                type: 'calm', pts: 22,
+          reason: 'Great alternative — you help without taking on their debt yourself.' },
+        { text: 'Co-sign, since family should always help family financially.',                             type: 'impulsive', pts: -10,
+          reason: 'Co-signing is one of the most common ways people damage their own credit. If they miss even one payment, it shows up on your report too.' },
+      ],
+      feedback: {
+        calm:     'A co-signature is not a gift — it is your name on someone else\'s debt. Loving family members can still say no to this specific ask.',
+        impulsive:'Co-signed loans that go bad are a leading cause of unexpected debt for people who were only trying to help.',
+      }
+    },
+    {
+      id: 'gig_income_dip',
+      situation: 'Your delivery-app gig income dropped 40% this month because of fewer orders. Rent is due in 5 days.',
+      emotion: '📉 Income Volatility',
+      options: [
+        { text: 'Check savings first, cut non-essentials, and apply to a second gig platform today.',  type: 'calm',    pts: 25,
+          reason: 'Best — variable income needs a buffer AND a backup income source. Acting on both fronts immediately reduces risk fastest.' },
+        { text: 'Use savings to cover the shortfall this month and rebuild it next month.',              type: 'calm',    pts: 20,
+          reason: 'Reasonable — this is exactly what a buffer is for, as long as you actually rebuild it once income recovers.' },
+        { text: 'Take a high-interest payday loan to cover rent until income picks back up.',            type: 'impulsive', pts: -10,
+          reason: 'Payday loans often carry 300%+ APR. A short-term income dip becomes a long-term debt trap.' },
+      ],
+      feedback: {
+        calm:     'Gig and freelance income is inherently variable — the fix is a bigger emergency buffer than a salaried worker needs, not a payday loan.',
+        impulsive:'A one-month income dip should never turn into a year of debt. Payday loans are designed to be very hard to escape.',
+      }
+    },
+    {
+      id: 'insurance_deductible',
+      situation: 'Your bike is damaged in an accident. Repair costs $500. Your insurance deductible is $750, meaning insurance would pay nothing.',
+      emotion: '🚲 Insurance Trade-off',
+      options: [
+        { text: 'Pay the $500 repair out of pocket — filing a claim below your deductible does nothing but risk a premium increase.', type: 'calm', pts: 25,
+          reason: 'Correct — claims below your deductible are pure cost with a possible downside (higher future premiums) and zero payout.' },
+        { text: 'File the claim anyway just to have it on record.',                                type: 'fearful', pts: -8,
+          reason: 'Filing a claim you know will be denied can still flag your account as high-risk with some insurers, raising future premiums for no payout.' },
+        { text: 'Skip the repair entirely and ride it as-is to avoid any cost.',                    type: 'impulsive', pts: 5,
+          reason: 'Understandable instinct, but an unsafe, unrepaired bike can lead to a bigger accident and a much bigger bill later.' },
+      ],
+      feedback: {
+        calm:     'Understanding your deductible before an incident happens prevents a wasted claim. Insurance is for costs bigger than your deductible, not smaller.',
+        fearful:  'Insurance claims are tracked even when denied. Filing pointless claims can quietly raise what you pay every month going forward.',
+      }
+    },
+    {
+      id: 'identity_theft',
+      situation: 'You check your bank app and see a $340 charge from a store you have never visited.',
+      emotion: '🔓 Identity Theft',
+      options: [
+        { text: 'Freeze the card immediately, report the charge as fraud, and check your other accounts.', type: 'calm', pts: 25,
+          reason: 'Correct — speed matters with fraud. Freezing first stops further damage while you report and check everything else.' },
+        { text: 'Report it to the bank\'s fraud line before doing anything else.',                          type: 'calm', pts: 20,
+          reason: 'Good — reporting quickly is the right instinct, though freezing the card first would stop any charges happening in the meantime.' },
+        { text: 'Wait a few days to see if more suspicious charges show up before reporting.',              type: 'fearful', pts: -10,
+          reason: 'Waiting gives a thief more time to spend. Most banks have zero-liability windows that shrink the longer you wait to report.' },
+      ],
+      feedback: {
+        calm:     'Fraud response has a time cost. Freezing your card takes 30 seconds and can save you from a much bigger cleanup later.',
+        fearful:  'Banks reward fast reporting with full fraud protection. Delay is the one thing that can cost you the loss instead of the bank.',
+      }
+    },
+    {
+      id: 'bnpl_stacking',
+      situation: 'You have three separate "Buy Now, Pay Later" plans running at once for different purchases, totaling $85/month. A store offers a 4th plan for new shoes.',
+      emotion: '🛍️ BNPL Stacking',
+      options: [
+        { text: 'Decline — stacking multiple BNPL plans is easy to lose track of and it is still debt.', type: 'calm', pts: 25,
+          reason: 'Correct — BNPL fragments your spending across many small "invisible" debts. A 4th plan adds real monthly obligation, even if each individual payment looks small.' },
+        { text: 'Pay off one existing plan first before considering anything new.',                        type: 'calm', pts: 20,
+          reason: 'Reasonable — reducing your existing BNPL load before adding more keeps your total monthly commitments manageable.' },
+        { text: 'Add the 4th plan since each individual payment is small.',                                type: 'impulsive', pts: -10,
+          reason: '"Small payments" are exactly how BNPL debt sneaks up — four small plans add up to a real bill that is easy to lose track of.' },
+      ],
+      feedback: {
+        calm:     'BNPL plans are still debt, just split into pieces that feel painless. Track the total across all plans, not just each one alone.',
+        impulsive:'Missed BNPL payments now report to credit bureaus and can carry late fees — "no interest" does not mean "no risk."',
+      }
+    },
+    {
+      id: 'priority_triage',
+      situation: 'Your hours were cut and your paycheck just dropped by $400/month. You have rent, a phone bill, a gym membership, and a small credit card balance — you cannot cover all of it at 100%.',
+      emotion: '⚖️ Full Budget Triage',
+      options: [
+        { text: 'Rank by consequence: rent first, then minimum debt payment, then phone, then cancel the gym.', type: 'calm', pts: 25,
+          reason: 'Correct — triage by what happens if unpaid: losing housing is the biggest consequence, followed by damaged credit, then service loss. The gym is the safest thing to cut.' },
+        { text: 'Cut the gym and phone plan first, then split what is left across rent and the card.',           type: 'calm', pts: 22,
+          reason: 'Also solid — you correctly identified the gym as non-essential, though rent should be fully funded before anything else if at all possible.' },
+        { text: 'Pay everything a little bit so nothing feels fully neglected.',                                type: 'fearful', pts: -5,
+          reason: 'Partial payments everywhere often means rent falls short, which carries the harshest consequence. Full payment on your top priority beats a partial payment on all of them.' },
+      ],
+      feedback: {
+        calm:     'When you cannot cover everything, rank bills by real-world consequence, not by which feels most urgent. Housing and debt reporting outrank subscriptions every time.',
+        fearful:  'Spreading a shortage evenly across every bill can accidentally shortchange the one bill you most needed to fully pay.',
+      }
+    },
+  ];
+
   /* ── state object ────────────────────────────────────────────── */
   let G = null;
+
+  /* ── debug hook (dev/QA only) ─────────────────────────────────── */
+  window._rhDbg = function () {
+    return G ? { level: G.level, idx: G.idx, deckLen: G.deck.length, score: G.score, meter: G.meter, currentScenarioId: G.deck[G.idx] ? G.deck[G.idx].id : null } : null;
+  };
+  window._rhForceSkipToLevel3 = function () {
+    if (!G) return;
+    stopCountdown();
+    G.idx = LEVEL1_COUNT + LEVEL2_COUNT;
+    G.level = 2; // gate at startScenario() will flip this to 3 and show the banner
+    startScenario();
+  };
+  window._rhForceWin = function () {
+    if (!G) return;
+    G.idx = G.deck.length;
+    G.score = STAR3_SCORE;
+    triggerEnd(true);
+  };
 
   /* ── screen registration ─────────────────────────────────────── */
   window.SCREENS = window.SCREENS || {};
@@ -464,7 +614,7 @@
     const root = document.getElementById('rh_root');
     if (!root) return;
 
-    const deck = shuffle([...LEVEL1_SCENARIOS]).concat(shuffle([...LEVEL2_SCENARIOS]));
+    const deck = shuffle([...LEVEL1_SCENARIOS]).concat(shuffle([...LEVEL2_SCENARIOS])).concat(shuffle([...LEVEL3_SCENARIOS]));
 
     G = {
       deck,
@@ -654,9 +804,16 @@
       return;
     }
 
-    /* level 2 gate */
+    /* level gates — advance the campaign badge at each level boundary.
+       Two distinct, deliberate checks (not a single fallthrough): idx===7
+       only fires the 1→2 transition, idx===14 only fires the 2→3 transition.
+       Both are guarded by the current G.level so a gate can never re-fire. */
     if (G.idx === LEVEL1_COUNT && G.level === 1) {
-      showLevelUp();
+      showLevelUp(2);
+      return;
+    }
+    if (G.idx === LEVEL1_COUNT + LEVEL2_COUNT && G.level === 2) {
+      showLevelUp(3);
       return;
     }
 
@@ -954,15 +1111,41 @@
   }
 
   /* ── level up ────────────────────────────────────────────────── */
-  function showLevelUp() {
-    G.level  = 2;
+  function showLevelUp(targetLevel) {
+    G.level  = targetLevel;
     G.active = false;
+
+    const LEVEL_COPY = {
+      2: {
+        badgeText: 'LEVEL 2 · MASTER',
+        borderColor: 'rgba(245,200,66,.4)',
+        badgeColor: GOLD,
+        icon: '🔓',
+        eyebrow: 'LEVEL 2',
+        eyebrowColor: `${GOLD}88`,
+        title: 'MASTER MODE',
+        titleColor: GOLD,
+        body: 'Now the situations are real trade-offs. Multiple responses can be reasonable — quality of reasoning matters. Some scenarios have more than one calm path.',
+      },
+      3: {
+        badgeText: 'LEVEL 3 · CRISIS',
+        borderColor: 'rgba(232,64,96,.45)',
+        badgeColor: CRIMSON,
+        icon: '🚨',
+        eyebrow: 'LEVEL 3',
+        eyebrowColor: `${CRIMSON}99`,
+        title: 'CRISIS MODE',
+        titleColor: CRIMSON,
+        body: 'These are high-pressure, multi-step situations — a tactic to resist AND a plan to act on, in the same decision. Stay calm, verify before you act, and think two steps ahead.',
+      },
+    };
+    const copy = LEVEL_COPY[targetLevel] || LEVEL_COPY[2];
 
     const badge = document.getElementById('rh_level_badge');
     if (badge) {
-      badge.textContent = 'LEVEL 2 · MASTER';
-      badge.style.borderColor = `rgba(245,200,66,.4)`;
-      badge.style.color = GOLD;
+      badge.textContent = copy.badgeText;
+      badge.style.borderColor = copy.borderColor;
+      badge.style.color = copy.badgeColor;
     }
 
     const root = document.getElementById('rh_root');
@@ -981,17 +1164,17 @@
       <div style="
         width:min(360px,88vw);
         background:linear-gradient(145deg,rgba(25,15,48,.98),rgba(12,6,28,.99));
-        border:2px solid rgba(245,200,66,.3);border-radius:22px;
+        border:2px solid ${copy.borderColor};border-radius:22px;
         padding:28px 22px;text-align:center;
         box-shadow:0 0 50px rgba(75,45,143,.3),0 16px 50px rgba(0,0,0,.8);
         position:relative;overflow:hidden;
       ">
-        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${GOLD}88,transparent)"></div>
-        <div style="font-size:2.2rem;margin-bottom:10px">🔓</div>
-        <div style="font-family:Orbitron,sans-serif;font-size:.48rem;letter-spacing:.2em;color:${GOLD}88;margin-bottom:6px">LEVEL 2</div>
-        <div style="font-family:Orbitron,sans-serif;font-size:1.05rem;letter-spacing:.08em;color:${GOLD};text-shadow:0 0 14px ${GOLD}66;margin-bottom:14px">MASTER MODE</div>
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${copy.badgeColor}88,transparent)"></div>
+        <div style="font-size:2.2rem;margin-bottom:10px">${copy.icon}</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:.48rem;letter-spacing:.2em;color:${copy.eyebrowColor};margin-bottom:6px">${copy.eyebrow}</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:1.05rem;letter-spacing:.08em;color:${copy.titleColor};text-shadow:0 0 14px ${copy.titleColor}66;margin-bottom:14px">${copy.title}</div>
         <div style="font-size:.78rem;color:${SILVER};line-height:1.7;margin-bottom:20px;max-width:280px;margin-left:auto;margin-right:auto">
-          Now the situations are real trade-offs. Multiple responses can be reasonable — quality of reasoning matters. Some scenarios have more than one calm path.
+          ${copy.body}
         </div>
         <button id="rh_continue_btn" style="
           font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.14em;

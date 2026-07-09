@@ -265,6 +265,7 @@
     </div>
 
     <div style="display:flex;gap:12px;align-items:center;flex-shrink:0">
+      <button onclick="bdShowHelp()" title="How to play" style="padding:6px 10px;border:1px solid rgba(124,58,237,.45);border-radius:8px;background:rgba(124,58,237,.12);color:${LIGHT};cursor:pointer;font-size:.8rem;flex-shrink:0">❓</button>
       <div style="text-align:right">
         <div style="font-family:Orbitron,sans-serif;font-size:.48rem;color:#888;letter-spacing:.1em">SCORE</div>
         <div id="bd_score" style="font-family:Orbitron,sans-serif;font-size:.82rem;color:${GOLD};text-shadow:0 0 8px ${GOLD}88;font-variant-numeric:tabular-nums">0</div>
@@ -328,12 +329,15 @@
     box-shadow:0 0 40px rgba(0,0,0,.6);
   "></div>
 
+  <!-- HOW TO PLAY overlay (shown once at start, reopened via ❓) -->
+  <div id="bd_help" style="display:none;position:absolute;inset:0;z-index:90;align-items:center;justify-content:center;background:rgba(2,0,10,.92);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box"></div>
+
 </div>`;
   };
 
   /* ── exit ─────────────────────────────────────────────────────── */
   /* ── QA debug hook ─────────────────────────────────────────── */
-  window._bdDbg = function () { return G ? { level: G.level, queueLen: G.brandQueue.length, timeLeft: G.timeLeft, done: G.done } : null; };
+  window._bdDbg = function () { return G ? { level: G.level, queueLen: G.brandQueue.length, timeLeft: G.timeLeft, done: G.done, paused: G.paused, pickStartTime: G.pickStartTime } : null; };
   window._bdDrain = function () { if (G) { G.brandQueue = []; nextBrand(); } };
   window._bdWin = function (score) { if (!G) return; G.score = score; G.done = false; endGame(); };
 
@@ -453,19 +457,70 @@
       stepKeys: [],       // element keys for current brand
       picks: {},          // user picks for current brand
       done: false,
+      paused: false,      // true while the ❓ help overlay is open
+      introShown: false,  // becomes true once the first-time tutorial is dismissed
     };
 
     // build queue
     G.brandQueue = shuffle([...LEVELS[0].brands]);
     G.totalBrands = G.brandQueue.length;
-    G.timerInterval = setInterval(tickTimer, 1000);
 
-    nextBrand();
+    // Tutorial shown once before the timer/queue actually start moving
+    showHowToPlay();
   }
+
+  /* ── how-to-play intro (shown once at start) + ❓ re-open mid-game ── */
+  let _bdPauseStartTs = null;
+  function showHowToPlay() {
+    const help = document.getElementById('bd_help');
+    if (!help) return;
+    const firstTime = !G.introShown;
+    help.style.display = 'flex';
+    help.innerHTML = `
+      <div style="max-width:380px;width:100%;text-align:center;padding:26px 22px;background:${CARD_BG};border:1px solid rgba(124,58,237,.5);border-radius:20px;box-shadow:0 0 50px rgba(124,58,237,.3)">
+        <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.2em;color:${LIGHT};margin-bottom:10px">HOW TO PLAY</div>
+        <div style="font-size:2rem;margin-bottom:8px">🏙️</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:1rem;margin-bottom:14px;color:#fff">BRANDING DISTRICT</div>
+        <ul style="text-align:left;font-size:.78rem;color:#ddd;line-height:1.65;margin:0 0 18px;padding-left:18px">
+          <li>Each round shows a business — tap the option that best matches its logo, colors, voice, or audience.</li>
+          <li>Pick fast for a speed bonus, and match every element to earn the full brand bonus.</li>
+          <li>Watch the CONFUSION meter — too many mismatches ends the round early.</li>
+          <li>3 rounds get tougher and add more elements to match, plus surprise trend cards for bonus points.</li>
+          <li>Fill the BRAND RECOGNITION meter for a higher star rating and more coins.</li>
+        </ul>
+        <button id="bd_help_btn" style="padding:13px 30px;border:none;border-radius:11px;background:linear-gradient(135deg,${ACCENT},${PINK});color:#fff;font-family:Orbitron,sans-serif;font-size:.68rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${firstTime ? 'GOT IT — START ▶' : '▶ RESUME'}</button>
+      </div>`;
+    const btn = document.getElementById('bd_help_btn');
+    if (btn) btn.onclick = () => {
+      help.style.display = 'none';
+      if (firstTime) {
+        G.introShown = true;
+        G.timerInterval = setInterval(tickTimer, 1000);
+        nextBrand();
+      } else if (G.paused) {
+        // shift pickStartTime forward by the paused duration so the speed
+        // bonus on the in-flight pick isn't punished for time spent reading help
+        if (_bdPauseStartTs) {
+          const pausedMs = Date.now() - _bdPauseStartTs;
+          G.pickStartTime += pausedMs;
+          _bdPauseStartTs = null;
+        }
+        G.paused = false;
+        G.timerInterval = setInterval(tickTimer, 1000);
+      }
+    };
+  }
+  window.bdShowHelp = function () {
+    if (!G || G.done || G.paused) return;
+    G.paused = true;
+    _bdPauseStartTs = Date.now();
+    if (G.timerInterval) { clearInterval(G.timerInterval); G.timerInterval = null; }
+    showHowToPlay();
+  };
 
   /* ── timer ────────────────────────────────────────────────────── */
   function tickTimer() {
-    if (!G || G.done) return;
+    if (!G || G.done || G.paused) return;
     G.timeLeft--;
     const el = document.getElementById('bd_timer');
     if (el) {

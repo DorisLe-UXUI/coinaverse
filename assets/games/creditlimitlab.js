@@ -2,24 +2,69 @@
    G6 CREDIT LIMIT LAB — CredTech Galaxy
    Catcher mechanic: Balance Meter / Credit Utilization
    Concept: "Credit utilization, limits & ratios"
-   90-second session. Keep util <30% to win the bonus.
+   3 LEVELS · disjoint item pools per level · harder start-util + faster spawn each level
+   90-second session per level. Keep util <30% to win the bonus.
    ════════════════════════════════════════════════════════════════ */
 (function(){
   const TOKEN = 'credtech';
   let G = null, raf = null;
+  let curLevel = 1;   // 1|2|3 — chosen on level-select screen, advances via game-over screen
 
-  /* ─── ITEM TABLES ─────────────────────────────────────────── */
-  const GOOD_ITEMS = [
+  /* ─── LEVEL CONFIGS — harder/faster/bigger each level ────────── */
+  const LEVELS = [
+    { n:1, name:'STARTER LIMIT',     time:90, startUtil:30, spawnStart:1.2, spawnEnd:3.0, star3:900,  star2:600  },
+    { n:2, name:'RISING LIMIT',      time:90, startUtil:42, spawnStart:1.6, spawnEnd:3.6, star3:1250, star2:850  },
+    { n:3, name:'MAX LIMIT PRESSURE',time:90, startUtil:55, spawnStart:2.0, spawnEnd:4.3, star3:1650, star2:1150 },
+  ];
+
+  /* ─── ITEM TABLES — DISJOINT pool per level ──────────────────── */
+  // LEVEL 1 · the basics
+  const GOOD_L1 = [
     { label:'On-Time Payment', icon:'💚', util:-3,  pts:10,  color:'#34d399' },
     { label:'Low Balance',     icon:'💳', util:-5,  pts:12,  color:'#34d399' },
     { label:'Limit Increase',  icon:'⬆️',  util:-8,  pts:15,  color:'#34d399' },
     { label:'Full Payment',    icon:'✅',  util:-6,  pts:14,  color:'#34d399' },
   ];
-  const BAD_ITEMS = [
+  const BAD_L1 = [
     { label:'Impulse Buy',  icon:'🛍️', util:+8,  pts:-5,  color:'#ef4444' },
     { label:'Cash Advance', icon:'💸', util:+12, pts:-10, color:'#ef4444' },
     { label:'Late Fee',     icon:'⚠️',  util:+5,  pts:-8,  color:'#ef4444' },
     { label:'Maxed Card',   icon:'💥', util:+20, pts:-15, color:'#ef4444' },
+  ];
+  // LEVEL 2 · smarter habits vs sneakier traps
+  const GOOD_L2 = [
+    { label:'Extra Principal',  icon:'🧮', util:-7,  pts:16,  color:'#34d399' },
+    { label:'Balance Transfer', icon:'🔄', util:-10, pts:18,  color:'#34d399' },
+    { label:'Autopay Set Up',   icon:'📅', util:-4,  pts:13,  color:'#34d399' },
+    { label:'2nd Card Opened',  icon:'💳', util:-9,  pts:17,  color:'#34d399' },
+    { label:'Statement Review', icon:'🧾', util:-5,  pts:14,  color:'#34d399' },
+  ];
+  const BAD_L2 = [
+    { label:'Store Card Spree', icon:'🛒', util:+14, pts:-12, color:'#ef4444' },
+    { label:'Skipped Minimum',  icon:'📵', util:+10, pts:-14, color:'#ef4444' },
+    { label:'Interest Charge',  icon:'📈', util:+9,  pts:-10, color:'#ef4444' },
+    { label:'New Loan Stacked', icon:'🏦', util:+16, pts:-16, color:'#ef4444' },
+    { label:'Annual Fee Hit',   icon:'🧾', util:+6,  pts:-8,  color:'#ef4444' },
+  ];
+  // LEVEL 3 · expert moves vs credit wreckers — biggest swings, highest stakes
+  const GOOD_L3 = [
+    { label:'Lump-Sum Payoff',   icon:'💰', util:-14, pts:22,  color:'#34d399' },
+    { label:'Limit Bump Earned', icon:'🚀', util:-11, pts:20,  color:'#34d399' },
+    { label:'Debt Avalanche',    icon:'🏔️', util:-9,  pts:18,  color:'#34d399' },
+    { label:'Credit Mix Fixed',  icon:'🧩', util:-6,  pts:16,  color:'#34d399' },
+    { label:'Dispute Won',       icon:'📝', util:-8,  pts:17,  color:'#34d399' },
+  ];
+  const BAD_L3 = [
+    { label:'Maxed 2 Cards',      icon:'💥', util:+24, pts:-20, color:'#ef4444' },
+    { label:'Payday Loan Trap',   icon:'💀', util:+22, pts:-22, color:'#ef4444' },
+    { label:'Cosigned Default',   icon:'🫥', util:+18, pts:-18, color:'#ef4444' },
+    { label:'Emergency No Fund',  icon:'🚨', util:+15, pts:-16, color:'#ef4444' },
+    { label:'Fraud Charge',       icon:'🎣', util:+20, pts:-19, color:'#ef4444' },
+  ];
+  const POOLS = [
+    { good: GOOD_L1, bad: BAD_L1 },
+    { good: GOOD_L2, bad: BAD_L2 },
+    { good: GOOD_L3, bad: BAD_L3 },
   ];
 
   /* ─── HELPERS ─────────────────────────────────────────────── */
@@ -27,14 +72,17 @@
   function rnd(lo,hi){ return lo+Math.random()*(hi-lo); }
 
   /* ─── RESET ───────────────────────────────────────────────── */
-  function reset(){
+  function reset(level){
+    const L = LEVELS[(level||curLevel)-1] || LEVELS[0];
     G = {
       phase:    'play',
-      util:     30,          // credit utilization %, starts at 30
+      level:    L.n,
+      cfg:      L,
+      util:     L.startUtil,  // credit utilization %, level-scoped starting point
       score:    0,
       combo:    0,           // consecutive good catches
       comboMult:1,
-      time:     90,
+      time:     L.time,
       items:    [],
       floats:   [],          // floating score labels
       particles:[],
@@ -50,13 +98,14 @@
   /* ─── SCREEN ──────────────────────────────────────────────── */
   window.SCREENS.game_creditlimitlab = function(){
     G = null;
+    curLevel = 1;   // fresh hub entry always starts the campaign at Level 1
     setTimeout(cllBoot, 40);
     return `<div id="cllWrap" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none">
 
       <!-- TOP BAR -->
       <div id="cllBar" style="position:absolute;top:0;left:0;right:0;z-index:5;padding:10px 14px;display:flex;align-items:center;gap:10px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent)">
         <button onclick="cllExit()" style="padding:6px 13px;border:1px solid rgba(56,189,248,.35);border-radius:8px;background:rgba(56,189,248,.08);color:#38bdf8;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;cursor:pointer;flex-shrink:0">← HUB</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.2em;color:#06b6d4;flex:1;text-align:center;text-shadow:0 0 18px rgba(6,182,212,.6)">CREDIT LIMIT LAB</div>
+        <div id="cllTitle" style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.2em;color:#06b6d4;flex:1;text-align:center;text-shadow:0 0 18px rgba(6,182,212,.6)">CREDIT LIMIT LAB · LV 1/3</div>
         <div id="cllScore" style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:#fbbf24;min-width:60px;text-align:right;font-variant-numeric:tabular-nums">0</div>
         <div id="cllTime" style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:#e2e8f0;min-width:36px;text-align:right;font-variant-numeric:tabular-nums">90s</div>
       </div>
@@ -111,6 +160,8 @@
     const cv = document.getElementById('cllCanvas');
     if(!cv) return;
     reset();
+    const titleEl = document.getElementById('cllTitle');
+    if(titleEl) titleEl.textContent = `CREDIT LIMIT LAB · LV ${curLevel}/3`;
     const ctx = cv.getContext('2d');
 
     function resize(){
@@ -184,9 +235,9 @@
     if(G.keyR) G.basketX += dt * speed;
     G.basketX = clamp(G.basketX, 0.05, 0.95);
 
-    // Spawn items — ramp speed and rate over 90s
-    const prog = clamp(1 - G.time/90, 0, 1);
-    const spawnRate = 1.2 + prog * 1.8; // 1.2→3.0 per second
+    // Spawn items — ramp speed and rate over the level's session length
+    const prog = clamp(1 - G.time/G.cfg.time, 0, 1);
+    const spawnRate = G.cfg.spawnStart + prog * (G.cfg.spawnEnd - G.cfg.spawnStart);
     G.spawnAcc += dt * spawnRate;
     while(G.spawnAcc >= 1){ G.spawnAcc -= 1; spawnItem(prog); }
 
@@ -250,7 +301,8 @@
   /* ─── SPAWN ───────────────────────────────────────────────── */
   function spawnItem(prog){
     const isGood = Math.random() < 0.52; // slightly more good than bad
-    const pool = isGood ? GOOD_ITEMS : BAD_ITEMS;
+    const levelPool = POOLS[G.level - 1] || POOLS[0];
+    const pool = isGood ? levelPool.good : levelPool.bad;
     const def = pool[Math.floor(Math.random() * pool.length)];
     const x = rnd(0.07, 0.93);
     G.items.push({
@@ -534,20 +586,21 @@
     G.phase = 'over';
     cancelAnimationFrame(raf);
 
-    // Stars
+    // Stars — level-scoped thresholds (each level needs a bigger score for the same star)
     let stars;
-    if(G.score >= 900) stars = 3;
-    else if(G.score >= 600) stars = 2;
+    if(G.score >= G.cfg.star3) stars = 3;
+    else if(G.score >= G.cfg.star2) stars = 2;
     else stars = 1;
 
-    // Bonus for finishing with util < 30%
+    // Bonus for finishing with util < 30% (the real FICO "healthy" line — stays fixed
+    // even as levels 2/3 start further above it, which is what makes them harder)
     let bonus = 0;
     const bonusWon = G.util < 30 && G.time <= 0;
     if(bonusWon){ bonus = 200; G.score += bonus; }
 
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_creditlimitlab', { level: 1, stars, is3star, isPerfect: is3star && bonusWon, badge: 'Credit Limit Lab Master' })
+      ? cvAwardGame('game_creditlimitlab', { level: G.level, stars, is3star, isPerfect: is3star && bonusWon, badge: 'Credit Limit Lab Master' })
       : (stars===3?150:stars===2?100:50);
     if (stars >= 1 && window.cvHubMeter) cvHubMeter('credtech_trust', stars*4);
     if (stars < 1 && window.cvSave) cvSave();
@@ -560,11 +613,18 @@
 
     const earlyCrash = G.util >= 100;
 
+    const showNext = stars >= 1 && curLevel < 3 && !earlyCrash;
+    const headline = earlyCrash
+      ? 'OOPS — credit maxed out at 100% util'
+      : (stars >= 1
+          ? (curLevel >= 3 ? '👑 MISSION ACCOMPLISHED — ALL 3 LEVELS!' : `MISSION ACCOMPLISHED · LV ${curLevel}`)
+          : 'NICE TRY! Power up and try again');
+
     const ov = document.getElementById('cllOver');
     if(!ov) return;
     ov.style.display = 'flex';
     ov.innerHTML = `
-      <div style="font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.22em;color:#38bdf8;opacity:.8;margin-bottom:-6px">${earlyCrash ? 'CREDIT MAXED OUT!' : 'ROUND COMPLETE'}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.22em;color:#38bdf8;opacity:.8;margin-bottom:-6px">${headline}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:900;letter-spacing:.06em;background:linear-gradient(135deg,#06b6d4,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0">
         ${G.score}<span style="font-size:.6rem;opacity:.6"> PTS</span>
       </div>
@@ -595,20 +655,27 @@
         <div style="font-size:.78rem;color:rgba(255,255,255,.85)">Keep credit utilization <strong style="color:#34d399">below 30%</strong> — it accounts for <strong style="color:#fbbf24">30% of your FICO score</strong>. Paying balances down before your statement closes helps the most.</div>
       </div>
 
+      ${showNext ? `<button onclick="cllNextLevel()" style="width:100%;max-width:290px;padding:13px;border:none;border-radius:10px;background:linear-gradient(90deg,#34d399,#10b981);color:#052e16;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.12em;font-weight:900;cursor:pointer;box-shadow:0 4px 20px rgba(52,211,153,.35)">LEVEL ${curLevel+1} ▶ ${LEVELS[curLevel].name}</button>` : ''}
       <div style="display:flex;gap:12px;margin-top:4px">
-        <button onclick="cllReplay()" style="padding:12px 24px;background:linear-gradient(135deg,#0891b2,#06b6d4);border:none;border-radius:10px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.15em;cursor:pointer;box-shadow:0 4px 20px rgba(6,182,212,.4)">PLAY AGAIN</button>
+        <button onclick="cllReplay()" style="padding:12px 24px;background:linear-gradient(135deg,#0891b2,#06b6d4);border:none;border-radius:10px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.15em;cursor:pointer;box-shadow:0 4px 20px rgba(6,182,212,.4)">${showNext ? 'REPLAY LV '+curLevel : 'PLAY AGAIN'}</button>
         <button onclick="cllExit()" style="padding:12px 24px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:10px;color:#e2e8f0;font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.15em;cursor:pointer">← HUB</button>
       </div>`;
   }
 
-  /* ─── REPLAY / EXIT ───────────────────────────────────────── */
+  /* ─── REPLAY / NEXT LEVEL / EXIT ─────────────────────────── */
   window.cllReplay = function(){
     if(G && G._cleanup) G._cleanup();
     const ov = document.getElementById('cllOver');
     if(ov) ov.style.display = 'none';
     cancelAnimationFrame(raf);
     G = null;
-    setTimeout(cllBoot, 40);
+    setTimeout(cllBoot, 40);   // reset(no-arg) inside cllBoot re-uses curLevel
+  };
+
+  window.cllNextLevel = function(){
+    if(curLevel >= 3) return;
+    curLevel++;
+    window.cllReplay();       // rebuild via cllBoot, which now reads the bumped curLevel
   };
 
   window.cllExit = function(){
@@ -620,6 +687,11 @@
   };
 
   /* ─── INIT HOOK (for playDistrictGame) ───────────────────── */
-  window.cllInit = function(){ G = null; };
+  window.cllInit = function(){ G = null; curLevel = 1; };
+
+  /* ─── QA debug hook ───────────────────────────────────────── */
+  window._cllDbg = function(){ return G ? { curLevel, level: G.level, util: G.util, score: G.score, time: G.time } : { curLevel, G: null }; };
+  window._cllForceLevel = function(n){ curLevel = Math.max(1, Math.min(3, n)); window.cllReplay(); };
+  window._cllForceWin = function(){ if(!G) return; G.score = G.cfg.star3 + 1; G.util = 10; G.time = 0; endGame(); };
 
 })();

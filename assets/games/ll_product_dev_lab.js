@@ -2,9 +2,13 @@
    PRODUCT DEVELOPMENT LAB — Launch Lab · Risk Taker Hub
    Puzzle + Upgrade: allocate budget & dev time across upgrades
    to maximise Customer Satisfaction before launch.
-   Level 1 (Learn) : single product, generous budget, 40 s timer.
-   Level 2 (Master): 3 products in sequence, random bugs, customer
-                     feedback cards demanding specific features.
+   Level 1 (Learn)  : single product, generous budget, 40 s timer.
+   Level 2 (Master) : 3 products in sequence, random bugs, customer
+                      feedback cards demanding specific features.
+   Level 3 (Founder): 5 products in sequence, tighter budget & timer,
+                      higher bug/feedback rates + exclusive tougher
+                      bug & feedback content. Only Level 3 completion
+                      triggers the final scored result screen.
    Screen ID : game_ll_product_dev_lab
    Hub       : risktaker (#7C3AED)
    Exit fn   : window.ll_product_dev_labExit
@@ -132,9 +136,23 @@
       color: GREEN,
       baseSat: 28,
     },
+    {
+      name: 'NestHub Home',
+      icon: '🏠',
+      desc: 'A smart home control hub',
+      color: GOLD,
+      baseSat: 24,
+    },
+    {
+      name: 'PulseBand Fit',
+      icon: '⌚',
+      desc: 'A wearable health tracker',
+      color: RED,
+      baseSat: 22,
+    },
   ];
 
-  /* ── bug types (Level 2) ────────────────────────────────────── */
+  /* ── bug types (Level 2+) ───────────────────────────────────── */
   const BUG_TYPES = [
     { label: 'Memory Leak', icon: '💾', cost: 50, time: 3, satPenalty: 8 },
     { label: 'UI Glitch',   icon: '🖥️', cost: 40, time: 2, satPenalty: 6 },
@@ -142,7 +160,13 @@
     { label: 'Data Corruption', icon: '⚠️', cost: 70, time: 4, satPenalty: 12 },
   ];
 
-  /* ── customer feedback cards (Level 2) ─────────────────────── */
+  /* ── bug types exclusive to Level 3 (tougher, bigger penalties) ─ */
+  const BUG_TYPES_L3 = [
+    { label: 'Security Breach', icon: '🔓', cost: 110, time: 6, satPenalty: 18 },
+    { label: 'Server Outage',   icon: '📡', cost: 95,  time: 5, satPenalty: 16 },
+  ];
+
+  /* ── customer feedback cards (Level 2+) ────────────────────── */
   const FEEDBACK_CARDS = [
     { demand: 'features',    text: '"I need more features NOW!"',  icon: '😤', bonusSat: 8 },
     { demand: 'design',      text: '"The design looks outdated."', icon: '😒', bonusSat: 6 },
@@ -150,6 +174,12 @@
     { demand: 'quality',     text: '"Quality is not up to mark."', icon: '😠', bonusSat: 8 },
     { demand: 'speed',       text: '"It\'s way too slow!"',         icon: '🐌', bonusSat: 7 },
     { demand: 'durability',  text: '"This will break in a week."', icon: '😬', bonusSat: 7 },
+  ];
+
+  /* ── customer feedback cards exclusive to Level 3 ───────────── */
+  const FEEDBACK_CARDS_L3 = [
+    { demand: 'features',    text: '"Your competitor has way more features!"', icon: '📊', bonusSat: 10 },
+    { demand: 'testing',     text: '"Did you even test this thing?!"',         icon: '🧐', bonusSat: 9 },
   ];
 
   /* ── level configs ──────────────────────────────────────────── */
@@ -171,6 +201,16 @@
     bugChance:     0.4,     // roll per product
     feedbackChance:0.6,
     launchThreshold: 55,
+  };
+
+  const L3_CONFIG = {
+    budget:        520,     // per product — slightly tighter than L2, pressure comes mainly from time/bugs/feedback
+    timeLimit:     28,      // per product — noticeably tighter than L2's 35s
+    productCount:  5,       // more products in sequence than L2's 3
+    upgrades:      ['quality','design','bugfix','features','durability','marketing','testing','speed'],
+    bugChance:     0.6,     // roll per product — higher than L2's 0.4
+    feedbackChance:0.75,    // higher than L2's 0.6
+    launchThreshold: 62,    // higher than L2's 55
   };
 
   /* ── scoring thresholds ─────────────────────────────────────── */
@@ -344,6 +384,11 @@
       PRODUCT DEV LAB
     </div>
 
+    <button onclick="window.pdlShowHelp()" title="How to play" style="
+      padding:5px 9px;border:1px solid ${ACCENT}55;border-radius:8px;
+      background:rgba(124,58,237,.1);color:${AC3};cursor:pointer;flex-shrink:0;font-size:.72rem;
+    ">❓</button>
+
     <div style="display:flex;gap:10px;align-items:center;flex-shrink:0">
       <div style="text-align:right">
         <div style="font-family:Orbitron,sans-serif;font-size:.38rem;color:#555;letter-spacing:.1em">PRODUCT</div>
@@ -487,6 +532,13 @@
     background:rgba(124,58,237,.12);opacity:0;transition:opacity .15s;
   "></div>
 
+  <!-- HOW-TO-PLAY OVERLAY (first-time intro + ❓ re-open) -->
+  <div id="pdl_help" style="
+    position:absolute;inset:0;z-index:95;display:none;
+    align-items:center;justify-content:center;
+    background:rgba(3,4,12,.94);backdrop-filter:blur(6px);padding:16px;
+  "></div>
+
 </div>`;
   }
 
@@ -541,7 +593,65 @@
     renderUpgrades();
     updateHUD();
     startTimer();
+
+    /* first-time how-to-play, shown right as gameplay begins — pauses the
+       just-started timer/interval so no dev time drains while reading */
+    showHowToPlay();
   }
+
+  /* ══════════════════════════════════════════════════════════════
+     HOW-TO-PLAY — shown once automatically on first launch, and
+     re-openable anytime via the ❓ button without losing progress.
+     Pause trick: this game's clock is a setInterval that decrements
+     G.timeLeft by exactly 1 once per fired tick (not a timestamp
+     delta), so pausing is simply clearInterval() (no more ticks fire,
+     so timeLeft cannot drain) and resuming is simply calling
+     startTimer() again (installs a fresh interval; the next tick is
+     always ~1s after resume, never counting the paused gap). Bug and
+     feedback spawn timers are setTimeout-based and are likewise
+     cleared on pause and freshly rescheduled via scheduleEvents() on
+     resume, so no bug/feedback can silently fire while help is open.
+  ══════════════════════════════════════════════════════════════ */
+  function showHowToPlay () {
+    const overlay = document.getElementById('pdl_help');
+    if (!overlay) return;
+    const wasPlaying = G && G.phase === 'playing';
+    if (wasPlaying) {
+      G.phase = 'paused';
+      clearInterval(G._timerInterval);
+      clearTimeout(G._bugTimer);
+      clearTimeout(G._feedTimer);
+    }
+    overlay.style.display = 'flex';
+    overlay.innerHTML = `
+      <div style="max-width:380px;width:94%;padding:26px 22px;background:rgba(20,8,45,.97);border:1.5px solid ${ACCENT}88;border-radius:18px;text-align:center;box-shadow:0 0 50px ${ACCENT}33;max-height:90vh;overflow-y:auto">
+        <div style="font-family:Orbitron,sans-serif;font-size:.56rem;letter-spacing:.2em;color:${AC2};margin-bottom:8px">HOW TO PLAY</div>
+        <div style="font-size:2rem;margin-bottom:6px">🏭</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:.95rem;margin-bottom:14px">PRODUCT DEV LAB</div>
+        <ul style="text-align:left;font-size:.74rem;color:rgba(255,255,255,.82);line-height:1.6;margin:0 0 18px;padding-left:18px">
+          <li style="margin-bottom:8px"><b style="color:${AC2}">Goal:</b> get your product's Customer Satisfaction high enough to launch before the budget or dev time runs out.</li>
+          <li style="margin-bottom:8px"><b style="color:${AC2}">How to play:</b> tap an upgrade card to apply it — each one costs budget and dev time but raises satisfaction.</li>
+          <li style="margin-bottom:8px"><b style="color:${AC2}">Watch out:</b> from Level 2 on, bugs 🐛 pop up and drain satisfaction until fixed, and customer feedback cards ask for a specific upgrade — meet the demand for a bonus.</li>
+          <li><b style="color:${AC2}">Scoring:</b> higher average satisfaction across every product, spent efficiently, earns more stars when you launch.</li>
+        </ul>
+        <button onclick="window.pdlCloseHelp()" style="padding:12px 30px;border:none;border-radius:11px;background:linear-gradient(90deg,${ACCENT},${AC2});color:#fff;font-family:Orbitron,sans-serif;font-size:.66rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${wasPlaying ? '▶ RESUME' : 'GOT IT — START ▶'}</button>
+      </div>`;
+  }
+
+  window.pdlShowHelp = function () {
+    if (!G || G.phase === 'result') return;
+    showHowToPlay();
+  };
+
+  window.pdlCloseHelp = function () {
+    const overlay = document.getElementById('pdl_help');
+    if (overlay) overlay.style.display = 'none';
+    if (G && G.phase === 'paused') {
+      G.phase = 'playing';
+      startTimer();       // fresh interval — next tick always ~1s out, no paused-time debt
+      scheduleEvents();    // fresh bug/feedback rolls, unaffected by how long help was open
+    }
+  };
 
   /* ── canvas ambient ─────────────────────────────────────────── */
   function injectCanvas() {
@@ -764,7 +874,9 @@
   /* ── bug mechanics ──────────────────────────────────────────── */
   function spawnBug() {
     if (!G || G.phase !== 'playing') return;
-    const bug = BUG_TYPES[Math.floor(Math.random() * BUG_TYPES.length)];
+    // Level 3 mixes in a tougher exclusive bug pool alongside the shared one.
+    const pool = G.config === L3_CONFIG ? BUG_TYPES.concat(BUG_TYPES_L3) : BUG_TYPES;
+    const bug = pool[Math.floor(Math.random() * pool.length)];
     const instance = { ...bug, id: Date.now() };
     G.bugs.push(instance);
     // apply sat penalty immediately
@@ -822,7 +934,9 @@
   /* ── customer feedback ──────────────────────────────────────── */
   function spawnFeedback() {
     if (!G || G.phase !== 'playing' || G.feedback) return;
-    const card = FEEDBACK_CARDS[Math.floor(Math.random() * FEEDBACK_CARDS.length)];
+    // Level 3 mixes in a tougher exclusive feedback pool alongside the shared one.
+    const pool = G.config === L3_CONFIG ? FEEDBACK_CARDS.concat(FEEDBACK_CARDS_L3) : FEEDBACK_CARDS;
+    const card = pool[Math.floor(Math.random() * pool.length)];
     G.feedback   = { ...card };
     G.feedbackMet = false;
     renderFeedback();
@@ -875,9 +989,13 @@
     alertsRow.style.display = hasContent ? 'block' : 'none';
   }
 
-  /* ── schedule Level 2 events ────────────────────────────────── */
-  function scheduleL2Events() {
-    if (!G || G.config !== L2_CONFIG) return;
+  /* ── schedule bug/feedback events (any config with bugChance/feedbackChance) ─ */
+  function scheduleEvents() {
+    // Generalized guard: fires for ANY config carrying positive bugChance or
+    // feedbackChance (currently L2_CONFIG and L3_CONFIG), not tied to one
+    // specific config object by reference identity. Configs with 0/undefined
+    // for both (e.g. L1_CONFIG) naturally no-op below without needing a bail-out.
+    if (!G || !G.config || !((G.config.bugChance > 0) || (G.config.feedbackChance > 0))) return;
 
     clearTimeout(G._bugTimer);
     clearTimeout(G._feedTimer);
@@ -886,7 +1004,7 @@
       G._bugTimer = setTimeout(() => {
         if (G && G.phase === 'playing') {
           spawnBug();
-          scheduleL2Events();
+          scheduleEvents();
         }
       }, 6000 + Math.random() * 8000);
     }
@@ -926,7 +1044,7 @@
     renderFeedback();
     updateHUD();
     startTimer();
-    scheduleL2Events();
+    scheduleEvents();
   }
 
   /* ── product complete flash ─────────────────────────────────── */
@@ -1017,7 +1135,7 @@
   }
 
   /* ─────────────────────────────────────────────────────────────
-     LEVEL 1 → 2 TRANSITION
+     LEVEL TRANSITIONS: 1 → 2 → 3 → final result
   ───────────────────────────────────────────────────────────── */
   /* ═══════════════════════════════════════════════════════════════
      LAUNCH — defined here after all helpers are available
@@ -1065,7 +1183,22 @@
       return;
     }
 
-    // Level 2: multi-product
+    // Level 2: multi-product → transition to Level 3 after the last product
+    if (G.config === L2_CONFIG) {
+      const total = G.config.productCount;
+      if (G.productIdx + 1 < total) {
+        showProductComplete(sat, () => {
+          G.productIdx++;
+          nextProduct();
+        });
+      } else {
+        showProductComplete(sat, () => showLevel2Complete());
+      }
+      return;
+    }
+
+    // Level 3 (or any future config): multi-product → final result only after
+    // the last product of THIS level. Only L3's completion reaches computeFinalResult().
     const total = G.config.productCount;
     if (G.productIdx + 1 < total) {
       showProductComplete(sat, () => {
@@ -1137,7 +1270,70 @@
     renderFeedback();
     updateHUD();
     startTimer();
-    scheduleL2Events();
+    scheduleEvents();
+  }
+
+  /* ── Level 2 complete banner ────────────────────────────────── */
+  function showLevel2Complete() {
+    const root = document.getElementById('pdl_root');
+    if (!root) return;
+
+    const ov = document.createElement('div');
+    ov.id = 'pdl_l2_ov';
+    ov.style.cssText = `
+      position:absolute;inset:0;z-index:88;
+      background:rgba(3,4,12,.93);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:14px;animation:pdl_result_in .4s ease both;text-align:center;padding:24px;
+    `;
+    ov.innerHTML = `
+      <div style="font-size:2.6rem">🚀</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:.95rem;color:${GREEN};letter-spacing:.22em;text-shadow:0 0 18px ${GREEN}88">
+        MISSION ACCOMPLISHED!
+      </div>
+      <div style="font-size:.72rem;color:#aaa;max-width:280px;line-height:1.7">
+        Three products shipped under pressure. Now it's <span style="color:${RED}">crunch time</span> — faster clocks, tighter cash, and customers who compare you to the competition. Build <span style="color:${AC2}">5 products</span> to prove you're a real founder.
+      </div>
+      <div style="font-family:Orbitron,sans-serif;font-size:.6rem;color:${ACCENT};letter-spacing:.14em;margin-top:4px">
+        LEVEL 3 LOADING…
+      </div>
+    `;
+    root.appendChild(ov);
+
+    setTimeout(() => {
+      ov.remove();
+      startLevel3();
+    }, 2800);
+  }
+
+  /* ── start level 3 ──────────────────────────────────────────── */
+  function startLevel3() {
+    if (!G) return;
+
+    const prod = PRODUCTS[0];
+
+    G.level          = 3;
+    G.config         = L3_CONFIG;
+    G.productIdx     = 0;
+    G.products       = [];
+    G.budget         = L3_CONFIG.budget;
+    G.startBudget    = L3_CONFIG.budget;
+    G.timeLeft       = L3_CONFIG.timeLimit;
+    G.maxTime        = L3_CONFIG.timeLimit;
+    G.satisfaction   = prod.baseSat;
+    G.appliedUpgrades = [];
+    G.bugs           = [];
+    G.feedback       = null;
+    G.feedbackMet    = false;
+    G.phase          = 'playing';
+
+    renderProduct();
+    renderUpgrades();
+    renderBugs();
+    renderFeedback();
+    updateHUD();
+    startTimer();
+    scheduleEvents();
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -1231,7 +1427,7 @@
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:12px 0 10px">
             ${statBox('AVG SAT', Math.round(avgSat) + '%', avgSat >= STAR3_SAT ? GREEN : avgSat >= STAR2_SAT ? AMBER : CYAN)}
             ${statBox('AVG EFF', effPct + '%', effPct >= 30 ? GREEN : effPct >= 15 ? AMBER : '#889')}
-            ${statBox('PRODUCTS', G ? G.level === 2 ? '3' : '1' : '1', AC2)}
+            ${statBox('PRODUCTS', String(prods.length), AC2)}
           </div>
 
           <!-- per-product breakdown -->
@@ -1298,7 +1494,7 @@
 
   /* ── play again ─────────────────────────────────────────────── */
   window.pdlPlayAgain = function () {
-    ['pdl_result_ov','pdl_l1_ov'].forEach(id => {
+    ['pdl_result_ov','pdl_l1_ov','pdl_l2_ov'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.remove();
     });
@@ -1320,5 +1516,44 @@
     if (G) G._toastTimer = setTimeout(() => { if (t) t.style.opacity = '0'; }, 2200);
     else setTimeout(() => { if (t) t.style.opacity = '0'; }, 2200);
   }
+
+  /* ── debug hooks (console-only, no UI) ──────────────────────── */
+  window._pdlDbg = () => G ? {
+    level:        G.level,
+    config:       G.config === L1_CONFIG ? 'L1' : G.config === L2_CONFIG ? 'L2' : G.config === L3_CONFIG ? 'L3' : 'unknown',
+    productIdx:   G.productIdx,
+    productCount: G.config ? G.config.productCount : null,
+    satisfaction: G.satisfaction,
+    budget:       G.budget,
+    timeLeft:     G.timeLeft,
+    phase:        G.phase,
+    productsDone: G.products.length,
+  } : null;
+
+  // Force the current product to max satisfaction and immediately launch it.
+  // Call repeatedly from the console to drive Level 1 -> 2 -> 3 -> endGame.
+  window._pdlForceWin = () => {
+    if (!G) return 'no game';
+    G.satisfaction = 100;
+    window.pdlLaunch(true);
+    return 'launched';
+  };
+
+  // Convenience: force-win N times in a row (handles the async banner delays
+  // between products/levels by polling for phase === 'playing' before each launch).
+  window._pdlForceWinN = (n) => {
+    n = n || 1;
+    let fired = 0;
+    const tick = () => {
+      if (!G || fired >= n) return;
+      if (G.phase === 'playing') {
+        fired++;
+        window._pdlForceWin();
+      }
+      setTimeout(tick, 150);
+    };
+    tick();
+    return `queued ${n} force-wins`;
+  };
 
 })();

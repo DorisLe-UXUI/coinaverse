@@ -2,6 +2,7 @@
    NEEDS VS. WANTS · BUDGETRON BASE — Swipe-sort mini-game
    Items stream in one by one. Sort into NEED or WANT column.
    Level 1 (10 items): Clear-cut. Level 2 (10 items): Gray-area + impulse distractors.
+   Level 3 (10 items): Debt-trap / opportunity-cost scenarios, faster timer, more impulse pressure.
    Screen ID : game_bud_needswants
    Hub       : strategist (#1a2a4a)
    ════════════════════════════════════════════════════════════════ */
@@ -13,9 +14,17 @@
   const PINK       = '#ff4dab';
   const GOLD       = '#ffd166';
   const ERROR_MAX  = 6;          // lose if wrong decisions > this
-  const TOTAL_ITEMS= 20;
-  const ITEM_TIMER = 8000;       // ms each item stays before timing out
+  const ITEMS_PER_LEVEL = 10;
+  const TOTAL_ITEMS= 30;
+  const ITEM_TIMER_BY_LEVEL = { 1: 8000, 2: 8000, 3: 5500 }; // ms each item stays before timing out (L3 = faster)
   const SPEED_BONUS_CUTOFF = 3000; // decisions under 3s earn speed bonus
+
+  /* level tier for a given deck index (0-based) */
+  function levelForIdx(idx) {
+    if (idx >= ITEMS_PER_LEVEL * 2) return 3;
+    if (idx >= ITEMS_PER_LEVEL) return 2;
+    return 1;
+  }
 
   /* ── item catalogues ─────────────────────────────────────────── */
   const LVL1 = [
@@ -87,12 +96,73 @@
     },
   ];
 
+  const LVL3 = [
+    // debt-trap / opportunity-cost / true-cost scenarios — harder than LVL2
+    {
+      e:'💳', t:'Buy-Now-Pay-Later Sneakers',
+      scenario:'The app splits the $180 sneakers into 4 payments. You already have 2 other BNPL plans running and rent is due Friday.',
+      correct:'want'
+    },
+    {
+      e:'🦷', t:'Dentist Visit',
+      scenario:'A cracked tooth is causing sharp pain when you eat. Waiting could turn it into a costlier root canal.',
+      correct:'need'
+    },
+    {
+      e:'🎰', t:'Loot Box Bundle',
+      scenario:'A limited-time bundle promises rare game items. The odds of getting anything valuable are under 5%.',
+      correct:'want'
+    },
+    {
+      e:'🧯', t:'Fire Extinguisher',
+      scenario:'Your apartment building requires one per unit for the fire inspection next week. You don\'t have one.',
+      correct:'need'
+    },
+    {
+      e:'📈', t:'Skip a Retirement Contribution',
+      scenario:'Your employer matches 401(k) contributions dollar-for-dollar. Skipping this month to buy concert tickets means losing free matched money forever.',
+      correct:'need'
+    },
+    {
+      e:'🏦', t:'High-Interest Payday Loan',
+      scenario:'You\'re short $200 for a bill. The payday loan charges 400% APR and is due in two weeks.',
+      correct:'want'
+    },
+    {
+      e:'👶', t:'Baby Formula',
+      scenario:'Your infant sibling needs formula and the current can runs out tomorrow morning.',
+      correct:'need'
+    },
+    {
+      e:'🎁', t:'Limited-Edition Sneaker Drop',
+      scenario:'A resale hype sneaker drops today. You\'d need to put it on a credit card you\'re still paying off from last month.',
+      correct:'want'
+    },
+    {
+      e:'🩺', t:'Prescription Refill',
+      scenario:'Your asthma inhaler prescription runs out in 2 days and you have no backup.',
+      correct:'need'
+    },
+    {
+      e:'🌴', t:'Impulse Weekend Trip',
+      scenario:'Friends invite you on a spontaneous trip this weekend. Flights alone would wipe out your entire emergency fund.',
+      correct:'want'
+    },
+  ];
+
   const IMPULSE_BANNERS = [
     '🔥 50% OFF TODAY ONLY!',
     '⚡ FLASH SALE — 2 HOURS LEFT!',
     '🎉 BUY NOW — DEAL EXPIRES SOON!',
     '💥 LIMITED STOCK — GRAB IT!',
     '🛒 ONLY 3 LEFT AT THIS PRICE!',
+  ];
+  const IMPULSE_BANNERS_L3 = [
+    '💳 SPLIT IT INTO 4 EASY PAYMENTS!',
+    '🎰 ONE-TIME LOOT DROP — DON\'T MISS OUT!',
+    '⏰ PRICE GOES UP IN 10 MINUTES!',
+    '🔓 UNLOCK VIP ACCESS NOW!',
+    '🚨 EVERYONE ELSE ALREADY BOUGHT THEIRS!',
   ];
 
   /* ── state ────────────────────────────────────────────────────── */
@@ -298,7 +368,8 @@
     // build item list: shuffle each level independently
     const lvl1 = shuffle([...LVL1]);
     const lvl2 = shuffle([...LVL2]);
-    const allItems = [...lvl1, ...lvl2];
+    const lvl3 = shuffle([...LVL3]);
+    const allItems = [...lvl1, ...lvl2, ...lvl3];
 
     G = {
       items: allItems,
@@ -401,7 +472,7 @@
         background:rgba(255,255,255,.12);
         border:1px solid rgba(255,255,255,.08);
         transition:all .3s;
-        ${i === 10 ? 'margin-left:8px;' : ''}
+        ${(i === ITEMS_PER_LEVEL || i === ITEMS_PER_LEVEL * 2) ? 'margin-left:8px;' : ''}
       "></div>`
     ).join('');
   }
@@ -487,23 +558,30 @@
     }
 
     const item = G.items[G.currentIdx];
-    const isLvl2 = G.currentIdx >= 10;
+    const currentLevel = levelForIdx(G.currentIdx);
+    const hasScenario = currentLevel >= 2; // L2 and L3 both show scenario context
 
-    // update level badge
-    if (isLvl2 && G.level === 1) {
-      G.level = 2;
+    // update level badge whenever the tier changes
+    if (currentLevel !== G.level) {
+      G.level = currentLevel;
       const badge = document.getElementById('nw_level_badge');
       if (badge) {
-        badge.textContent = 'LEVEL 2 · MASTER';
-        badge.style.borderColor = `rgba(255,209,102,.5)`;
-        badge.style.color = GOLD;
+        if (currentLevel === 2) {
+          badge.textContent = 'LEVEL 2 · MASTER';
+          badge.style.borderColor = `rgba(255,209,102,.5)`;
+          badge.style.color = GOLD;
+        } else if (currentLevel === 3) {
+          badge.textContent = 'LEVEL 3 · EXPERT';
+          badge.style.borderColor = `rgba(255,77,171,.5)`;
+          badge.style.color = PINK;
+        }
       }
     }
 
-    // show scenario card if lvl2
+    // show scenario card if lvl2 or lvl3
     const scEl = document.getElementById('nw_scenario');
     if (scEl) {
-      if (isLvl2 && item.scenario) {
+      if (hasScenario && item.scenario) {
         scEl.style.display = 'block';
         document.getElementById('nw_scenario_text').textContent = item.scenario;
         // push item area down
@@ -536,7 +614,7 @@
     card.innerHTML = `
       <div style="font-size:2.8rem;margin-bottom:10px;filter:drop-shadow(0 0 8px rgba(0,245,255,.4))">${item.e}</div>
       <div style="font-family:Orbitron,sans-serif;font-size:.85rem;letter-spacing:.1em;color:#eef4ff;margin-bottom:6px">${item.t}</div>
-      <div style="font-size:.6rem;color:rgba(0,245,255,.5);font-family:Orbitron,sans-serif;letter-spacing:.1em">${isLvl2 ? 'READ CONTEXT ↑' : 'NEED or WANT?'}</div>
+      <div style="font-size:.6rem;color:rgba(0,245,255,.5);font-family:Orbitron,sans-serif;letter-spacing:.1em">${hasScenario ? 'READ CONTEXT ↑' : 'NEED or WANT?'}</div>
       <div style="position:absolute;top:-1px;left:50%;transform:translateX(-50%);width:60%;height:2px;background:linear-gradient(90deg,transparent,${CYAN},transparent);border-radius:2px"></div>
     `;
 
@@ -554,6 +632,11 @@
     setupKeyboard();
   }
 
+  /* ── current item timer duration (scales with level) ────────────── */
+  function currentItemTimer() {
+    return ITEM_TIMER_BY_LEVEL[G ? G.level : 1] || ITEM_TIMER_BY_LEVEL[1];
+  }
+
   /* ── item timer ───────────────────────────────────────────────── */
   function startItemTimer() {
     clearTimeout(G.itemTimer);
@@ -561,7 +644,7 @@
       if (!G || G.phase !== 'playing') return;
       // timed out — count as error
       handleDecision(null, false, true);
-    }, ITEM_TIMER);
+    }, currentItemTimer());
   }
 
   /* ── speed bar ────────────────────────────────────────────────── */
@@ -571,7 +654,7 @@
     bar.style.transition = 'none';
     bar.style.width = '100%';
     requestAnimationFrame(() => {
-      bar.style.transition = `width ${ITEM_TIMER}ms linear`;
+      bar.style.transition = `width ${currentItemTimer()}ms linear`;
       bar.style.width = '0%';
     });
   }
@@ -671,6 +754,52 @@
     handleDecision(choice, correct, false);
   };
 
+  /* ── debug hook (dev/test only) ──────────────────────────────────
+     window._nwDbg()                    -> snapshot of current state
+     window._nwTest('jumpTo', 20)        -> force currentIdx to a given index and re-render
+     window._nwTest('autoWin', cb)       -> auto-answer every remaining item correctly (async;
+                                            advance is deliberately delayed ~380ms/item to match
+                                            real gameplay pacing, so pass a callback for the final state)
+  ── */
+  window._nwDbg = function () {
+    if (!G) return null;
+    return {
+      level: G.level,
+      currentIdx: G.currentIdx,
+      totalItems: TOTAL_ITEMS,
+      itemsPerLevel: ITEMS_PER_LEVEL,
+      currentItem: G.items[G.currentIdx] || null,
+      currentItemTimerMs: currentItemTimer(),
+      errors: G.errors,
+      score: G.score,
+      phase: G.phase,
+    };
+  };
+  window._nwTest = function (action, arg) {
+    if (!G) return null;
+    if (action === 'jumpTo') {
+      G.currentIdx = Math.max(0, Math.min(TOTAL_ITEMS - 1, arg));
+      showCurrentItem();
+      return window._nwDbg();
+    }
+    if (action === 'autoWin') {
+      const cb = arg;
+      const step = () => {
+        if (!G || G.phase !== 'playing' || G.currentIdx >= TOTAL_ITEMS) {
+          if (typeof cb === 'function') cb(window._nwDbg());
+          return;
+        }
+        const item = G.items[G.currentIdx];
+        clearTimeout(G.itemTimer);
+        handleDecision(item.correct, true, false);
+        setTimeout(step, 400); // wait out handleDecision's own 380ms advance delay
+      };
+      step();
+      return null; // async — use callback for result
+    }
+    return null;
+  };
+
   function handleDecision(choice, correct, timedOut) {
     if (!G) return;
 
@@ -684,7 +813,7 @@
       updateHealth(-10);
       updateDot(G.currentIdx, false);
     } else if (correct) {
-      const elapsed = G.decisionTimes[G.decisionTimes.length - 1] || ITEM_TIMER;
+      const elapsed = G.decisionTimes[G.decisionTimes.length - 1] || currentItemTimer();
       const speedBonus = elapsed < SPEED_BONUS_CUTOFF ? 20 : 0;
       const streakBonus = Math.min(G.streak * 5, 50);
       const pts = 50 + speedBonus + streakBonus;
@@ -793,10 +922,13 @@
   /* ── impulse banner ───────────────────────────────────────────── */
   function scheduleImpulse() {
     if (!G || G.phase !== 'playing') return;
-    // only in level 2 (currentIdx >= 10) + some random chance in lvl1
-    const delay = G.currentIdx >= 10
-      ? 4000 + Math.random() * 6000
-      : 8000 + Math.random() * 10000;
+    // impulse pressure escalates each level: L1 slow/rare, L2 faster, L3 fastest+most frequent
+    const tier = levelForIdx(G.currentIdx);
+    const delay = tier === 3
+      ? 2500 + Math.random() * 4000
+      : tier === 2
+        ? 4000 + Math.random() * 6000
+        : 8000 + Math.random() * 10000;
 
     G.impulseTimer = setTimeout(() => {
       if (!G || G.phase !== 'playing') return;
@@ -809,7 +941,9 @@
     const root = document.getElementById('nw_root');
     if (!root) return;
 
-    const txt = IMPULSE_BANNERS[Math.floor(Math.random() * IMPULSE_BANNERS.length)];
+    const tier = levelForIdx(G.currentIdx);
+    const pool = tier === 3 ? IMPULSE_BANNERS_L3 : IMPULSE_BANNERS;
+    const txt = pool[Math.floor(Math.random() * pool.length)];
     const banner = document.createElement('div');
     banner.id = 'nw_impulse';
     banner.style.cssText = `
@@ -832,11 +966,13 @@
     `;
     banner.onclick = () => {
       if (!G) return;
+      const penalty = tier === 3 ? 45 : 30;
+      const healthHit = tier === 3 ? -22 : -15;
       G.impulseClicks++;
-      G.score = Math.max(0, G.score - 30);
-      updateHealth(-15);
+      G.score = Math.max(0, G.score - penalty);
+      updateHealth(healthHit);
       shakeScreen();
-      showToast('💸 IMPULSE BUY! −30', '#ff9800');
+      showToast(`💸 IMPULSE BUY! −${penalty}`, '#ff9800');
       updateHUD();
       banner.remove();
       scheduleImpulse();
@@ -879,7 +1015,7 @@
     const accuracy = G.sorted > 0 ? ((G.sorted - G.errors) / G.sorted) : 0;
     const avgTime = G.decisionTimes.length
       ? G.decisionTimes.reduce((a, b) => a + b, 0) / G.decisionTimes.length
-      : ITEM_TIMER;
+      : ITEM_TIMER_BY_LEVEL[1];
     const zeroImpulse = G.impulseClicks === 0;
 
     let stars;
@@ -900,7 +1036,7 @@
   function endGame(stars, won, accuracy, avgTime) {
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_bud_needswants', { level: 1, stars, badge: 'Smart Shopper', is3star, isPerfect: is3star })
+      ? cvAwardGame('game_bud_needswants', { level: (G ? G.level : 1), stars, badge: 'Smart Shopper', is3star, isPerfect: is3star })
       : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
     if (stars < 1 && window.cvSave) cvSave();
 

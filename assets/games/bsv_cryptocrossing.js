@@ -36,6 +36,21 @@
     { id: 'fakeeth2', label: 'FAKE TOKEN',  symbol: 'Σ',  color: '#7c3aed', glow: '#ef4444', pts: 0, walletHP: -20, scam: true },
   ];
 
+  /* Level 3 exclusive scams — disjoint from L1/L2, sharper look-alikes + higher stakes.
+     Real financial-literacy concepts: fake airdrops, pump-and-dump baiting, impersonation,
+     clone wallet apps, and fake "giveaway" bots — all genuine crypto scam categories. */
+  const BAD_ITEMS_L3 = [
+    { id: 'airdrop',   label: 'FAKE AIRDROP',   symbol: '🎁', color: '#9333ea', glow: '#ff0040', pts: 0, walletHP: -30, scam: true },
+    { id: 'pumpdump',  label: 'PUMP & DUMP',    symbol: '📈', color: '#b45309', glow: '#ff3366', pts: 0, walletHP: -35, scam: true },
+    { id: 'imposter',  label: 'IMPOSTER SUPPORT', symbol: '🎭', color: '#4b5563', glow: '#ff0040', pts: 0, walletHP: -30, scam: true },
+    { id: 'giveaway',  label: 'GIVEAWAY BOT',   symbol: '🤖', color: '#dc2626', glow: '#ff3366', pts: 0, walletHP: -35, scam: true },
+  ];
+  const FAKE_COINS_L3 = [
+    { id: 'clonewlt',  label: 'CLONE WALLET APP', symbol: '📱', color: '#0e7490', glow: '#ef4444', pts: 0, walletHP: -30, scam: true },
+    { id: 'ghostkey',  label: 'GHOST KEY',      symbol: '🔓', color: '#334155', glow: '#ef4444', pts: 0, walletHP: -35, scam: true },
+    { id: 'fakensrf',  label: 'KNOCKOFF NFT',   symbol: 'Ξ̶',  color: '#a21caf', glow: '#ef4444', pts: 0, walletHP: -25, scam: true },
+  ];
+
   const LEVEL_CFG = [
     {
       name: 'LEARN MODE',      level: 1,   dur: 60,
@@ -43,6 +58,7 @@
       goodChance: 0.78, badChance: 0.22,
       spawnInterval: 1.3, speedBase: 200, speedRamp: 0,
       bridges: false, slowZones: false, fakeLook: false,
+      badPool: BAD_ITEMS, fakePool: FAKE_COINS,
     },
     {
       name: 'MASTER MODE',     level: 2,   dur: 90,
@@ -50,6 +66,15 @@
       goodChance: 0.55, badChance: 0.45,
       spawnInterval: 0.85, speedBase: 280, speedRamp: 8,
       bridges: true, slowZones: true, fakeLook: true,
+      badPool: BAD_ITEMS, fakePool: FAKE_COINS,
+    },
+    {
+      name: 'PRO MODE',        level: 3,   dur: 110,
+      scoreGoal1: 3000, scoreGoal2: 1600,
+      goodChance: 0.42, badChance: 0.58,
+      spawnInterval: 0.62, speedBase: 350, speedRamp: 14,
+      bridges: true, slowZones: true, fakeLook: true,
+      badPool: BAD_ITEMS_L3, fakePool: FAKE_COINS_L3,
     },
   ];
 
@@ -157,6 +182,7 @@
         <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center">
           <button class="ccLvBtn" data-lv="0" style="padding:14px 22px;border:1px solid #00FFFF;border-radius:10px;background:rgba(0,255,255,.1);color:#00FFFF;font-size:.65rem;letter-spacing:.12em;cursor:pointer;font-weight:700">⚡ LEVEL 1<br><span style="font-size:.5rem;color:rgba(255,255,255,.5);font-weight:400">LEARN MODE</span></button>
           <button class="ccLvBtn" data-lv="1" style="padding:14px 22px;border:1px solid #FFD700;border-radius:10px;background:rgba(255,215,0,.08);color:#FFD700;font-size:.65rem;letter-spacing:.12em;cursor:pointer;font-weight:700">🔥 LEVEL 2<br><span style="font-size:.5rem;color:rgba(255,255,255,.5);font-weight:400">MASTER MODE</span></button>
+          <button class="ccLvBtn" data-lv="2" style="padding:14px 22px;border:1px solid #ff4d9d;border-radius:10px;background:rgba(255,77,157,.08);color:#ff4d9d;font-size:.65rem;letter-spacing:.12em;cursor:pointer;font-weight:700">👑 LEVEL 3<br><span style="font-size:.5rem;color:rgba(255,255,255,.5);font-weight:400">PRO MODE</span></button>
         </div>
         <div style="font-size:.42rem;color:rgba(255,255,255,.3);letter-spacing:.1em;text-align:center;line-height:1.8">SWIPE UP → JUMP &nbsp;|&nbsp; SWIPE DOWN → SLIDE &nbsp;|&nbsp; SWIPE LEFT/RIGHT → CHANGE LANE<br>ARROW KEYS + SPACE also work</div>
       </div>
@@ -435,9 +461,9 @@
       item = pick(GOOD_ITEMS);
     } else {
       if (cfg.fakeLook && Math.random() < 0.4) {
-        item = pick(FAKE_COINS);
+        item = pick(cfg.fakePool || FAKE_COINS);
       } else {
-        item = pick(BAD_ITEMS);
+        item = pick(cfg.badPool || BAD_ITEMS);
       }
     }
     const lane = randInt(0, 2);
@@ -964,7 +990,7 @@
     const integrityDelta = perfectScam ? 8 : Math.max(0, 5 - G.scamsHit);
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_bsv_cryptocrossing', { level: 1, is3star, isPerfect: is3star })
+      ? cvAwardGame('game_bsv_cryptocrossing', { level: cfg.level, is3star, isPerfect: is3star })
       : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
     if (stars < 1 && window.cvSave) cvSave();
 
@@ -1022,6 +1048,21 @@
     G = null;
     if (window.state) state.viewingWorld = 'builder';
     if (window.goTo) goTo('hub');
+  };
+
+  /* ── DEBUG HOOK (dev/QA only) ───────────────────────────────── */
+  window._ccDbg = () => G ? {
+    lvIdx: G.lvIdx, level: G.cfg.level, name: G.cfg.name,
+    score: G.score, walletHP: G.walletHP, timeLeft: G.timeLeft,
+    scoreGoal1: G.cfg.scoreGoal1, scoreGoal2: G.cfg.scoreGoal2,
+    badPoolIds: (G.cfg.badPool || []).map(i => i.id),
+    fakePoolIds: (G.cfg.fakePool || []).map(i => i.id),
+  } : null;
+  window._ccForceWin = (targetScore) => {
+    if (!G) return 'no active game — call startLevel(0|1|2) first';
+    G.score = targetScore != null ? targetScore : G.cfg.scoreGoal1;
+    G.timeLeft = 0;
+    return 'forced score=' + G.score + ', next frame will trigger endRound()';
   };
 
 })();

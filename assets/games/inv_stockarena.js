@@ -3,6 +3,7 @@
    Futuristic holographic trading arena. Buy / Sell / Time the market.
    Level 1: Learn (slow, clear trends, Market Boosts)
    Level 2: Master (breaking news, crashes, bull runs, AI rival)
+   Level 3: Pro (fastest ticks, volatile stocks, frequent news, sharp AI rival)
    Win by finishing with the highest portfolio value before session ends.
    ════════════════════════════════════════════════════════════════ */
 (function () {
@@ -18,6 +19,7 @@
   const START_CASH   = 2000;
   const TICK_MS_L1   = 2200;   // slower for learn
   const TICK_MS_L2   = 1400;   // faster for master
+  const TICK_MS_L3   = 950;    // fastest for pro
   const SESSION_TIME = 90;     // seconds
   const BOOST_SPAWN_INT = 18;  // seconds between Market Boost spawns
   const PRICE_MIN    = 1;
@@ -38,8 +40,23 @@
     { ticker:'CBNK', name:'Coincept BankChain',    icon:'🏦', vol:0.08, base:62, trend:0.015 },
     { ticker:'CVEX', name:'Coin Vex Commodities',  icon:'⛏️',  vol:0.10, base:22, trend:0.005 },
   ];
+  // Level 3 — Pro: 8 disjoint stocks, higher volatility across the board,
+  // no gentle laggards — every ticker moves fast enough to punish inattention.
+  const STOCKS_L3 = [
+    { ticker:'CVQT', name:'Coinaverse Quantum',    icon:'🧬', vol:0.12, base:48, trend:0.03  },
+    { ticker:'CSPX', name:'Coincept SpaceX-ing',   icon:'🚀', vol:0.14, base:33, trend:0.022 },
+    { ticker:'CBIO', name:'CoinBio Labs',          icon:'🧪', vol:0.11, base:58, trend:0.018 },
+    { ticker:'CFIN', name:'Coin Financial Grid',   icon:'💳', vol:0.13, base:70, trend:0.01  },
+    { ticker:'CMET', name:'Coin Metaverse Co',     icon:'🕶️', vol:0.15, base:26, trend:-0.012 },
+    { ticker:'CGLD', name:'Coingold Reserve',      icon:'🪙', vol:0.09, base:44, trend:0.007 },
+    { ticker:'CSHP', name:'Coinship Logistics',    icon:'🚢', vol:0.12, base:31, trend:-0.015 },
+    { ticker:'CNRG', name:'Coin Nuclear Energy',   icon:'☢️', vol:0.16, base:52, trend:0.02  },
+  ];
 
-  /* ─── NEWS EVENTS (level 2 only) ────────────────────────────── */
+  /* ─── NEWS EVENTS ──────────────────────────────────────────────
+     Level 2 uses NEWS (tickers from STOCKS_L2).
+     Level 3 uses NEWS_L3 (tickers from STOCKS_L3), fires more often
+     and swings harder — see LEVEL_META.newsIntervalMs/newsBiasMult. */
   const NEWS = [
     { text:'📈 BULL RUN: AI sector surging!',       ticker:'CVAI', bias:+18, dur:3 },
     { text:'📉 CRASH: Energy selloff begins!',       ticker:'CGRN', bias:-22, dur:4 },
@@ -55,8 +72,51 @@
     { text:'📊 Earnings beat expectations!',        ticker:'CBNK', bias:+16, dur:3 },
   ];
 
+  const NEWS_L3 = [
+    { text:'🧬 BREAKTHROUGH: Quantum chip unveiled!',  ticker:'CVQT', bias:+28, dur:3 },
+    { text:'📉 CRASH: Space launch failure!',          ticker:'CSPX', bias:-26, dur:4 },
+    { text:'🧪 Biotech trial fails phase 2 ⚠️',        ticker:'CBIO', bias:-24, dur:4 },
+    { text:'💳 Financial Grid lands mega-bank deal!',  ticker:'CFIN', bias:+22, dur:3 },
+    { text:'🕶️ Metaverse hype fading fast 📉',          ticker:'CMET', bias:-20, dur:4 },
+    { text:'🪙 Gold Reserve hits record demand!',      ticker:'CGLD', bias:+19, dur:3 },
+    { text:'🚢 Shipping delays hit Coinship hard',     ticker:'CSHP', bias:-18, dur:3 },
+    { text:'☢️ Nuclear Energy wins government grant!', ticker:'CNRG', bias:+30, dur:3 },
+    { text:'💥 GLOBAL SELLOFF: Panic across markets!', ticker:'ALL',  bias:-24, dur:5 },
+    { text:'🚀 MEGA RALLY: Every sector rockets up!',  ticker:'ALL',  bias:+20, dur:4 },
+    { text:'📉 Central bank signals rate hike shock',  ticker:'ALL',  bias:-16, dur:5 },
+    { text:'🔥 Institutional money floods the market', ticker:'ALL',  bias:+17, dur:4 },
+  ];
+
   /* ─── END LESSON ─────────────────────────────────────────────── */
   const LESSON = 'Smart investors buy low, sell high, and never panic-sell during dips. Timing matters — patience and discipline beat emotional trading every time.';
+
+  /* ─── LEVEL META ─────────────────────────────────────────────────
+     Every level-scaling value lives here. Gameplay code always reads
+     LEVEL_META[level] instead of hardcoding level===1/2 branches, so
+     adding or tuning a level never requires touching gameplay logic. */
+  const LEVEL_META = {
+    1: {
+      label: 'LEVEL 1 — LEARN',
+      stocks: STOCKS_L1, tickMs: TICK_MS_L1,
+      hasNews: false, newsPool: null, newsFirstInMs: Infinity, newsRepeatMinMs: Infinity, newsRepeatMaxMs: 0,
+      hasRival: false, rivalGrowthRate: 0,
+      star3GainPct: 20,
+    },
+    2: {
+      label: 'LEVEL 2 — MASTER',
+      stocks: STOCKS_L2, tickMs: TICK_MS_L2,
+      hasNews: true, newsPool: NEWS, newsFirstInMs: 10000, newsRepeatMinMs: 8000, newsRepeatMaxMs: 18000,
+      hasRival: true, rivalGrowthRate: 0.012,
+      star3GainPct: 25,
+    },
+    3: {
+      label: 'LEVEL 3 — PRO',
+      stocks: STOCKS_L3, tickMs: TICK_MS_L3,
+      hasNews: true, newsPool: NEWS_L3, newsFirstInMs: 6000, newsRepeatMinMs: 5000, newsRepeatMaxMs: 11000,
+      hasRival: true, rivalGrowthRate: 0.02,
+      star3GainPct: 32,
+    },
+  };
 
   /* ─── STATE ──────────────────────────────────────────────────── */
   let G = null;
@@ -452,6 +512,26 @@
   function initGame() {
     G = null;
     showLevelSelect();
+
+    // DEBUG HOOK — G is module-private; expose read + force-run for QA.
+    // Not referenced by gameplay logic.
+    window._saDbg = function () {
+      return G ? {
+        level: G.level, phase: G.phase, timeLeft: G.timeLeft, tickMs: G.tickMs,
+        cash: G.cash, rivalValue: G.rivalValue, rivalGrowthRate: G.rivalGrowthRate,
+        nextNewsIn: G.nextNewsIn, stockTickers: G.stocks.map(s => s.ticker),
+        totalValue: totalValue(),
+      } : null;
+    };
+    // Fast-forwards the current session to its end by directly zeroing the
+    // clock, then calling the real endGame(). Lets QA reach the end screen
+    // for any level without waiting out the full 90s session.
+    window._saForceEnd = function () {
+      if (!G) return null;
+      G.timeLeft = 0;
+      endGame();
+      return window._saDbg();
+    };
   }
 
   function showLevelSelect() {
@@ -466,16 +546,17 @@
       '<div style="font-family:\'Orbitron\',sans-serif;font-size:1.1rem;font-weight:900;letter-spacing:.1em;text-align:center;margin-bottom:4px;text-shadow:0 0 20px ' + AC + '88">STOCK MARKET ARENA</div>' +
       '<div style="font-size:.62rem;color:rgba(255,255,255,.55);text-align:center;margin-bottom:24px;line-height:1.6;max-width:280px">Compete in the trading arena. Buy low, sell high, outpace the AI rival.</div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:300px">' +
-        lvCard(1, '🏫 LEVEL 1 — LEARN', '4 stocks · Slow market · Market Boosts · Clear trends', '#saStartL1') +
-        lvCard(2, '⚡ LEVEL 2 — MASTER', '6 stocks · Breaking news · AI rival · Market crashes', '#saStartL2') +
+        lvCard('🏫 LEVEL 1 — LEARN', '4 stocks · Slow market · Market Boosts · Clear trends', '#saStartL1', '0,200,83', AC) +
+        lvCard('⚡ LEVEL 2 — MASTER', '6 stocks · Breaking news · AI rival · Market crashes', '#saStartL2', '255,109,0', '#FF6D00') +
+        lvCard('🔥 LEVEL 3 — PRO', '8 stocks · Rapid-fire news · Sharp AI rival · Fastest ticks', '#saStartL3', '255,23,68', RED) +
       '</div>';
     el.querySelector('#saStartL1').onclick = function(){ startLevel(1); };
     el.querySelector('#saStartL2').onclick = function(){ startLevel(2); };
+    el.querySelector('#saStartL3').onclick = function(){ startLevel(3); };
   }
 
-  function lvCard(n, title, desc, id) {
-    var col = n === 1 ? AC : '#FF6D00';
-    return '<div id="' + id.slice(1) + '" style="padding:16px;border-radius:14px;border:1.5px solid rgba(' + (n===1?'0,200,83':'255,109,0') + ',.35);background:rgba(' + (n===1?'0,200,83':'255,109,0') + ',.07);cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor=\'' + col + '\';this.style.boxShadow=\'0 0 22px ' + col + '44\'" onmouseout="this.style.borderColor=\'rgba(' + (n===1?'0,200,83':'255,109,0') + ',.35)\';this.style.boxShadow=\'none\'">' +
+  function lvCard(title, desc, id, rgb, col) {
+    return '<div id="' + id.slice(1) + '" style="padding:16px;border-radius:14px;border:1.5px solid rgba(' + rgb + ',.35);background:rgba(' + rgb + ',.07);cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor=\'' + col + '\';this.style.boxShadow=\'0 0 22px ' + col + '44\'" onmouseout="this.style.borderColor=\'rgba(' + rgb + ',.35)\';this.style.boxShadow=\'none\'">' +
       '<div style="font-family:\'Orbitron\',sans-serif;font-size:.68rem;font-weight:900;color:' + col + ';margin-bottom:5px">' + title + '</div>' +
       '<div style="font-size:.58rem;color:rgba(255,255,255,.55);line-height:1.5">' + desc + '</div>' +
     '</div>';
@@ -485,8 +566,8 @@
     var lvSel = document.getElementById('sa-lvsel');
     if (lvSel) lvSel.style.display = 'none';
 
-    var rawStocks = lv === 1 ? STOCKS_L1 : STOCKS_L2;
-    var stocks = rawStocks.map(function(s) {
+    var meta = LEVEL_META[lv] || LEVEL_META[1];
+    var stocks = meta.stocks.map(function(s) {
       return {
         ticker: s.ticker,
         name: s.name,
@@ -518,21 +599,21 @@
       profitableTrades: 0,
       panicSells: 0,
       rivalValue: START_CASH,
-      rivalGrowthRate: lv === 1 ? 0 : 0.012,
+      rivalGrowthRate: meta.rivalGrowthRate,
       nextBoostIn: BOOST_SPAWN_INT * 1000,
-      tickMs: lv === 1 ? TICK_MS_L1 : TICK_MS_L2,
+      tickMs: meta.tickMs,
       newsIdx: 0,
-      nextNewsIn: lv === 2 ? 10000 : Infinity,
+      nextNewsIn: meta.hasNews ? meta.newsFirstInMs : Infinity,
       activeBoostIdx: -1,  // which stock card has the floating boost
     };
 
     // Update level badge
     var badge = document.getElementById('sa-lvbadge');
-    if (badge) badge.textContent = lv === 1 ? 'LEVEL 1 — LEARN' : 'LEVEL 2 — MASTER';
+    if (badge) badge.textContent = meta.label;
 
-    // Show rival bar on L2
+    // Show rival bar whenever this level has an AI rival
     var rival = document.getElementById('sa-rival');
-    if (rival) rival.style.display = lv === 2 ? 'flex' : 'none';
+    if (rival) rival.style.display = meta.hasRival ? 'flex' : 'none';
 
     mountGame();
   }
@@ -744,8 +825,8 @@
     var boostEl = document.getElementById('sa-boosts');
     if (boostEl) boostEl.textContent = G.boosts;
 
-    // Rival bar (L2)
-    if (G.level === 2) {
+    // Rival bar (any level with an AI rival — L2, L3)
+    if ((LEVEL_META[G.level] || LEVEL_META[1]).hasRival) {
       var rivalVal = document.getElementById('sa-rival-val');
       var rivalBar = document.getElementById('sa-rival-bar');
       if (rivalVal) rivalVal.textContent = fmt(G.rivalValue);
@@ -819,8 +900,10 @@
       if (st.history.length > 28) st.history.shift();
     });
 
-    // AI rival growth (L2)
-    if (G.level === 2) {
+    var meta = LEVEL_META[G.level] || LEVEL_META[1];
+
+    // AI rival growth (any level with hasRival — L2, L3)
+    if (meta.hasRival) {
       G.rivalValue *= (1 + G.rivalGrowthRate / 2 + (Math.random() - 0.4) * 0.008);
       G.rivalValue = Math.max(G.startCash * 0.5, G.rivalValue);
     }
@@ -832,12 +915,12 @@
       G.nextBoostIn = BOOST_SPAWN_INT * 1000 + Math.random() * 8000;
     }
 
-    // News timer (L2)
-    if (G.level === 2) {
+    // News timer (any level with hasNews — L2, L3; each level's own pool/pace)
+    if (meta.hasNews) {
       G.nextNewsIn -= G.tickMs;
       if (G.nextNewsIn <= 0) {
         fireNews();
-        G.nextNewsIn = 8000 + Math.random() * 10000;
+        G.nextNewsIn = meta.newsRepeatMinMs + Math.random() * (meta.newsRepeatMaxMs - meta.newsRepeatMinMs);
       }
     }
 
@@ -863,7 +946,8 @@
   /* ── news events ─────────────────────────────────────────────── */
   function fireNews() {
     if (!G || G.phase !== 'play') return;
-    var ev = NEWS[G.newsIdx % NEWS.length];
+    var pool = (LEVEL_META[G.level] || LEVEL_META[1]).newsPool || NEWS;
+    var ev = pool[G.newsIdx % pool.length];
     G.newsIdx++;
 
     // apply bias to affected stocks
@@ -1076,10 +1160,10 @@
     var gainPct = (gain / G.startCash) * 100;
 
     // --- Star rating ---
-    // 3★: gain >= 20% (L1) / 25% (L2) AND panic sells <= 1
+    // 3★: gain >= per-level threshold (20% L1 / 25% L2 / 32% L3) AND panic sells <= 1
     // 2★: gain >= 5%  OR any profit
     // 1★: any positive result
-    var star3thresh = G.level === 1 ? 20 : 25;
+    var star3thresh = (LEVEL_META[G.level] || LEVEL_META[1]).star3GainPct;
     var star2thresh = 5;
     var stars;
     if (gainPct >= star3thresh && G.panicSells <= 1) {
@@ -1102,8 +1186,9 @@
     if (stars >= 1 && window.cvHubMeter) cvHubMeter('inv_wealth', stars * 4);
     if (stars < 1 && window.cvSave) cvSave();
 
-    // Beat the rival?
-    var beatRival = G.level === 2 ? tv > G.rivalValue : true;
+    // Beat the rival? Only meaningful on levels that have an AI rival.
+    var hasRival = (LEVEL_META[G.level] || LEVEL_META[1]).hasRival;
+    var beatRival = hasRival ? tv > G.rivalValue : true;
 
     // Wealth delta (for any wealthMeter hook)
     var wealthDelta = Math.round(gainPct * 10) / 10;
@@ -1139,7 +1224,7 @@
         srow('TRADES MADE', G.trades, '#fff') +
         srow('PANIC SELLS', G.panicSells, G.panicSells > 2 ? RED : AC2) +
         srow('MARKET BOOSTS USED', G.boosts, GOLD) +
-        (G.level === 2 ? srow('BEAT AI RIVAL', beatRival ? '✓ YES' : '✗ NO', beatRival ? AC2 : RED) : '') +
+        ((LEVEL_META[G.level] || LEVEL_META[1]).hasRival ? srow('BEAT AI RIVAL', beatRival ? '✓ YES' : '✗ NO', beatRival ? AC2 : RED) : '') +
         srow('COINS EARNED', '+' + coins + ' 🪙', GOLD) +
       '</div>' +
 

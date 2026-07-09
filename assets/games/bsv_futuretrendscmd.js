@@ -14,6 +14,7 @@
   // ── Game constants ─────────────────────────────────────────────
   const ROUND_TIME_L1    = 90;   // seconds
   const ROUND_TIME_L2    = 75;
+  const ROUND_TIME_L3    = 65;   // hardest round — shortest clock
   const TARGET_CORRECT   = 6;    // correct forecasts needed to win
   const MAX_WRONG        = 3;    // allowed wrong investments before loss
   const STREAK_BONUS     = 25;   // extra coins per streak milestone
@@ -270,6 +271,134 @@
     },
   ];
 
+  const TECH_POOL_L3 = [
+    {
+      id: 'r1', name: 'Stablecoins', icon: '🪙',
+      tagline: 'Digital currency pegged 1:1 to the dollar for stable value.',
+      outcome: 'invest',
+      signals: {
+        adoption: 'steady',
+        sentiment: 'mixed',
+        hype: 'low',
+        confidence: 88,
+        experts: 'Regulators moving toward clear frameworks; treasuries call reserves audited and sound.',
+        utility: 'Moves dollars across borders in seconds at near-zero cost, day or night.',
+        funding: 'Reserves back $150B+ in circulation; major payment firms building on top.',
+        hint: 'Low hype looks boring — but boring plus audited reserves plus real daily use is the strongest kind of signal.'
+      }
+    },
+    {
+      id: 'r2', name: 'No-Collateral "Algo" Coin', icon: '📉',
+      tagline: 'A token promises a stable $1 price using only code and a sister token — no real dollars held in reserve.',
+      outcome: 'pass',
+      signals: {
+        adoption: 'rapid',
+        sentiment: 'positive',
+        hype: 'high',
+        confidence: 82,
+        experts: 'A few engineers warn the design has no real backing; most headlines call it "the future of money."',
+        utility: 'Depends entirely on new buyers to keep the peg — no cash, gold, or bonds behind it.',
+        funding: 'Billions flow in during the rally, chasing double-digit "savings" yields.',
+        hint: 'Rapid adoption and glowing confidence look unbeatable — but with zero real collateral, one bad week can erase it all. This exact pattern wiped out tens of billions in 2022.'
+      }
+    },
+    {
+      id: 'r3', name: 'DeFi Lending Protocols', icon: '🏦',
+      tagline: 'Smart contracts let people lend and borrow crypto with no bank in the middle.',
+      outcome: 'invest',
+      signals: {
+        adoption: 'steady',
+        sentiment: 'mixed',
+        hype: 'medium',
+        confidence: 74,
+        experts: 'Auditors: leading protocols have survived years of live use and public code review.',
+        utility: 'Billions in loans processed automatically, transparently, every single day.',
+        funding: '$40B+ still locked in top protocols despite a few well-publicized hacks elsewhere.',
+        hint: 'Scary hack headlines drag sentiment down — but the biggest, audited protocols keep working exactly as designed.'
+      }
+    },
+    {
+      id: 'r4', name: 'Central Bank Digital Currency', icon: '🏛️',
+      tagline: 'A government-issued digital dollar, controlled and tracked by a central bank.',
+      outcome: 'pass',
+      signals: {
+        adoption: 'slow',
+        sentiment: 'mixed',
+        hype: 'medium',
+        confidence: 40,
+        experts: 'Officials in dozens of countries are piloting it; privacy advocates warn of full transaction tracking.',
+        utility: 'Early pilots show the public prefers existing bank apps and cash — few reasons to switch.',
+        funding: 'Central banks fund years of research, but citizen sign-up rates stay in the low single digits.',
+        hint: 'Huge institutional backing looks like the safest bet of all — but government funding does not guarantee people will actually use it. Watch adoption, not the size of the sponsor.'
+      }
+    },
+    {
+      id: 'r5', name: 'Tokenized Real-World Assets', icon: '🏠',
+      tagline: 'Ownership of real things — buildings, bonds, gold — represented as tradeable tokens.',
+      outcome: 'invest',
+      signals: {
+        adoption: 'slow',
+        sentiment: 'positive',
+        hype: 'low',
+        confidence: 80,
+        experts: 'Major banks and asset managers are quietly moving real bond and fund shares on-chain.',
+        utility: 'Lets someone own a fraction of a building or bond that used to require huge minimums.',
+        funding: 'Tens of billions in real assets already tokenized by regulated financial institutions.',
+        hint: 'Slow, quiet adoption looks unexciting next to louder trends — but serious institutions moving real money on-chain is a durable signal, not a fad.'
+      }
+    },
+    {
+      id: 'r6', name: 'AI Voice-Clone Scam Calls', icon: '🎭',
+      tagline: 'AI clones a familiar voice from seconds of audio to trick people into sending money.',
+      outcome: 'pass',
+      signals: {
+        adoption: 'rapid',
+        sentiment: 'negative',
+        hype: 'high',
+        confidence: 12,
+        experts: 'Consumer protection agencies confirm rising reports of families tricked by cloned voices.',
+        utility: 'Built entirely to deceive — no honest use case for the victim on the other end of the call.',
+        funding: 'Losses to victims climbing into the hundreds of millions per year.',
+        hint: 'Rapid "adoption" here is adoption by scammers, not customers. When something spreads fast only because it fools people, that speed is the warning, not the opportunity.'
+      }
+    },
+    {
+      id: 'r7', name: 'Layer-2 Scaling Networks', icon: '🧱',
+      tagline: 'A second layer built on top of a blockchain to make transactions faster and far cheaper.',
+      outcome: 'invest',
+      signals: {
+        adoption: 'steady',
+        sentiment: 'mixed',
+        hype: 'medium',
+        confidence: 83,
+        experts: 'Engineers largely agree these networks solve real speed and cost problems without weakening security.',
+        utility: 'Cuts transaction fees by over 90% while keeping the same underlying security guarantees.',
+        funding: 'Billions in value now settle through these networks daily; adoption keeps climbing.',
+        hint: 'Mixed sentiment mostly comes from technical debate, not failure — the utility and steady real usage are what matter most here.'
+      }
+    },
+    {
+      id: 'r8', name: 'Crypto ATMs & Debit Cards', icon: '💳',
+      tagline: 'Machines and cards that let people load cash into crypto or spend crypto like regular money.',
+      outcome: 'pass',
+      signals: {
+        adoption: 'steady',
+        sentiment: 'mixed',
+        hype: 'medium',
+        confidence: 33,
+        experts: 'Consumer regulators report crypto ATMs are now a leading tool scammers use to pressure victims into irreversible cash deposits.',
+        utility: 'Convenient for legitimate users, but the same convenience is exploited to move stolen funds fast.',
+        funding: 'Machine operators keep expanding despite mounting fraud complaints and city-level restrictions.',
+        hint: 'Steady adoption and real revenue look healthy on the surface — but when experts flag heavy consumer harm, that signal outweighs growth and funding.'
+      }
+    },
+  ];
+
+  // ── Level lookup tables — add new levels here only ─────────────
+  const POOLS = { 1: TECH_POOL_L1, 2: TECH_POOL_L2, 3: TECH_POOL_L3 };
+  const ROUND_TIMES = { 1: ROUND_TIME_L1, 2: ROUND_TIME_L2, 3: ROUND_TIME_L3 };
+  const MAX_LEVEL = 3;
+
   // ── State object ───────────────────────────────────────────────
   let G = null;
 
@@ -303,6 +432,10 @@
       <div style="font-size:9px;color:rgba(255,255,255,.5);letter-spacing:1px;">TIME</div>
       <div id="ftcmd_timer" style="font-family:Orbitron,monospace;font-size:18px;color:#fff;">--</div>
     </div>
+    <button id="ftcmd_help_btn" title="How to play" style="
+      background:none;border:1px solid rgba(0,255,255,0.4);color:${ACCENT};
+      font-size:14px;padding:4px 9px;border-radius:6px;cursor:pointer;
+      font-family:Inter,sans-serif;flex-shrink:0;">❓</button>
   </div>
 
   <!-- status bar -->
@@ -405,25 +538,73 @@
       cards: [],
       currentIdx: 0,
       decided: false,
-      phase: 'play',   // 'play' | 'ended'
+      phase: 'intro',   // 'intro' | 'play' | 'paused' | 'ended' — timer/input blocked until first HOW TO PLAY is dismissed
       startTime: Date.now(),
+      _overlayBusy: false,   // true while the level-transition screen owns #ftcmd_end — blocks ❓ from clobbering it
     };
 
     buildLevel(1);
     renderDots();
     renderCard();
-    startTimer();
     bindActions();
+    showHowToPlay();   // shown once automatically, right before Level 1 truly starts; timer only begins on dismiss
   }
+
+  /* ── HOW-TO-PLAY overlay — shown once automatically before Level 1,
+     re-opened anytime via the ❓ button without losing progress ────
+     Timer is a setInterval TICK COUNTER (G.timeLeft--), not a
+     timestamp diff, so pausing is simply clearInterval() and resuming
+     is calling startTimer() again — the count itself never drifts. ── */
+  function showHowToPlay() {
+    const end = document.getElementById('ftcmd_end');
+    if (!end) return;
+    const wasPlay = G.phase === 'play';
+    if (wasPlay) { clearInterval(G.timerID); G.timerID = null; G.phase = 'paused'; }
+    end.innerHTML = `
+<div style="text-align:center;padding:28px 22px;max-width:380px;width:100%;">
+  <div style="font-family:Orbitron,monospace;font-size:11px;color:rgba(0,255,255,.5);letter-spacing:3px;margin-bottom:10px;">HOW TO PLAY</div>
+  <div style="font-size:42px;margin-bottom:8px;">🌐</div>
+  <div style="font-family:Orbitron,monospace;font-size:18px;color:#fff;letter-spacing:1px;margin-bottom:16px;">FUTURE TRENDS CMD</div>
+  <div style="background:rgba(0,255,255,.05);border:1px solid rgba(0,255,255,.2);border-radius:12px;padding:14px 16px;margin-bottom:20px;text-align:left;">
+    <div style="display:flex;flex-direction:column;gap:9px;">
+      <div style="display:flex;gap:8px;align-items:flex-start;"><span style="font-size:14px;flex-shrink:0;">🎯</span><span style="font-size:12px;color:rgba(255,255,255,.8);line-height:1.5;">Each card is a technology. Read its signals and decide: will it succeed, or is it just hype?</span></div>
+      <div style="display:flex;gap:8px;align-items:flex-start;"><span style="font-size:14px;flex-shrink:0;">👆</span><span style="font-size:12px;color:rgba(255,255,255,.8);line-height:1.5;">Tap the card (or "TAP TO INSPECT") for the full signal report, then choose <b style="color:${ACCENT};">📈 INVEST</b> or <b style="color:#FF6B6B;">⛔ PASS</b>.</span></div>
+      <div style="display:flex;gap:8px;align-items:flex-start;"><span style="font-size:14px;flex-shrink:0;">⚠️</span><span style="font-size:12px;color:rgba(255,255,255,.8);line-height:1.5;">High hype doesn't mean real success — check adoption, utility, and expert opinion, not just buzz.</span></div>
+      <div style="display:flex;gap:8px;align-items:flex-start;"><span style="font-size:14px;flex-shrink:0;">⏱️</span><span style="font-size:12px;color:rgba(255,255,255,.8);line-height:1.5;">Get 6 correct calls before the clock runs out and before too many misses stack up.</span></div>
+      <div style="display:flex;gap:8px;align-items:flex-start;"><span style="font-size:14px;flex-shrink:0;">🔥</span><span style="font-size:12px;color:rgba(255,255,255,.8);line-height:1.5;">Correct calls in a row build a streak for bonus points. Same rules on all 3 levels — later levels just mix in trickier signals.</span></div>
+    </div>
+  </div>
+  <button id="ftcmd_howto_dismiss" style="
+    padding:14px 32px;border-radius:10px;cursor:pointer;
+    background:rgba(0,255,255,.1);border:2px solid ${ACCENT};
+    color:${ACCENT};font-size:14px;font-weight:700;font-family:Orbitron,monospace;letter-spacing:1px;">
+    ${wasPlay ? '▶ RESUME' : 'GOT IT — START ▶'}
+  </button>
+</div>`;
+    end.style.display = 'flex';
+    document.getElementById('ftcmd_howto_dismiss').addEventListener('click', function () {
+      end.style.display = 'none';
+      if (G.phase === 'intro' || G.phase === 'paused') {
+        G.phase = 'play';
+        startTimer();   // (re)arm the tick-counter interval; timeLeft itself was never touched while paused
+      }
+    });
+  }
+
+  // ── ❓ re-open the how-to-play overlay mid-game without losing progress ──
+  window.bsv_ftcmdShowHelp = function () {
+    if (!G || G.phase === 'ended' || G._overlayBusy) return;   // don't clobber the end/level-transition screen
+    showHowToPlay();
+  };
 
   // ── Build shuffled card queue for a level ──────────────────────
   function buildLevel(lv) {
-    const pool = lv === 1 ? TECH_POOL_L1 : TECH_POOL_L2;
+    const pool = POOLS[lv] || TECH_POOL_L1;
     G.cards = shuffle([...pool]);
     G.currentIdx = 0;
     G.level = lv;
     document.getElementById('ftcmd_level_label').textContent = `LEVEL ${lv}`;
-    G.timeLeft = lv === 1 ? ROUND_TIME_L1 : ROUND_TIME_L2;
+    G.timeLeft = ROUND_TIMES[lv] || ROUND_TIME_L1;
     updateTimerDisplay();
   }
 
@@ -454,22 +635,26 @@
   function backHandler()   { window.bsv_futuretrendscmdExit(); }
   function investHandler() { handleChoice('invest'); }
   function passHandler()   { handleChoice('pass'); }
+  function helpHandler()   { window.bsv_ftcmdShowHelp(); }
 
   // ── Bind buttons ───────────────────────────────────────────────
   function bindActions() {
     const back    = document.getElementById('ftcmd_back');
     const invest  = document.getElementById('ftcmd_btn_invest');
     const pass    = document.getElementById('ftcmd_btn_pass');
+    const help    = document.getElementById('ftcmd_help_btn');
 
     // Remove before adding to prevent duplicate listeners on Play Again
     back.removeEventListener('click', backHandler);
     invest.removeEventListener('click', investHandler);
     pass.removeEventListener('click',   passHandler);
+    if (help) help.removeEventListener('click', helpHandler);
     document.removeEventListener('keydown', keyHandler);
 
     back.addEventListener('click', backHandler);
     invest.addEventListener('click', investHandler);
     pass.addEventListener('click',   passHandler);
+    if (help) help.addEventListener('click', helpHandler);
 
     // keyboard
     document.addEventListener('keydown', keyHandler);
@@ -538,7 +723,7 @@
     if (G.currentIdx >= G.cards.length) {
       // exhausted pool — reshuffle or end
       if (G.correct >= TARGET_CORRECT) { triggerEnd(true, 'complete'); return; }
-      G.cards = shuffle([...(G.level === 1 ? TECH_POOL_L1 : TECH_POOL_L2)]);
+      G.cards = shuffle([...(POOLS[G.level] || TECH_POOL_L1)]);
       G.currentIdx = 0;
     }
 
@@ -761,15 +946,17 @@
     renderDots();
 
     // check win / loss
-    if (G.correct >= TARGET_CORRECT && G.level === 1) {
-      // advance to level 2
+    if (G.correct >= TARGET_CORRECT && G.level < MAX_LEVEL) {
+      // advance to the next level
+      const nextLv = G.level + 1;
       setTimeout(function () {
         G.decided = false;
-        showLevelTransition(2);
+        showLevelTransition(nextLv);
       }, 1200);
       return;
     }
-    if (G.correct >= TARGET_CORRECT && G.level === 2) {
+    if (G.correct >= TARGET_CORRECT && G.level >= MAX_LEVEL) {
+      // final level cleared — this is the real campaign win
       setTimeout(function () { triggerEnd(true, 'complete'); }, 1200);
       return;
     }
@@ -786,11 +973,29 @@
     }, 1200);
   }
 
-  // ── Level transition ───────────────────────────────────────────
+  // ── Level transition — copy keyed by the level being entered ───
+  const LEVEL_TRANSITION_COPY = {
+    2: {
+      subtitle: 'You read the clear signals well.<br>' +
+        'Now face <strong style="color:#FFD700;">mixed signals</strong> and real complexity.',
+      tip: 'Level 2 has conflicting data — some technologies with hype are genuinely real.<br>' +
+        'Focus on <em>utility + funding</em> over <em>sentiment</em>.'
+    },
+    3: {
+      subtitle: 'You cut through conflicting data like a pro.<br>' +
+        'Now the setups get <strong style="color:#FFD700;">deceptive</strong> — obvious signals will lie to you.',
+      tip: 'Level 3 hides the trap in the signal that looks safest — a huge sponsor, fast growth, or high confidence can mask real danger.<br>' +
+        'Weigh <em>utility + expert consensus</em> above surface-level hype or adoption speed.'
+    }
+  };
+
   function showLevelTransition(lv) {
     clearInterval(G.timerID);
+    G._overlayBusy = true;   // level-transition screen owns #ftcmd_end right now — ❓ must not clobber it
     const end = document.getElementById('ftcmd_end');
     if (!end) return;
+
+    const copy = LEVEL_TRANSITION_COPY[lv] || LEVEL_TRANSITION_COPY[2];
 
     end.innerHTML = `
 <div style="text-align:center;padding:30px 24px;max-width:380px;">
@@ -799,29 +1004,28 @@
     MISSION ACCOMPLISHED!
   </div>
   <div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:20px;line-height:1.5;">
-    You read the clear signals well.<br>
-    Now face <strong style="color:#FFD700;">mixed signals</strong> and real complexity.
+    ${copy.subtitle}
   </div>
   <div style="background:rgba(0,255,255,.07);border:1px solid rgba(0,255,255,.3);
     border-radius:12px;padding:14px;margin-bottom:24px;font-size:13px;color:rgba(255,255,255,.7);">
-    Level 2 has conflicting data — some technologies with hype are genuinely real.<br>
-    Focus on <em>utility + funding</em> over <em>sentiment</em>.
+    ${copy.tip}
   </div>
-  <button id="ftcmd_lv2_btn" style="
+  <button id="ftcmd_next_lv_btn" style="
     padding:14px 32px;border-radius:10px;cursor:pointer;
     background:rgba(0,255,255,.1);border:2px solid ${ACCENT};
     color:${ACCENT};font-size:15px;font-weight:700;font-family:Orbitron,monospace;">
-    ENTER LEVEL 2 →
+    ENTER LEVEL ${lv} →
   </button>
 </div>`;
     end.style.display = 'flex';
 
-    document.getElementById('ftcmd_lv2_btn').addEventListener('click', function () {
+    document.getElementById('ftcmd_next_lv_btn').addEventListener('click', function () {
       end.style.display = 'none';
+      G._overlayBusy = false;
       G.correct = 0;
       G.wrong = 0;
       G.decided = false;
-      buildLevel(2);
+      buildLevel(lv);
       renderDots();
       renderCard();
       startTimer();
@@ -886,7 +1090,7 @@
   function endGame(stars, won, reason, accuracy) {
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
-      ? cvAwardGame('game_bsv_futuretrendscmd', { level: 1, is3star, isPerfect: is3star })
+      ? cvAwardGame('game_bsv_futuretrendscmd', { level: G.level, is3star, isPerfect: is3star })
       : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
     if (stars < 1 && window.cvSave) cvSave();
 
@@ -1002,6 +1206,25 @@
     document.removeEventListener('keydown', keyHandler);
     if (window.state) state.viewingWorld = WORLD_ID;
     goTo('hub');
+  };
+
+  // ── Debug hooks (dev/testing only) ──────────────────────────────
+  window._ftcmdDbg = function () {
+    return G ? {
+      level: G.level, score: G.score, correct: G.correct, wrong: G.wrong,
+      timeLeft: G.timeLeft, phase: G.phase,
+      timerArmed: !!G.timerID, overlayBusy: !!G._overlayBusy
+    } : null;
+  };
+  window._ftcmdForceLevel = function (lv) {
+    if (!G) return;
+    G.correct = 0;
+    G.wrong = 0;
+    G.decided = false;
+    buildLevel(lv);
+    renderDots();
+    renderCard();
+    startTimer();
   };
 
   // ── Utilities ──────────────────────────────────────────────────

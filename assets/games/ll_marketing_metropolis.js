@@ -6,6 +6,8 @@
    Reputation hits 0 → run ends. Reach follower target → win.
    Level 1: single lane, slow, forgiving.
    Level 2: multi-lane, faster, scandal challenges, trend multipliers.
+   Level 3: fastest, most bad items, reputation slowly decays every
+   second unless you keep catching — consistent effort matters.
    ════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -22,6 +24,7 @@
   const BG    = '#03040c';
 
   /* ── game constants ──────────────────────────────────────────── */
+  const MAX_LEVEL = 3;
   const LEVEL_CFG = {
     1: {
       duration:     90,
@@ -29,7 +32,9 @@
       laneCount:    2,
       spawnInterval:1200,
       itemSpeed:    2.2,
-      repDrain:     20,
+      repDrain:     0,
+      badChance:    .28,
+      scandalChance:0,
       label:        'LEARN',
       scandals:     false,
       trends:       false
@@ -40,8 +45,23 @@
       laneCount:    4,
       spawnInterval:750,
       itemSpeed:    3.8,
-      repDrain:     30,
+      repDrain:     0,
+      badChance:    .38,
+      scandalChance:.0012,
       label:        'MASTER',
+      scandals:     true,
+      trends:       true
+    },
+    3: {
+      duration:     80,
+      targetFollowers: 3000,
+      laneCount:    4,
+      spawnInterval:560,
+      itemSpeed:    5.2,
+      repDrain:     1.2,
+      badChance:    .46,
+      scandalChance:.002,
+      label:        'EXPERT',
       scandals:     true,
       trends:       true
     }
@@ -50,6 +70,9 @@
   /* star thresholds: followers reached */
   const STAR3_L1 = 500, STAR2_L1 = 300;
   const STAR3_L2 = 1500, STAR2_L2 = 900;
+  const STAR3_L3 = 3000, STAR2_L3 = 1800;
+  const STAR3_BY_LVL = { 1: STAR3_L1, 2: STAR3_L2, 3: STAR3_L3 };
+  const STAR2_BY_LVL = { 1: STAR2_L1, 2: STAR2_L2, 3: STAR2_L3 };
 
   /* ── item definitions ────────────────────────────────────────── */
   const GOOD_ITEMS = [
@@ -333,9 +356,10 @@
       spawnAccum: 0,
       laneCount:  cfg.laneCount,
       keys:       { left:false, right:false },
-      score3: lvl===1 ? STAR3_L1 : STAR3_L2,
-      score2: lvl===1 ? STAR2_L1 : STAR2_L2,
+      score3: STAR3_BY_LVL[lvl],
+      score2: STAR2_BY_LVL[lvl],
       outcome: null,
+      repDecayAccum: 0,
     };
 
     /* UI */
@@ -473,8 +497,8 @@
     const laneW    = G.W / G.laneCount;
     const laneX    = lane * laneW + laneW * (.15 + Math.random() * .7);
 
-    /* pick good vs bad — level 2 has more bads */
-    const badChance = G.lvl === 2 ? .38 : .28;
+    /* pick good vs bad — higher levels have more bads (config-driven) */
+    const badChance = G.cfg.badChance;
     const isGood    = Math.random() > badChance;
 
     /* scandal repair priority */
@@ -602,14 +626,39 @@
   function gameLoop (ts) {
     if (!G || !G.running) return;
     const dt = G.lastTimestamp ? Math.min((ts - G.lastTimestamp) / 16.67, 3) : 1;
+    const frameMs = G.lastTimestamp ? (ts - G.lastTimestamp) : 16.67;
     G.lastTimestamp = ts;
 
     updatePlayer(dt);
     updateItems(dt);
     updatePowerupDisplay();
+    updateReputationDecay(frameMs);
     checkScandal();
 
     _raf = requestAnimationFrame(gameLoop);
+  }
+
+  /* ── reputation decay (Level 3: reputation fades if you coast) ──
+     Repurposes the repDrain config field — reputation ticks down by
+     cfg.repDrain points per second of real elapsed time, independent
+     of catching/missing items. Teaches that consistent engagement
+     matters, not just big one-off wins. No-op when cfg.repDrain is 0
+     (Level 1 & 2 behavior is unchanged). ────────────────────────── */
+  function updateReputationDecay (frameMs) {
+    if (!G || !G.cfg.repDrain) return;
+    G.repDecayAccum += frameMs;
+    if (G.repDecayAccum < 1000) return;
+    const secs = Math.floor(G.repDecayAccum / 1000);
+    G.repDecayAccum -= secs * 1000;
+
+    const before = G.reputation;
+    G.reputation = Math.max(0, G.reputation - G.cfg.repDrain * secs);
+    if (G.reputation !== before) {
+      updateScoreUI();
+      if (G.reputation <= 0) {
+        triggerEnd('rep');
+      }
+    }
   }
 
   /* ── player movement ─────────────────────────────────────────── */
@@ -854,6 +903,12 @@
       { desc: `Your ad campaign backfired — critics are angry!`, bad: badItem },
       { desc: `A viral post called out your customer service!`, bad: badItem },
     ];
+    if (G.lvl >= 3) {
+      scandals.push(
+        { desc: `Investors are asking questions after a rough quarter!`, bad: badItem },
+        { desc: `A partner brand publicly distanced themselves from you!`, bad: badItem },
+      );
+    }
     const s = pickRandom(scandals);
 
     G.scandal = {
@@ -903,8 +958,8 @@
 
   function checkScandal () {
     if (!G || !G.cfg.scandals) return;
-    /* fire scandal randomly every ~20s */
-    if (!G.scandal && G.timeLeft < G.cfg.duration - 15 && Math.random() < .0012) {
+    /* fire scandal randomly — cadence is config-driven (higher at L3) */
+    if (!G.scandal && G.timeLeft < G.cfg.duration - 15 && Math.random() < G.cfg.scandalChance) {
       launchScandal();
     }
   }
@@ -961,32 +1016,53 @@
     const f      = G.followers;
     const s3     = G.score3, s2 = G.score2;
     const stars  = f >= s3 && won ? 3 : f >= s2 ? 2 : f > 0 ? 1 : 0;
+    const finishedLvl = G.lvl;
 
-    if (G.lvl === 1 && (won || reason === 'time') && stars >= 1) {
-      /* transition to level 2 after a delay */
-      setTimeout(() => showLevelTransition(stars, f), 800);
+    if (finishedLvl < MAX_LEVEL && (won || reason === 'time') && stars >= 1) {
+      /* transition to the next level after a delay */
+      setTimeout(() => showLevelTransition(finishedLvl, stars, f), 800);
     } else {
       setTimeout(() => endGame(stars, rep0, f, reason), 600);
     }
   }
 
-  function showLevelTransition (stars1, f1) {
+  /* headline + subtitle shown per just-finished level, and the pitch
+     for what's coming next (kept out of the DANGER/rep0 vocabulary —
+     no "level complete", "quiz", "wrong/incorrect" language) */
+  const LEVEL_TRANSITION_COPY = {
+    1: {
+      headline: 'MISSION 1 ACCOMPLISHED',
+      next:     'LAUNCHING MISSION 2',
+      pitch:    'Multi-platform. Faster trends. Reputation crises.'
+    },
+    2: {
+      headline: 'MISSION 2 ACCOMPLISHED',
+      next:     'LAUNCHING MISSION 3',
+      pitch:    'Full-speed growth. Bigger crises. Reputation fades if you coast — keep engaging!'
+    },
+  };
+
+  function showLevelTransition (finishedLvl, stars1, f1) {
     const over = document.getElementById('mmOver');
     if (!over) return;
+    const nextLvl = finishedLvl + 1;
+    const copy = LEVEL_TRANSITION_COPY[finishedLvl] || LEVEL_TRANSITION_COPY[1];
+    const triggerName = `mmStartLevel${nextLvl}`;
+
     over.style.display = 'flex';
     over.innerHTML = `
       <div style="text-align:center;padding:28px 24px;max-width:320px">
-        <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.18em;color:${ACC2};margin-bottom:8px">LEVEL 1 COMPLETE</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.18em;color:${ACC2};margin-bottom:8px">${copy.headline}</div>
         <div style="font-size:2rem;margin:8px 0">${'⭐'.repeat(stars1)}${'☆'.repeat(3-stars1)}</div>
         <div style="font-size:.9rem;color:rgba(255,255,255,.7);margin-bottom:16px">${f1.toLocaleString()} Followers gained</div>
-        <div style="font-family:Orbitron,sans-serif;font-size:.62rem;color:${GOLD};letter-spacing:.14em;margin-bottom:6px">ENTERING LEVEL 2</div>
-        <div style="font-size:.75rem;color:rgba(255,255,255,.5);margin-bottom:20px">Multi-platform. Faster trends. Reputation crises.</div>
-        <button onclick="document.getElementById('mmOver').style.display='none';startL2()" style="font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.12em;padding:12px 32px;border-radius:10px;border:none;background:linear-gradient(135deg,${ACC},${ACC3});color:#fff;cursor:pointer;box-shadow:0 0 20px ${ACC}77">
+        <div style="font-family:Orbitron,sans-serif;font-size:.62rem;color:${GOLD};letter-spacing:.14em;margin-bottom:6px">${copy.next}</div>
+        <div style="font-size:.75rem;color:rgba(255,255,255,.5);margin-bottom:20px">${copy.pitch}</div>
+        <button onclick="document.getElementById('mmOver').style.display='none';window.${triggerName}()" style="font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.12em;padding:12px 32px;border-radius:10px;border:none;background:linear-gradient(135deg,${ACC},${ACC3});color:#fff;cursor:pointer;box-shadow:0 0 20px ${ACC}77">
           READY →
         </button>
       </div>
     `;
-    window.startL2 = function () { startLevel(2); };
+    window[triggerName] = function () { startLevel(nextLvl); };
   }
 
   function endGame (stars, rep0, followers, reason) {
@@ -1109,5 +1185,21 @@
      UTILITIES
   ══════════════════════════════════════════════════════════════ */
   function pickRandom (arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  /* ══════════════════════════════════════════════════════════════
+     DEBUG HOOK (dev/QA only — G is closure-private otherwise)
+  ══════════════════════════════════════════════════════════════ */
+  window._mmDbg = () => G ? {
+    lvl: G.lvl,
+    followers: G.followers,
+    target: G.targetFollowers,
+    reputation: G.reputation,
+    timeLeft: G.timeLeft,
+    running: G.running,
+    score3: G.score3,
+    score2: G.score2,
+  } : null;
+  window._mmForceWin = () => { if (G) { G.followers = G.targetFollowers; triggerEnd('win'); } };
+  window._mmSkipToLevel = (n) => { startLevel(n); };
 
 })();
