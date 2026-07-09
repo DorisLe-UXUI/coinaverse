@@ -4,6 +4,8 @@
    Drag payment coins onto debt accounts. Fewest turns = most stars.
    Level 1: 3 debts, learn both strategies side-by-side.
    Level 2: 6 debts + surprise expense events mid-plan.
+   Level 3: 8 debts, tighter budget, an APR-hike event on top of the L2 events —
+            forces the player to re-read the board and adapt mid-plan.
    ════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -20,12 +22,10 @@
   const RED        = '#EF4444';
   const ROAD_GLOW  = '#7C4DFF';
 
-  const STAR3_TURNS_L1 = 4;   // complete L1 in ≤4 turns
-  const STAR3_TURNS_L2 = 9;   // complete L2 in ≤9 turns
-  const STAR2_TURNS_L1 = 6;
-  const STAR2_TURNS_L2 = 13;
+  const STAR3_TURNS = { 1: 4,  2: 9,  3: 14 };   // complete Lv in ≤N turns → 3 stars
+  const STAR2_TURNS = { 1: 6,  2: 13, 3: 20 };
 
-  /* ── Debt definitions ──────────────────────────────────────────────────── */
+  /* ── Debt definitions — each level uses its OWN debts (no repeats) ──────── */
   const DEBTS_L1 = [
     { id: 'dl1_a', name: 'Payday Loan',    balance: 150,  apr: 30, minPay: 30,  icon: '💸' },
     { id: 'dl1_b', name: 'Credit Card',    balance: 300,  apr: 22, minPay: 25,  icon: '💳' },
@@ -41,23 +41,47 @@
     { id: 'dl2_f', name: 'Personal Loan',  balance: 1200, apr: 9,  minPay: 60,  icon: '🏦' },
   ];
 
+  const DEBTS_L3 = [
+    { id: 'dl3_a', name: 'Payday Loan',     balance: 220,  apr: 38, minPay: 45,  icon: '💸' },
+    { id: 'dl3_b', name: 'Store Card',      balance: 300,  apr: 30, minPay: 30,  icon: '🛍️' },
+    { id: 'dl3_c', name: 'Credit Card A',   balance: 520,  apr: 24, minPay: 40,  icon: '💳' },
+    { id: 'dl3_d', name: 'Phone Plan Debt', balance: 380,  apr: 15, minPay: 35,  icon: '📱' },
+    { id: 'dl3_e', name: 'Medical Bill',    balance: 700,  apr: 9,  minPay: 45,  icon: '🏥' },
+    { id: 'dl3_f', name: 'Credit Card B',   balance: 900,  apr: 21, minPay: 55,  icon: '💳' },
+    { id: 'dl3_g', name: 'Auto Loan',       balance: 1400, apr: 11, minPay: 70,  icon: '🚗' },
+    { id: 'dl3_h', name: 'Student Loan',    balance: 1800, apr: 5,  minPay: 65,  icon: '🎓' },
+  ];
+
   const BUDGET_L1 = 500;
   const BUDGET_L2 = 800;
+  const BUDGET_L3 = 950;
 
-  /* ── Surprise events for Level 2 ───────────────────────────────────────── */
+  /* ── Surprise events — each level's mix is different (never repeated) ──── */
   const EVENTS_L2 = [
     { turn: 3, text: 'Car repair needed!',       budgetHit: -120, icon: '🚗' },
     { turn: 6, text: 'Unexpected medical bill!', budgetHit: -200, icon: '🏥' },
     { turn: 9, text: 'Got a side hustle bonus!', budgetHit: +150, icon: '💰' },
   ];
+  const EVENTS_L3 = [
+    { turn: 2,  text: 'Rent went up this month!',      budgetHit: -150, icon: '🏠' },
+    { turn: 5,  text: 'Interest rates just spiked!',   budgetHit: -80,  icon: '📈', aprHike: true },
+    { turn: 8,  text: 'Freelance gig paid off!',       budgetHit: +220, icon: '💼' },
+    { turn: 11, text: 'Emergency car repair — again!', budgetHit: -180, icon: '🔧' },
+    { turn: 14, text: 'Tax refund came in!',           budgetHit: +200, icon: '🧾' },
+  ];
+  const LEVELS = {
+    1: { debts: DEBTS_L1, budget: BUDGET_L1, events: [],         label: 'ROOKIE' },
+    2: { debts: DEBTS_L2, budget: BUDGET_L2, events: EVENTS_L2,  label: 'PRO' },
+    3: { debts: DEBTS_L3, budget: BUDGET_L3, events: EVENTS_L3,  label: 'LEGEND' },
+  };
 
   /* ── Game state ────────────────────────────────────────────────────────── */
   let G = null;
 
   function newGame(level) {
-    const rawDebts = level === 1 ? DEBTS_L1 : DEBTS_L2;
-    const budget   = level === 1 ? BUDGET_L1 : BUDGET_L2;
-    const debts    = rawDebts.map(d => ({
+    const lv       = LEVELS[level] || LEVELS[1];
+    const budget   = lv.budget;
+    const debts    = lv.debts.map(d => ({
       ...d,
       balance:    d.balance,
       origBal:    d.balance,
@@ -76,7 +100,7 @@
       origBudget:   budget,
       turn:         1,
       totalInterestPaid: 0,
-      turnsTarget:  level === 1 ? STAR3_TURNS_L1 : STAR3_TURNS_L2,
+      turnsTarget:  STAR3_TURNS[level] || STAR3_TURNS[1],
       phase:        'play',       // 'play' | 'event' | 'end'
       snowballOrder,
       avalancheOrder,
@@ -85,7 +109,7 @@
       budgetUsed:   0,            // this turn
       turnPayments: {},           // debtId -> amount paid this turn
       floats:       [],           // { id, text, x, y, color, created }
-      eventQueue:   (level === 2 ? [...EVENTS_L2] : []),
+      eventQueue:   [...lv.events],
       pendingEvent: null,
       showHint:     null,
       hintTimer:    null,
@@ -110,7 +134,8 @@
   <!-- TOP BAR -->
   <div id="ddtTopBar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;padding:12px 14px;gap:10px;background:linear-gradient(180deg,rgba(3,4,12,.95) 70%,transparent)">
     <button onclick="window.ddt_plazaExit()" style="padding:7px 13px;border:1px solid rgba(75,45,143,.6);border-radius:9px;background:rgba(75,45,143,.2);color:#A78BFA;font-family:Orbitron,sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;white-space:nowrap;transition:all .15s" onmouseover="this.style.background='rgba(75,45,143,.4)'" onmouseout="this.style.background='rgba(75,45,143,.2)'">← HUB</button>
-    <div style="font-family:Orbitron,sans-serif;font-size:.65rem;letter-spacing:.18em;color:#A78BFA;flex:1;text-align:center;text-shadow:0 0 14px rgba(75,45,143,.8)">💜 PAYMENT PLAN PLAZA</div>
+    <div style="font-family:Orbitron,sans-serif;font-size:.65rem;letter-spacing:.18em;color:#A78BFA;flex:1;text-align:center;text-shadow:0 0 14px rgba(75,45,143,.8)">💜 PAYMENT PLAN PLAZA <span id="ddtLvBadge" style="font-size:.5rem;border:1px solid #A78BFA;border-radius:6px;padding:2px 6px;vertical-align:2px"></span></div>
+    <button onclick="ddtShowHelp()" title="How to play" style="padding:7px 11px;border:1px solid rgba(75,45,143,.6);border-radius:9px;background:rgba(75,45,143,.2);color:#A78BFA;cursor:pointer;font-size:.8rem">❓</button>
     <div style="display:flex;gap:12px;align-items:center">
       <div style="font-family:Orbitron,sans-serif;font-size:.58rem;color:rgba(255,255,255,.45);letter-spacing:.08em">TURN</div>
       <div id="ddtTurnNum" style="font-family:Orbitron,sans-serif;font-size:1rem;color:#FFD166;text-shadow:0 0 10px rgba(255,209,102,.5);min-width:28px;text-align:center">1</div>
@@ -144,6 +169,7 @@
   <!-- Debt cards area -->
   <div id="ddtCardsArea" style="position:absolute;top:180px;bottom:0;left:0;right:0;z-index:10;overflow-y:auto;padding:8px 12px 80px;-webkit-overflow-scrolling:touch">
     <div id="ddtCardsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px"></div>
+    <div id="ddtDashboard"></div>
   </div>
 
   <!-- Float labels layer -->
@@ -174,13 +200,33 @@
 
   /* ── Level select / tutorial screen ───────────────────────────────────── */
   function showLevelSelect() {
+    const gl = (window.state && state.gameLevels && state.gameLevels['game_ddt_plaza']) || 0;
+    const unlocked = Math.min(3, gl + 1);   // beat level N unlocks N+1
     const end = document.getElementById('ddtEndOverlay');
     end.style.display = 'flex';
     end.innerHTML = `
-      <div style="max-width:440px;width:92%;padding:28px 24px;background:rgba(10,5,30,.95);border:1px solid rgba(75,45,143,.5);border-radius:20px;text-align:center;box-shadow:0 0 60px rgba(75,45,143,.3)">
+      <div style="max-width:460px;width:92%;padding:28px 24px;background:rgba(10,5,30,.95);border:1px solid rgba(75,45,143,.5);border-radius:20px;text-align:center;box-shadow:0 0 60px rgba(75,45,143,.3);max-height:92vh;overflow-y:auto">
         <div style="font-size:2.2rem;margin-bottom:8px">💜</div>
         <div style="font-family:Orbitron,sans-serif;font-size:1rem;letter-spacing:.18em;color:#A78BFA;margin-bottom:6px">PAYMENT PLAN PLAZA</div>
-        <div style="font-size:.78rem;color:rgba(255,255,255,.55);margin-bottom:20px;line-height:1.5">Drag payment coins onto your debts.<br>Choose your strategy wisely.</div>
+
+        <!-- HOW TO PLAY — 3 concrete steps so first-timers know exactly what to do -->
+        <div style="display:flex;gap:8px;margin-bottom:16px;text-align:left">
+          <div style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 8px">
+            <div style="font-size:1.1rem">👆💰</div>
+            <div style="font-family:Orbitron,sans-serif;font-size:.46rem;letter-spacing:.08em;color:#A78BFA;margin:4px 0 2px">1. DRAG A COIN</div>
+            <div style="font-size:.6rem;color:rgba(255,255,255,.55);line-height:1.3">Pick a coin from your budget pool</div>
+          </div>
+          <div style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 8px">
+            <div style="font-size:1.1rem">💳➡️</div>
+            <div style="font-family:Orbitron,sans-serif;font-size:.46rem;letter-spacing:.08em;color:#A78BFA;margin:4px 0 2px">2. DROP ON A DEBT</div>
+            <div style="font-size:.6rem;color:rgba(255,255,255,.55);line-height:1.3">Release it on the debt card to pay it down</div>
+          </div>
+          <div style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 8px">
+            <div style="font-size:1.1rem">⏭️</div>
+            <div style="font-family:Orbitron,sans-serif;font-size:.46rem;letter-spacing:.08em;color:#A78BFA;margin:4px 0 2px">3. END TURN</div>
+            <div style="font-size:.6rem;color:rgba(255,255,255,.55);line-height:1.3">Interest adds up — clear debts fast!</div>
+          </div>
+        </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
           <div style="background:rgba(75,45,143,.15);border:1px solid rgba(75,45,143,.4);border-radius:12px;padding:12px 10px">
@@ -196,14 +242,17 @@
         </div>
 
         <div style="display:flex;flex-direction:column;gap:10px">
-          <button onclick="ddtStartLevel(1)" style="padding:14px;border:1px solid rgba(75,45,143,.6);border-radius:12px;background:rgba(75,45,143,.3);color:#A78BFA;font-family:Orbitron,sans-serif;font-size:.72rem;letter-spacing:.14em;cursor:pointer;transition:all .2s;box-shadow:0 0 20px rgba(75,45,143,.2)" onmouseover="this.style.background='rgba(75,45,143,.5)'" onmouseout="this.style.background='rgba(75,45,143,.3)'">
-            LEVEL 1 — LEARN
-            <div style="font-family:Inter,sans-serif;font-size:.62rem;color:rgba(255,255,255,.4);font-weight:400;margin-top:3px;letter-spacing:.02em">3 debts · Compare both strategies side-by-side</div>
-          </button>
-          <button onclick="ddtStartLevel(2)" style="padding:14px;border:1px solid rgba(255,209,102,.4);border-radius:12px;background:rgba(255,209,102,.08);color:#FFD166;font-family:Orbitron,sans-serif;font-size:.72rem;letter-spacing:.14em;cursor:pointer;transition:all .2s;box-shadow:0 0 20px rgba(255,209,102,.1)" onmouseover="this.style.background='rgba(255,209,102,.18)'" onmouseout="this.style.background='rgba(255,209,102,.08)'">
-            LEVEL 2 — MASTER
-            <div style="font-family:Inter,sans-serif;font-size:.62rem;color:rgba(255,255,255,.4);font-weight:400;margin-top:3px;letter-spacing:.02em">6 debts · Surprise expenses force adaptation</div>
-          </button>
+          ${[
+            { n:1, name:'ROOKIE',  desc:'3 debts · Compare both strategies side-by-side',   col:'#A78BFA', bg:'rgba(75,45,143,.3)',  border:'rgba(75,45,143,.6)' },
+            { n:2, name:'PRO',     desc:'6 debts · Surprise expenses force adaptation',      col:'#FFD166', bg:'rgba(255,209,102,.08)', border:'rgba(255,209,102,.4)' },
+            { n:3, name:'LEGEND',  desc:'8 debts · Rate hikes + income swings — the full plan', col:'#06D6A0', bg:'rgba(6,214,160,.08)', border:'rgba(6,214,160,.4)' },
+          ].map(lv => {
+            const locked = lv.n > unlocked;
+            return `<button ${locked ? 'disabled' : `onclick="ddtStartLevel(${lv.n})"`} style="padding:14px;border:1px solid ${locked?'rgba(255,255,255,.12)':lv.border};border-radius:12px;background:${locked?'rgba(255,255,255,.03)':lv.bg};color:${locked?'rgba(255,255,255,.35)':lv.col};font-family:Orbitron,sans-serif;font-size:.72rem;letter-spacing:.14em;cursor:${locked?'default':'pointer'};transition:all .2s;text-align:left;position:relative">
+              LEVEL ${lv.n} — ${lv.name} ${locked?'🔒':''}
+              <div style="font-family:Inter,sans-serif;font-size:.62rem;color:rgba(255,255,255,${locked?'.25':'.4'});font-weight:400;margin-top:3px;letter-spacing:.02em">${locked?`Beat Level ${lv.n-1} to unlock`:lv.desc}</div>
+            </button>`;
+          }).join('')}
         </div>
       </div>`;
   }
@@ -214,7 +263,33 @@
     document.getElementById('ddtEventOverlay').style.display = 'none';
     G = newGame(level);
     document.getElementById('ddtBudgetTotal').textContent = '$' + G.budget;
+    setTxt('ddtLvBadge', 'LV ' + level + '/3');
     renderAll();
+  };
+
+  /* ── Re-open the how-to-play tutorial mid-game (❓ button) ─────────────── */
+  window.ddtShowHelp = function () {
+    if (!G) return;
+    const wasPlay = G.phase === 'play';
+    if (wasPlay) G.phase = 'paused';
+    const lv = LEVELS[G.level] || LEVELS[1];
+    const overlay = document.getElementById('ddtEventOverlay');
+    overlay.style.display = 'flex';
+    overlay.innerHTML = `
+      <div style="max-width:400px;width:90%;padding:26px 22px;background:rgba(10,5,30,.97);border:1px solid rgba(75,45,143,.6);border-radius:18px;text-align:center;box-shadow:0 0 50px rgba(75,45,143,.35)">
+        <div style="font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.16em;color:#A78BFA;margin-bottom:10px">HOW TO PLAY · LEVEL ${G.level} — ${lv.label}</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px;text-align:left">
+          <div style="flex:1;background:rgba(255,255,255,.04);border-radius:9px;padding:8px 6px"><div style="font-size:.95rem">👆💰</div><div style="font-size:.58rem;color:rgba(255,255,255,.6);margin-top:3px">Drag a coin</div></div>
+          <div style="flex:1;background:rgba(255,255,255,.04);border-radius:9px;padding:8px 6px"><div style="font-size:.95rem">💳➡️</div><div style="font-size:.58rem;color:rgba(255,255,255,.6);margin-top:3px">Drop on a debt</div></div>
+          <div style="flex:1;background:rgba(255,255,255,.04);border-radius:9px;padding:8px 6px"><div style="font-size:.95rem">⏭️</div><div style="font-size:.58rem;color:rgba(255,255,255,.6);margin-top:3px">End turn</div></div>
+        </div>
+        <p style="font-size:.78rem;color:rgba(255,255,255,.6);line-height:1.5;margin:0 0 16px">🏔️ <b style="color:#A78BFA">Snowball</b> = smallest balance first. 🌊 <b style="color:#FFD166">Avalanche</b> = highest interest first. Cards mark which target each strategy wants.</p>
+        <button onclick="ddtCloseHelp()" style="padding:11px 26px;border:none;border-radius:10px;background:linear-gradient(90deg,#4B2D8F,#7C4DFF);color:#fff;font-family:Orbitron,sans-serif;font-size:.62rem;letter-spacing:.1em;font-weight:900;cursor:pointer">${wasPlay ? '▶ RESUME' : 'GOT IT'}</button>
+      </div>`;
+  };
+  window.ddtCloseHelp = function () {
+    document.getElementById('ddtEventOverlay').style.display = 'none';
+    if (G && G.phase === 'paused') G.phase = 'play';
   };
 
   /* ── Render everything ─────────────────────────────────────────────────── */
@@ -223,6 +298,39 @@
     updateHUD();
     renderCoinPool();
     renderCards();
+    renderDashboard();
+  }
+
+  /* ── Strategy dashboard — fills the space below the cards with running
+     totals instead of leaving it empty, and orients the player turn to turn. */
+  function renderDashboard() {
+    if (!G) return;
+    const box = document.getElementById('ddtDashboard');
+    if (!box) return;
+    const remaining = G.debts.filter(d => d.balance > 0);
+    const paidCount = G.debts.length - remaining.length;
+    const totalOwed = remaining.reduce((s, d) => s + d.balance, 0);
+    const snowTarget = G.debts.find(d => d.id === G.snowballOrder[0]);
+    const avaTarget  = G.debts.find(d => d.id === G.avalancheOrder[0]);
+    box.style.cssText = 'margin-top:14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px';
+    box.innerHTML = `
+      <div style="background:rgba(75,45,143,.1);border:1px solid rgba(75,45,143,.3);border-radius:12px;padding:12px 10px;text-align:center">
+        <div style="font-family:Orbitron,sans-serif;font-size:1.1rem;color:#fff">${paidCount}/${G.debts.length}</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:.44rem;letter-spacing:.1em;color:rgba(255,255,255,.45);margin-top:2px">DEBTS PAID OFF</div>
+      </div>
+      <div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:12px;padding:12px 10px;text-align:center">
+        <div style="font-family:Orbitron,sans-serif;font-size:1.1rem;color:#F87171">$${Math.round(totalOwed)}</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:.44rem;letter-spacing:.1em;color:rgba(255,255,255,.45);margin-top:2px">TOTAL STILL OWED</div>
+      </div>
+      <div style="background:rgba(6,214,160,.06);border:1px solid rgba(6,214,160,.25);border-radius:12px;padding:12px 10px;text-align:center">
+        <div style="font-family:Orbitron,sans-serif;font-size:1.1rem;color:#06D6A0">$${G.totalInterestPaid.toFixed(0)}</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:.44rem;letter-spacing:.1em;color:rgba(255,255,255,.45);margin-top:2px">INTEREST PAID SO FAR</div>
+      </div>
+      ${(snowTarget || avaTarget) ? `<div style="grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:2px">
+        ${snowTarget ? `<div style="font-size:.62rem;color:rgba(255,255,255,.6);background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.25);border-radius:8px;padding:5px 10px">🏔️ Snowball's next target: <b style="color:#A78BFA">${snowTarget.name}</b></div>` : ''}
+        ${avaTarget ? `<div style="font-size:.62rem;color:rgba(255,255,255,.6);background:rgba(255,209,102,.08);border:1px solid rgba(255,209,102,.25);border-radius:8px;padding:5px 10px">🌊 Avalanche's next target: <b style="color:#FFD166">${avaTarget.name}</b></div>` : ''}
+      </div>` : `<div style="grid-column:1/-1;text-align:center;padding:16px;color:rgba(255,255,255,.3);font-size:.7rem">🎉 Every debt is paid off!</div>`}
+    `;
   }
 
   /* ── HUD update ─────────────────────────────────────────────────────────── */
@@ -579,6 +687,12 @@
     // Budget modifier from events already applied
     if (G.pendingEvent) {
       G.budget = Math.max(0, G.budget + G.pendingEvent.budgetHit);
+      // Level 3's "rates spiked" event: bump APR on the costliest unpaid debt —
+      // forces the player to re-check the avalanche target mid-plan.
+      if (G.pendingEvent.aprHike) {
+        const unpaid = G.debts.filter(d => d.balance > 0).sort((a,b)=>b.balance-a.balance);
+        if (unpaid[0]) { unpaid[0].apr += 6; G.avalancheOrder = [...G.debts].filter(d=>d.balance>0).sort((a,b)=>b.apr-a.apr).map(d=>d.id); }
+      }
       G.pendingEvent = null;
     }
 
@@ -634,8 +748,8 @@
 
     // Stars calculation
     const turns    = G.turn;
-    const star3T   = G.level === 1 ? STAR3_TURNS_L1 : STAR3_TURNS_L2;
-    const star2T   = G.level === 1 ? STAR2_TURNS_L1 : STAR2_TURNS_L2;
+    const star3T   = STAR3_TURNS[G.level] || STAR3_TURNS[1];
+    const star2T   = STAR2_TURNS[G.level] || STAR2_TURNS[1];
     let stars = 0;
     if (win && turns <= star3T) stars = 3;
     else if (win && turns <= star2T) stars = 2;
@@ -652,14 +766,14 @@
     const intPaid   = G.totalInterestPaid.toFixed(2);
     const starsHtml = '⭐'.repeat(stars) + '<span style="opacity:.2">' + '⭐'.repeat(3 - stars) + '</span>';
 
-    // Strategy recommendation
-    const snowFirst = G.snowballOrder;
-    const avaFirst  = G.avalancheOrder;
+    // Strategy recommendation — a distinct lesson per level, so nothing repeats
     const lesson = !win
       ? `Your budget ran out before covering the minimum payments — in real life that means late fees, credit damage and growing balances.<br><br><b>Tip:</b> knock out a small debt early (snowball) or the highest APR first (avalanche) so interest stops eating your budget.<br><br><em>Try again — plan the order before you spend.</em>`
       : G.level === 1
       ? `<b>Snowball</b> paid off your smallest debts first — fast wins to keep you motivated.<br><b>Avalanche</b> hit the highest interest rates first — saving the most money overall.<br><br>Neither strategy is wrong. <em>The best one is the one you stick to.</em>`
-      : `You faced real surprises mid-plan and adapted. That's the real skill.<br><br><b>Snowball</b> gives momentum. <b>Avalanche</b> saves money. Rigid rules break — flexible thinking wins.<br><br><em>The only losing move: paying only minimums while interest compounds.</em>`;
+      : G.level === 2
+      ? `You faced real surprises mid-plan and adapted. That's the real skill.<br><br><b>Snowball</b> gives momentum. <b>Avalanche</b> saves money. Rigid rules break — flexible thinking wins.<br><br><em>The only losing move: paying only minimums while interest compounds.</em>`
+      : `Eight debts, a rate hike, and swings in income — this is what real repayment plans look like.<br><br>When APRs change mid-plan, your <b>avalanche</b> target can change too — re-check the board after every surprise, don't just stick to your first plan.<br><br><em>Winning debt payoff isn't a fixed script — it's a plan you keep re-checking.</em>`;
 
     const overlay = document.getElementById('ddtEndOverlay');
     overlay.style.display = 'flex';
@@ -686,7 +800,8 @@
           </div>
         </div>
 
-        ${stars === 3 ? '<div style="background:rgba(255,209,102,.1);border:1px solid rgba(255,209,102,.35);border-radius:10px;padding:8px 12px;font-size:.65rem;color:#FFD166;margin-bottom:14px;font-family:Orbitron,sans-serif;letter-spacing:.08em">🏆 STRATEGY MASTER BADGE EARNED</div>' : ''}
+        ${win && G.level>=3 ? '<div style="background:rgba(255,209,102,.14);border:1px solid rgba(255,209,102,.4);border-radius:10px;padding:9px 12px;font-size:.66rem;color:#FFD166;margin-bottom:14px;font-family:Orbitron,sans-serif;letter-spacing:.06em">👑 ALL 3 LEVELS MASTERED!</div>'
+          : stars === 3 ? '<div style="background:rgba(255,209,102,.1);border:1px solid rgba(255,209,102,.35);border-radius:10px;padding:8px 12px;font-size:.65rem;color:#FFD166;margin-bottom:14px;font-family:Orbitron,sans-serif;letter-spacing:.08em">🏆 STRATEGY MASTER BADGE EARNED</div>' : ''}
 
         <!-- Lesson -->
         <div style="background:rgba(75,45,143,.1);border:1px solid rgba(75,45,143,.3);border-radius:12px;padding:14px;text-align:left;margin-bottom:18px">
@@ -695,11 +810,11 @@
         </div>
 
         <!-- Buttons -->
+        ${win && G.level<3 ? `<button onclick="ddtStartLevel(${G.level+1})" style="width:100%;margin-bottom:8px;padding:14px;border:none;border-radius:11px;background:linear-gradient(90deg,#06D6A0,#06B08A);color:#03130f;font-family:Orbitron,sans-serif;font-size:.66rem;letter-spacing:.1em;font-weight:900;cursor:pointer">LEVEL ${G.level+1} — ${LEVELS[G.level+1].label} →</button>` : ''}
         <div style="display:flex;gap:10px">
-          <button onclick="ddtStartLevel(${G.level})" style="flex:1;padding:13px;border:1px solid rgba(75,45,143,.6);border-radius:11px;background:rgba(75,45,143,.25);color:#A78BFA;font-family:Orbitron,sans-serif;font-size:.62rem;letter-spacing:.1em;cursor:pointer;transition:all .2s" onmouseover="this.style.background='rgba(75,45,143,.45)'" onmouseout="this.style.background='rgba(75,45,143,.25)'">PLAY AGAIN</button>
+          <button onclick="ddtStartLevel(${G.level})" style="flex:1;padding:13px;border:1px solid rgba(75,45,143,.6);border-radius:11px;background:rgba(75,45,143,.25);color:#A78BFA;font-family:Orbitron,sans-serif;font-size:.62rem;letter-spacing:.1em;cursor:pointer;transition:all .2s" onmouseover="this.style.background='rgba(75,45,143,.45)'" onmouseout="this.style.background='rgba(75,45,143,.25)'">↺ ${win && G.level<3 ? 'REPLAY' : 'PLAY AGAIN'}</button>
           <button onclick="window.ddt_plazaExit()" style="flex:1;padding:13px;border:1px solid rgba(255,209,102,.4);border-radius:11px;background:rgba(255,209,102,.1);color:#FFD166;font-family:Orbitron,sans-serif;font-size:.62rem;letter-spacing:.1em;cursor:pointer;transition:all .2s" onmouseover="this.style.background='rgba(255,209,102,.22)'" onmouseout="this.style.background='rgba(255,209,102,.1)'">← HUB</button>
         </div>
-        ${G.level===1 ? `<button onclick="ddtStartLevel(2)" style="width:100%;margin-top:8px;padding:13px;border:1px solid rgba(6,214,160,.4);border-radius:11px;background:rgba(6,214,160,.08);color:#06D6A0;font-family:Orbitron,sans-serif;font-size:.62rem;letter-spacing:.1em;cursor:pointer" onmouseover="this.style.background='rgba(6,214,160,.18)'" onmouseout="this.style.background='rgba(6,214,160,.08)'">TRY LEVEL 2 — MASTER →</button>` : ''}
       </div>`;
   }
 

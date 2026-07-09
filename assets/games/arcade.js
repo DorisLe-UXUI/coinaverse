@@ -69,8 +69,31 @@
   }
 
   /* ── lifecycle ── */
-  window.arcInit = function(id,hub,idx){ A={ id, hub:hub||null, idx:(idx==null?0:idx), cfg:CFG[id]||{} }; };
-  window.arcDbg = function(){ return (A&&A.g)?{score:Math.round(A.g.score),prog:Math.round(A.g.prog),time:Math.round(A.g.time),phase:A.g.phase}:null; };
+  // 3-LEVEL SYSTEM: every arcade game plays L1→L2→L3. Difficulty scales via a
+  // per-level working config (rcfg); question/lesson pools are PARTITIONED per
+  // level so content never repeats across levels (falls back to a shuffle when
+  // a pool is too small). Finite-content mechs (quiz/match) scale by time only.
+  const LV_GOAL=[1,1.45,1.9], LV_TIME=[1,.92,.85], LV_TIME_FINITE=[1,.8,.66];
+  const FINITE={quiz:1,match:1};
+  function shuffled(arr){ const o=arr.slice(); for(let i=o.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=o[i];o[i]=o[j];o[j]=t; } return o; }
+  function part(arr,lv,per){ if(!arr||!arr.length) return arr;
+    const start=(lv-1)*per, out=arr.slice(start,start+per);
+    return out.length?out:shuffled(arr); }
+  window.arcInit = function(id,hub,idx,lv){
+    const cfg=CFG[id]||{};
+    if(lv==null){ const gl=(window.state&&state.gameLevels&&state.gameLevels['arc_'+id])||0; lv=Math.min(3,gl+1); }
+    lv=Math.max(1,Math.min(3,lv));
+    const fin=FINITE[cfg.mech];
+    const rcfg=Object.assign({},cfg,{
+      goal: (cfg.goal&&!fin)?Math.round(cfg.goal*LV_GOAL[lv-1]):cfg.goal,
+      time: cfg.time?Math.max(25,Math.round(cfg.time*(fin?LV_TIME_FINITE:LV_TIME)[lv-1])):cfg.time,
+      qs: part(cfg.qs,lv,5),
+      lesson: part(cfg.lesson,lv,2),
+    });
+    A={ id, hub:hub||null, idx:(idx==null?0:idx), lv, cfg:rcfg, base:cfg };
+  };
+  window.arcNextLevel=function(){ if(!A||A.lv>=3) return; const {id,hub,idx,lv}=A; arcInit(id,hub,idx,lv+1); goTo('game_arc'); };
+  window.arcDbg = function(){ return (A&&A.g)?{score:Math.round(A.g.score),prog:Math.round(A.g.prog),time:Math.round(A.g.time),phase:A.g.phase,lv:A.lv}:null; };
 
   window.SCREENS.game_arc = function(){
     injectCSS();
@@ -80,7 +103,8 @@
       ${cfg.bg?`<div class="arc-bg" style="background-image:url('${cfg.bg}')"></div>`:''}
       <div class="arc-top">
         <button class="arc-back" onclick="arcExit()">← ${cfg.hubName||'HUB'}</button>
-        <div class="arc-title">${cfg.icon||'🎮'} ${cfg.title||'MINI-GAME'}</div>
+        <div class="arc-title">${cfg.icon||'🎮'} ${cfg.title||'MINI-GAME'} <span style="font:700 .5rem/1 'Orbitron',sans-serif;letter-spacing:.14em;color:var(--ac);border:1px solid var(--ac);border-radius:6px;padding:3px 7px;margin-left:6px;vertical-align:2px">LV ${(A&&A.lv)||1}/3</span></div>
+        <button class="arc-back" onclick="arcShowHelp()" title="How to play" style="padding:8px 12px">❓</button>
         <div class="arc-time" id="arcTime">${cfg.time||60}s</div>
       </div>
       <div class="arc-stat">
@@ -91,8 +115,41 @@
       <div class="arc-hint" id="arcHint">${cfg.hint||''}</div>
       <div class="arc-ov" id="arcGate"></div>
       <div class="arc-ov" id="arcOver"></div>
+      <div class="arc-ov" id="arcHow" style="display:flex"></div>
     </div>`;
   };
+
+  /* ── HOW TO PLAY — per-mechanic controls, shown before every level starts ── */
+  const MECH_HOWTO = {
+    catch:  '🖐️ MOVE to CATCH the good icons and DODGE the bad ones. Drag, tap a side, or use ← →.',
+    lane:   '🚗 STEER between lanes to grab good items and swerve around bad ones. Drag or ← →.',
+    tap:    '👆 TAP the right items the moment they appear, before time runs out.',
+    quiz:   '🧠 Read each question, then TAP the answer you think is correct.',
+    sort:   '📦 SORT every item into the correct bin — drag it, or tap a bin to send it there.',
+    stack:  '🧱 TAP to drop each piece — time it well to keep your stack steady.',
+    match:  '🃏 Flip two cards at a time and MATCH the pairs before time runs out.',
+    balance:'⚖️ Keep the meter balanced — nudge it left or right before it tips too far.',
+    aim:    '🎯 AIM carefully, then tap/click to launch at the right target.',
+    grow:   '🌱 Make smart picks each round to GROW your total before time runs out.',
+  };
+  function howToBody(mode){   // mode: 'start' (first entry) | 'resume' (❓ button mid-play)
+    const cfg=A.cfg, resume=mode==='resume';
+    return `<div class="arc-card" style="max-width:460px">
+      <div style="font:700 .5rem/1 'Orbitron',sans-serif;letter-spacing:.2em;color:var(--ac);margin-bottom:10px">HOW TO PLAY</div>
+      <div style="font-size:2rem;margin-bottom:6px">${cfg.icon||'🎮'}</div>
+      <div style="font-family:'Anton',sans-serif;font-size:1.15rem;margin-bottom:4px">${cfg.title||'MINI-GAME'}</div>
+      <div style="font:700 .48rem/1 'Orbitron',sans-serif;letter-spacing:.16em;color:var(--ac);margin-bottom:14px">LEVEL ${A.lv}/3${A.lv>1?' · HARDER':''}</div>
+      <p style="font-size:.92rem;line-height:1.55;margin:0 0 12px">${MECH_HOWTO[cfg.mech]||'Play the mission before time runs out!'}</p>
+      <p style="font-size:.8rem;line-height:1.5;margin:0 0 10px;color:rgba(255,255,255,.7)">🎯 Goal: reach <b style="color:var(--ac)">${cfg.goal||100}</b> ${(cfg.goalLabel||'points').toLowerCase()} in <b style="color:#FBBF24">${cfg.time||60}s</b>.</p>
+      ${cfg.lesson&&cfg.lesson.length?`<p style="font-size:.78rem;line-height:1.5;margin:0 0 16px;color:rgba(255,255,255,.55)">💡 Along the way, quick facts will pop up — tap GOT IT to keep going.</p>`:''}
+      <button class="arc-btn" onclick="arcCloseHowTo()">${resume?'▶ RESUME':'▶ START'}</button>
+    </div>`;
+  }
+  function showHowTo(mode){ const o=document.getElementById('arcHow'); if(!o) return; o.style.display='flex'; o.innerHTML=howToBody(mode||'start'); }
+  window.arcShowHelp=function(){ if(!A||!A.g) return; if(A.g.phase==='play') A.g.phase='how'; showHowTo('resume'); };
+  // loop() keeps rendering/ticking raf while paused (phase!=='play') — same trick the
+  // knowledge gate already relies on — so resuming is just a phase flip + dt reset.
+  window.arcCloseHowTo=function(){ const o=document.getElementById('arcHow'); if(o){o.style.display='none';o.innerHTML='';} if(A&&A.g){ A.g.phase='play'; A.g.last=performance.now(); } };
 
   function reset(){
     const cfg=A.cfg;
@@ -109,6 +166,7 @@
     function size(){ cv.width=cv.clientWidth*devicePixelRatio; cv.height=cv.clientHeight*devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); }
     size(); window.addEventListener('resize',size);
     reset();
+    A.g.phase='how';   // pause on the tutorial until the player taps START
     const mech=MECH[A.cfg.mech]||{};
     const rect=()=>cv.getBoundingClientRect();
     const norm=(cx,cy)=>{ const r=rect(); return [ (cx-r.left)/r.width, (cy-r.top)/r.height ]; };
@@ -127,6 +185,7 @@
     A._cleanup=()=>{ window.removeEventListener('resize',size); window.removeEventListener('mousemove',mm); window.removeEventListener('mouseup',mu); window.removeEventListener('keydown',kd); window.removeEventListener('keyup',ku); cv.removeEventListener('mousedown',md); cv.removeEventListener('touchstart',td); cv.removeEventListener('touchmove',tm); cv.removeEventListener('touchend',tu); };
     A.g.last=performance.now();
     cancelAnimationFrame(raf); raf=requestAnimationFrame(loop);
+    showHowTo('start');
   }
 
   function loop(now){
@@ -195,14 +254,23 @@
   function end(win){
     const g=A.g,cfg=A.cfg; if(g.phase==='over')return; g.phase='over';
     const score=Math.round(g.score);
-    if(window.state){ state.coins=(state.coins||0)+score; if(window.cvAddXP)cvAddXP(Math.round(score/4),0); else if(window.cvSave)cvSave(); state.gamesDone=state.gamesDone||{}; if(A.hub!=null)state.gamesDone[A.hub+':'+A.idx]=1; }
+    if(window.state){
+      state.coins=(state.coins||0)+score; if(window.cvAddXP)cvAddXP(Math.round(score/4),0);
+      state.gamesDone=state.gamesDone||{}; if(A.hub!=null)state.gamesDone[A.hub+':'+A.idx]=1;
+      if(win){ state.gameLevels=state.gameLevels||{}; const k='arc_'+A.id;
+        if((state.gameLevels[k]||0)<A.lv) state.gameLevels[k]=A.lv; }
+      if(window.cvSave)cvSave();
+    }
     const o=document.getElementById('arcOver'); if(!o)return; o.style.display='flex';
+    const mastered=win&&A.lv>=3;
     o.innerHTML=`<div class="arc-card">
-      <div style="font-size:3rem;margin-bottom:6px">${win?'🏆':'⏱'}</div>
-      <div style="font:700 .58rem/1 'Orbitron',sans-serif;letter-spacing:.2em;color:var(--ac);margin-bottom:8px">${win?(cfg.winMsg||'MISSION COMPLETE!'):"TIME'S UP"}</div>
+      <div style="font-size:3rem;margin-bottom:6px">${mastered?'👑':win?'🏆':'⏱'}</div>
+      <div style="font:700 .58rem/1 'Orbitron',sans-serif;letter-spacing:.2em;color:var(--ac);margin-bottom:8px">${mastered?'ALL 3 LEVELS MASTERED!':win?('LEVEL '+A.lv+' — '+(cfg.winMsg||'MISSION COMPLETE!')):"TIME'S UP — LEVEL "+A.lv}</div>
       <h1 style="font-family:'Anton',sans-serif;font-size:2rem;margin:0 0 6px">${score} pts</h1>
-      <p style="color:rgba(255,255,255,.65);margin:0 0 16px;font-size:.9rem">${win?'Goal reached':'Goal '+Math.round(g.prog)+'/'+(cfg.goal||0)} · +${score} 🪙</p>
-      <button class="arc-btn" onclick="arcRestart()">▶ PLAY AGAIN</button>
+      <p style="color:rgba(255,255,255,.65);margin:0 0 16px;font-size:.9rem">${win?'Goal reached':'Goal '+Math.round(g.prog)+'/'+(cfg.goal||0)} · +${score} 🪙${mastered?' · You beat every level of this game!':''}</p>
+      ${win&&A.lv<3?`<button class="arc-btn" onclick="arcNextLevel()">LEVEL ${A.lv+1} ▶</button>
+      <button class="arc-btn ghost" onclick="arcRestart()">↺ REPLAY LV ${A.lv}</button>`
+      :`<button class="arc-btn" onclick="arcRestart()">▶ PLAY AGAIN</button>`}
       <button class="arc-btn ghost" onclick="arcExit()">← HUB</button></div>`;
   }
 
