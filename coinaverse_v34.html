@@ -4278,14 +4278,14 @@ video::-webkit-media-controls-play-button {
   window.isAudioOn = function(){ return AUDIO.on; };
   window.duckBgmForVideo = function(low){ try{ duckBgm(low); }catch(e){} };
 
-  // unmute the active screen video + start bgm on first user gesture
+  // unmute the active screen video + start bgm on first user gesture (fires ONCE per session —
+  // must never re-fire after that, or it silently undoes an explicit mute on the next tap/click)
   function unlockAudio() {
-    if (AUDIO.on) return;
     AUDIO.on = true;
     AUDIO.bgm.play().catch(()=>{});
     applyAV(state.currentScreen);
   }
-  document.addEventListener('pointerdown', unlockAudio);
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
 
   // called after every screen render
   function applyAV(screenId) {
@@ -4302,8 +4302,8 @@ video::-webkit-media-controls-play-button {
     if (screenId === 'greet') {
       if (window.stopVoice) stopVoice();
       const gv = document.getElementById('greetVid');
-      if (gv && AUDIO.on) {
-        gv.muted = false;
+      if (gv) {
+        gv.muted = !AUDIO.on;
         gv.volume = 1;
         if (gv.paused) gv.play().catch(()=>{});
       }
@@ -4317,7 +4317,7 @@ video::-webkit-media-controls-play-button {
     else if (screenId === 'welcome') {
       if (window.stopVoice) stopVoice();   // character lip-sync video has its OWN voice — no ElevenLabs
       const wv = document.getElementById('welcomeVid');
-      if (wv && AUDIO.on) { wv.muted = false; wv.volume = 1; if (wv.paused) wv.play().catch(()=>{}); }
+      if (wv) { wv.muted = !AUDIO.on; wv.volume = 1; if (wv.paused) wv.play().catch(()=>{}); }
     }
   }
 
@@ -9498,15 +9498,16 @@ video::-webkit-media-controls-play-button {
   // 9 distinct Coincept lessons (titles from Drive · "Video Ver 3"; the 2 Money-Goal takes merged).
   // drive: paste each file's ID (from its share link .../file/d/<ID>/view) to enable in-app playback.
   // Kabria's 8 real Mr JQ episodes (Drive · Coincept Cinema). Each: title, category, description.
+  // free:true = first episode of its series (matches the "Free plan" promise: "First episode of every series")
   const CINE=[
-    {t:'Wants vs Needs',sub:'Mini 1 · Money Basics',cat:'Money Basics',drive:'',d:'Mr. JQ helps kids tell the difference between what they WANT and what they truly NEED — the first step to smart money choices.'},
+    {t:'Wants vs Needs',sub:'Mini 1 · Money Basics',cat:'Money Basics',drive:'',free:true,d:'Mr. JQ helps kids tell the difference between what they WANT and what they truly NEED — the first step to smart money choices.'},
     {t:'What is Financial Literacy',sub:'Mini 2 · Money Basics',cat:'Money Basics',drive:'',d:'A kid-friendly intro to money smarts: what financial literacy means and why it matters for your future.'},
-    {t:'How Kids Can Earn Money',sub:'Mini 3 · Earning',cat:'Earning',drive:'',d:'Fun, real ways kids can earn their own money and build great habits early.'},
+    {t:'How Kids Can Earn Money',sub:'Mini 3 · Earning',cat:'Earning',drive:'',free:true,d:'Fun, real ways kids can earn their own money and build great habits early.'},
     {t:'Earn Money',sub:'Power Lesson · Earning',cat:'Earning',drive:'',d:'The full earning playbook — turn skills, services and effort into real money you earned yourself.'},
-    {t:'Saving Money',sub:'Power Lesson · Saving',cat:'Saving',drive:'',d:'Mr. JQ shows how to save toward something big — step by step, dollar by dollar.'},
+    {t:'Saving Money',sub:'Power Lesson · Saving',cat:'Saving',drive:'',free:true,d:'Mr. JQ shows how to save toward something big — step by step, dollar by dollar.'},
     {t:'Different Places to Keep Your Money',sub:'Power Lesson · Saving',cat:'Saving',drive:'',d:'Pocket, piggy bank, or the bank? Mr. JQ explores the safest places to keep your money.'},
     {t:'Spending Wisely',sub:'Power Lesson · Spending',cat:'Counting',drive:'',d:'Spend smart, not fast — compare value, avoid impulse buys, and make every dollar count.'},
-    {t:'CoinCept Squad · Hero Episode',sub:'CoinCept · Story',cat:'CoinCept Squad',drive:'',d:'The CoinCept heroes take on a money-smart adventure across the Coinaverse.'},
+    {t:'CoinCept Squad · Hero Episode',sub:'CoinCept · Story',cat:'CoinCept Squad',drive:'',free:true,d:'The CoinCept heroes take on a money-smart adventure across the Coinaverse.'},
   ];
   window.CINE=CINE;
   // Real Kabria episode videos (Drive · "Coincept Cinema / Mr JQ Final Videos" + Hero Episodes) + per-episode quiz + related hub game
@@ -9522,7 +9523,7 @@ video::-webkit-media-controls-play-button {
     {q:'Spending wisely means…',opts:['Buy whatever you want now','Compare value & buy what you truly need','Spend it all fast'],ans:1,badge:'Wise Spender'},
     {q:'The smartest money move is to…',opts:['Spend it all now','Save & make a plan','Ignore it'],ans:1,badge:'Wealth Warrior'},
   ];
-  CINE.forEach((e,i)=>{ e.drive=CINE_VID[i]||''; e.hub=CINE_HUB[i]||'guardian'; e.quiz=CINE_QUIZ[i]; e.src=''; e.poster=e.drive?('https://drive.google.com/thumbnail?id='+e.drive+'&sz=w640'):''; });
+  CINE.forEach((e,i)=>{ e.drive=CINE_VID[i]||''; e.hub=CINE_HUB[i]||'guardian'; e.quiz=CINE_QUIZ[i]; e.src=''; e.poster=e.drive?('https://drive.google.com/thumbnail?id='+e.drive+'&sz=w640'):''; e.free=!!e.free; });
   // Doris: wire all at once → cvWireEpisodes(['ID1','ID2',...]) in CINE order, or per-title object.
   window.cvWireEpisodes=function(arr){ if(Array.isArray(arr)){arr.forEach((id,i)=>{if(CINE[i])CINE[i].drive=id;});} else if(arr&&typeof arr==='object'){CINE.forEach(e=>{if(arr[e.t])e.drive=arr[e.t];});} cvToast('🎬 Episodes wired'); if(window.state&&state.currentScreen==='cinema')goTo('cinema'); };
   const thumb=e=> e.poster||'';
@@ -9563,9 +9564,22 @@ video::-webkit-media-controls-play-button {
   window.playEp=function(id){ const i=(typeof id==='number')?id:parseInt((''+id).replace(/\D/g,''))||0; cvOpenEpisode(i); };
   window.cvOpenEpisode=function(i){
     i=((i%CINE.length)+CINE.length)%CINE.length;
-    window._cvEp={i:i,answered:false,picked:-1,earned:false};
+    const _epCheck=CINE[i];
+    if(_epCheck && !_epCheck.free && !(window.state&&state.premium)){
+      if(window.cvToast) cvToast('🔒 Premium episode — Subscriptions handled by a parent, ask them to upgrade! 💛');
+      return;
+    }
     window._cvSeen=window._cvSeen||new Set();
-    if(window.state){ state.cinemaSeenMap=state.cinemaSeenMap||{}; Object.keys(state.cinemaSeenMap).forEach(k=>window._cvSeen.add(+k)); }
+    window._cvQuizDone=window._cvQuizDone||new Set();
+    if(window.state){
+      state.cinemaSeenMap=state.cinemaSeenMap||{}; Object.keys(state.cinemaSeenMap).forEach(k=>window._cvSeen.add(+k));
+      state.cinemaQuizMap=state.cinemaQuizMap||{}; Object.keys(state.cinemaQuizMap).forEach(k=>window._cvQuizDone.add(+k));
+    }
+    // returning to an episode you already completed should show it completed, not force a redo
+    const _e=CINE[i]; const _q=(_e&&_e.quiz)||{ans:0};
+    window._cvEp = window._cvQuizDone.has(i)
+      ? {i:i,answered:true,picked:_q.ans,earned:true}
+      : {i:i,answered:false,picked:-1,earned:false};
     if(!window._cvSeen.has(i)){
       if(window.state){ state.coins=(state.coins||0)+50; state.cinemaSeen=(state.cinemaSeen||0)+1; state.cinemaSeenMap[i]=1; if(window.cvSave) cvSave(); }
       if(window.cvToast) cvToast('▶ +50 Coins · Episode watched!');
@@ -9646,6 +9660,7 @@ video::-webkit-media-controls-play-button {
         const seen=window._cvSeen||new Set();
         const quizDone=(window._cvQuizDone=window._cvQuizDone||new Set());
         quizDone.add(st.i);
+        state.cinemaQuizMap=state.cinemaQuizMap||{}; state.cinemaQuizMap[st.i]=1;
         if(seen.size>=CINE.length && quizDone.size>=CINE.length){
           state.coins=(state.coins||0)+250;
           if(window.cvToast) cvToast('🏆 +250 Bonus · Full Series Complete!');
@@ -9724,6 +9739,7 @@ video::-webkit-media-controls-play-button {
       const cc='rgb('+cr+')';
       const hasImg=e.poster;
       return `<div class="nf-card cn-ep-card" data-t="${(e.t+' '+e.cat).toLowerCase()}" onclick="showEpDetail(${i})" style="--cc:${cc};--cr:${cr}">
+        <span class="cn-ribbon ${e.free?'free':'prem'}">${e.free?'FREE':'🔒 PREMIUM'}</span>
         ${hasImg
           ?`<img class="nf-card-thumb" src="${e.poster}" onerror="this.style.display='none'">`
           :`<div class="nf-card-thumb-bg" style="--cc:${CATCOL[e.cat]||'#1a1a2e'}33">🎬</div>`}
@@ -10074,7 +10090,7 @@ video::-webkit-media-controls-play-button {
             </div>
           </div>
           <div class="cn-panel-h" style="padding-top:12px;font-size:.92rem">New This Week <button class="cn-see" onclick="cineTab('episodes')">See All →</button></div>
-          <div class="nf-row" style="padding:10px 13px 14px">${CINE.slice(0,4).map((e,i)=>smallCard(e,i,e.cat==='Money Basics'?'FREE':'PREMIUM')).join('')}</div>
+          <div class="nf-row" style="padding:10px 13px 14px">${CINE.slice(0,4).map((e,i)=>smallCard(e,i,e.free?'FREE':'PREMIUM')).join('')}</div>
         </div>
         <!-- MIDDLE: interactive episode + you earned -->
         <div class="cn-panel">
@@ -10311,7 +10327,10 @@ video::-webkit-media-controls-play-button {
         <button onclick="closeProduct()" style="position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.6);border:none;color:#fff;cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center">✕</button>
       </div>
       <div style="padding:20px">
-        <div style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.18em;color:rgba(255,255,255,.4);margin-bottom:6px">${e.sub}</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <div style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.18em;color:rgba(255,255,255,.4)">${e.sub}</div>
+          <span class="cn-ribbon ${e.free?'free':'prem'}" style="position:static">${e.free?'FREE':'🔒 PREMIUM'}</span>
+        </div>
         <h2 style="font-family:'Anton',sans-serif;font-size:1.4rem;color:#fff;margin:0 0 10px">${e.t}</h2>
         <p style="font-size:.85rem;color:rgba(255,255,255,.65);line-height:1.6;margin:0 0 16px">${e.d}</p>
         <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
@@ -10323,7 +10342,7 @@ video::-webkit-media-controls-play-button {
           <button onclick="closeProduct();window.state.viewingWorld='${h.hub}';goTo('hub')" style="padding:10px 16px;background:${hc};border:none;border-radius:10px;color:#000;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.1em;cursor:pointer;font-weight:900;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.4)">PLAY HUB →</button>
         </div>
         <div style="display:flex;gap:10px">
-          <button onclick="closeProduct();playEp(${i})" style="flex:1;padding:14px;background:linear-gradient(90deg,#fbbf24,#f59e0b);border:none;border-radius:10px;color:#1a0d00;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.12em;cursor:pointer;font-weight:900">▶ WATCH NOW</button>
+          <button onclick="closeProduct();playEp(${i})" style="flex:1;padding:14px;background:linear-gradient(90deg,#fbbf24,#f59e0b);border:none;border-radius:10px;color:#1a0d00;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.12em;cursor:pointer;font-weight:900">${e.free?'▶ WATCH NOW':'🔒 WATCH (PREMIUM)'}</button>
           <button onclick="closeProduct()" style="padding:14px 18px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:10px;color:rgba(255,255,255,.6);font-family:'Orbitron',sans-serif;font-size:.7rem;cursor:pointer">✕</button>
         </div>
       </div>
