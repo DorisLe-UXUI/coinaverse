@@ -7379,11 +7379,13 @@ video::-webkit-media-controls-play-button {
     const AC = {strategist:'#3B82F6',builder:'#A855F7',investor:'#10B981',guardian:'#14B8A6',risktaker:'#EF4444',rebuilder:'#F59E0B',credtech:'#38BDF8'};
     const hc = AC[token] || '#14B8A6';
 
-    // All hubs now unlocked
-    const LIVE = {guardian:[0,1,2,3,4,5,6],strategist:[0,1,2,3,4,5,6],builder:[0,1,2,3,4,5,6],investor:[0,1,2,3,4,5,6],risktaker:[0,1,2,3,4,5,6],rebuilder:[0,1,2,3,4,5,6],credtech:[0,1,2,3,4,5,6]};
+    // All hubs now unlocked. Every world's 8th district now has a real game except
+    // credtech's (Reputation Arena is reached via its own separate capstone card instead).
+    const LIVE = {guardian:[0,1,2,3,4,5,6,7],strategist:[0,1,2,3,4,5,6,7],builder:[0,1,2,3,4,5,6,7],investor:[0,1,2,3,4,5,6,7],risktaker:[0,1,2,3,4,5,6,7],rebuilder:[0,1,2,3,4,5,6,7],credtech:[0,1,2,3,4,5,6]};
     const liveSet = new Set(LIVE[token] || []);
+    const tileCount = token==='credtech' ? 7 : 8;
 
-    const gameCards = (h.districts||[]).slice(0,7).map((d,i) => {
+    const gameCards = (h.districts||[]).slice(0,tileCount).map((d,i) => {
       const nn = String(i+1).padStart(2,'0');
       const live = liveSet.has(i);
       const gnames = {
@@ -10913,6 +10915,10 @@ window.eaJoinLive = function(){
 const GAME_ORDER = ['guardian','strategist','investor','builder','risktaker','rebuilder','credtech'];
 const DISTRICT_GAME = {};
 GAME_ORDER.forEach(function(home){ var row=[home]; for(var d=1;d<=6;d++) row.push(home+'_'+d); DISTRICT_GAME[home]=row; });
+// District 8 (index 7): every world except credtech now has a real 8th mini-game —
+// credtech's 8th district (Reputation Arena) is already its own separate capstone
+// boss screen (game_capstone_credtech), so it deliberately keeps only 7 here.
+['guardian','strategist','investor','builder','risktaker','rebuilder'].forEach(function(home){ DISTRICT_GAME[home][7] = home+'_7'; });
 window.DISTRICT_GAME = DISTRICT_GAME;
 const GAME_NAMES = { guardian:'Money Catcher', strategist:'Goal Quest', investor:'Stock Surge', builder:'Biz Op', risktaker:'Block Builder', rebuilder:'Debt Survivor', credtech:'Credit Core', credtech_2:'Report Observatory', credtech_6:'Credit Limit Lab', strategist_2:'Bill Management Grid' };
 window.GAME_NAMES = GAME_NAMES;
@@ -10933,6 +10939,13 @@ window.playDistrictGame = function(token, i) {
     rebuilder: function(){ dsInit(); goTo('game_debtsurv'); },
     rebuilder_1: function(){ goTo('game_ddt_plaza'); },
     ddt_plaza: function(){ goTo('game_ddt_plaza'); },
+    // These 4 districts each have their own real, themed game — without this override
+    // they fell back to a generic, unrelated arcade mini-game (e.g. Resilience Hall,
+    // about staying calm under pressure, opened a plain good-debt/bad-debt sorter).
+    rebuilder_2: function(){ goTo('game_ddt_lab'); },
+    rebuilder_4: function(){ goTo('game_ddt_habits'); },
+    rebuilder_5: function(){ goTo('game_ddt_gym'); },
+    rebuilder_6: function(){ goTo('game_ddt_resilience'); },
     credtech:   function(){ goTo('game_ficoracer'); },
   };
 
@@ -10943,59 +10956,59 @@ window.playDistrictGame = function(token, i) {
 
   </script>
   <!-- Real playable games (canvas) — loaded after main script, override the stub SCREENS.game_* -->
-  <script src="assets/games/lessonspecs.js?v=53"></script>
-  <script src="assets/games/lessondeck.js?v=53"></script>
-  <script src="assets/games/moneycatcher.js?v=53"></script>
-  <script src="assets/games/goalquest.js?v=53"></script>
-  <script src="assets/games/stocksurge.js?v=53"></script>
-  <script src="assets/games/bizop.js?v=53"></script>
-  <script src="assets/games/blockbuilder.js?v=53"></script>
-  <script src="assets/games/debtsurv.js?v=53"></script>
-  <script src="assets/games/ficoracer.js?v=53"></script>
-  <script src="assets/games/creditcore.js?v=53"></script>
-  <script src="assets/games/scoretower.js?v=53"></script>
-  <script src="assets/games/borrowingbay.js?v=53"></script>
-  <script src="assets/games/trustexchange.js?v=53"></script>
-  <script src="assets/games/repaymentrunway.js?v=53"></script>
-  <script src="assets/games/creditlimitlab.js?v=53"></script>
-  <script src="assets/games/reportobservatory.js?v=53"></script>
-  <script src="assets/games/inv_academy.js?v=53"></script>
-  <script src="assets/games/inv_assetrealm.js?v=53"></script>
-  <script src="assets/games/inv_dividend.js?v=53"></script>
-  <script src="assets/games/inv_portfolio.js?v=53"></script>
-  <script src="assets/games/inv_research.js?v=53"></script>
-  <script src="assets/games/inv_riskcontrol.js?v=53"></script>
-  <script src="assets/games/inv_stockarena.js?v=53"></script>
-  <script src="assets/games/bud_billgrid.js?v=53"></script>
-  <script src="assets/games/bud_cashflow.js?v=53"></script>
-  <script src="assets/games/bud_efflab.js?v=53"></script>
-  <script src="assets/games/bud_goaltower.js?v=53"></script>
-  <script src="assets/games/bud_needswants.js?v=53"></script>
-  <script src="assets/games/bud_plaza.js?v=53"></script>
-  <script src="assets/games/bud_vault.js?v=53"></script>
-  <script src="assets/games/bsv_aiinnovationlabs.js?v=53"></script>
-  <script src="assets/games/bsv_bitstreammarket.js?v=53"></script>
-  <script src="assets/games/bsv_blockchainblvd.js?v=53"></script>
-  <script src="assets/games/bsv_cryptocrossing.js?v=53"></script>
-  <script src="assets/games/bsv_futuretrendscmd.js?v=53"></script>
-  <script src="assets/games/bsv_nftnexus.js?v=53"></script>
-  <script src="assets/games/bsv_volatilityvortex.js?v=53"></script>
-  <script src="assets/games/ll_branding_district.js?v=53"></script>
-  <script src="assets/games/ll_idea_incubator.js?v=53"></script>
-  <script src="assets/games/ll_investor_pitch.js?v=53"></script>
-  <script src="assets/games/ll_marketing_metropolis.js?v=53"></script>
-  <script src="assets/games/ll_product_dev_lab.js?v=53"></script>
-  <script src="assets/games/ll_scaling_center.js?v=53"></script>
-  <script src="assets/games/ll_startup_street.js?v=53"></script>
-  <script src="assets/games/ddt_discovery.js?v=53"></script>
-  <script src="assets/games/ddt_gym.js?v=53"></script>
-  <script src="assets/games/ddt_habits.js?v=53"></script>
-  <script src="assets/games/ddt_lab.js?v=53"></script>
-  <script src="assets/games/ddt_plaza.js?v=53"></script>
-  <script src="assets/games/ddt_rebuild.js?v=53"></script>
-  <script src="assets/games/ddt_resilience.js?v=53"></script>
-  <script src="assets/games/arccfg.js?v=53"></script>
-  <script src="assets/games/arcade.js?v=53"></script>
-  <script src="assets/games/capstones.js?v=53"></script>
+  <script src="assets/games/lessonspecs.js?v=54"></script>
+  <script src="assets/games/lessondeck.js?v=54"></script>
+  <script src="assets/games/moneycatcher.js?v=54"></script>
+  <script src="assets/games/goalquest.js?v=54"></script>
+  <script src="assets/games/stocksurge.js?v=54"></script>
+  <script src="assets/games/bizop.js?v=54"></script>
+  <script src="assets/games/blockbuilder.js?v=54"></script>
+  <script src="assets/games/debtsurv.js?v=54"></script>
+  <script src="assets/games/ficoracer.js?v=54"></script>
+  <script src="assets/games/creditcore.js?v=54"></script>
+  <script src="assets/games/scoretower.js?v=54"></script>
+  <script src="assets/games/borrowingbay.js?v=54"></script>
+  <script src="assets/games/trustexchange.js?v=54"></script>
+  <script src="assets/games/repaymentrunway.js?v=54"></script>
+  <script src="assets/games/creditlimitlab.js?v=54"></script>
+  <script src="assets/games/reportobservatory.js?v=54"></script>
+  <script src="assets/games/inv_academy.js?v=54"></script>
+  <script src="assets/games/inv_assetrealm.js?v=54"></script>
+  <script src="assets/games/inv_dividend.js?v=54"></script>
+  <script src="assets/games/inv_portfolio.js?v=54"></script>
+  <script src="assets/games/inv_research.js?v=54"></script>
+  <script src="assets/games/inv_riskcontrol.js?v=54"></script>
+  <script src="assets/games/inv_stockarena.js?v=54"></script>
+  <script src="assets/games/bud_billgrid.js?v=54"></script>
+  <script src="assets/games/bud_cashflow.js?v=54"></script>
+  <script src="assets/games/bud_efflab.js?v=54"></script>
+  <script src="assets/games/bud_goaltower.js?v=54"></script>
+  <script src="assets/games/bud_needswants.js?v=54"></script>
+  <script src="assets/games/bud_plaza.js?v=54"></script>
+  <script src="assets/games/bud_vault.js?v=54"></script>
+  <script src="assets/games/bsv_aiinnovationlabs.js?v=54"></script>
+  <script src="assets/games/bsv_bitstreammarket.js?v=54"></script>
+  <script src="assets/games/bsv_blockchainblvd.js?v=54"></script>
+  <script src="assets/games/bsv_cryptocrossing.js?v=54"></script>
+  <script src="assets/games/bsv_futuretrendscmd.js?v=54"></script>
+  <script src="assets/games/bsv_nftnexus.js?v=54"></script>
+  <script src="assets/games/bsv_volatilityvortex.js?v=54"></script>
+  <script src="assets/games/ll_branding_district.js?v=54"></script>
+  <script src="assets/games/ll_idea_incubator.js?v=54"></script>
+  <script src="assets/games/ll_investor_pitch.js?v=54"></script>
+  <script src="assets/games/ll_marketing_metropolis.js?v=54"></script>
+  <script src="assets/games/ll_product_dev_lab.js?v=54"></script>
+  <script src="assets/games/ll_scaling_center.js?v=54"></script>
+  <script src="assets/games/ll_startup_street.js?v=54"></script>
+  <script src="assets/games/ddt_discovery.js?v=54"></script>
+  <script src="assets/games/ddt_gym.js?v=54"></script>
+  <script src="assets/games/ddt_habits.js?v=54"></script>
+  <script src="assets/games/ddt_lab.js?v=54"></script>
+  <script src="assets/games/ddt_plaza.js?v=54"></script>
+  <script src="assets/games/ddt_rebuild.js?v=54"></script>
+  <script src="assets/games/ddt_resilience.js?v=54"></script>
+  <script src="assets/games/arccfg.js?v=54"></script>
+  <script src="assets/games/arcade.js?v=54"></script>
+  <script src="assets/games/capstones.js?v=54"></script>
 </body>
 </html>
