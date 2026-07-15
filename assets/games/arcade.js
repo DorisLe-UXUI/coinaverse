@@ -140,7 +140,7 @@
     tap:    '👆 TAP the right items the moment they appear, before time runs out.',
     quiz:   '🧠 Read each question, then TAP the answer you think is correct.',
     sort:   '📦 SORT every item into the correct bin — drag it, or tap a bin to send it there.',
-    stack:  '🧱 TAP to drop each piece — time it well to keep your stack steady.',
+    stack:  '🧱 TAP to drop each piece right when it lines up with the one below. A clean hit keeps your stack wide — a sloppy one shaves it thinner, so it gets harder to hit next time.',
     match:  '🃏 Flip two cards at a time and MATCH the pairs before time runs out.',
     balance:'⚖️ Keep the meter balanced — nudge it left or right before it tips too far.',
     aim:    '🎯 AIM carefully, then tap/click to launch at the right target.',
@@ -376,19 +376,29 @@
   function resolveSort(side,g,cfg,A,chosen){ const ok= chosen==null? false : (side===chosen); if(chosen==null){ return; } if(ok){ const v=cfg.pts||16; A.add(v,v); A.burst(.5,.5,cfg.accent,9); A.float(.5,.45,'+'+v); A.flash(); } else { g.score=Math.max(0,g.score-8); A.shake(.4); A.float(.5,.45,'Oops — wrong bin','#fca5a5'); } }
 
   // 6 ── STACK: moving block, tap to drop, build the tower ──────────
+  // All vertical layout (block height, camera scroll, fall animation) is computed
+  // HERE from H alone, in one place — a previous version derived the drop target in
+  // normalized 0-1 units while render() used capped pixel units, so the two drifted
+  // apart on any screen taller than ~485px and the falling block visibly landed off
+  // from the tower. Drop resolution now runs on a fixed timer instead of comparing
+  // positions, so it can't reintroduce that kind of unit mismatch.
+  const STACK_DROP_DUR=0.22;
+  function stackBH(H){ return Math.min(34,H*.07); }
+  // keep the active build zone from climbing above ~22% of the canvas as the tower grows
+  function stackCam(m,bh,baseY,H){ const topY=baseY-(m.blocks.length+1)*bh; const limit=H*0.22; return topY<limit?(limit-topY):0; }
   MECH.stack={ start(g,cfg){ g.m={blocks:[{x:.5,w:.34}],bx:.1,dir:1,w:.34,drop:null}; },
     update(dt,g,cfg,A,W,H){ const m=g.m; const sp=.5+g.prog/(cfg.goal||100)*.4; m.bx+=m.dir*sp*dt; if(m.bx<.06){m.bx=.06;m.dir=1;} if(m.bx>.94-m.w){m.bx=.94-m.w;m.dir=-1;}
-      if(m.drop!=null){ m.drop.y+=2.4*dt; if(m.drop.y>=m.drop.ty){ const top=m.blocks[m.blocks.length-1]; const ov=overlap(m.drop.x,m.w,top.x,top.w); if(ov<=0){ A.shake(.5); g.score=Math.max(0,g.score-6); A.float(.5,.4,'Missed!','#fca5a5'); } else { m.w=ov; m.blocks.push({x:m.drop.cx,w:ov}); const v=cfg.pts||18; A.add(v,v); A.float(m.drop.cx,.4,'+'+v); A.flash(); A.ring(m.drop.cx,.5,cfg.accent); } m.drop=null; } } },
-    render(ctx,g,cfg,A,W,H){ const bh=Math.min(34,H*.07); const baseY=H*.92; const m=g.m;
-      m.blocks.forEach((b,i)=>{ const y=baseY-(i+1)*bh; rr(ctx,(b.x-b.w/2)*W, y, b.w*W, bh-3, 6); ctx.fillStyle=hexA(cfg.accent,.55); ctx.fill(); ctx.strokeStyle=cfg.accent; ctx.lineWidth=1.5; ctx.stroke(); });
-      const topY=baseY-(m.blocks.length+1)*bh;
+      if(m.drop!=null){ m.drop.t+=dt; if(m.drop.t>=STACK_DROP_DUR){ const top=m.blocks[m.blocks.length-1]; const ov=overlap(m.drop.x,m.w,top.x,top.w); if(ov<=0){ A.shake(.5); g.score=Math.max(0,g.score-6); A.float(.5,.4,'Missed!','#fca5a5'); } else { m.w=ov; m.blocks.push({x:m.drop.cx,w:ov}); const v=cfg.pts||18; A.add(v,v); A.float(m.drop.cx,.4,'+'+v); A.flash(); A.ring(m.drop.cx,.5,cfg.accent); } m.drop=null; } } },
+    render(ctx,g,cfg,A,W,H){ const bh=stackBH(H); const baseY=H*.92; const m=g.m; const cam=stackCam(m,bh,baseY,H);
+      m.blocks.forEach((b,i)=>{ const y=baseY-(i+1)*bh+cam; rr(ctx,(b.x-b.w/2)*W, y, b.w*W, bh-3, 6); ctx.fillStyle=hexA(cfg.accent,.55); ctx.fill(); ctx.strokeStyle=cfg.accent; ctx.lineWidth=1.5; ctx.stroke(); });
+      const topY=baseY-(m.blocks.length+1)*bh+cam;
       if(m.drop==null){ rr(ctx,m.bx*W, topY, m.w*W, bh-3, 6); ctx.fillStyle=hexA('#fde68a',.6); ctx.fill(); ctx.strokeStyle='#fde68a'; ctx.lineWidth=2; ctx.stroke(); }
-      else { rr(ctx,(m.drop.cx-m.w/2)*W, m.drop.y*H, m.w*W, bh-3, 6); ctx.fillStyle=hexA('#fde68a',.6); ctx.fill(); ctx.strokeStyle='#fde68a'; ctx.lineWidth=2; ctx.stroke(); }
+      else { const p=Math.min(1,m.drop.t/STACK_DROP_DUR), y=topY-bh*7*(1-p); rr(ctx,(m.drop.cx-m.w/2)*W, y, m.w*W, bh-3, 6); ctx.fillStyle=hexA('#fde68a',.6); ctx.fill(); ctx.strokeStyle='#fde68a'; ctx.lineWidth=2; ctx.stroke(); }
       lbl(ctx,(cfg.stackLabel||'STACK IT'),W/2,H*.14,'#fff',13,'Orbitron'); },
-    pointer(x,y,type,g,cfg,A,W,H){ if(type==='down')dropBlock(g,W,H); },
+    pointer(x,y,type,g,cfg,A){ if(type==='down')dropBlock(g); },
     key(k,d,g){ if(d&&(k===' '||k==='ArrowDown'))dropBlock(g); } };
   function overlap(x1,w1,x2,w2){ const l=Math.max(x1-w1/2,x2-w2/2),r=Math.min(x1+w1/2,x2+w2/2); return Math.max(0,r-l); }
-  function dropBlock(g){ const m=g.m; if(m.drop!=null)return; const bh=0.07; const ty=0.92-(m.blocks.length+1)*0.07; m.drop={x:m.bx,cx:m.bx+m.w/2,y:Math.max(0.16,ty-0.5),ty:Math.max(0.16,ty)}; }
+  function dropBlock(g){ const m=g.m; if(m.drop!=null)return; m.drop={x:m.bx,cx:m.bx+m.w/2,t:0}; }
 
   // 7 ── MATCH: memory grid, flip pairs ─────────────────────────────
   MECH.match={ start(g,cfg){ const ps=(cfg.pairs||['🪙','💎','💰','🏦']).slice(0,6); let deck=ps.concat(ps); for(let i=deck.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=deck[i];deck[i]=deck[j];deck[j]=t; } g.m={cards:deck.map(e=>({e,up:false,done:false})),sel:[],lock:0,cols:Math.ceil(deck.length/3)}; },
