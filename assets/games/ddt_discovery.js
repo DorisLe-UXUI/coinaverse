@@ -393,6 +393,7 @@
       done:          false,
       timerInterval: null,
       cardTimeout:   null,
+      lastLevelUpIdx: -1, // deckIdx the level-up banner was last shown at — prevents re-triggering it forever
       /* drag state */
       dragging:      false,
       dragCard:      null,
@@ -528,7 +529,7 @@
   /* ── timer ───────────────────────────────────────────────────── */
   function startTimer() {
     G.timerInterval = setInterval(() => {
-      if (!G || G.done) return;
+      if (!G || G.done || !G.active) return;   // don't burn the clock while the level-up banner is up
       G.timeLeft--;
       updateTimerDisplay();
       if (G.timeLeft <= 0) {
@@ -558,8 +559,11 @@
       return;
     }
 
-    /* level transition announcement — fires at the end of L1 and end of L2 */
-    if (LEVEL_END_IDX.slice(0, -1).includes(G.deckIdx)) {
+    /* level transition announcement — fires at the end of L1 and end of L2.
+       deckIdx doesn't change while the banner is up (no card was sorted), so guard
+       with lastLevelUpIdx or this refires forever every time CONTINUE calls back in. */
+    if (LEVEL_END_IDX.slice(0, -1).includes(G.deckIdx) && G.deckIdx !== G.lastLevelUpIdx) {
+      G.lastLevelUpIdx = G.deckIdx;
       showLevelUp();
       return;
     }
@@ -1268,6 +1272,7 @@
       done:          false,
       timerInterval: null,
       cardTimeout:   null,
+      lastLevelUpIdx: -1,
       dragging:      false,
       dragCard:      null,
       dragStartX:    0,
