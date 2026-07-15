@@ -209,7 +209,10 @@
     let dt=Math.min(40,now-g.last)/1000; g.last=now;
     if(g.phase==='play'){
       if(cfg.time){ g.time-=dt; if(g.time<=0){ g.time=0; return end(g.prog>=(cfg.goal||1e9)); } const te=document.getElementById('arcTime'); if(te)te.textContent=Math.ceil(g.time)+'s'; }
-      if(cfg.lesson&&cfg.lesson.length){ g.gateT-=dt; if(g.gateT<=0){ return openGate(); } }
+      // NOT an early return: openGate() only flips phase to 'gate' — the loop must
+      // still fall through to render()+raf below, or the animation chain dies here
+      // forever (dismissing the gate flips phase back but nothing ever revives it).
+      if(cfg.lesson&&cfg.lesson.length){ g.gateT-=dt; if(g.gateT<=0){ openGate(); } }
       if(mech.update) mech.update(dt,g,cfg,A.api,W,H);
       // shared effects
       for(const p of g.parts){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=1.3*dt; p.life-=dt; } g.parts=g.parts.filter(p=>p.life>0);
