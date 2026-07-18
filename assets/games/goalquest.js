@@ -1,159 +1,211 @@
 /* ════════════════════════════════════════════════════════════════
-   GOAL QUEST · BUDGET BOSS — real canvas arcade (Strategist / BudgetTron)
-   Spending items FALL from the top. Sort each one before it hits the floor:
-   ←  NEED  ·  ↓  WANT  ·  →  SAVE   (tap a bin or drag the item too).
-   Sort right → score, combo, budget health, fill the GOAL meter.
-   Sort wrong / let it fall → lose budget health, reset combo, screen shake.
-   3-LEVEL MISSION LADDER: L1 Rookie → L2 Pro (higher goal, faster falls,
-   more want-decoys) → L3 Legend (highest goal, rarer powers, faster gates).
-   Each level has its OWN item mix + its own 4 budget tips (never repeated
-   within a level, never repeated across levels).
-   Loads after the main script; overrides the stub window.SCREENS.game_goalquest.
+   GOAL QUEST · BUDGET · PLAN · ACHIEVE — rebuilt to match KaBria's
+   35-page Goal Quest GDD v1.0 (Coinaverse · Budgetron Base flagship).
+   Core verb = DRAG-TO-ALLOCATE (GDD §7.2): income/bill/event tokens
+   fall from the sky; the player routes each into one of 5 buckets —
+   SAVINGS · SPENDING · BILLS · EMERGENCY · GOAL — before it lands.
+   3 PROGRESSIVE DISTRICTS (GDD §8): Penny Park (foundational) →
+   Metro Money District (+Energy, +Happiness, sales/coupons/social
+   spend) → Future Finance City (+Credit Score, +Inflation, +Income
+   Tax, severe shocks). All 10 power-ups + all 14 real-life events
+   from Appendix D are implemented. Knowledge Gates teach the 10
+   learning objectives straight out of GDD §4. No real multiplayer/
+   IAP/backend — this app is localStorage-only (GDD §10 dropped by
+   design; see report). Loads after the main script; overrides the
+   stub window.SCREENS.game_goalquest.
    ════════════════════════════════════════════════════════════════ */
 (function(){
   const TOKEN='strategist';
-  let G=null, raf=null, LV=0;            // LV = current level index (0..2)
+  let G=null, raf=null, DI=0;                 // DI = district index 0..2 (session-local, like old LV)
 
-  // ── 3-LEVEL SYSTEM — real scaling knobs per level ────────────────────
-  //    goal: GOAL meter target · round: seconds · gate: secs between tips
-  //    fall: item fall-speed multiplier · spawn: spawn-interval multiplier
-  //    mix: spawn odds (power rarer + want-decoys heavier on higher levels)
-  const LEVELS=[
-    { name:'ROOKIE', goal:300, round:70, gate:18, fall:1.0,  spawn:1.0,  mix:{power:0.07, save:0.13,  want:0.40} },
-    { name:'PRO',    goal:420, round:70, gate:16, fall:1.22, spawn:0.85, mix:{power:0.055,save:0.115, want:0.46} },
-    { name:'LEGEND', goal:560, round:70, gate:13, fall:1.45, spawn:0.72, mix:{power:0.035,save:0.10,  want:0.495} }
+  // ── 3 DISTRICTS (GDD §8 + Appendix B economy config) ─────────────
+  //    enabled: which advanced systems are feature-flagged on (GDD §8 "Scaling model")
+  //    mix: spawn-roll odds (power/rare/event/bill; income = remainder)
+  const DISTRICTS=[
+    { id:'penny_park', name:'PENNY PARK', sub:'FOUNDATIONAL DISTRICT', icon:'🐷', col:'#34d399', colSoft:'rgba(52,211,153,.15)',
+      blurb:"Floating piggy banks, animated banks & friendly robots. Small surprises only — no debt.",
+      roundSec:150, gateEvery:20, fallMul:1.0, spawnMul:1.05,
+      lateFeePct:0.10, bufferDiscountPct:0.40, taxPct:0, inflationPerSec:0,
+      enabled:{energy:false,happiness:false,credit:false},
+      mix:{power:0.06, rare:0.03, event:0.12, bill:0.24},
+      goals:[ {id:'bike',label:'Buy a Bicycle',cost:120,icon:'🚲'}, {id:'skates',label:'Roller Skates',cost:85,icon:'⛸️'},
+               {id:'tablet',label:'Starter Tablet',cost:150,icon:'📱'}, {id:'save150',label:'Save $150',cost:150,icon:'🐷'} ] },
+    { id:'metro_money', name:'METRO MONEY DISTRICT', sub:'INTERMEDIATE DISTRICT', icon:'🚇', col:'#60a5fa', colSoft:'rgba(96,165,250,.15)',
+      blurb:'Moving trains, neon ads, a busy economy. Jobs, coupons, subscriptions & impulse pressure.',
+      roundSec:170, gateEvery:17, fallMul:1.2, spawnMul:0.9,
+      lateFeePct:0.15, bufferDiscountPct:0.32, taxPct:0, inflationPerSec:0,
+      enabled:{energy:true,happiness:true,credit:false},
+      mix:{power:0.05, rare:0.025, event:0.16, bill:0.30},
+      goals:[ {id:'pc',label:'Gaming PC',cost:850,icon:'🖥️'}, {id:'laptop',label:'New Laptop',cost:650,icon:'💻'},
+               {id:'trip',label:'School Trip',cost:400,icon:'🚌'}, {id:'save1000',label:'Save $1,000',cost:1000,icon:'🏦'} ] },
+    { id:'future_finance', name:'FUTURE FINANCE CITY', sub:'ADVANCED DISTRICT', icon:'🌆', col:'#a78bfa', colSoft:'rgba(167,139,250,.16)',
+      blurb:'Flying cars, digital banks, investment towers. Inflation, taxes & credit score are real now.',
+      roundSec:190, gateEvery:14, fallMul:1.42, spawnMul:0.76,
+      lateFeePct:0.20, bufferDiscountPct:0.25, taxPct:0.12, inflationPerSec:0.0028,
+      enabled:{energy:true,happiness:true,credit:true},
+      mix:{power:0.04, rare:0.02, event:0.20, bill:0.34},
+      goals:[ {id:'car',label:'First Car',cost:1800,icon:'🚗'}, {id:'startup',label:'Business Startup',cost:1500,icon:'🚀'},
+               {id:'vacation',label:'Family Vacation',cost:1200,icon:'🏖️'}, {id:'college',label:'College Fund',cost:2000,icon:'🎓'} ] },
   ];
-  function L(){ return LEVELS[LV]; }
+  function D(){ return DISTRICTS[DI]; }
+
+  // ── 5 allocation buckets — exact order per GDD §7.2 buckets[] ────
+  const BUCKETS=['SAVINGS','SPENDING','BILLS','EMERGENCY','GOAL'];
+  const BUCK_ICON=['🏦','🛍️','🧾','🛟','🎯'];
+  const BUCK_COL=['#60a5fa','#f472b6','#fbbf24','#34d399','#a78bfa'];
+  const SAVINGS=0, SPENDING=1, BILLS=2, EMERGENCY=3, GOAL=4;
+
+  // ── income sources (GDD §7.2 token = {id,value,source}) ──────────
+  const SOURCES=[ {k:'ALLOWANCE',ic:'🪙',mult:0.8,w:0.40}, {k:'PAYCHECK',ic:'💵',mult:1.3,w:0.32},
+                   {k:'WINDFALL',ic:'🎁',mult:1.7,w:0.13}, {k:'SIDE_JOB',ic:'💼',mult:1.15,w:0.15} ];
+  const BILL_DEFS=[ {label:'Rent',ic:'🏠'}, {label:'Electric Bill',ic:'⚡'}, {label:'Phone Bill',ic:'📱'},
+                     {label:'Internet',ic:'🌐'}, {label:'Water Bill',ic:'🚰'}, {label:'Subscription',ic:'📺'} ];
+
+  // ── 10 power-ups — Appendix D full list, every one implemented ───
+  const POWERUPS=[
+    {id:'coupon',   name:'Coupon Craze',       icon:'🏷️', effect:'costDown',    dur:20, val:0.30},
+    {id:'bonuspay', name:'Bonus Paycheck',     icon:'💵', effect:'income',      dur:0},
+    {id:'freeze',   name:'Freeze Bills',       icon:'🧊', effect:'billFreeze',  dur:30},
+    {id:'cashback', name:'Cashback Boost',     icon:'💳', effect:'cashback',    dur:22, val:0.20},
+    {id:'advisor',  name:'Financial Advisor',  icon:'🤖', effect:'advice',      dur:14},
+    {id:'frenzy',   name:'Side Hustle Frenzy', icon:'⚡', effect:'incomeDouble',dur:16},
+    {id:'auto',     name:'Auto Budget',        icon:'🧠', effect:'autoBudget',  dur:20},
+    {id:'timeext',  name:'Time Extension',     icon:'⏰', effect:'timeExt',     dur:0, val:15},
+    {id:'windfall', name:'Lucky Windfall',     icon:'🍀', effect:'luck',        dur:0},
+    {id:'savex2',   name:'Savings Multiplier', icon:'✨', effect:'savingsX2',   dur:12},
+  ];
+
+  // ── 14 real-life events — Appendix D full list ────────────────────
+  //    type: shock(→EMERGENCY) · temptation/seasonal(accept=SPEND/decline=SAVE|GOAL)
+  //    bonus/opportunity(routed as bonus income, any bucket) · incomeShock(auto, no token)
+  const EVENTS=[
+    {id:'bike_repair',   label:'Bike Repair',        icon:'🚲', type:'shock',       minD:0},
+    {id:'broken_phone',  label:'Broken Phone',       icon:'📴', type:'shock',       minD:0},
+    {id:'birthday',      label:'Birthday Invitation',icon:'🎂', type:'temptation',  minD:0},
+    {id:'impulse_shop',  label:'Impulse Shopping',   icon:'🛍️', type:'temptation',  minD:0},
+    {id:'good_grades',   label:'Good Grades Bonus',  icon:'🌟', type:'bonus',       minD:0},
+    {id:'lost_allow',    label:'Lost Allowance',     icon:'😢', type:'incomeShock', minD:0},
+    {id:'game_sale',     label:'Video Game Sale',    icon:'🎮', type:'temptation',  minD:1},
+    {id:'fundraiser',    label:'School Fundraiser',  icon:'🎪', type:'seasonal',    minD:1},
+    {id:'holiday_shop',  label:'Holiday Shopping',   icon:'🛒', type:'seasonal',    minD:1},
+    {id:'side_offer',    label:'Side Job Offer',     icon:'💼', type:'opportunity', minD:1},
+    {id:'pet_emerg',     label:'Pet Emergency',      icon:'🐶', type:'shock',       minD:2, severe:true},
+    {id:'medical',       label:'Medical Expense',    icon:'🩺', type:'shock',       minD:2, severe:true},
+    {id:'family_emerg',  label:'Family Emergency',   icon:'🚨', type:'shock',       minD:2, severe:true},
+  ];
+
   function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+  function fmtM(n){ n=Math.round(n); return (n<0?'-$':'$')+Math.abs(n).toLocaleString(); }
+  function career(){ if(!window.state) return {roundsPlayed:0,goalsHit:0,totalSaved:0,bestCombo:0};
+    state.gq_career = state.gq_career || {roundsPlayed:0,goalsHit:0,totalSaved:0,bestCombo:0}; return state.gq_career; }
+  function unlockedTo(){ return (window.state && state.gameLevels && state.gameLevels['game_goalquest']) || 0; }
+  function plannerRank(){ const st=(window.state&&state.gameStars&&state.gameStars['game_goalquest'])||0; const c=career();
+    if(st>=3 && c.goalsHit>=8) return 'GOLD PLANNER'; if(st>=2 || c.goalsHit>=3) return 'SILVER PLANNER'; return 'BRONZE PLANNER'; }
 
-  // ── LEARN WHILE PLAYING: 12 budgeting lessons — each level owns a
-  //    disjoint slice of 4 (L1 → 0-3 · L2 → 4-7 · L3 → 8-11), shuffled per
-  //    run and never shown twice within a level nor across levels ────────
+  // ── KNOWLEDGE GATE FACTS — sourced directly from GDD §4 Learning
+  //    Objectives table (10 concepts) + §5/§13 pillars. 4 per district,
+  //    never repeated within a district nor across districts ─────────
   const FACTS=[
-    // LEVEL 1 · basics
-    ['🧠','A budget gives every dollar a job before you spend it.'],
-    ['🍞','Needs (food, rent, transport) come before wants.'],
-    ['📊','Try 50/30/20: needs / wants / savings.'],
-    ['🎯','Plan to a goal — vague goals rarely get funded.'],
-    // LEVEL 2 · habits
-    ['✂️','Cut one small want each week and send it straight to savings.'],
-    ['💧','Track spending — small leaks sink big budgets.'],
-    ['🛟','An emergency buffer turns surprises into small bumps, not disasters.'],
-    ['🧾','Check receipts against your plan — a budget only works if you look at it.'],
-    // LEVEL 3 · pro moves
-    ['⏳','Pay yourself first: save the moment money arrives, not from leftovers.'],
-    ['📈','Savings grow with compound interest — money earns money over time.'],
-    ['🎪','Impulse buys love pressure. Wait 24 hours before big wants.'],
-    ['🏦','Separate accounts for each goal make it harder to raid your dreams.']
+    // Penny Park — foundations
+    ['🎯','Goal Setting: a clear target keeps every dollar working toward something real.'],
+    ['🧠','Budgeting means giving every dollar a job — Savings, Spending, Bills, Emergency, or Goal.'],
+    ['🏦','Paying your Goal and Savings first (not last) is how real planners win.'],
+    ['🧾','Bills are needs — they come due whether you are ready or not. Pay them first.'],
+    // Metro Money — habits & trade-offs
+    ['⚖️','Opportunity Cost: every dollar you spend is a dollar that cannot go to your goal.'],
+    ['⏳','Delayed Gratification: skipping a tempting want now can get your real goal faster.'],
+    ['🛟','An Emergency Fund makes surprise costs smaller — buffered planners lose less.'],
+    ['💚','Budget Health drops when spending outpaces saving — watch it turn from green to red.'],
+    // Future Finance — pro moves
+    ['📋','Prioritization: when a bill and a goal compete for the same dollar, pay the bill first.'],
+    ['💼','Income Planning: side hustles and part-time jobs are extra streams toward your goal.'],
+    ['📈','Adapting to Change: prices creep up over time (inflation) — smart planners adjust.'],
+    ['🔥','A Perfect Budget streak multiplies your rewards — smart choices in a row pay off big.'],
   ];
 
-  window.gqInit=function(){ G=null; LV=0; };   // playDistrictGame calls this before goTo
+  // ── BONUS OBJECTIVES — stand-ins for GDD §11 daily/weekly challenges,
+  //    scoped per-round since this build has no server/day-cycle ──────
+  const OBJPOOL=[
+    {id:'no_impulse',  label:'Decline every impulse temptation',  check:g=>g.impulseSeen>0 && g.impulseAccepted===0},
+    {id:'save80',      label:'Finish an 80%+ savings rate',       check:g=>g.incomeCaught>0 && (g.toSavingsGoal/g.incomeCaught)>=0.8},
+    {id:'no_missed',   label:'Never miss or misfile a bill',      check:g=>g.billsSeen>0 && g.billsMissed===0},
+    {id:'one_power',   label:'Win using at most 1 power-up',      check:g=>g.powerupsUsed<=1},
+    {id:'combo8',      label:'Reach an 8x Perfect Budget streak', check:g=>g.bestCombo>=8},
+    {id:'buffer',      label:'Keep an Emergency Fund all round',  check:g=>g.everBuffered && g.emergencyFund>0},
+  ];
 
-  function reset(){
-    G={ phase:'play', score:0, goal:0, health:100, combo:0, best:0, sorted:0, perfect:0,
-        time:L().round, items:[], parts:[], floats:[], rings:[],
-        spawnT:0.6, last:0, started:performance.now(), shake:0, flash:0, flashC:'#60a5fa',
-        x2:0, slow:0, lastBin:-1, bins:[0.18,0.5,0.82], gateT:L().gate, gateIdx:0,
-        facts:shuffle(FACTS.slice(LV*4,LV*4+4)) };
+  // ═══════════════════════════════ PUBLIC API ═══════════════════════
+  window.gqInit=function(){ homeState(); };   // playDistrictGame / hub calls this before goTo — no args, no goTo here
+
+  function homeState(){
+    const _cleanup = G && G._cleanup;
+    G={ phase:'home', parts:[], floats:[], rings:[], shake:0, flash:0, flashC:'#60a5fa', last:performance.now(), _cleanup };
   }
 
-  // ── item catalogue — EACH LEVEL has its own item/label mix ───────────
-  const NEEDS=[
-    [ // L1 · everyday basics
-      {e:'🍞',t:'Groceries'},{e:'💊',t:'Medicine'},{e:'🚌',t:'Bus fare'},
-      {e:'📚',t:'School books'},{e:'🏠',t:'Rent'},{e:'⚡',t:'Electric bill'}
-    ],
-    [ // L2 · household reality
-      {e:'🦷',t:'Dentist'},{e:'🧼',t:'Soap & shampoo'},{e:'🚰',t:'Water bill'},
-      {e:'🎒',t:'School bag'},{e:'🧥',t:'Winter coat'},{e:'📱',t:'Phone bill'}
-    ],
-    [ // L3 · grown-up needs
-      {e:'🩹',t:'First aid'},{e:'🥦',t:'Veggies'},{e:'🔌',t:'Internet bill'},
-      {e:'👓',t:'Glasses'},{e:'🧺',t:'Laundry'},{e:'🚑',t:'Insurance'}
-    ]
-  ];
-  const WANTS=[
-    [ // L1 · classic wants
-      {e:'🎮',t:'New game'},{e:'👟',t:'Sneakers'},{e:'🍭',t:'Candy'},
-      {e:'🧸',t:'Toy'},{e:'🕶',t:'Shades'},{e:'🍕',t:'Extra pizza'}
-    ],
-    [ // L2 · sneaky decoys that sound need-ish
-      {e:'🎧',t:'Headphones'},{e:'🛹',t:'Skateboard'},{e:'🍦',t:'Ice cream'},
-      {e:'🎬',t:'Movie night'},{e:'🍱',t:'Gourmet lunch'},{e:'💅',t:'Nail art'}
-    ],
-    [ // L3 · deluxe temptations
-      {e:'🧋',t:'Boba run'},{e:'🎡',t:'Theme park'},{e:'👑',t:'Designer cap'},
-      {e:'📸',t:'New camera'},{e:'🥤',t:'Brand-name water'},{e:'🎤',t:'Karaoke set'}
-    ]
-  ];
-  const SAVES=[
-    [ {e:'💰',t:'Paycheck'},{e:'💵',t:'Bonus'},{e:'🤑',t:'Birthday $'} ],            // L1
-    [ {e:'🏦',t:'Allowance'},{e:'💎',t:'Gift money'},{e:'📈',t:'Interest'} ],         // L2
-    [ {e:'🪙',t:'Side hustle'},{e:'💌',t:'Lucky money'},{e:'🏆',t:'Prize cash'} ]     // L3
-  ];
-  const POWERS=[ {e:'⏰',k:'time',t:'+5s'},{e:'✨',k:'x2',t:'Double pts'} ];
-  // bin index: 0 NEED · 1 WANT · 2 SAVE
-  const BIN_COL=['#34d399','#f472b6','#60a5fa'];
-  const BIN_LBL=['NEED','WANT','SAVE'];
-
   window.SCREENS.game_goalquest=function(){
-    if(!G) reset();
+    if(!G) homeState();
     setTimeout(gqBoot,30);
     return `<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,#1e293b,#0f172a 62%,#070d18);overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
       <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(180deg,rgba(7,13,24,.85),transparent)">
         <button onclick="gqExit()" style="padding:7px 14px;border:1px solid rgba(59,130,246,.4);border-radius:9px;background:rgba(59,130,246,.12);color:#93c5fd;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← BUDGETRON</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.2em;color:#60a5fa;flex:1;text-align:center">🎯 GOAL QUEST · <span id="gqLvl">LV ${LV+1}/3</span></div>
-        <div id="gqTime" style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fbbf24;min-width:46px;text-align:right">${L().round}s</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.2em;color:#60a5fa;flex:1;text-align:center">🎯 GOAL QUEST · <span id="gqLvl">${DISTRICTS[DI].name}</span></div>
+        <div id="gqTime" style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fbbf24;min-width:46px;text-align:right"></div>
       </div>
-      <div style="position:absolute;top:52px;left:0;right:0;z-index:5;display:flex;gap:8px;padding:0 18px;justify-content:center">
-        ${hud('SCORE','gqScore','#93c5fd')}${hud('COMBO','gqCombo','#fbbf24')}${hud('SORTED','gqSorted','#a78bfa')}
-      </div>
-      <div style="position:absolute;top:118px;left:18px;right:18px;z-index:5">
-        <div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:4px"><span>💙 BUDGET HEALTH</span><span id="gqHpTxt">100%</span></div>
-        <div style="height:9px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden;border:1px solid rgba(248,113,113,.25)"><div id="gqHpBar" style="height:100%;width:100%;background:linear-gradient(90deg,#22c55e,#86efac);transition:width .2s,background .3s"></div></div>
-        <div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin:8px 0 4px"><span>🎯 GOAL METER</span><span id="gqGoalTxt">0 / ${L().goal}</span></div>
-        <div style="height:11px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden;border:1px solid rgba(59,130,246,.3)"><div id="gqGoalBar" style="height:100%;width:0%;background:linear-gradient(90deg,#2563eb,#60a5fa);transition:width .2s"></div></div>
+      <div id="gqHud" style="position:absolute;top:52px;left:0;right:0;z-index:5;display:none">
+        <div style="display:flex;gap:8px;padding:0 18px;justify-content:center">
+          ${hud('SCORE','gqScore','#93c5fd')}${hud('COMBO','gqCombo','#fbbf24')}${hud('SORTED','gqSorted','#a78bfa')}
+        </div>
+        <div style="padding:10px 18px 0">
+          <div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:4px"><span>💙 BUDGET HEALTH</span><span id="gqHpTxt">100%</span></div>
+          <div style="height:9px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden;border:1px solid rgba(248,113,113,.25)"><div id="gqHpBar" style="height:100%;width:100%;background:linear-gradient(90deg,#22c55e,#86efac);transition:width .2s,background .3s"></div></div>
+          <div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin:8px 0 4px"><span id="gqGoalLbl">🎯 GOAL</span><span id="gqGoalTxt">$0 / $0</span></div>
+          <div style="height:11px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden;border:1px solid rgba(167,139,250,.3)"><div id="gqGoalBar" style="height:100%;width:0%;background:linear-gradient(90deg,#7c3aed,#a78bfa);transition:width .2s"></div></div>
+          <div id="gqSubRow" style="display:flex;gap:8px;margin-top:8px"></div>
+        </div>
+        <div id="gqPowerRow" style="display:flex;gap:6px;padding:8px 18px 0;flex-wrap:wrap"></div>
       </div>
       <canvas id="gqCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none"></canvas>
-      <div id="gqHint" style="position:absolute;left:0;right:0;bottom:16px;text-align:center;z-index:4;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.13em;color:rgba(255,255,255,.5);pointer-events:none">←/tap NEED · ↓/tap WANT · →/tap SAVE  ·  drag items too  ·  sort 💰 to SAVE</div>
+      <div id="gqEventBanner" style="position:absolute;top:96px;left:50%;transform:translate(-50%,-8px);z-index:6;display:none;padding:8px 18px;border-radius:12px;border:1.5px solid #fbbf24;background:rgba(7,13,24,.9);font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.1em;color:#fde68a;box-shadow:0 0 24px rgba(251,191,36,.35);white-space:nowrap;transition:opacity .25s,transform .25s;opacity:0;pointer-events:none"></div>
+      <div id="gqHome" style="position:absolute;inset:0;z-index:9;display:none;overflow-y:auto"></div>
+      <div id="gqBrief" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(7,13,24,.86);backdrop-filter:blur(5px);padding:18px;overflow-y:auto"></div>
       <div id="gqGate" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(7,13,24,.86);backdrop-filter:blur(5px);padding:22px"></div>
-      <div id="gqOver" style="position:absolute;inset:0;z-index:8;display:none;align-items:center;justify-content:center;background:rgba(7,13,24,.84);backdrop-filter:blur(4px)"></div>
+      <div id="gqOver" style="position:absolute;inset:0;z-index:8;display:none;align-items:center;justify-content:center;background:rgba(7,13,24,.84);backdrop-filter:blur(4px);overflow-y:auto;padding:18px 0"></div>
     </div>`;
   };
   function hud(label,id,c){ return `<div style="flex:1;max-width:150px;text-align:center;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.18);border-radius:10px;padding:6px"><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.45)">${label}</div><div id="${id}" style="font-family:'Anton',sans-serif;font-size:1.1rem;color:${c}">0</div></div>`; }
 
+  // ═══════════════════════════════ BOOT / INPUT ═════════════════════
   function gqBoot(){
     const cv=document.getElementById('gqCanvas'); if(!cv){ return; }
     const ctx=cv.getContext('2d');
     function size(){ cv.width=cv.clientWidth*devicePixelRatio; cv.height=cv.clientHeight*devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); }
     size(); window.addEventListener('resize',size);
 
-    // ── input: keyboard ──────────────────────────────────────────────
+    // ── input: keyboard 1-5 → SAVINGS/SPENDING/BILLS/EMERGENCY/GOAL ──
     const kd=e=>{
-      if(G.phase!=='play') return;
-      if(e.key==='ArrowLeft'){ sortActive(0); e.preventDefault(); }
-      else if(e.key==='ArrowDown'){ sortActive(1); e.preventDefault(); }
-      else if(e.key==='ArrowRight'){ sortActive(2); e.preventDefault(); }
+      if(!G || G.phase!=='play') return;
+      const n={'1':0,'2':1,'3':2,'4':3,'5':4}[e.key];
+      if(n!=null){ sortActive(n); e.preventDefault(); }
     };
     window.addEventListener('keydown',kd);
 
-    // ── input: pointer (mouse + touch). Tap a bin to sort the lowest
-    //    item; or drag the lowest item into a bin. ──────────────────────
+    // ── input: pointer (mouse + touch) — tap a bin to sort the lowest
+    //    item, or drag the lowest item into a bin ──────────────────────
     const binAt=(clientX)=>{ const r=cv.getBoundingClientRect(); const fx=(clientX-r.left)/r.width; let bi=0,bd=9; G.bins.forEach((bx,i)=>{ const d=Math.abs(bx-fx); if(d<bd){bd=d;bi=i;} }); return bi; };
-    const lowest=()=>{ let lo=null; for(const it of G.items){ if(it.dead||it.kind==='power') continue; if(!lo||it.y>lo.y) lo=it; } return lo; };
+    const lowest=()=>{ let lo=null; for(const it of G.items){ if(it.dead||it.kind==='power'||it.kind==='rare') continue; if(!lo||it.y>lo.y) lo=it; } return lo; };
     const down=(clientX,clientY)=>{
-      if(G.phase!=='play') return;
+      if(!G || G.phase!=='play') return;
       const r=cv.getBoundingClientRect(); const fy=(clientY-r.top)/r.height;
-      // grab an item near the pointer to drag it
       const fx=(clientX-r.left)/r.width;
       let pick=null,pd=0.12;
       for(const it of G.items){ if(it.dead) continue; const d=Math.hypot(it.x-fx,it.y-fy); if(d<pd){pd=d;pick=it;} }
-      if(pick && pick.kind==='power'){ resolve(pick,0); return; }   // tap a power-up → collect instantly
+      if(pick && (pick.kind==='power'||pick.kind==='rare')){ resolve(pick,-1); return; }
       if(pick && fy<0.78){ G.drag=pick; pick.grab=true; }
-      else { G.tapBin=binAt(clientX); }   // tapped a bin/zone → resolve on up
+      else { G.tapBin=binAt(clientX); }
     };
-    const move=(clientX,clientY)=>{ if(G.drag){ const r=cv.getBoundingClientRect(); G.drag.x=Math.max(0.05,Math.min(0.95,(clientX-r.left)/r.width)); G.drag.y=Math.max(0,Math.min(0.95,(clientY-r.top)/r.height)); } };
+    const move=(clientX,clientY)=>{ if(G && G.drag){ const r=cv.getBoundingClientRect(); G.drag.x=Math.max(0.05,Math.min(0.95,(clientX-r.left)/r.width)); G.drag.y=Math.max(0,Math.min(0.95,(clientY-r.top)/r.height)); } };
     const up=(clientX)=>{
+      if(!G) return;
       if(G.drag){ const bi=binAt(clientX); resolve(G.drag,bi); G.drag.grab=false; G.drag=null; }
       else if(G.tapBin!=null){ const lo=lowest(); if(lo) resolve(lo,G.tapBin); G.tapBin=null; }
     };
@@ -173,112 +225,199 @@
       cv.removeEventListener('touchstart',tDown); cv.removeEventListener('touchmove',tMove); cv.removeEventListener('touchend',tUp);
     };
     G.last=performance.now();
+    syncVisibility();
+    if(G.phase==='home') renderHome();
     cancelAnimationFrame(raf); raf=requestAnimationFrame(loop);
   }
 
-  // pick the lowest live item and sort it into bin `bi`
   function sortActive(bi){
-    let lo=null; for(const it of G.items){ if(it.dead||it.kind==='power') continue; if(!lo||it.y>lo.y) lo=it; }
+    let lo=null; for(const it of G.items){ if(it.dead||it.kind==='power'||it.kind==='rare') continue; if(!lo||it.y>lo.y) lo=it; }
     if(lo) resolve(lo,bi);
   }
 
-  // resolve item → bin (correct = item.bin matches bi)
-  function _resolveSort(it,bi){
-    if(it.dead) return;
-    const correct = it.bin===bi;
-    it.dead=1;
-    G.sorted++;
-    if(correct){
-      G.combo++; G.best=Math.max(G.best,G.combo); G.perfect++;
-      const mult = (1+Math.floor(G.combo/4)) * (G.x2>0?2:1);
-      const base = it.kind==='save'?22:15;
-      const gain = base*mult;
-      G.score += gain;
-      G.goal = Math.min(L().goal, G.goal + Math.round(base/2)*(G.x2>0?2:1));
-      G.health = Math.min(100, G.health + (it.kind==='save'?5:3));
-      // burst intensity scales with combo depth — a 10-streak should visibly pop
-      // harder than the first catch, not just show a bigger number
-      const comboPop = Math.min(1, G.combo/12);
-      ring(it.x,it.y,BIN_COL[bi]); burst(it.x,it.y,BIN_COL[bi],11+Math.round(comboPop*14));
-      floatTxt(it.x,it.y,'+'+gain,'#fde68a');
-      G.flash=0.25+comboPop*0.15; G.flashC=BIN_COL[bi];
-      if(G.combo>1 && G.combo%4===0){
-        floatTxt(0.5,0.42,'🔥 COMBO x'+(1+Math.floor(G.combo/4)),'#60a5fa');
-        burst(0.5,0.42,'#60a5fa',18); G.shake=Math.max(G.shake||0,0.22);
-      }
-    } else {
-      G.combo=0; G.health=Math.max(0,G.health-14); G.shake=0.42;
-      burst(it.x,it.y,'#f87171',13);
-      floatTxt(it.x,it.y, it.bin===0?'OOPS — that\'s a NEED!':it.bin===1?'OOPS — that\'s a WANT!':'OOPS — SAVE that!','#fca5a5');
-      // brief teachable nudge reinforcing the budgeting rule
-      const TIP=it.bin===0?'Needs come first':it.bin===1?'Wants after needs':'Pay your future self';
-      floatTxt(it.x, Math.min(0.92,it.y+0.07), TIP, '#93c5fd');
-    }
+  // toggle which DOM chrome is visible for the current phase
+  function syncVisibility(){
+    const show=(id,disp)=>{ const el=document.getElementById(id); if(el) el.style.display=disp; };
+    const playing = G.phase==='play' || G.phase==='gate';
+    show('gqHud', playing?'block':'none');
+    show('gqHome', G.phase==='home'?'block':'none');
+    show('gqBrief', G.phase==='brief'?'flex':'none');
+    show('gqGate', G.phase==='gate'?'flex':'none');
+    show('gqOver', G.phase==='over'?'flex':'none');
+    const lt=document.getElementById('gqLvl'); if(lt) lt.textContent=D().name;
+    const tEl=document.getElementById('gqTime'); if(tEl) tEl.textContent = playing ? Math.ceil(G.time||0)+'s' : '';
+    const glbl=document.getElementById('gqGoalLbl'); if(glbl && G.goalDef) glbl.textContent=G.goalDef.icon+' '+G.goalDef.label.toUpperCase();
   }
 
+  // ═══════════════════════════════ HOME / DISTRICT SELECT ═══════════
+  function renderHome(){
+    const el=document.getElementById('gqHome'); if(!el) return;
+    const c=career(); const unlocked=unlockedTo();
+    el.innerHTML=`<div style="min-height:100%;display:flex;flex-direction:column;align-items:center;padding:74px 18px 30px;gap:16px">
+      <div style="text-align:center">
+        <div style="font-family:'Anton',sans-serif;font-size:clamp(1.7rem,5vw,2.6rem);letter-spacing:.03em;background:linear-gradient(90deg,#a78bfa,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent">GOAL QUEST</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.28em;color:#93c5fd;margin-top:2px">BUDGET · PLAN · ACHIEVE</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+        ${pill('ROUNDS',c.roundsPlayed)}${pill('GOALS HIT',c.goalsHit)}${pill('BEST STREAK','x'+c.bestCombo)}${pill('RANK',plannerRank())}
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;max-width:960px;margin-top:6px">
+        ${DISTRICTS.map((d,i)=>{
+          const locked=i>0 && unlocked<i;
+          return `<div onclick="${locked?'':'gqPickDistrict('+i+')'}" style="width:240px;padding:18px 16px;border-radius:18px;border:1.5px solid ${locked?'rgba(255,255,255,.12)':d.col+'70'};background:linear-gradient(165deg,rgba(20,26,48,.95),rgba(6,10,22,.98));cursor:${locked?'default':'pointer'};text-align:center;position:relative;transition:transform .2s,border-color .2s" ${locked?'':`onmouseover="this.style.borderColor='${d.col}';this.style.transform='translateY(-4px)'" onmouseout="this.style.borderColor='${d.col}70';this.style.transform='none'"`}>
+            <div style="font-size:2.3rem;margin-bottom:6px;filter:${locked?'grayscale(1) opacity(.4)':'none'}">${d.icon}</div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:.08em;color:${locked?'rgba(255,255,255,.35)':d.col}">${d.name}</div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.4);margin:5px 0 8px">${d.sub}</div>
+            <div style="font-size:.7rem;line-height:1.5;color:rgba(255,255,255,${locked?'.3':'.65'})">${d.blurb}</div>
+            <div style="margin-top:10px;font-family:'Orbitron',sans-serif;font-size:.46rem;letter-spacing:.1em;color:#fbbf24">GOAL $${d.goals[0].cost}-$${d.goals[d.goals.length-1].cost}</div>
+            ${locked?`<div style="position:absolute;top:10px;right:12px;font-size:1rem">🔒</div><div style="margin-top:8px;font-size:.52rem;color:rgba(255,255,255,.4)">Fund ${DISTRICTS[i-1].name} to unlock</div>`:''}
+          </div>`;}).join('')}
+      </div>
+      <div style="max-width:640px;text-align:center;font-size:.55rem;letter-spacing:.05em;color:rgba(255,255,255,.4);margin-top:4px">💰 INCOME → 🧾 BILLS/EVENTS → 🖐️ DECIDE → 📊 IMPACT → 🎯 GOAL — sort every falling token into the right bucket before it lands!</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center;max-width:620px">
+        ${POWERUPS.map(p=>`<div title="${p.name}" style="width:34px;height:34px;border-radius:9px;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.25);display:flex;align-items:center;justify-content:center;font-size:1rem">${p.icon}</div>`).join('')}
+      </div>
+    </div>`;
+  }
+  function pill(label,val){ return `<div style="padding:8px 14px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);text-align:center;min-width:84px"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">${label}</div><div style="font-family:'Anton',sans-serif;font-size:1rem;color:#fbbf24">${val}</div></div>`; }
+
+  window.gqPickDistrict=function(i){
+    if(i>0 && unlockedTo()<i) return;
+    DI=i; G.phase='brief'; G.goalDef = D().goals[Math.floor(Math.random()*D().goals.length)];
+    G.objectives = shuffle(OBJPOOL.slice()).slice(0,3);
+    renderBrief(); syncVisibility();
+  };
+  window.gqBackHome=function(){ G.phase='home'; renderHome(); syncVisibility(); };
+
+  function renderBrief(){
+    const el=document.getElementById('gqBrief'); if(!el) return;
+    const d=D(); const g=G.goalDef;
+    const evPool=EVENTS.filter(e=>e.minD<=DI);
+    el.innerHTML=`<div style="max-width:560px;width:100%;text-align:center;padding:28px 26px;border:1.5px solid ${d.col};border-radius:22px;background:linear-gradient(160deg,rgba(30,41,59,.97),rgba(7,13,24,.97));box-shadow:0 0 60px ${d.colSoft};animation:gqGateIn .3s ease">
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.22em;color:${d.col}">${d.icon} ${d.name} · ${d.sub}</div>
+      <div style="font-size:3rem;margin:12px 0 4px">${g.icon}</div>
+      <div style="font-family:'Anton',sans-serif;font-size:1.6rem;margin-bottom:2px">${g.label}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.9rem;color:#fbbf24;margin-bottom:14px">TARGET: $${g.cost.toLocaleString()}</div>
+      <div style="display:flex;justify-content:center;gap:6px;flex-wrap:wrap;font-size:.62rem;color:rgba(255,255,255,.7);margin-bottom:14px">
+        <span>💰 INCOME</span><span style="color:rgba(255,255,255,.3)">→</span><span>🧾 BILLS/EVENTS</span><span style="color:rgba(255,255,255,.3)">→</span><span>🖐️ DECIDE</span><span style="color:rgba(255,255,255,.3)">→</span><span>📊 IMPACT</span><span style="color:rgba(255,255,255,.3)">→</span><span>🎯 GOAL</span>
+      </div>
+      <div style="text-align:left;background:rgba(255,255,255,.04);border-radius:12px;padding:10px 14px;margin-bottom:12px">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.44rem;letter-spacing:.14em;color:#a78bfa;margin-bottom:6px">⭐ BONUS OBJECTIVES</div>
+        ${G.objectives.map(o=>`<div style="font-size:.68rem;color:rgba(255,255,255,.75);padding:2px 0">• ${o.label}</div>`).join('')}
+      </div>
+      <div style="text-align:left;background:rgba(255,255,255,.04);border-radius:12px;padding:10px 14px;margin-bottom:16px">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.44rem;letter-spacing:.14em;color:#f87171;margin-bottom:6px">⚠️ BE READY FOR REAL-LIFE EVENTS</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${evPool.map(e=>`<span title="${e.label}" style="font-size:1rem">${e.icon}</span>`).join('')}</div>
+      </div>
+      <button onclick="gqStartRound()" style="padding:14px 34px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,${d.col},#1d2b4d);color:#fff;font-family:'Orbitron',sans-serif;font-size:.78rem;letter-spacing:.12em;font-weight:900;cursor:pointer;box-shadow:0 0 30px ${d.colSoft}">▶ PLAY</button>
+      <button onclick="gqBackHome()" style="padding:14px 22px;margin:4px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.7rem;letter-spacing:.1em;cursor:pointer">← DISTRICTS</button>
+    </div>`;
+  }
+
+  // ═══════════════════════════════ ROUND LIFECYCLE ══════════════════
+  window.gqStartRound=function(){
+    const goalDef=G.goalDef, objectives=G.objectives, _cleanup=G._cleanup;
+    G={ phase:'play', goalDef, goalCost:goalDef.cost, goalProgress:0, _cleanup,
+        score:0, health:100, combo:0, bestCombo:0, sorted:0, perfect:0,
+        time:D().roundSec, spawnT:0.6, last:performance.now(), started:performance.now(),
+        items:[], parts:[], floats:[], rings:[],
+        spawnAutoT:0, shake:0, flash:0, flashC:'#60a5fa',
+        bins:[0.1,0.3,0.5,0.7,0.9], drag:null, tapBin:null,
+        gateT:D().gateEvery, gateIdx:0, facts:shuffle(FACTS.slice(DI*4,DI*4+4)),
+        fxT:{savingsX2:0,coupon:0,cashback:0,billFreeze:0,advisor:0,frenzy:0,autoBudget:0},
+        savings:0, emergencyFund:0, everBuffered:false,
+        energy:100, happiness:65, credit:650, inflation:1, noSpendT:0,
+        overdueBills:0, missedBillsStreak:0, divertNoted:false,
+        billsSeen:0, billsMissed:0, eventsSeen:0, shocksSeen:0, impulseSeen:0, impulseAccepted:0,
+        incomeCaught:0, toSavingsGoal:0, rareCollected:0, powerupsUsed:0,
+        objectives, objResults:objectives.map(()=>false),
+        bannerT:0 };
+    // NOTE: input listeners are attached once in gqBoot() and persist for the whole
+    // screen visit (the canvas element itself is never recreated by phase changes) —
+    // _cleanup is carried over above so gqExit() can still remove them correctly.
+    syncVisibility();
+    const o=document.getElementById('gqOver'); if(o){ o.style.display='none'; o.innerHTML=''; }
+    G.last=performance.now();
+  };
+
+  // ═══════════════════════════════ MAIN LOOP ════════════════════════
   function loop(now){
     const cv=document.getElementById('gqCanvas');
-    if(!cv || !G){ if(G&&G._cleanup){G._cleanup();} G=null; cancelAnimationFrame(raf); return; }   // left screen → stop + release listeners
+    if(!cv || !G){ if(G&&G._cleanup){G._cleanup();} G=null; cancelAnimationFrame(raf); return; }
     const ctx=cv.getContext('2d'); const W=cv.clientWidth, H=cv.clientHeight;
     let dt=Math.min(40,now-G.last)/1000; G.last=now;
     if(G.phase==='play'){ update(dt,W,H); }
+    else if(G.phase==='home'||G.phase==='brief'||G.phase==='over'){ ambientOnly(dt); }
     render(ctx,W,H,now);
     raf=requestAnimationFrame(loop);
   }
 
-  function update(dt,W,H){
-    // timer
-    G.time-=dt; if(G.time<=0){ G.time=0; return end(); }
-    const tEl=document.getElementById('gqTime'); if(tEl) tEl.textContent=Math.ceil(G.time)+'s';
-    // knowledge gate — pauses play, shows one lesson card (faster on higher levels)
-    G.gateT-=dt; if(G.gateT<=0){ openGate(); return; }
-    const prog=1-(G.time/L().round);
-    const slowF = G.slow>0?0.45:1;
+  function ambientOnly(dt){
+    for(const p of (G.parts||[])){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=1.4*dt; p.life-=dt; }
+    G.parts=(G.parts||[]).filter(p=>p.life>0);
+  }
 
-    // spawn — items fall faster + more often as time runs down; per-level
-    // fall/spawn multipliers + item-mix odds make each level feel different
+  function idealBucket(it){
+    if(it.kind==='bill') return BILLS;
+    if(it.kind==='event'){ if(it.evType==='shock') return EMERGENCY; return GOAL; }
+    return GOAL; // income: smartest placement is always the goal
+  }
+
+  function update(dt,W,H){
+    const d=D();
+    // timer
+    G.time-=dt; if(G.time<=0){ G.time=0; return end(false); }
+    const tEl=document.getElementById('gqTime'); if(tEl) tEl.textContent=Math.ceil(G.time)+'s';
+
+    // knowledge gate — pauses play, one lesson from this district's shuffled slice of 4
+    G.gateT-=dt; if(G.gateT<=0){ openGate(); return; }
+
+    const prog=1-(G.time/d.roundSec);
+
+    // passive systems: energy regen, happiness drift, inflation, banner decay, power-up timers
+    if(d.enabled.energy) G.energy=Math.min(100,G.energy+3*dt);
+    if(d.enabled.happiness){
+      G.noSpendT+=dt;
+      if(G.noSpendT>10) G.happiness=Math.max(0,G.happiness-0.6*dt);
+      if(G.happiness<25) G.health=Math.max(0,G.health-0.35*dt);
+    }
+    if(d.inflationPerSec) G.inflation+=d.inflationPerSec*dt;
+    if(G.bannerT>0){ G.bannerT-=dt; if(G.bannerT<=0){ const b=document.getElementById('gqEventBanner'); if(b){ b.style.opacity=0; b.style.transform='translate(-50%,-8px)'; } } }
+    Object.keys(G.fxT).forEach(k=>{ if(G.fxT[k]>0) G.fxT[k]-=dt; });
+
+    // Auto Budget power-up: gently auto-resolves the lowest item into its ideal bucket
+    if(G.fxT.autoBudget>0){
+      G.spawnAutoT-=dt;
+      if(G.spawnAutoT<=0){
+        let lo=null; for(const it of G.items){ if(it.dead||it.kind==='power'||it.kind==='rare'||it.grab) continue; if(!lo||it.y>lo.y) lo=it; }
+        if(lo){ resolve(lo, idealBucket(lo)); G.spawnAutoT=0.35; }
+      }
+    }
+
+    // spawn
     G.spawnT-=dt;
     if(G.spawnT<=0){
-      G.spawnT=Math.max(0.3,(0.92-prog*0.5)*L().spawn);
-      const roll=Math.random(), M=L().mix, F=L().fall;
-      if(roll<M.power){ // power-up (rarer on higher levels)
-        const p=POWERS[Math.floor(Math.random()*POWERS.length)];
-        G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:(0.26+prog*0.3)*F,e:p.e,kind:'power',pk:p.k,t:p.t,bin:-1,r:20,spin:0});
-      } else if(roll<M.power+M.save){ // save / bonus item → SAVE bin
-        const s=SAVES[LV][Math.floor(Math.random()*SAVES[LV].length)];
-        G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:(0.3+prog*0.5+Math.random()*0.15)*F,e:s.e,kind:'save',t:s.t,bin:2,r:23,spin:0});
-      } else if(roll<1-M.want){ // need
-        const n=NEEDS[LV][Math.floor(Math.random()*NEEDS[LV].length)];
-        G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:(0.32+prog*0.55+Math.random()*0.2)*F,e:n.e,kind:'need',t:n.t,bin:0,r:22,spin:0});
-      } else { // want (decoy-heavy on L2/L3)
-        const w=WANTS[LV][Math.floor(Math.random()*WANTS[LV].length)];
-        G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:(0.32+prog*0.55+Math.random()*0.2)*F,e:w.e,kind:'want',t:w.t,bin:1,r:22,spin:0});
-      }
+      G.spawnT=Math.max(0.28,(0.9-prog*0.45)*d.spawnMul);
+      spawnToken(prog);
     }
 
     const floorY=0.82;
     for(const it of G.items){
-      if(it.grab) continue;            // held by drag → frozen
-      it.y += it.vy*dt*slowF;
+      if(it.grab) continue;
+      it.y += it.vy*dt*(G.fxT.slow>0?0.45:1);
       it.spin += dt*1.4;
       if(it.y>=floorY){
-        if(it.kind==='power'){ it.dead=1; }   // missed power-ups: no penalty
-        else {
-          it.dead=1; G.combo=0; G.health=Math.max(0,G.health-10); G.shake=0.34;
-          burst(it.x,floorY,'#f87171',9); floatTxt(it.x,floorY,'Missed!','#fca5a5');
-        }
+        it.dead=1;
+        if(it.kind==='power'||it.kind==='rare'){ /* no penalty for a missed collectible */ }
+        else if(it.kind==='bill'){ missBill(it); }
+        else if(it.kind==='event' && it.evType==='shock'){ missShock(it); }
+        else if(it.kind==='income'){ G.combo=0; G.shake=Math.max(G.shake,0.28); burst(it.x,floorY,'#f87171',7); floatTxt(it.x,floorY,'Missed!','#fca5a5'); }
+        // temptation/seasonal/bonus/opportunity tokens that fall = simply ignored, no penalty
       }
     }
-    // collect power-ups when they reach the bin row by tap? simpler: power-ups
-    // are collected by tapping/dragging them like items. Handle via resolve-less catch:
-    // if a power-up is dragged to any bin OR tapped, grant it.
     G.items=G.items.filter(i=>!i.dead);
 
-    if(G.x2>0) G.x2-=dt;
-    if(G.slow>0) G.slow-=dt;
     if(G.shake>0) G.shake-=dt; if(G.flash>0) G.flash-=dt;
-
-    // effects
     for(const p of G.parts){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=1.4*dt; p.life-=dt; }
     G.parts=G.parts.filter(p=>p.life>0);
     for(const f of G.floats){ f.y-=dt*0.12; f.life-=dt; }
@@ -286,149 +425,330 @@
     for(const rg of G.rings){ rg.r+=dt*1.9; rg.life-=dt; }
     G.rings=G.rings.filter(r=>r.life>0);
 
-    // HUD sync
+    syncHudNumbers();
+    if(G.health<=0) return end(false);
+    if(G.goalProgress>=G.goalCost) return end(true);
+  }
+
+  function syncHudNumbers(){
     setTxt('gqScore',G.score); setTxt('gqCombo','x'+G.combo); setTxt('gqSorted',G.sorted);
     const hb=document.getElementById('gqHpBar'); if(hb){ hb.style.width=G.health+'%'; hb.style.background = G.health>50?'linear-gradient(90deg,#22c55e,#86efac)':G.health>25?'linear-gradient(90deg,#f59e0b,#fcd34d)':'linear-gradient(90deg,#ef4444,#fca5a5)'; }
     const ht=document.getElementById('gqHpTxt'); if(ht) ht.textContent=Math.round(G.health)+'%';
-    const gb=document.getElementById('gqGoalBar'); if(gb) gb.style.width=(G.goal/L().goal*100)+'%';
-    const gt=document.getElementById('gqGoalTxt'); if(gt) gt.textContent=G.goal+' / '+L().goal;
+    const gb=document.getElementById('gqGoalBar'); if(gb) gb.style.width=Math.min(100,G.goalProgress/G.goalCost*100)+'%';
+    const gt=document.getElementById('gqGoalTxt'); if(gt) gt.textContent=fmtM(G.goalProgress)+' / '+fmtM(G.goalCost);
+    const sub=document.getElementById('gqSubRow'); if(sub){
+      const d=D(); let chips='';
+      if(d.enabled.energy) chips+=miniBar('⚡',G.energy,'#38bdf8');
+      if(d.enabled.happiness) chips+=miniBar('😊',G.happiness,'#f472b6');
+      if(d.enabled.credit) chips+=miniBar('💳',Math.round((G.credit-300)/(850-300)*100),'#fbbf24',Math.round(G.credit));
+      sub.innerHTML=chips;
+    }
+    const pr=document.getElementById('gqPowerRow'); if(pr){
+      let html=''; const label={coupon:'COUPON',cashback:'CASHBACK',billFreeze:'FREEZE',advisor:'ADVISOR',frenzy:'FRENZY',autoBudget:'AUTO',savingsX2:'SAVE x2'};
+      Object.keys(G.fxT).forEach(k=>{ if(G.fxT[k]>0 && label[k]) html+=`<div style="padding:3px 8px;border-radius:8px;background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.4);font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.08em;color:#c4b5fd">${label[k]} ${Math.ceil(G.fxT[k])}s</div>`; });
+      pr.innerHTML=html;
+    }
+  }
+  function miniBar(icon,pct,col,txt){ pct=Math.max(0,Math.min(100,pct)); return `<div style="flex:1;background:rgba(255,255,255,.06);border-radius:8px;padding:3px 8px;display:flex;align-items:center;gap:5px"><span style="font-size:.7rem">${icon}</span><div style="flex:1;height:5px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden"><div style="height:100%;width:${pct}%;background:${col}"></div></div>${txt!=null?`<span style="font-family:'Orbitron',sans-serif;font-size:.4rem;color:${col}">${txt}</span>`:''}</div>`; }
 
-    if(G.health<=0) return end(false);
-    if(G.goal>=L().goal) return end(true);
+  // ═══════════════════════════════ SPAWNING ═════════════════════════
+  function spawnToken(prog){
+    const d=D(); const roll=Math.random(); const m=d.mix; const F=d.fallMul;
+    const vy=(base)=> (base+prog*0.55+Math.random()*0.2)*F;
+    if(roll<m.power){
+      const p=POWERUPS[Math.floor(Math.random()*POWERUPS.length)];
+      G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:vy(0.24),e:p.icon,kind:'power',pu:p,t:p.name,r:20,spin:0});
+    } else if(roll<m.power+m.rare){
+      G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:vy(0.24),e:'💎',kind:'rare',t:'Rare Find',r:20,spin:0});
+    } else if(roll<m.power+m.rare+m.event){
+      spawnEvent(prog);
+    } else if(roll<m.power+m.rare+m.event+m.bill){
+      const b=BILL_DEFS[Math.floor(Math.random()*BILL_DEFS.length)];
+      const val=Math.round((G.goalCost/22)*(0.8+Math.random()*0.5)*G.inflation*(G.fxT.coupon>0?(1-0.30):1)/5)*5;
+      G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:vy(0.34),e:b.ic,kind:'bill',t:b.label,val,r:22,spin:0});
+    } else {
+      spawnIncome(prog);
+    }
   }
 
-  // power-ups: granted via resolve() too — intercept there
-  function resolve(it,bi){
-    if(it.kind==='power'){
-      it.dead=1;
-      if(it.pk==='time'){ G.time=Math.min(L().round,G.time+5); floatTxt(it.x,it.y,'+5 SEC','#5eead4'); }
-      else if(it.pk==='x2'){ G.x2=8; floatTxt(it.x,it.y,'POINTS x2!','#fde68a'); }
-      burst(it.x,it.y,'#a78bfa',12); ring(it.x,it.y,'#a78bfa');
-      G.flash=0.25; G.flashC='#a78bfa';
+  function spawnIncome(prog,opts){
+    opts=opts||{};
+    const d=D();
+    let src = opts.src ? {k:opts.src,ic:opts.icon,mult:opts.mult||1} : weightedSource();
+    let base=(G.goalCost/16)*(0.7+Math.random()*0.6)*src.mult;
+    let tired=false;
+    if(src.k==='SIDE_JOB' && d.enabled.energy && G.energy<18 && G.fxT.frenzy<=0){ base*=0.5; tired=true; }
+    if(src.k==='SIDE_JOB' && G.fxT.frenzy>0) base*=2;
+    if(d.taxPct) base*=(1-d.taxPct);
+    const val=Math.round(base/5)*5;
+    G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:(0.3+prog*0.5+Math.random()*0.15)*d.fallMul,e:src.ic,kind:'income',src:src.k,t:opts.label||titleSrc(src.k),val,tired,r:22,spin:0});
+  }
+  function titleSrc(k){ return {ALLOWANCE:'Allowance',PAYCHECK:'Paycheck',WINDFALL:'Windfall',SIDE_JOB:'Side Job'}[k]||k; }
+  function weightedSource(){ let r=Math.random()*SOURCES.reduce((a,s)=>a+s.w,0); for(const s of SOURCES){ if((r-=s.w)<=0) return s; } return SOURCES[0]; }
+
+  function spawnEvent(prog){
+    const d=D(); const pool=EVENTS.filter(e=>e.minD<=DI);
+    const ev=pool[Math.floor(Math.random()*pool.length)];
+    G.eventsSeen++;
+    if(ev.type==='incomeShock'){
+      G.health=Math.max(0,G.health-6); G.goalProgress=Math.max(0,G.goalProgress-G.goalCost*0.015);
+      announce(ev,'😢 Income dipped a little this round.');
+      spawnIncome(prog); // keep pacing — this roll still yields a catchable token
       return;
     }
-    _resolveSort(it,bi);
+    if(ev.type==='bonus'){ announce(ev,'🌟 Free bonus falling — catch it!'); spawnIncome(prog,{src:'BONUS_GOOD_GRADES',icon:'🌟',mult:1.3,label:ev.label}); return; }
+    if(ev.type==='opportunity'){ announce(ev,'💼 Extra income falling — catch it!'); spawnIncome(prog,{src:'SIDE_JOB',icon:'💼',mult:1.2,label:ev.label}); return; }
+    // shock / temptation / seasonal → real event token the player must route
+    const severity=ev.severe?1.7:1;
+    const val=Math.round((G.goalCost/9)*(0.8+Math.random()*0.5)*severity*G.inflation/5)*5;
+    const valT=Math.round((G.goalCost/14)*(0.7+Math.random()*0.6)/5)*5;
+    G.items.push({x:Math.random()*0.8+0.1,y:-0.06,vy:(0.3+prog*0.5+Math.random()*0.2)*d.fallMul,e:ev.icon,kind:'event',evType:ev.type,ev,t:ev.label,val:ev.type==='shock'?val:valT,r:23,spin:0});
+    if(ev.type==='shock') G.shocksSeen++;
+    announce(ev, ev.type==='shock' ? '⚠️ Route it to EMERGENCY!' : 'Accept (SPENDING) or Decline (SAVINGS/GOAL)?');
+  }
+  function announce(ev,sub){
+    G.bannerT=2.4;
+    const b=document.getElementById('gqEventBanner'); if(!b) return;
+    b.innerHTML=`<b>${ev.icon} REAL-LIFE EVENT:</b> ${ev.label} <span style="opacity:.7">— ${sub}</span>`;
+    b.style.display='block'; requestAnimationFrame(()=>{ b.style.opacity=1; b.style.transform='translate(-50%,0)'; });
   }
 
+  // ═══════════════════════════════ RESOLUTION ═══════════════════════
+  function resolve(it,bi){
+    if(it.dead) return;
+    if(it.kind==='power'){ it.dead=1; G.powerupsUsed++; applyPowerup(it.pu); return; }
+    if(it.kind==='rare'){ it.dead=1; collectRare(it); return; }
+    it.dead=1; G.sorted++;
+    if(it.kind==='income') resolveIncome(it,bi);
+    else if(it.kind==='bill') resolveBill(it,bi);
+    else if(it.kind==='event') resolveEvent(it,bi);
+  }
+
+  function goodFx(x,y,bi,txt,healthDelta){
+    G.combo++; G.bestCombo=Math.max(G.bestCombo,G.combo); G.perfect++;
+    G.health=Math.min(100,G.health+(healthDelta||3));
+    const mult=(1+Math.floor(G.combo/4));
+    G.score+=Math.round(20*mult);
+    const comboPop=Math.min(1,G.combo/12);
+    ring(x,y,BUCK_COL[bi]); burst(x,y,BUCK_COL[bi],11+Math.round(comboPop*14));
+    floatTxt(x,y,txt,'#fde68a');
+    G.flash=0.22+comboPop*0.12; G.flashC=BUCK_COL[bi];
+    if(G.combo>1 && G.combo%4===0){ floatTxt(0.5,0.42,'🔥 COMBO x'+(1+Math.floor(G.combo/4)),'#60a5fa'); burst(0.5,0.42,'#60a5fa',18); G.shake=Math.max(G.shake,0.2); }
+  }
+  function badFx(x,y,txt,healthDelta){
+    G.combo=0; G.health=Math.max(0,G.health-(healthDelta||14)); G.shake=0.4;
+    burst(x,y,'#f87171',12); floatTxt(x,y,txt,'#fca5a5');
+  }
+  function neutralFx(x,y,txt,col){ burst(x,y,col||'#93c5fd',6); floatTxt(x,y,txt,col||'#93c5fd'); }
+
+  function resolveIncome(it,bi){
+    const d=D(); G.incomeCaught+=it.val;
+    const divert = G.overdueBills>0 ? 0.7 : 1;
+    if(bi===GOAL || bi===SAVINGS){
+      const mult=(G.fxT.savingsX2>0?2:1);
+      const credited=it.val*mult*divert;
+      G.goalProgress+=credited; G.toSavingsGoal+=it.val;
+      if(bi===SAVINGS) G.savings+=credited;
+      goodFx(it.x,it.y,bi, (it.tired?'😴 tired but ':'+')+fmtM(credited), 3);
+      if(divert<1 && !G.divertNoted){ G.divertNoted=true; floatTxt(it.x,Math.min(0.92,it.y+0.08),'Overdue bills divert some income','#93c5fd'); }
+    } else if(bi===EMERGENCY){
+      G.emergencyFund+=it.val; G.everBuffered=true; G.goalProgress+=it.val*0.5*divert;
+      goodFx(it.x,it.y,bi,'🛟 +'+fmtM(it.val),2);
+    } else if(bi===BILLS){
+      if(G.overdueBills>0){ G.overdueBills=Math.max(0,G.overdueBills-1); G.goalProgress+=it.val*0.5;
+        goodFx(it.x,it.y,bi,'Bill paid off!',3);
+      } else { neutralFx(it.x,it.y,'No bill due right now','#93c5fd'); }
+    } else { // SPENDING
+      if(d.enabled.happiness){ G.happiness=Math.min(100,G.happiness+4); G.noSpendT=0; }
+      if(G.fxT.cashback>0){ const cb=it.val*0.20; G.savings+=cb; G.goalProgress+=cb*0.5; }
+      if(G.overdueBills>0){ badFx(it.x,it.y,'Bills overdue — pay those first!',6); }
+      else { neutralFx(it.x,it.y,'Nice treat (no goal progress)','#f9a8d4'); }
+    }
+  }
+
+  function resolveBill(it,bi){
+    if(bi===BILLS){
+      G.billsSeen++;
+      G.missedBillsStreak=0;
+      if(D().enabled.credit) G.credit=Math.min(850,G.credit+15);
+      G.goalProgress+=it.val*0.15;
+      goodFx(it.x,it.y,bi,'BILL PAID ✔',3);
+    } else { missBill(it); }
+  }
+  // covers BOTH a wrong-bucket bill (called from resolveBill above) AND a bill
+  // that fell to the floor uncaught (called directly from update()'s miss loop)
+  // — billsSeen is counted here so it can never trail behind billsMissed.
+  function missBill(it){
+    G.billsSeen++; G.overdueBills++; G.missedBillsStreak++; G.billsMissed++;
+    const lateFee=Math.round(it.val*D().lateFeePct*G.missedBillsStreak);
+    if(D().enabled.credit) G.credit=Math.max(300,G.credit-25);
+    badFx(it.x,it.y,'LATE FEE! -'+fmtM(lateFee), 8+G.missedBillsStreak*3);
+  }
+
+  function resolveEvent(it,bi){
+    const ev=it.ev;
+    if(ev.type==='shock'){
+      const buffered=G.emergencyFund>=20;
+      const cost=Math.round(it.val*(buffered?(1-D().bufferDiscountPct):1));
+      if(bi===EMERGENCY){
+        G.emergencyFund=Math.max(0,G.emergencyFund-cost*0.4);
+        if(D().enabled.credit) G.credit=Math.min(850,G.credit+8);
+        goodFx(it.x,it.y,bi,(buffered?'🛟 Buffered! -':'Handled -')+fmtM(cost),2);
+      } else { missShock(it,cost); }
+    } else if(ev.type==='temptation' || ev.type==='seasonal'){
+      G.impulseSeen++;
+      if(bi===SPENDING){
+        G.impulseAccepted++;
+        if(D().enabled.happiness){ G.happiness=Math.min(100,G.happiness+6); G.noSpendT=0; }
+        G.goalProgress=Math.max(0,G.goalProgress-it.val*0.4);
+        if(G.overdueBills>0) badFx(it.x,it.y,'Accepted — bills overdue too!',8);
+        else neutralFx(it.x,it.y,'Accepted — Goal Delayed','#f9a8d4');
+      } else if(bi===SAVINGS || bi===GOAL){
+        G.goalProgress+=it.val*0.5;
+        goodFx(it.x,it.y,bi,'Declined! Willpower +',2);
+      } else {
+        neutralFx(it.x,it.y,'Accept(Spend) or Decline(Save/Goal)?','#93c5fd');
+      }
+    }
+  }
+  function missShock(it,costOverride){
+    const buffered=G.emergencyFund>=20;
+    const cost=costOverride!=null?costOverride:Math.round(it.val*(buffered?(1-D().bufferDiscountPct):1));
+    if(D().enabled.credit) G.credit=Math.max(300,G.credit-10);
+    G.goalProgress=Math.max(0,G.goalProgress-cost*0.3);
+    badFx(it.x,it.y,'💥 '+it.t+'! -'+fmtM(cost), 10+Math.round(cost/25));
+  }
+
+  function collectRare(it){
+    G.rareCollected++;
+    const val=Math.round(G.goalCost*0.05/5)*5;
+    G.goalProgress+=val; G.score+=60;
+    ring(it.x,it.y,'#fde047'); burst(it.x,it.y,'#fde047',20);
+    floatTxt(it.x,it.y,'💎 RARE! +'+fmtM(val),'#fde047');
+    G.flash=0.3; G.flashC='#fde047';
+  }
+
+  function applyPowerup(pu){
+    ring(0.5,0.3,'#a78bfa'); burst(0.5,0.3,'#a78bfa',16); G.flash=0.25; G.flashC='#a78bfa';
+    switch(pu.effect){
+      case 'costDown': G.fxT.coupon=pu.dur; floatTxt(0.5,0.3,'🏷️ COUPON CRAZE! -30% bills','#fde68a'); break;
+      case 'income': { const bonus=Math.round(G.goalCost*0.06/5)*5; G.savings+=bonus; G.goalProgress+=bonus*0.7;
+        floatTxt(0.5,0.3,'💵 +'+fmtM(bonus)+' BONUS PAYCHECK','#fde68a'); } break;
+      case 'billFreeze': G.fxT.billFreeze=pu.dur; floatTxt(0.5,0.3,'🧊 BILLS FROZEN 30s','#5eead4'); break;
+      case 'cashback': G.fxT.cashback=pu.dur; floatTxt(0.5,0.3,'💳 CASHBACK BOOST!','#5eead4'); break;
+      case 'advice': G.fxT.advisor=pu.dur; floatTxt(0.5,0.3,'🤖 ADVISOR ONLINE','#a78bfa'); break;
+      case 'incomeDouble': G.fxT.frenzy=pu.dur; floatTxt(0.5,0.3,'⚡ SIDE HUSTLE FRENZY!','#fde68a'); break;
+      case 'autoBudget': G.fxT.autoBudget=pu.dur; G.spawnAutoT=0.1; floatTxt(0.5,0.3,'🧠 AUTO BUDGET ON!','#a78bfa'); break;
+      case 'timeExt': G.time+=pu.val; floatTxt(0.5,0.3,'⏰ +'+pu.val+'s TIME','#5eead4'); break;
+      case 'luck': for(let i=0;i<3;i++){ setTimeout(()=>{ if(G&&G.phase==='play') spawnIncome(1-(G.time/D().roundSec),{src:'WINDFALL',icon:'🍀',mult:1.4,label:'Lucky Windfall'}); },i*180); }
+        floatTxt(0.5,0.3,'🍀 LUCKY WINDFALL!','#86efac'); break;
+      case 'savingsX2': G.fxT.savingsX2=pu.dur; floatTxt(0.5,0.3,'✨ SAVINGS x2!','#fde68a'); break;
+    }
+  }
+
+  // ── billFreeze suppresses bill spawning inline in spawnToken via mix
+  //    check — simplest correct hook is here, right before the district
+  //    mix roll would have chosen 'bill' we instead force an income spawn.
+  const _origSpawnToken=spawnToken;
+  spawnToken=function(prog){ if(G.fxT && G.fxT.billFreeze>0){
+      const d=D(); const roll=Math.random(); const m=d.mix;
+      if(roll>=m.power+m.rare+m.event && roll<m.power+m.rare+m.event+m.bill){ spawnIncome(prog); return; }
+    }
+    _origSpawnToken(prog);
+  };
+
+  // ═══════════════════════════════ RENDER ═══════════════════════════
   const _gqStars=Array.from({length:60},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.1+0.3,s:Math.random()*0.5+0.2,c:Math.random()<0.5?'#93c5fd':'#c4b5fd'}));
   function _gqBg(ctx,W,H,now){
-    // rich dark gradient background
+    const col=D().col;
     const bg=ctx.createLinearGradient(0,0,W,H);
     bg.addColorStop(0,'#0a0416'); bg.addColorStop(0.4,'#0d0829'); bg.addColorStop(1,'#0a1628');
     ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-    // perspective floor grid vanishing toward bottom
-    ctx.strokeStyle='rgba(139,92,246,.09)'; ctx.lineWidth=1;
+    ctx.strokeStyle=hexA(col,0.09); ctx.lineWidth=1;
     const vy=H*0.82;
-    for(let i=0;i<=10;i++){
-      const t=i/10;
-      ctx.beginPath(); ctx.moveTo(t*W,0); ctx.lineTo(W/2+(t*W-W/2)*3,vy); ctx.stroke();
-    }
-    for(let j=0;j<4;j++){
-      const fy=H*0.25*(j+0.5);
-      const sc=1-fy/vy; const lx=W/2-W*sc*0.5; const rx=W/2+W*sc*0.5;
-      ctx.beginPath(); ctx.moveTo(lx,fy); ctx.lineTo(rx,fy); ctx.stroke();
-    }
-    // twinkling stars
+    for(let i=0;i<=10;i++){ const t=i/10; ctx.beginPath(); ctx.moveTo(t*W,0); ctx.lineTo(W/2+(t*W-W/2)*3,vy); ctx.stroke(); }
+    for(let j=0;j<4;j++){ const fy=H*0.25*(j+0.5); const sc=1-fy/vy; const lx=W/2-W*sc*0.5; const rx=W/2+W*sc*0.5;
+      ctx.beginPath(); ctx.moveTo(lx,fy); ctx.lineTo(rx,fy); ctx.stroke(); }
     const t=now/1000;
-    for(const st of _gqStars){
-      const tw=0.3+0.45*Math.sin(t*st.s+st.x*6.28);
-      ctx.globalAlpha=tw*0.65; ctx.fillStyle=st.c;
-      ctx.beginPath(); ctx.arc(st.x*W,st.y*H*0.65,st.r,0,6.28); ctx.fill();
-    }
+    for(const st of _gqStars){ const tw=0.3+0.45*Math.sin(t*st.s+st.x*6.28); ctx.globalAlpha=tw*0.65; ctx.fillStyle=st.c;
+      ctx.beginPath(); ctx.arc(st.x*W,st.y*H*0.65,st.r,0,6.28); ctx.fill(); }
     ctx.globalAlpha=1;
-    // top ambient glow
     const tg=ctx.createRadialGradient(W/2,-H*0.1,0,W/2,-H*0.1,W*0.7);
-    tg.addColorStop(0,'rgba(139,92,246,.12)'); tg.addColorStop(1,'transparent');
+    tg.addColorStop(0,hexA(col,0.14)); tg.addColorStop(1,'transparent');
     ctx.fillStyle=tg; ctx.fillRect(0,0,W,H);
   }
 
   function render(ctx,W,H,now){
     _gqBg(ctx,W,H,now);
+    if(!G) return;
     let ox=0,oy=0; if(G.shake>0){ ox=(Math.random()-.5)*G.shake*22; oy=(Math.random()-.5)*G.shake*22; }
     ctx.save(); ctx.translate(ox,oy);
     if(G.flash>0){ ctx.fillStyle=hexA(G.flashC,G.flash*0.18); ctx.fillRect(0,0,W,H); }
 
-    // ── bins / drop zones across the bottom ──────────────────────────
-    const floorY=0.82*H;
-    const binW=W/3;
-    for(let i=0;i<3;i++){
-      const cx=G.bins[i]*W;
-      const x0=i*binW, x1=binW;
-      const col=BIN_COL[i];
-      // zone column glow — deeper
-      const grad=ctx.createLinearGradient(0,floorY-30,0,H);
-      grad.addColorStop(0,hexA(col,0)); grad.addColorStop(0.5,hexA(col,0.08)); grad.addColorStop(1,hexA(col,0.28));
-      ctx.fillStyle=grad; ctx.fillRect(x0,floorY,x1,H-floorY);
-      // divider
-      if(i>0){
-        ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1;
-        ctx.beginPath(); ctx.moveTo(x0,floorY); ctx.lineTo(x0,H); ctx.stroke();
+    if(G.phase==='play' || G.phase==='gate'){
+      const floorY=0.82*H;
+      const binW=W/5;
+      let idealBi=-1;
+      if(G.fxT.advisor>0){ let lo=null; for(const it of G.items){ if(it.dead||it.kind==='power'||it.kind==='rare') continue; if(!lo||it.y>lo.y) lo=it; } if(lo) idealBi=idealBucket(lo); }
+      for(let i=0;i<5;i++){
+        const cx=G.bins[i]*W; const x0=i*binW, x1=binW; const col=BUCK_COL[i];
+        const grad=ctx.createLinearGradient(0,floorY-30,0,H);
+        grad.addColorStop(0,hexA(col,0)); grad.addColorStop(0.5,hexA(col,0.08)); grad.addColorStop(1,hexA(col,0.26));
+        ctx.fillStyle=grad; ctx.fillRect(x0,floorY,x1,H-floorY);
+        if(i>0){ ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x0,floorY); ctx.lineTo(x0,H); ctx.stroke(); }
+        ctx.shadowColor=col; ctx.shadowBlur=i===idealBi?20:10;
+        ctx.strokeStyle=hexA(col,i===idealBi?0.95:0.65); ctx.lineWidth=i===idealBi?3:2;
+        ctx.beginPath(); ctx.moveTo(x0+4,floorY); ctx.lineTo(x0+binW-4,floorY); ctx.stroke();
+        ctx.shadowBlur=0;
+        const bw=binW*0.82, bh=48, bx=cx-bw/2, by=H-bh-8;
+        roundRect(ctx,bx,by,bw,bh,13);
+        const bg2=ctx.createLinearGradient(0,by,0,by+bh);
+        bg2.addColorStop(0,hexA(col,i===idealBi?0.34:0.2)); bg2.addColorStop(1,hexA(col,0.08));
+        ctx.fillStyle=bg2; ctx.fill();
+        ctx.shadowColor=col; ctx.shadowBlur=i===idealBi?18:12;
+        ctx.strokeStyle=hexA(col,0.7); ctx.lineWidth=2; ctx.stroke();
+        ctx.shadowBlur=0;
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.font="16px serif"; ctx.fillStyle=col; ctx.fillText(BUCK_ICON[i],cx,by+15);
+        ctx.shadowColor=col; ctx.shadowBlur=6;
+        ctx.fillStyle=col; ctx.font="700 8.5px 'Orbitron',sans-serif"; ctx.fillText(BUCKETS[i],cx,by+bh/2+11);
+        ctx.shadowBlur=0;
+        ctx.fillStyle='rgba(255,255,255,.4)'; ctx.font="8px 'Orbitron',sans-serif";
+        ctx.fillText((i+1)+' KEY',cx,by+bh-6);
       }
-      // floor glow line
-      ctx.shadowColor=col; ctx.shadowBlur=10;
-      ctx.strokeStyle=hexA(col,0.65); ctx.lineWidth=2;
-      ctx.beginPath(); ctx.moveTo(x0+6,floorY); ctx.lineTo(x0+binW-6,floorY); ctx.stroke();
-      ctx.shadowBlur=0;
-      // bin body (rounded) — glassy panel
-      const bw=binW*0.68, bh=50, bx=cx-bw/2, by=H-bh-10;
-      roundRect(ctx,bx,by,bw,bh,14);
-      // glass fill
-      const bg2=ctx.createLinearGradient(0,by,0,by+bh);
-      bg2.addColorStop(0,hexA(col,0.22)); bg2.addColorStop(1,hexA(col,0.08));
-      ctx.fillStyle=bg2; ctx.fill();
-      ctx.shadowColor=col; ctx.shadowBlur=14;
-      ctx.strokeStyle=hexA(col,0.7); ctx.lineWidth=2; ctx.stroke();
-      ctx.shadowBlur=0;
-      // inner highlight line
-      roundRect(ctx,bx+3,by+3,bw-6,8,8);
-      ctx.fillStyle='rgba(255,255,255,.08)'; ctx.fill();
-      // label
+
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.shadowColor=col; ctx.shadowBlur=8;
-      ctx.fillStyle=col; ctx.font="700 13px 'Orbitron',sans-serif"; ctx.fillText(BIN_LBL[i],cx,by+bh/2-6);
-      ctx.shadowBlur=0;
-      ctx.fillStyle='rgba(255,255,255,.4)'; ctx.font="9px 'Orbitron',sans-serif";
-      ctx.fillText(i===0?'← KEY':i===1?'↓ KEY':'→ KEY',cx,by+bh/2+13);
+      for(const it of G.items){
+        const x=it.x*W, y=it.y*H;
+        const col = it.kind==='bill'?'#fbbf24' : it.kind==='power'?'#a78bfa' : it.kind==='rare'?'#fde047'
+                   : it.kind==='event'?(it.evType==='shock'?'#f87171':'#f472b6') : '#e2e8f0';
+        ctx.save(); ctx.translate(x,y);
+        const wob=Math.sin(it.spin)*0.04;
+        ctx.rotate(it.grab?0:wob);
+        const pulse = it.kind==='event' ? 1+Math.sin(now/140+it.x*10)*0.08 : 1;
+        ctx.scale(pulse,pulse);
+        ctx.shadowColor=col; ctx.shadowBlur=it.grab?26:(it.kind==='event'?20:14);
+        const r=it.r;
+        ctx.font=(r*2)+'px serif'; ctx.fillText(it.e,0,-2);
+        ctx.shadowBlur=0;
+        ctx.restore();
+        const lab=it.kind==='income'||it.kind==='bill'?(it.t+' '+fmtM(it.val)):it.t;
+        ctx.font="700 10px 'Inter',sans-serif";
+        const tw=ctx.measureText(lab).width+14;
+        roundRect(ctx,x-tw/2,y+r-2,tw,16,8);
+        ctx.fillStyle='rgba(15,23,42,.84)'; ctx.fill();
+        ctx.strokeStyle=hexA(col,0.5); ctx.lineWidth=1; ctx.stroke();
+        ctx.fillStyle=col; ctx.fillText(lab,x,y+r+6);
+      }
     }
 
-    // ── falling items ────────────────────────────────────────────────
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    for(const it of G.items){
-      const x=it.x*W, y=it.y*H;
-      const col = it.kind==='save'?'#60a5fa':it.kind==='power'?'#a78bfa':'#e2e8f0';
-      // capsule behind emoji + label
-      ctx.save(); ctx.translate(x,y);
-      const wob=Math.sin(it.spin)*0.04;
-      ctx.rotate(it.grab?0:wob);
-      ctx.shadowColor=col; ctx.shadowBlur=it.grab?26:14;
-      const r=it.r;
-      ctx.font=(r*2)+'px serif'; ctx.fillText(it.e,0,-2);
-      ctx.shadowBlur=0;
-      ctx.restore();
-      // label chip under item
-      const lab=it.t;
-      ctx.font="700 10px 'Inter',sans-serif";
-      const tw=ctx.measureText(lab).width+14;
-      roundRect(ctx,x-tw/2,y+r-2,tw,16,8);
-      ctx.fillStyle='rgba(15,23,42,.82)'; ctx.fill();
-      ctx.strokeStyle=hexA(col,0.5); ctx.lineWidth=1; ctx.stroke();
-      ctx.fillStyle=it.kind==='save'?'#93c5fd':it.kind==='power'?'#c4b5fd':'#cbd5e1';
-      ctx.fillText(lab,x,y+r+6);
-    }
-
-    // ── particles ────────────────────────────────────────────────────
     for(const p of G.parts){ ctx.globalAlpha=Math.max(0,p.life/p.max); ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x*W,p.y*H,p.s,0,7); ctx.fill(); }
     ctx.globalAlpha=1;
-    // ── success rings ────────────────────────────────────────────────
     for(const rg of G.rings){ ctx.globalAlpha=Math.max(0,rg.life/0.5); ctx.strokeStyle=rg.c; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(rg.x*W,rg.y*H,rg.r*W*0.12,0,7); ctx.stroke(); }
     ctx.globalAlpha=1;
-    // ── float texts ──────────────────────────────────────────────────
     ctx.textAlign='center';
     for(const f of G.floats){ ctx.globalAlpha=Math.max(0,f.life/0.9); ctx.fillStyle=f.c; ctx.font='700 '+(f.big?22:14)+"px 'Inter',sans-serif"; ctx.fillText(f.t,f.x*W,f.y*H); }
     ctx.globalAlpha=1;
-
-    // x2 badge
-    if(G.x2>0){ ctx.textAlign='left'; ctx.fillStyle='#fde68a'; ctx.font="700 12px 'Orbitron',sans-serif"; ctx.fillText('✨ x2  '+Math.ceil(G.x2)+'s',14,170); }
     ctx.restore();
   }
 
@@ -437,64 +757,92 @@
   function hexA(hex,a){ const h=hex.replace('#',''); const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h,16); return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')'; }
   function burst(x,y,c,n){ for(let i=0;i<n;i++){ const a=Math.random()*7,s=0.15+Math.random()*0.5; G.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-0.2,s:2+Math.random()*3,c,life:0.5+Math.random()*0.3,max:0.8}); } }
   function ring(x,y,c){ G.rings.push({x,y,r:0.3,c,life:0.5}); }
-  function floatTxt(x,y,t,c){ G.floats.push({x,y,t,c,life:0.9,big:t.indexOf('COMBO')>=0||t.indexOf('x2')>=0}); }
+  function floatTxt(x,y,t,c){ G.floats.push({x,y,t,c,life:0.9,big:t.indexOf('COMBO')>=0}); }
   function setTxt(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
 
+  // ═══════════════════════════════ ROUND END ════════════════════════
   function end(win){
     if(G.phase==='over') return; G.phase='over';
     const score=G.score;
-    const won = win===true || G.goal>=L().goal;                     // computed BEFORE awards (keep!)
-    const acc = G.sorted>0?Math.round(G.perfect/G.sorted*100):0;    // computed BEFORE awards (keep!)
-    const lvl=LV+1, isFinal=LV>=2;
+    const won = win===true || G.goalProgress>=G.goalCost;
+    const acc = G.sorted>0?Math.round(G.perfect/G.sorted*100):0;
+    const savingsRate = G.incomeCaught>0?Math.round(G.toSavingsGoal/G.incomeCaught*100):0;
+    const objResults = G.objectives.map(o=>o.check(G));
+    const objMet = objResults.filter(Boolean).length;
+    const lvl=DI+1, isFinal=DI>=DISTRICTS.length-1;
     let earned=0;
+    const stars = won ? (acc>=90?3:acc>=70?2:1) : 0;
     if(window.state){
       state.gamesDone=state.gamesDone||{}; state.gamesDone['strategist:0']=1;
-      const stars = won ? (acc>=90?3:acc>=70?2:1) : 0;
       if(stars>=1 && window.cvAwardGame){
-        earned = cvAwardGame('game_goalquest',{level:lvl,stars,badge:'Budget Boss',is3star:stars===3,isPerfect:stars===3,isFlagship:true});
+        earned = cvAwardGame('game_goalquest',{
+          level:lvl, stars, badge:'Budget Boss', isFlagship:true,
+          isPerfect: stars===3 && G.billsMissed===0,
+          collectibles: G.rareCollected + objMet
+        });
+        if(won && DI+1<DISTRICTS.length){
+          state.gameLevels=state.gameLevels||{};
+          if((state.gameLevels['game_goalquest']||0)<DI+1) state.gameLevels['game_goalquest']=DI+1;
+        }
       } else if(!won){
-        earned=50; state.coins=(state.coins||0)+earned;   // small consolation, no farming value
-        if(window.cvSave) cvSave();
+        earned=50; state.coins=(state.coins||0)+earned;
+        if(window.cvAddXP) cvAddXP(10,0);
       }
+      if(window.budgetDelta) budgetDelta(won ? (300+DI*150+stars*80) : -300);
+      const c=career(); c.roundsPlayed++; if(won) c.goalsHit++;
+      c.totalSaved+=Math.round(G.savings+G.goalProgress); c.bestCombo=Math.max(c.bestCombo,G.bestCombo);
+      if(window.cvSave) cvSave();
     }
     const o=document.getElementById('gqOver'); if(!o) return; o.style.display='flex';
+    const d=D();
     const P="padding:13px 26px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;font-weight:900;cursor:pointer";
     const GH="padding:13px 26px;margin:4px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer";
-    const title = won ? (isFinal ? '👑 ALL 3 LEVELS MASTERED!' : 'MISSION ACCOMPLISHED — LEVEL '+lvl+' ✔') : 'NICE TRY! POWER UP AND TRY AGAIN';
-    const sub = won ? 'GOAL FUNDED — BUDGET BOSS!' : (G.health<=0 ? 'OOPS — the budget ran dry' : 'OOPS — the clock beat the goal');
+    const title = won ? (isFinal ? '👑 ALL 3 DISTRICTS FUNDED!' : G.goalDef.label.toUpperCase()+' FUNDED ✔') : 'NICE TRY! REPLAN AND GO AGAIN';
+    const sub = won ? d.name+' — GOAL ACHIEVED!' : (G.health<=0 ? 'OOPS — the budget ran dry' : 'OOPS — the clock beat the goal');
     const btns = won
       ? (isFinal
-          ? '<button onclick="gqRestart()" style="'+GH+'">↺ REPLAY L3</button><button onclick="gqExit()" style="'+P+'">← HUB</button>'
-          : '<button onclick="gqNextLevel()" style="'+P+'">LEVEL '+(lvl+1)+' ▶</button><button onclick="gqRestart()" style="'+GH+'">↺ REPLAY</button><button onclick="gqExit()" style="'+GH+'">← HUB</button>')
-      : '<button onclick="gqRestart()" style="'+P+'">↺ TRY AGAIN</button><button onclick="gqExit()" style="'+GH+'">← HUB</button>';
-    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:34px 28px;border:1px solid ${won?'#fbbf24':'#3b82f6'};border-radius:22px;background:linear-gradient(160deg,rgba(30,41,59,.97),rgba(7,13,24,.97));box-shadow:0 0 ${won?'90px rgba(251,191,36,.55)':'60px rgba(59,130,246,.4)'};animation:${won?(isFinal?'gqMasterPop .6s cubic-bezier(.2,1.4,.4,1)':'gqWinPop .5s cubic-bezier(.2,1.4,.4,1)'):'gqGateIn .3s ease'}">
+          ? '<button onclick="gqRestart()" style="'+GH+'">↺ REPLAY DISTRICT</button><button onclick="gqGoHomeScreen()" style="'+P+'">DISTRICTS</button><button onclick="gqExit()" style="'+GH+'">← HUB</button>'
+          : '<button onclick="gqNextLevel()" style="'+P+'">NEXT DISTRICT ▶</button><button onclick="gqRestart()" style="'+GH+'">↺ REPLAY</button><button onclick="gqExit()" style="'+GH+'">← HUB</button>')
+      : '<button onclick="gqRestart()" style="'+P+'">↺ TRY AGAIN</button><button onclick="gqGoHomeScreen()" style="'+GH+'">DISTRICTS</button><button onclick="gqExit()" style="'+GH+'">← HUB</button>';
+    o.innerHTML=`<div style="max-width:480px;text-align:center;padding:30px 26px;border:1px solid ${won?'#fbbf24':'#3b82f6'};border-radius:22px;background:linear-gradient(160deg,rgba(30,41,59,.97),rgba(7,13,24,.97));box-shadow:0 0 ${won?'90px rgba(251,191,36,.55)':'60px rgba(59,130,246,.4)'};animation:${won?(isFinal?'gqMasterPop .6s cubic-bezier(.2,1.4,.4,1)':'gqWinPop .5s cubic-bezier(.2,1.4,.4,1)'):'gqGateIn .3s ease'}">
       <style>
         @keyframes gqWinPop{0%{transform:scale(.7) rotate(-4deg);opacity:0}60%{transform:scale(1.06) rotate(1deg);opacity:1}100%{transform:scale(1) rotate(0)}}
         @keyframes gqMasterPop{0%{transform:scale(.6) rotate(-8deg);opacity:0}55%{transform:scale(1.1) rotate(2deg);opacity:1}75%{transform:scale(.97) rotate(-1deg)}100%{transform:scale(1) rotate(0)}}
         @keyframes gqCrownSpin{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.15) rotate(-6deg)}}
+        @keyframes gqGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}
       </style>
-      <div style="font-size:3rem;margin-bottom:8px${won?';animation:gqCrownSpin 1.1s ease-in-out infinite':''}">${won?(isFinal?'👑':'🏆'):G.health<=0?'💸':'⏱'}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#fbbf24':'#60a5fa'};margin-bottom:6px">${title}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:8px">${sub}</div>
-      <h1 style="font-family:'Anton',sans-serif;font-size:2rem;margin:0 0 6px">${score} pts</h1>
-      <p style="color:rgba(255,255,255,.65);margin:0 0 18px;font-size:.9rem">LEVEL ${lvl}/3 · Goal ${G.goal}/${L().goal} 🎯 · Accuracy ${acc}% · Best combo x${G.best} · +${earned} 🪙</p>
+      <div style="font-size:2.6rem;margin-bottom:6px${won?';animation:gqCrownSpin 1.1s ease-in-out infinite':''}">${won?(isFinal?'👑':G.goalDef.icon):G.health<=0?'💸':'⏱'}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.16em;color:${won?'#fbbf24':'#60a5fa'};margin-bottom:6px">${title}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.12em;color:rgba(255,255,255,.55);margin-bottom:10px">${sub}</div>
+      <h1 style="font-family:'Anton',sans-serif;font-size:1.9rem;margin:0 0 8px">${score} pts</h1>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:12px">
+        ${[['GOAL',fmtM(G.goalProgress)+' / '+fmtM(G.goalCost)],['ACCURACY',acc+'%'],['BEST STREAK','x'+G.bestCombo],
+           ['SAVINGS RATE',savingsRate+'%'],['BILLS PAID',(G.billsSeen-G.billsMissed)+'/'+G.billsSeen],['RATING','★'.repeat(stars)+'☆'.repeat(3-stars)]]
+          .map(r=>`<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.18);border-radius:11px;padding:8px 6px"><div style="font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.1em;color:rgba(255,255,255,.45);margin-bottom:3px">${r[0]}</div><div style="font-family:'Anton',sans-serif;font-size:.95rem;color:#fff">${r[1]}</div></div>`).join('')}
+      </div>
+      <div style="text-align:left;background:rgba(255,255,255,.04);border-radius:12px;padding:9px 13px;margin-bottom:12px">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.12em;color:#a78bfa;margin-bottom:5px">⭐ BONUS OBJECTIVES · ${objMet}/${G.objectives.length}</div>
+        ${G.objectives.map((o,i)=>`<div style="font-size:.66rem;color:${objResults[i]?'#86efac':'rgba(255,255,255,.4)'};padding:1px 0">${objResults[i]?'✔':'✕'} ${o.label}</div>`).join('')}
+      </div>
+      <p style="color:rgba(255,255,255,.6);margin:0 0 16px;font-size:.72rem">+${earned} 🪙 earned</p>
       ${btns}
     </div>`;
+    syncVisibility();
   }
 
-  // ── KNOWLEDGE GATE — pauses play, shows one budgeting lesson from this
-  //    level's shuffled slice of 4; once all are shown, gates silently
-  //    skip so no tip ever repeats ───────────────────────────────────────
+  // ── KNOWLEDGE GATE — pauses play, one lesson from this district's
+  //    shuffled slice of 4; once shown, gates silently skip so no tip
+  //    ever repeats within a district ─────────────────────────────────
   function openGate(){
     if(!G || G.phase!=='play') return;
-    if(G.gateIdx>=G.facts.length){ G.gateT=L().gate; return; }   // all 4 tips shown this level → never repeat
+    if(G.gateIdx>=G.facts.length){ G.gateT=D().gateEvery; return; }
     G.phase='gate';
     const f=G.facts[G.gateIdx]; G.gateIdx++;
-    const o=document.getElementById('gqGate'); if(!o){ G.phase='play'; G.gateT=L().gate; return; }
+    const o=document.getElementById('gqGate'); if(!o){ G.phase='play'; G.gateT=D().gateEvery; return; }
     o.style.display='flex';
     o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #3b82f6;border-radius:22px;background:linear-gradient(160deg,rgba(30,41,59,.97),rgba(7,13,24,.97));box-shadow:0 0 50px rgba(59,130,246,.4);animation:gqGateIn .35s ease">
       <style>@keyframes gqGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}</style>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#93c5fd;margin-bottom:10px">⛩️ KNOWLEDGE GATE · BUDGET TIP · LV ${LV+1}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#93c5fd;margin-bottom:10px">⛩️ KNOWLEDGE GATE · ${D().name}</div>
       <div style="font-size:2.4rem;margin-bottom:8px">${f[0]}</div>
       <p style="font-size:1.02rem;line-height:1.5;color:#fff;margin:0 0 18px">${f[1]}</p>
       <button onclick="gqGateGo()" style="padding:13px 30px;border:none;border-radius:12px;background:linear-gradient(135deg,#60a5fa,#2563eb);color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.12em;font-weight:900;cursor:pointer">GOT IT → +10 HEALTH</button>
@@ -503,15 +851,24 @@
   window.gqGateGo=function(){
     if(!G) return;
     G.health=Math.min(100,G.health+10); G.score+=40;
-    G.gateT=L().gate; G.phase='play';
+    G.gateT=D().gateEvery; G.phase='play';
     const o=document.getElementById('gqGate'); if(o){ o.style.display='none'; o.innerHTML=''; }
-    G.last=performance.now();   // avoid a dt jump on resume
+    G.last=performance.now();
     G.flash=0.25; G.flashC='#60a5fa';
+    syncVisibility();
   };
 
-  window.gqRestart=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); reset(); ['gqGate','gqOver'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); gqBoot(); };
-  // advance to the next level IN PLACE: release listeners, re-init state at
-  // LV+1, refresh the level chip, then re-boot the canvas (gqRestart-style)
-  window.gqNextLevel=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); LV=Math.min(2,LV+1); reset(); ['gqGate','gqOver'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}}); const lt=document.getElementById('gqLvl'); if(lt) lt.textContent='LV '+(LV+1)+'/3'; gqBoot(); };
+  window.gqRestart=function(){ cancelAnimationFrame(raf); const goalDef=D().goals[Math.floor(Math.random()*D().goals.length)]; const _cleanup=G&&G._cleanup;
+    G={ phase:'brief', goalDef, objectives: shuffle(OBJPOOL.slice()).slice(0,3), parts:[], floats:[], rings:[], shake:0, flash:0, flashC:'#60a5fa', last:performance.now(), _cleanup };
+    ['gqGate','gqOver'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}});
+    renderBrief(); syncVisibility(); cancelAnimationFrame(raf); raf=requestAnimationFrame(loop); };
+  window.gqNextLevel=function(){ cancelAnimationFrame(raf); DI=Math.min(DISTRICTS.length-1,DI+1);
+    const goalDef=D().goals[Math.floor(Math.random()*D().goals.length)]; const _cleanup=G&&G._cleanup;
+    G={ phase:'brief', goalDef, objectives: shuffle(OBJPOOL.slice()).slice(0,3), parts:[], floats:[], rings:[], shake:0, flash:0, flashC:'#60a5fa', last:performance.now(), _cleanup };
+    ['gqGate','gqOver'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}});
+    renderBrief(); syncVisibility(); raf=requestAnimationFrame(loop); };
+  window.gqGoHomeScreen=function(){ cancelAnimationFrame(raf);
+    ['gqGate','gqOver'].forEach(id=>{const o=document.getElementById(id);if(o){o.style.display='none';o.innerHTML='';}});
+    homeState(); renderHome(); syncVisibility(); raf=requestAnimationFrame(loop); };
   window.gqExit=function(){ if(G&&G._cleanup)G._cleanup(); cancelAnimationFrame(raf); G=null; if(window.state)state.viewingWorld=state._returnHub||'strategist'; goTo('hub'); };
 })();

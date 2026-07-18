@@ -8977,7 +8977,14 @@ video::-webkit-media-controls-play-button {
   /* ───────── PERSISTENCE (P1) ───────── */
   function userId(){ return localStorage.getItem('coinaverse_user') || 'guest'; }
   function userKey(){ return 'coinaverse_prog_' + userId(); }
-  const FIELDS = ['coins','level','xp','playerName','archetype','viewingWorld','dailyClaimed','streak','credPct','learned','missionsDone','gamesDone','inventory','skills','articlesRead','gameStars','gameLevels','badges','hubMeters','budgetMeter','meters','hubsVisited','cinemaSeen','challengesClaimed','coinDropClaimed','cinemaSeenMap','gender','avatarColorIdx','avatarAura'];
+  const FIELDS = ['coins','level','xp','playerName','archetype','viewingWorld','dailyClaimed','streak','credPct','learned','missionsDone','gamesDone','inventory','skills','articlesRead','gameStars','gameLevels','badges','hubMeters','budgetMeter','meters','hubsVisited','cinemaSeen','challengesClaimed','coinDropClaimed','cinemaSeenMap','gender','avatarColorIdx','avatarAura',
+    // Per-game meta-progression added when the 7 flagship games were rebuilt to match their real GDDs (2026-07-18).
+    'mc_vaultTotal','mc_collection','mc_daily','mc_streak',
+    'gq_career',
+    'ss_lifetime','ss_cards','ss_badges','ss_winStreak','ss_bestStreak','ss_boosts','ss_dailyDate','ss_dailyMissions','ss_dailyProgress',
+    'bo_collection','bo_ceoWall','bo_totalServed','bo_totalRevenue','bo_opEventsResolved','bo_competitorCountered','bo_crisisResolved',
+    'bb_stats','bb_best',
+    'ds_arenaXP','ds_collectionBook','ds_achv','ds_citizensTotal'];
   // player name is interpolated into HTML templates all over the app — keep it plain text
   function cleanName(n){ return String(n||'').replace(/[<>&"'`]/g,'').trim().slice(0,20); }
   window.cvCleanName = cleanName;
@@ -11048,59 +11055,59 @@ window.playDistrictGame = function(token, i) {
 
   </script>
   <!-- Real playable games (canvas) — loaded after main script, override the stub SCREENS.game_* -->
-  <script src="assets/games/lessonspecs.js?v=54"></script>
-  <script src="assets/games/lessondeck.js?v=54"></script>
-  <script src="assets/games/moneycatcher.js?v=54"></script>
-  <script src="assets/games/goalquest.js?v=54"></script>
-  <script src="assets/games/stocksurge.js?v=54"></script>
-  <script src="assets/games/bizop.js?v=54"></script>
-  <script src="assets/games/blockbuilder.js?v=54"></script>
-  <script src="assets/games/debtsurv.js?v=54"></script>
-  <script src="assets/games/ficoracer.js?v=54"></script>
-  <script src="assets/games/creditcore.js?v=54"></script>
-  <script src="assets/games/scoretower.js?v=54"></script>
-  <script src="assets/games/borrowingbay.js?v=54"></script>
-  <script src="assets/games/trustexchange.js?v=54"></script>
-  <script src="assets/games/repaymentrunway.js?v=54"></script>
-  <script src="assets/games/creditlimitlab.js?v=54"></script>
-  <script src="assets/games/reportobservatory.js?v=54"></script>
-  <script src="assets/games/inv_academy.js?v=54"></script>
-  <script src="assets/games/inv_assetrealm.js?v=54"></script>
-  <script src="assets/games/inv_dividend.js?v=54"></script>
-  <script src="assets/games/inv_portfolio.js?v=54"></script>
-  <script src="assets/games/inv_research.js?v=54"></script>
-  <script src="assets/games/inv_riskcontrol.js?v=54"></script>
-  <script src="assets/games/inv_stockarena.js?v=54"></script>
-  <script src="assets/games/bud_billgrid.js?v=54"></script>
-  <script src="assets/games/bud_cashflow.js?v=54"></script>
-  <script src="assets/games/bud_efflab.js?v=54"></script>
-  <script src="assets/games/bud_goaltower.js?v=54"></script>
-  <script src="assets/games/bud_needswants.js?v=54"></script>
-  <script src="assets/games/bud_plaza.js?v=54"></script>
-  <script src="assets/games/bud_vault.js?v=54"></script>
-  <script src="assets/games/bsv_aiinnovationlabs.js?v=54"></script>
-  <script src="assets/games/bsv_bitstreammarket.js?v=54"></script>
-  <script src="assets/games/bsv_blockchainblvd.js?v=54"></script>
-  <script src="assets/games/bsv_cryptocrossing.js?v=54"></script>
-  <script src="assets/games/bsv_futuretrendscmd.js?v=54"></script>
-  <script src="assets/games/bsv_nftnexus.js?v=54"></script>
-  <script src="assets/games/bsv_volatilityvortex.js?v=54"></script>
-  <script src="assets/games/ll_branding_district.js?v=54"></script>
-  <script src="assets/games/ll_idea_incubator.js?v=54"></script>
-  <script src="assets/games/ll_investor_pitch.js?v=54"></script>
-  <script src="assets/games/ll_marketing_metropolis.js?v=54"></script>
-  <script src="assets/games/ll_product_dev_lab.js?v=54"></script>
-  <script src="assets/games/ll_scaling_center.js?v=54"></script>
-  <script src="assets/games/ll_startup_street.js?v=54"></script>
-  <script src="assets/games/ddt_discovery.js?v=54"></script>
-  <script src="assets/games/ddt_gym.js?v=54"></script>
-  <script src="assets/games/ddt_habits.js?v=54"></script>
-  <script src="assets/games/ddt_lab.js?v=54"></script>
-  <script src="assets/games/ddt_plaza.js?v=54"></script>
-  <script src="assets/games/ddt_rebuild.js?v=54"></script>
-  <script src="assets/games/ddt_resilience.js?v=54"></script>
-  <script src="assets/games/arccfg.js?v=54"></script>
-  <script src="assets/games/arcade.js?v=54"></script>
-  <script src="assets/games/capstones.js?v=54"></script>
+  <script src="assets/games/lessonspecs.js?v=55"></script>
+  <script src="assets/games/lessondeck.js?v=55"></script>
+  <script src="assets/games/moneycatcher.js?v=55"></script>
+  <script src="assets/games/goalquest.js?v=55"></script>
+  <script src="assets/games/stocksurge.js?v=55"></script>
+  <script src="assets/games/bizop.js?v=55"></script>
+  <script src="assets/games/blockbuilder.js?v=55"></script>
+  <script src="assets/games/debtsurv.js?v=55"></script>
+  <script src="assets/games/ficoracer.js?v=55"></script>
+  <script src="assets/games/creditcore.js?v=55"></script>
+  <script src="assets/games/scoretower.js?v=55"></script>
+  <script src="assets/games/borrowingbay.js?v=55"></script>
+  <script src="assets/games/trustexchange.js?v=55"></script>
+  <script src="assets/games/repaymentrunway.js?v=55"></script>
+  <script src="assets/games/creditlimitlab.js?v=55"></script>
+  <script src="assets/games/reportobservatory.js?v=55"></script>
+  <script src="assets/games/inv_academy.js?v=55"></script>
+  <script src="assets/games/inv_assetrealm.js?v=55"></script>
+  <script src="assets/games/inv_dividend.js?v=55"></script>
+  <script src="assets/games/inv_portfolio.js?v=55"></script>
+  <script src="assets/games/inv_research.js?v=55"></script>
+  <script src="assets/games/inv_riskcontrol.js?v=55"></script>
+  <script src="assets/games/inv_stockarena.js?v=55"></script>
+  <script src="assets/games/bud_billgrid.js?v=55"></script>
+  <script src="assets/games/bud_cashflow.js?v=55"></script>
+  <script src="assets/games/bud_efflab.js?v=55"></script>
+  <script src="assets/games/bud_goaltower.js?v=55"></script>
+  <script src="assets/games/bud_needswants.js?v=55"></script>
+  <script src="assets/games/bud_plaza.js?v=55"></script>
+  <script src="assets/games/bud_vault.js?v=55"></script>
+  <script src="assets/games/bsv_aiinnovationlabs.js?v=55"></script>
+  <script src="assets/games/bsv_bitstreammarket.js?v=55"></script>
+  <script src="assets/games/bsv_blockchainblvd.js?v=55"></script>
+  <script src="assets/games/bsv_cryptocrossing.js?v=55"></script>
+  <script src="assets/games/bsv_futuretrendscmd.js?v=55"></script>
+  <script src="assets/games/bsv_nftnexus.js?v=55"></script>
+  <script src="assets/games/bsv_volatilityvortex.js?v=55"></script>
+  <script src="assets/games/ll_branding_district.js?v=55"></script>
+  <script src="assets/games/ll_idea_incubator.js?v=55"></script>
+  <script src="assets/games/ll_investor_pitch.js?v=55"></script>
+  <script src="assets/games/ll_marketing_metropolis.js?v=55"></script>
+  <script src="assets/games/ll_product_dev_lab.js?v=55"></script>
+  <script src="assets/games/ll_scaling_center.js?v=55"></script>
+  <script src="assets/games/ll_startup_street.js?v=55"></script>
+  <script src="assets/games/ddt_discovery.js?v=55"></script>
+  <script src="assets/games/ddt_gym.js?v=55"></script>
+  <script src="assets/games/ddt_habits.js?v=55"></script>
+  <script src="assets/games/ddt_lab.js?v=55"></script>
+  <script src="assets/games/ddt_plaza.js?v=55"></script>
+  <script src="assets/games/ddt_rebuild.js?v=55"></script>
+  <script src="assets/games/ddt_resilience.js?v=55"></script>
+  <script src="assets/games/arccfg.js?v=55"></script>
+  <script src="assets/games/arcade.js?v=55"></script>
+  <script src="assets/games/capstones.js?v=55"></script>
 </body>
 </html>
