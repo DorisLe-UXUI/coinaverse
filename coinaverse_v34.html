@@ -4653,9 +4653,10 @@ video::-webkit-media-controls-play-button {
     const PF=`
       .pf2-wrap{position:absolute;inset:0;overflow-y:auto;font-family:'Inter',sans-serif;background:#05081a}
       .pf2-bg{position:fixed;inset:0;z-index:0;pointer-events:none;
-        background:radial-gradient(ellipse at 30% 20%,rgba(168,85,247,.07) 0%,transparent 55%),
-                   radial-gradient(ellipse at 70% 80%,rgba(20,184,166,.06) 0%,transparent 50%),
-                   radial-gradient(ellipse at 50% 50%,rgba(59,130,246,.04) 0%,transparent 60%),#05081a}
+        background:radial-gradient(ellipse at 30% 15%,rgba(168,85,247,.1) 0%,transparent 55%),
+                   radial-gradient(ellipse at 75% 85%,rgba(20,184,166,.08) 0%,transparent 50%),
+                   radial-gradient(ellipse at 15% 90%,rgba(251,191,36,.05) 0%,transparent 45%),
+                   radial-gradient(ellipse at 50% 50%,rgba(59,130,246,.05) 0%,transparent 60%),#05081a}
       .pf2-topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:14px 20px;background:rgba(5,8,26,.9);border-bottom:1px solid rgba(255,255,255,.06);backdrop-filter:blur(16px)}
       .pf2-back{padding:8px 16px;border:1px solid rgba(255,255,255,.15);border-radius:10px;background:rgba(255,255,255,.05);color:#fff;font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.14em;cursor:pointer}
       .pf2-bar-title{font-family:'Orbitron',sans-serif;font-size:.78rem;letter-spacing:.24em;color:#fff;flex:1;text-align:center}
@@ -4663,7 +4664,7 @@ video::-webkit-media-controls-play-button {
       .pf2-body{position:relative;z-index:1;padding:0 16px 80px}
       /* STATS */
       .pf2-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:20px 0 0}
-      .pf2-stat{border-radius:16px;padding:14px 10px;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
+      .pf2-stat{border-radius:16px;padding:14px 10px;text-align:center;background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.09);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
       .pf2-stat-n{font-family:'Anton',sans-serif;font-size:1.8rem;line-height:1}
       .pf2-stat-l{font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.14em;color:rgba(255,255,255,.4);margin-top:4px}
       /* PARTY */
@@ -4672,7 +4673,7 @@ video::-webkit-media-controls-play-button {
       .pf2-sh-title{font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.2em;color:#fff}
       .pf2-sh-sub{font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.12em;color:rgba(255,255,255,.3)}
       .pf2-party-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-      .pf2-slot{border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);aspect-ratio:3/4;position:relative;cursor:pointer}
+      .pf2-slot{border-radius:18px;overflow:hidden;border:1.5px solid var(--fc,rgba(255,255,255,.08));background:rgba(255,255,255,.03);aspect-ratio:3/4;position:relative;cursor:pointer;box-shadow:0 0 20px color-mix(in srgb,var(--fc,transparent) 22%,transparent)}
       .pf2-slot.empty{border:2px dashed rgba(255,255,255,.12);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;transition:.2s}
       .pf2-slot.empty:hover{border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.05)}
       .pf2-slot-plus{width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:rgba(255,255,255,.3)}
@@ -4811,7 +4812,7 @@ video::-webkit-media-controls-play-button {
 
     const LB_CSS=`
       .lb2-wrap{position:absolute;inset:0;background:linear-gradient(160deg,#05030f,#0b0820);overflow-y:auto;font-family:'Inter',sans-serif}
-      .lb2-bg{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 0%,rgba(251,191,36,.08),transparent 55%),radial-gradient(ellipse at 20% 80%,rgba(99,102,241,.06),transparent 45%);z-index:0}
+      .lb2-bg{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 0%,rgba(251,191,36,.11),transparent 55%),radial-gradient(ellipse at 15% 85%,rgba(99,102,241,.08),transparent 45%),radial-gradient(ellipse at 85% 15%,rgba(192,132,252,.06),transparent 50%),radial-gradient(ellipse at 50% 100%,rgba(56,189,248,.05),transparent 40%);z-index:0}
       .lb2-topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(5,3,15,.9);border-bottom:1px solid rgba(251,191,36,.1);backdrop-filter:blur(14px)}
       .lb2-back{padding:7px 14px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.6);font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer}
       .lb2-title{font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.22em;color:#fbbf24;flex:1;text-align:center}
@@ -4821,9 +4822,10 @@ video::-webkit-media-controls-play-button {
       .lb2-tab.active{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.4);color:#fbbf24;box-shadow:0 0 16px rgba(251,191,36,.15)}
       .lb2-podium{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:8px;align-items:end;padding:0 0 8px}
       .lb2-pod{border-radius:16px;padding:16px 10px 14px;display:flex;flex-direction:column;align-items:center;gap:8px;border:1px solid;position:relative;overflow:hidden}
-      .lb2-pod.r1{background:linear-gradient(160deg,rgba(251,191,36,.14),rgba(251,191,36,.05));border-color:rgba(251,191,36,.4);box-shadow:0 0 30px rgba(251,191,36,.15)}
-      .lb2-pod.r2{background:linear-gradient(160deg,rgba(192,192,192,.1),rgba(192,192,192,.03));border-color:rgba(192,192,192,.25)}
-      .lb2-pod.r3{background:linear-gradient(160deg,rgba(205,127,50,.1),rgba(205,127,50,.03));border-color:rgba(205,127,50,.25)}
+      .lb2-pod::before{content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(115deg,transparent,rgba(255,255,255,.08),transparent);transform:skewX(-18deg);pointer-events:none}
+      .lb2-pod.r1{background:linear-gradient(160deg,rgba(251,191,36,.18),rgba(251,191,36,.06));border-color:rgba(251,191,36,.5);box-shadow:0 0 40px rgba(251,191,36,.22),inset 0 1px 0 rgba(255,255,255,.1)}
+      .lb2-pod.r2{background:linear-gradient(160deg,rgba(192,192,192,.13),rgba(192,192,192,.04));border-color:rgba(192,192,192,.32);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+      .lb2-pod.r3{background:linear-gradient(160deg,rgba(205,127,50,.13),rgba(205,127,50,.04));border-color:rgba(205,127,50,.32);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
       .lb2-pod-medal{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-family:'Anton',sans-serif;font-size:1rem;color:rgba(255,255,255,.15)}
       .lb2-pod-av{width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid var(--pc,#fbbf24);box-shadow:0 0 18px var(--pg,rgba(251,191,36,.3))}
       .lb2-pod-ring{width:80px;height:80px;border-radius:50%;border:2px solid var(--pc,#fbbf24);display:flex;align-items:center;justify-content:center;position:relative}
@@ -4834,7 +4836,7 @@ video::-webkit-media-controls-play-button {
       .lb2-pod-xp{font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.14em;color:rgba(255,255,255,.3)}
       .lb2-list{display:flex;flex-direction:column;gap:6px}
       .lb2-row{display:grid;grid-template-columns:36px 48px 1fr auto;align-items:center;gap:10px;padding:11px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:13px;transition:.18s}
-      .lb2-row.you{background:rgba(251,191,36,.06);border-color:rgba(251,191,36,.25);box-shadow:0 0 14px rgba(251,191,36,.08)}
+      .lb2-row.you{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.3);box-shadow:0 0 18px rgba(251,191,36,.1),inset 0 1px 0 rgba(255,255,255,.06)}
       .lb2-row:hover{background:rgba(255,255,255,.07)}
       .lb2-rank{font-family:'Anton',sans-serif;font-size:1.1rem;color:rgba(255,255,255,.3);text-align:center}
       .lb2-row.you .lb2-rank{color:#fbbf24}
@@ -5014,17 +5016,16 @@ video::-webkit-media-controls-play-button {
       </div>
       <div class="rc2-body">
 
-        <!-- SEASON PASS -->
+        <!-- LEVEL UP YOUR JOURNEY -->
         <div class="rc2-season">
           <div class="rc2-season-head">
-            <div class="rc2-season-icon">⚔️</div>
+            <div class="rc2-season-icon">🛡️</div>
             <div class="rc2-season-meta">
-              <div class="rc2-season-eyebrow">SEASON 1 · FOUNDATION PASS</div>
-              <div class="rc2-season-name">${(state.archetype||'GUARDIAN').toUpperCase().replace('THE ','')} SEASON</div>
+              <div class="rc2-season-name">LEVEL UP YOUR JOURNEY</div>
+              <div style="font-size:.72rem;color:rgba(255,255,255,.5);margin-top:3px;line-height:1.4">Play games, complete missions, and earn amazing rewards every day.</div>
             </div>
           </div>
           <div class="rc2-season-body">
-            <div class="rc2-season-desc">Level up by playing games & completing missions</div>
             <div class="rc2-xp-row">
               <span class="rc2-xp-label">LVL ${state.level||1} · ${state.xp||80}/${state.xpMax||100} XP</span>
               <span class="rc2-xp-val">NEXT LVL ${(state.level||1)+1}</span>
@@ -5425,8 +5426,8 @@ video::-webkit-media-controls-play-button {
     const COIN_PACKS = [
       { coins:500,  price:'$2.99',  bonus:'',     col:'#60a5fa', tag:'',          per:'' },
       { coins:1200, price:'$4.99',  bonus:'+20%', col:'#34d399', tag:'POPULAR',   per:'Most Loved' },
-      { coins:2800, price:'$9.99',  bonus:'+40%', col:'#fbbf24', tag:'BEST VALUE',per:'Top Pick' },
-      { coins:6000, price:'$19.99', bonus:'+50%', col:'#f472b6', tag:'MEGA',      per:'Power Player' },
+      { coins:2800, price:'$9.99',  bonus:'+42%', col:'#fbbf24', tag:'BEST VALUE',per:'Top Pick' },
+      { coins:6000, price:'$19.99', bonus:'+53%', col:'#f472b6', tag:'MEGA',      per:'Power Player' },
       { coins:15000,price:'$39.99', bonus:'+67%', col:'#c084fc', tag:'LEGENDARY', per:'Whale Mode' },
     ];
     const BOOSTERS = [
@@ -5437,7 +5438,7 @@ video::-webkit-media-controls-play-button {
     ];
     const AVATAR_CATS = [
       { id:'hair', label:'HAIRSTYLES', emoji:'💇', items:[
-        {n:'Neon Fade',p:150},{n:'Cyber Spikes',p:200},{n:'Galaxy Buns',p:350},{n:'Pro Dreads',p:250},{n:'Investor Cut',p:180},
+        {n:'Neon Fade',p:150},{n:'Cyber Spikes',p:220},{n:'Galaxy Buns',p:350},{n:'Pro Dreads',p:250},{n:'Investor Cut',p:180},
       ]},
       { id:'shoe', label:'SHOES', emoji:'👟', items:[
         {n:'Hover Kicks',p:200},{n:'Gold Runners',p:300},{n:'Cyber Cleats',p:250},{n:'Neo Wings',p:400},{n:'Diamond Boots',p:500},
@@ -5462,7 +5463,15 @@ video::-webkit-media-controls-play-button {
 
     const coinsTab = () => `
       <div style="margin-bottom:18px">
-        <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.2em;color:rgba(255,255,255,.4);margin-bottom:12px;text-align:center">SELECT A COIN PACK</div>
+        <div style="text-align:center;margin-bottom:20px">
+          <div style="font-family:'Anton',sans-serif;font-size:1.5rem;color:#fff;line-height:1.2">POWER UP YOUR<br><span style="background:linear-gradient(135deg,#34d399,#10b981);-webkit-background-clip:text;-webkit-text-fill-color:transparent">COIN JOURNEY</span></div>
+          <div style="font-size:.78rem;color:rgba(255,255,255,.45);margin-top:6px">Get Coins. Unlock Style. Level Up.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <div style="flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15))"></div>
+          <div style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.2em;color:rgba(255,255,255,.4);white-space:nowrap">CHOOSE YOUR COIN PACK</div>
+          <div style="flex:1;height:1px;background:linear-gradient(270deg,transparent,rgba(255,255,255,.15))"></div>
+        </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px">
           ${COIN_PACKS.map((p,i)=>`
           <div onclick="storeIAP(${p.coins},'${p.price}')" style="position:relative;padding:18px 14px 16px;border-radius:18px;background:linear-gradient(160deg,rgba(10,16,40,.95),rgba(3,6,20,.98));border:1.5px solid ${p.col}55;cursor:pointer;text-align:center;transition:all .2s" onmouseover="this.style.borderColor='${p.col}';this.style.boxShadow='0 0 24px ${p.col}44'" onmouseout="this.style.borderColor='${p.col}55';this.style.boxShadow='none'">
@@ -5473,15 +5482,19 @@ video::-webkit-media-controls-play-button {
             <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:#fff;font-weight:700;margin-top:8px;background:${p.col}22;padding:6px 10px;border-radius:10px">${p.price}</div>
           </div>`).join('')}
         </div>
-        <div style="margin-top:20px;padding:14px 16px;border-radius:14px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);font-size:.72rem;color:rgba(255,255,255,.5);text-align:center;line-height:1.5">
-          💡 <strong style="color:rgba(251,191,36,.8)">Tip:</strong> You earn coins free by playing games, completing missions, and logging in daily. Purchases are optional and support development.
+        <div style="margin-top:20px;padding:16px;border-radius:16px;background:linear-gradient(135deg,rgba(52,211,153,.1),rgba(16,185,129,.05));border:1px solid rgba(52,211,153,.25);display:flex;align-items:center;gap:14px">
+          <div style="font-size:2.2rem;flex-shrink:0">🤖</div>
+          <div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.1em;color:#34d399;margin-bottom:3px">EARN COIN POINTS FOR FREE!</div>
+            <div style="font-size:.72rem;color:rgba(255,255,255,.55);line-height:1.4">Play games, complete missions, watch videos, and log in daily to earn Coin Points!</div>
+          </div>
         </div>
       </div>`;
 
     const starterTab = () => `
       <div>
         <div style="position:relative;margin-bottom:20px;padding:28px 22px;border-radius:22px;background:linear-gradient(135deg,rgba(251,191,36,.18),rgba(139,92,246,.12),rgba(10,16,40,.95));border:2px solid #fbbf24;box-shadow:0 0 60px rgba(251,191,36,.15)">
-          ${starterClaimed?'':'<div style="position:absolute;top:-13px;right:20px;background:linear-gradient(90deg,#f59e0b,#fbbf24);color:#000;font-family:Orbitron,sans-serif;font-size:.55rem;font-weight:800;letter-spacing:.15em;padding:5px 14px;border-radius:20px">72% OFF · LIMITED</div>'}
+          ${starterClaimed?'':'<div style="position:absolute;top:-13px;right:20px;background:linear-gradient(90deg,#f59e0b,#fbbf24);color:#000;font-family:Orbitron,sans-serif;font-size:.55rem;font-weight:800;letter-spacing:.15em;padding:5px 14px;border-radius:20px">78% OFF · LIMITED</div>'}
           <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px">
             <div style="font-size:3rem">🎁</div>
             <div>
@@ -5492,7 +5505,7 @@ video::-webkit-media-controls-play-button {
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
             ${[
-              {e:'🪙',n:'1,500 Coins',c:'#fbbf24'},
+              {e:'🪙',n:'1,500 Coin Points',c:'#fbbf24'},
               {e:'👗',n:'Exclusive Outfit',c:'#f472b6'},
               {e:'🛹',n:'Hoverboard',c:'#a78bfa'},
               {e:'🖼️',n:'Profile Frame',c:'#34d399'},
@@ -5509,10 +5522,38 @@ video::-webkit-media-controls-play-button {
         </div>
       </div>`;
 
+    const FEATURED_AVATAR_ITEMS = [
+      {n:'Neon Fade',   p:150, cat:'hair'},
+      {n:'Cyber Spikes',p:220, cat:'hair'},
+      {n:'Galaxy Buns', p:350, cat:'hair'},
+      {n:'Pro Dreads',  p:250, cat:'hair'},
+    ];
     const avatarTab = () => `
       <div>
+        <div style="text-align:center;margin-bottom:18px">
+          <div style="font-family:'Anton',sans-serif;font-size:1.4rem;color:#fff">EXPRESS YOUR STYLE</div>
+          <div style="font-size:.76rem;color:rgba(255,255,255,.45);margin-top:4px">Stand out in the Coinaverse!</div>
+        </div>
+        <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:14px;margin-bottom:6px">
+          ${AVATAR_CATS.map(cat=>`<div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);cursor:pointer" onclick="document.getElementById('avcat_${cat.id}')?.scrollIntoView({behavior:'smooth',block:'start'})">
+            <span style="font-size:1.3rem">${cat.emoji}</span>
+            <span style="font-family:'Orbitron',sans-serif;font-size:.44rem;letter-spacing:.08em;color:rgba(255,255,255,.5);white-space:nowrap">${cat.label}</span>
+          </div>`).join('')}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.18em;color:rgba(255,255,255,.4)">FEATURED ITEMS</div>
+          <div style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.1em;color:#c084fc;cursor:pointer" onclick="document.getElementById('avcat_hair')?.scrollIntoView({behavior:'smooth',block:'start'})">VIEW ALL</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-bottom:22px">
+          ${FEATURED_AVATAR_ITEMS.map(it=>`
+          <div onclick="storeIAP('avatar_${it.cat}','${it.p} coins')" style="padding:14px 10px;border-radius:14px;background:linear-gradient(160deg,rgba(10,16,40,.95),rgba(3,6,20,.98));border:1.5px solid rgba(251,191,36,.25);cursor:pointer;text-align:center;transition:all .2s" onmouseover="this.style.borderColor='rgba(251,191,36,.6)';this.style.boxShadow='0 0 16px rgba(251,191,36,.2)'" onmouseout="this.style.borderColor='rgba(251,191,36,.25)';this.style.boxShadow='none'">
+            <div style="font-size:1.5rem;margin-bottom:5px">✨</div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:.52rem;color:rgba(255,255,255,.85);margin-bottom:6px;line-height:1.3">${it.n}</div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:3px;font-family:'Orbitron',sans-serif;font-size:.58rem;color:#fbbf24"><img src="assets/ui/coin_3d.png" style="width:12px;height:12px">${it.p}</div>
+          </div>`).join('')}
+        </div>
         ${AVATAR_CATS.map(cat=>`
-        <div style="margin-bottom:20px">
+        <div id="avcat_${cat.id}" style="margin-bottom:20px;scroll-margin-top:16px">
           <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.18em;color:rgba(255,255,255,.4);margin-bottom:10px">${cat.emoji} ${cat.label}</div>
           <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px">
             ${cat.items.map(it=>`
@@ -5523,6 +5564,9 @@ video::-webkit-media-controls-play-button {
             </div>`).join('')}
           </div>
         </div>`).join('')}
+        <div style="margin-top:6px;padding:14px 16px;border-radius:14px;background:rgba(192,132,252,.06);border:1px solid rgba(192,132,252,.2);font-size:.7rem;color:rgba(255,255,255,.45);text-align:center;line-height:1.5;display:flex;align-items:center;justify-content:center;gap:10px">
+          <span style="font-size:1.2rem">📦</span>NEW ITEMS EVERY SEASON! Keep checking back for fresh drops.
+        </div>
       </div>`;
 
     const seasonTab = () => `
@@ -5543,8 +5587,15 @@ video::-webkit-media-controls-play-button {
             ${['🪙 3,000 Coins','👗 2 Exclusive Outfits','💃 Premium Emotes','🎖️ Elite Badge + Frame','🌟 2× Daily XP All Season','🏆 End-of-Season Trophy'].map(r=>`<div style="display:flex;align-items:center;gap:10px;font-size:.72rem;color:rgba(255,255,255,.85)"><span style="color:#fbbf24">★</span>${r}</div>`).join('')}
           </div>
           <div style="display:flex;gap:10px">
-            <button onclick="storeIAP('season_premium','$7.99')" style="flex:1;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;font-family:Orbitron,sans-serif;font-size:.65rem;font-weight:800;cursor:pointer">$7.99 / SEASON</button>
+            <button onclick="storeIAP('season_premium','$1.99')" style="flex:1;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;font-family:Orbitron,sans-serif;font-size:.65rem;font-weight:800;cursor:pointer">$1.99 / SEASON</button>
             <button onclick="storeIAP('season_premium_yr','$9.99')" style="flex:1;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#581c87,#7c3aed);color:#fff;font-family:Orbitron,sans-serif;font-size:.65rem;font-weight:800;cursor:pointer">$9.99 + EXTRAS</button>
+          </div>
+        </div>
+        <div style="padding:16px;border-radius:16px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);display:flex;align-items:center;gap:14px">
+          <div style="font-size:1.8rem">🏆</div>
+          <div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.1em;color:#fbbf24;margin-bottom:3px">COMPLETE SEASON MISSIONS</div>
+            <div style="font-size:.72rem;color:rgba(255,255,255,.5)">Climb the leaderboard and earn exclusive rewards</div>
           </div>
         </div>
       </div>`;
@@ -5574,7 +5625,7 @@ video::-webkit-media-controls-play-button {
         <div class="v14-topbar">
           <div class="v14-topbar-left">
             <button class="v14-back" onclick="goTo('home')">← HOME</button>
-            <div class="v14-title">💎 STORE</div>
+            <div class="v14-title">💎 COIN POINTS STORE</div>
           </div>
           <div class="v14-topbar-right">
             <div class="v14-coin-pill"><img src="assets/ui/coin_3d.png"><span class="n">${state.coins}</span></div>
@@ -5582,8 +5633,8 @@ video::-webkit-media-controls-play-button {
         </div>
         <div class="v14-page-wrap">
           <div style="text-align:center;margin-bottom:20px">
-            <div style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.25em;color:rgba(255,255,255,.3);margin-bottom:4px">COINAVERSE PREMIUM</div>
-            <div style="font-family:'Anton',sans-serif;font-size:1.6rem;background:linear-gradient(135deg,#fbbf24,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent">COIN STORE &amp; COSMETICS</div>
+            <div style="font-family:'Anton',sans-serif;font-size:1rem;letter-spacing:.08em;color:#34d399;margin-bottom:2px">COINAVERSE</div>
+            <div style="font-family:'Anton',sans-serif;font-size:1.6rem;background:linear-gradient(135deg,#fbbf24,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent">COIN POINTS STORE</div>
           </div>
           <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:20px">
             ${tabs.map(t=>`<button onclick="cvStoreTab('${t.id}')" style="flex:0 0 auto;padding:9px 16px;border-radius:24px;border:none;background:${_storeTab===t.id?'linear-gradient(135deg,rgba(251,191,36,.3),rgba(192,132,252,.2))':'rgba(255,255,255,.06)'};color:${_storeTab===t.id?'#fbbf24':'rgba(255,255,255,.5)'};font-family:Orbitron,sans-serif;font-size:.55rem;font-weight:700;letter-spacing:.1em;cursor:pointer;${_storeTab===t.id?'border:1px solid rgba(251,191,36,.4)':'border:1px solid transparent'}">${t.l}</button>`).join('')}
@@ -7134,10 +7185,19 @@ video::-webkit-media-controls-play-button {
         <div class="av-topbar">
           <button class="wd-crumb" onclick="goTo('home')">← HOME</button>
           <div class="av-title">AVATAR STUDIO</div>
+          <button class="av-coin-pill" onclick="avCoinPopover()">🪙 <span>${state.coins||0}</span></button>
           <div class="wd-player-pill">
             <div class="av" style="background-image:url('${genderedChar(arch)}')"></div>
             <div><div class="n">${state.playerName}</div><div class="a">${w.archetype}</div></div>
           </div>
+        </div>
+        <div id="avCoinPop" class="av-coin-pop" style="display:none">
+          <div class="av-coin-pop-ic">🪙</div>
+          <div class="av-coin-pop-body">
+            <div class="av-coin-pop-n">${state.coins||0} Coin Points</div>
+            <div class="av-coin-pop-d">Play games &amp; complete missions to earn more!</div>
+          </div>
+          <button class="av-coin-pop-btn" onclick="goTo('store')">VISIT STORE</button>
         </div>
 
         <style>
@@ -7145,6 +7205,18 @@ video::-webkit-media-controls-play-button {
           .av-gender{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:13px 8px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);color:#cdd6f4;font:700 .62rem/1 'Orbitron',sans-serif;letter-spacing:.08em;cursor:pointer;transition:.15s}
           .av-gender span{font-size:1.6rem;line-height:1}
           .av-gender.on{border-color:var(--av-sel);background:color-mix(in srgb,var(--av-sel) 18%,transparent);color:#fff;box-shadow:0 0 16px color-mix(in srgb,var(--av-sel) 35%,transparent)}
+          .av-coin-pill{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);color:#fbbf24;font-family:'Orbitron',sans-serif;font-size:.68rem;font-weight:700;cursor:pointer;margin-right:12px}
+          .av-coin-pop{position:absolute;top:64px;right:16px;z-index:30;display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;background:rgba(8,12,32,.97);border:1px solid rgba(251,191,36,.3);box-shadow:0 12px 32px rgba(0,0,0,.5);max-width:300px}
+          .av-coin-pop-ic{font-size:1.6rem;flex-shrink:0}
+          .av-coin-pop-n{font-family:'Orbitron',sans-serif;font-size:.7rem;color:#fbbf24;margin-bottom:3px}
+          .av-coin-pop-d{font-size:.66rem;color:rgba(255,255,255,.55);line-height:1.3}
+          .av-coin-pop-btn{flex-shrink:0;padding:8px 12px;border:none;border-radius:10px;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;font-family:'Orbitron',sans-serif;font-size:.56rem;font-weight:800;letter-spacing:.06em;cursor:pointer}
+          .av-unlock-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+          .av-unlock-chip{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);cursor:pointer;opacity:.55;transition:.2s}
+          .av-unlock-chip:hover{opacity:.9;border-color:rgba(251,191,36,.35)}
+          .av-unlock-ic{font-size:1.2rem}
+          .av-unlock-lock{position:absolute;top:2px;right:4px;font-size:.6rem}
+          .av-unlock-lbl{font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.06em;color:rgba(255,255,255,.5)}
         </style>
         <div class="av-grid">
           <!-- LEFT: customization -->
@@ -7165,6 +7237,18 @@ video::-webkit-media-controls-play-button {
             <div class="av-panel">
               <div class="av-ph">AURA FX</div>
               <div class="av-auras">${auras}</div>
+            </div>
+            <div class="av-panel">
+              <div class="av-ph">MORE STYLES <span class="av-lock">🔒 COIN STORE</span></div>
+              <p class="av-hint">Unlock more looks with Coin Points after you finish setup.</p>
+              <div class="av-unlock-grid">
+                ${[['💇','HAIR'],['👟','SHOES'],['🧥','JACKETS'],['🦋','WINGS'],['🛹','BOARDS'],['💃','EMOTES'],['🎨','COLORS']].map(([ic,lb])=>`
+                <div class="av-unlock-chip" onclick="avPreviewLocked('${lb}')">
+                  <span class="av-unlock-ic">${ic}</span>
+                  <span class="av-unlock-lock">🔒</span>
+                  <span class="av-unlock-lbl">${lb}</span>
+                </div>`).join('')}
+              </div>
             </div>
           </div>
 
@@ -7213,6 +7297,14 @@ video::-webkit-media-controls-play-button {
     document.documentElement.style.setProperty('--player-c', state.avatarColor);
     if (state._onboard){ state._onboard = 0; if(window.cvSave)cvSave(); goTo('welcome'); }
     else goTo('home');
+  };
+  window.avCoinPopover = function(){
+    const el = document.getElementById('avCoinPop');
+    if (el) el.style.display = el.style.display==='none' ? 'flex' : 'none';
+  };
+  window.avPreviewLocked = function(label){
+    if (window.cvToast) cvToast(`🔒 ${label} unlocks in the Coin Store after setup!`);
+    else alert(label+' — unlocks in the Coin Store after setup!');
   };
 
   // ───────── HUB EXPERIENCE-FLOW CONTENT (Kabria doc, May 29 2026) ─────────
