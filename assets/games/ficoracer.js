@@ -34,12 +34,19 @@
       pickups:32, hazardRate:.46, gateEvery:440, aiSkill:1.0 },
   ];
 
-  /* ── Cars (delivered Toon-Racing rally cars) ── */
+  /* ── Cars (delivered Toon-Racing rally cars) — GDD §5/§11/§12: the player must
+     choose a car before racing. Each carries a small bounded Handling/Speed/Boost
+     profile (GDD §12) that nudges the PLAYER's own physics, plus the AI pacing
+     personality (GDD §13) used when that same model is piloted by a rival. ── */
   const CARS=[
-    { key:'rally1', name:'CredRunner', tint:0xffffff },
-    { key:'rally2', name:'Investor Ivy',     ai:{early:.88,late:1.06}, color:'#34d399' },
-    { key:'rally3', name:'Maxed-Out Marcus', ai:{early:1.08,late:.84}, color:'#f87171' },
-    { key:'rally4', name:'Prime Parker',     ai:{early:.97,late:.99}, color:'#60a5fa' },
+    { key:'rally1', name:'CredRunner',       color:'#fbbf24', tag:'Nimble starter — easiest to handle.',
+      stats:{h:8,s:6,b:6}, ai:{early:1.00,late:1.00}, topSpeedMul:0.97, steerRateMul:1.05, boostMul:1.00 },
+    { key:'rally2', name:'Investor Ivy',     color:'#34d399', tag:'Plays the long game — strongest boosts.',
+      stats:{h:6,s:6,b:9}, ai:{early:.88,late:1.06},  topSpeedMul:0.98, steerRateMul:1.00, boostMul:1.08 },
+    { key:'rally3', name:'Maxed-Out Marcus', color:'#f87171', tag:'Blistering top speed — handle with care.',
+      stats:{h:4,s:9,b:5}, ai:{early:1.08,late:.84},  topSpeedMul:1.05, steerRateMul:0.93, boostMul:0.97 },
+    { key:'rally4', name:'Prime Parker',     color:'#60a5fa', tag:'Balanced all-rounder — expert racing line.',
+      stats:{h:9,s:7,b:7}, ai:{early:.97,late:.99},   topSpeedMul:1.00, steerRateMul:1.08, boostMul:1.02 },
   ];
 
   /* ── Car state bands (CarStateManager.cs) ── */
@@ -110,7 +117,7 @@
         <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;max-width:900px">
           ${LEVELS.map((L,i)=>{
             const locked=i>0 && best<i;
-            return `<div onclick="${locked?'':'frStart('+i+')'}" style="width:250px;padding:20px 18px;border-radius:18px;border:1.5px solid ${locked?'rgba(255,255,255,.12)':'rgba(56,189,248,.45)'};background:linear-gradient(165deg,rgba(12,20,48,.95),rgba(4,8,24,.98));cursor:${locked?'default':'pointer'};text-align:center;position:relative;transition:all .2s" ${locked?'':`onmouseover="this.style.borderColor='#fbbf24';this.style.transform='translateY(-4px)'" onmouseout="this.style.borderColor='rgba(56,189,248,.45)';this.style.transform='none'"`}>
+            return `<div onclick="${locked?'':'frShowCarSelect('+i+')'}" style="width:250px;padding:20px 18px;border-radius:18px;border:1.5px solid ${locked?'rgba(255,255,255,.12)':'rgba(56,189,248,.45)'};background:linear-gradient(165deg,rgba(12,20,48,.95),rgba(4,8,24,.98));cursor:${locked?'default':'pointer'};text-align:center;position:relative;transition:all .2s" ${locked?'':`onmouseover="this.style.borderColor='#fbbf24';this.style.transform='translateY(-4px)'" onmouseout="this.style.borderColor='rgba(56,189,248,.45)';this.style.transform='none'"`}>
               <div style="font-size:2.4rem;margin-bottom:6px;filter:${locked?'grayscale(1) opacity(.4)':'none'}">${L.icon}</div>
               <div style="font-family:'Orbitron',sans-serif;font-size:.85rem;letter-spacing:.1em;color:${locked?'rgba(255,255,255,.35)':'#7dd3fc'}">${L.name}</div>
               <div style="font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.14em;color:rgba(255,255,255,.4);margin:5px 0 8px">${L.sub}</div>
@@ -123,17 +130,59 @@
       </div>`;
   }
 
-  window.frStart=function(li){
+  /* ── Car select / garage (GDD §5 core-loop step 1 "Choose car and event" +
+     §11 Garage System + §12 Cars to Include at Launch). Uses the 4 delivered
+     rally models — full upgrade trees/cosmetics are a bigger Phase-2 garage
+     build and intentionally out of scope for this pass. ── */
+  function showCarSelect(li, selKey){
+    const ui=document.getElementById('frUI'); if(!ui) return;
+    const remembered=(window.state&&state.fr_carKey)||'rally1';
+    const sel=selKey||remembered;
+    const L=LEVELS[li];
+    ui.style.pointerEvents='auto';
+    ui.innerHTML=`
+      <div style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,rgba(139,92,246,.22),transparent 55%),linear-gradient(180deg,#050a1e,#02040c);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;overflow:auto">
+        <button onclick="frExit()" style="position:absolute;top:14px;left:14px;padding:8px 16px;border:1px solid rgba(56,189,248,.4);border-radius:10px;background:rgba(10,16,40,.6);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← HUB</button>
+        <button onclick="frMenu()" style="position:absolute;top:14px;right:14px;padding:8px 16px;border:1px solid rgba(251,191,36,.4);border-radius:10px;background:rgba(10,16,40,.6);color:#fbbf24;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← TRACKS</button>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.3em;color:#8b5cf6">${L.icon} ${L.name} · GARAGE</div>
+        <div style="font-family:'Anton',sans-serif;font-size:clamp(1.7rem,5vw,2.8rem);letter-spacing:.04em;background:linear-gradient(90deg,#7dd3fc,#8b5cf6,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent">🚗 CHOOSE YOUR RACER</div>
+        <div style="font-size:.8rem;color:rgba(255,255,255,.55);margin-top:-8px">Every car handles differently — pick the one that fits how you drive.</div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;max-width:980px">
+          ${CARS.map(c=>{
+            const on=c.key===sel;
+            return `<div onclick="frShowCarSelect(${li},'${c.key}')" style="width:210px;padding:18px 16px;border-radius:18px;border:1.5px solid ${on?'#fbbf24':'rgba(255,255,255,.14)'};background:linear-gradient(165deg,rgba(12,20,48,.95),rgba(4,8,24,.98));cursor:pointer;text-align:center;position:relative;transition:all .2s;box-shadow:${on?'0 0 26px rgba(251,191,36,.35)':'none'}" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='none'">
+              ${on?`<div style="position:absolute;top:-10px;right:-8px;background:#fbbf24;color:#1a0d00;font-family:'Orbitron',sans-serif;font-size:.5rem;font-weight:900;letter-spacing:.06em;padding:4px 8px;border-radius:8px">✓ SELECTED</div>`:''}
+              <div style="font-size:2.6rem;margin-bottom:4px;filter:drop-shadow(0 0 10px ${c.color})">🏎️</div>
+              <div style="font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:.08em;color:${c.color}">${c.name}</div>
+              <div style="font-size:.66rem;line-height:1.4;color:rgba(255,255,255,.6);margin:6px 0 10px;min-height:32px">${c.tag}</div>
+              ${['HANDLING','SPEED','BOOST'].map((lbl,i)=>{ const v=[c.stats.h,c.stats.s,c.stats.b][i];
+                return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                  <div style="width:52px;text-align:left;font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.08em;color:rgba(255,255,255,.45)">${lbl}</div>
+                  <div style="flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden"><div style="width:${v*10}%;height:100%;background:${c.color}"></div></div>
+                </div>`; }).join('')}
+            </div>`;}).join('')}
+        </div>
+        <button onclick="frStart(${li},'${sel}')" style="margin-top:6px;padding:15px 34px;border:none;border-radius:14px;background:linear-gradient(135deg,#fbbf24,#d97706);color:#1a0d00;font-family:'Orbitron',sans-serif;font-size:.75rem;letter-spacing:.12em;font-weight:900;cursor:pointer;box-shadow:0 4px 24px rgba(251,191,36,.4)">🏁 START RACE</button>
+      </div>`;
+  }
+  window.frShowCarSelect=function(li,key){ showCarSelect(li,key); };
+
+  window.frStart=function(li,carKey){
+    const remembered=(window.state&&state.fr_carKey)||'rally1';
+    const key=carKey||remembered;
+    let carIdx=CARS.findIndex(c=>c.key===key); if(carIdx<0) carIdx=0;
+    if(window.state){ state.fr_carKey=CARS[carIdx].key; if(window.cvSave) cvSave(); }
     const ui=document.getElementById('frUI'); if(ui){ ui.style.pointerEvents='none'; ui.innerHTML=
       `<div id="frLoad" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#02040c">
         <div style="font-family:'Anton',sans-serif;font-size:2rem;color:#7dd3fc">LAUNCHING ${LEVELS[li].name}…</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.14em;color:${CARS[carIdx].color}">🏎️ ${CARS[carIdx].name}</div>
         <div style="width:220px;height:8px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden"><div id="frLoadBar" style="width:10%;height:100%;border-radius:6px;background:linear-gradient(90deg,#38bdf8,#fbbf24);transition:width .3s"></div></div>
         <div id="frLoadTxt" style="font-size:.65rem;color:rgba(255,255,255,.45)">warming up the engine…</div>
       </div>`; }
     const bar=p=>{ const b=document.getElementById('frLoadBar'); if(b) b.style.width=(p*100)+'%'; };
     ensure3D().then(()=>{ bar(.45); return loadCarAssets(bar); })
-      .then(models=>{ bar(1); startRace(li, models); })
-      .catch(e=>{ console.warn('FICO 3D load issue:', e); startRace(li, null); });
+      .then(models=>{ bar(1); startRace(li, models, carIdx); })
+      .catch(e=>{ console.warn('FICO 3D load issue:', e); startRace(li, null, carIdx); });
   };
 
   /* ── FBX car loading (with procedural fallback) ── */
@@ -200,10 +249,12 @@
     return t;
   }
 
-  function startRace(li, models){
+  function startRace(li, models, carIdx){
     if(G) teardown();
     const wrap=document.getElementById('fr3dWrap'); if(!wrap) return;
     const L=LEVELS[li];
+    carIdx=(typeof carIdx==='number'&&carIdx>=0&&carIdx<CARS.length)?carIdx:0;
+    const order=[carIdx,...[0,1,2,3].filter(i=>i!==carIdx)];   // order[0]=player's chosen car (GDD §11), order[1..3]=AI rivals
     const W=7;                         // road half-width
     const scene=new THREE.Scene();
     scene.fog=new THREE.Fog(L.fog, 40, L.fogFar);
@@ -371,18 +422,19 @@
     ban.position.set(p0.x,8.2,p0.z); ban.rotation.y=Math.atan2(T[0].x,T[0].z); gant.add(ban);
     scene.add(gant);
 
-    /* cars */
+    /* cars — order[0] is the player's chosen model (GDD §11 garage pick), order[1..3] the AI rivals */
     const carRoots=[], wheelSets=[];
     for(let i=0;i<4;i++){
-      let mdl=models&&models[i];
+      const ci=order[i], cdef=CARS[ci];
+      let mdl=models&&models[ci];
       let inst;
       if(mdl){ inst={root:mdl.root.clone(true),wheels:[]}; inst.root.traverse(m=>{ if(m.isMesh){ m.material=m.material.clone(); if(/wheel|tire|tyre/i.test(m.name)) inst.wheels.push(m); } }); }
-      else inst=buildFallbackCar([0xf59e0b,0x34d399,0xef4444,0x60a5fa][i]);
+      else inst=buildFallbackCar(parseInt(cdef.color.slice(1),16));
       const holder=new THREE.Group(); holder.add(inst.root);
       // name tag for AI
       if(i>0){ const tag=new THREE.Sprite(new THREE.SpriteMaterial({map:makeCanvasTex(256,64,(x,w,h)=>{
           x.fillStyle='rgba(3,6,20,.75)'; x.beginPath(); x.roundRect?x.roundRect(0,0,w,h,18):x.fillRect(0,0,w,h); x.fill();
-          x.fillStyle=CARS[i].color; x.font='700 30px Arial'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(CARS[i].name,w/2,h/2);
+          x.fillStyle=cdef.color; x.font='700 30px Arial'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(cdef.name,w/2,h/2);
         }),transparent:true}));
         tag.scale.set(3.1,.78,1); tag.position.y=2.45; holder.add(tag); holder.userData.tag=tag; }
       scene.add(holder); carRoots.push(holder); wheelSets.push(inst.wheels);
@@ -504,12 +556,15 @@
     /* state */
     G={ li,L,scene,cam,rndr,wrap,curve,P,T,NRM,SEG,trackLen,W,
         cars:carRoots, wheels:wheelSets, pickups, gate, puffs,
+        carIdx, carKey:CARS[carIdx].key,
+        carStats:{topSpeedMul:CARS[carIdx].topSpeedMul, steerRateMul:CARS[carIdx].steerRateMul, boostMul:CARS[carIdx].boostMul},
         fico:850, cash:0, band:BANDS[0],
         lap:1, done:false, phase:'count', countT:3.4,
         s:0, d:0, v:0, steerVis:0, spin:0, boost:0, boosting:0, offroad:false,
         gatesRight:0, gatesWrong:0, paysOnTime:0, missed:0,
         ai:[1,2,3].map(i=>({ s:-(i*.008)-.006, d:(i-2)*3.2, v:0, spin:0, prog:0,
-                             skill:L.aiSkill*(CARS[i].ai?1:1), def:CARS[i] })),
+                             skill:L.aiSkill*(CARS[order[i]].ai?1:1), def:CARS[order[i]],
+                             topSpeedMul:CARS[order[i]].topSpeedMul })),
         prog:0, startAt:performance.now(), last:performance.now(),
         keys:{}, dragX:0, camPos:new THREE.Vector3(), camLook:new THREE.Vector3(),
         nextGateAt: L.gateEvery, quizBag:[...QUIZ].sort(()=>Math.random()-.5), quizIdx:0,
@@ -653,9 +708,10 @@
       G.boosting=wantBoost?1:Math.max(0,G.boosting-dt*3);
       if(wantBoost) G.boost=Math.max(0,G.boost-dt*.4);
       G.offroad=Math.abs(G.d)>G.W-.9;
-      const target=baseSpd*b.spd*(wantBoost?1.5:1)*(G.offroad?.55:1)*(G.spin>0?.35:1);
+      const cs=G.carStats;   // per-car Handling/Speed/Boost profile (GDD §12) — small bounded nudges, not a full stat rebuild
+      const target=baseSpd*b.spd*cs.topSpeedMul*(wantBoost?1.5*cs.boostMul:1)*(G.offroad?.55:1)*(G.spin>0?.35:1);
       G.v+=(target-G.v)*Math.min(1,dt*2.2);
-      G.d+=steer*dt*13*(G.v/baseSpd);
+      G.d+=steer*dt*13*cs.steerRateMul*(G.v/baseSpd);
       G.d=Math.max(-G.W-1.6,Math.min(G.W+1.6,G.d));
       if(G.spin>0) G.spin-=dt;
       G.s=((G.s+G.v*dt/G.trackLen)%1+1)%1;
@@ -690,7 +746,7 @@
       const t01=Math.min(1,(now-G.startAt)/90000);
       const pers=per.early+(per.late-per.early)*t01;
       const rubber=1+Math.max(-0.08,Math.min(0.08,(G.prog-(a.prog||0))*.35));
-      const target=baseSpd*a.skill*pers*rubber*(a.spin>0?.35:1);
+      const target=baseSpd*a.skill*pers*rubber*(a.topSpeedMul||1)*(a.spin>0?.35:1);
       a.v=a.v===0?target:a.v+(target-a.v)*Math.min(1,dt*2);
       if(a.spin>0) a.spin-=dt;
       a.s=((a.s+a.v*dt/G.trackLen)%1+1)%1;
@@ -847,8 +903,8 @@
     }catch(e){}
     G=null;
   }
-  window.frRestart=function(){ const li=G?G.li:0; teardown(); const ui=document.getElementById('frUI'); if(ui) ui.innerHTML=''; frStart(li); };
-  window.frStartNext=function(){ const li=G?Math.min(G.li+1,LEVELS.length-1):0; teardown(); frStart(li); };
+  window.frRestart=function(){ const li=G?G.li:0, ck=G?G.carKey:null; teardown(); const ui=document.getElementById('frUI'); if(ui) ui.innerHTML=''; frStart(li,ck); };
+  window.frStartNext=function(){ const li=G?Math.min(G.li+1,LEVELS.length-1):0, ck=G?G.carKey:null; teardown(); frStart(li,ck); };
   window.frMenu=function(){ teardown(); showLevelSelect(); };
   window.frExit=function(){ teardown();
     if(window.state){ state.viewingWorld=state._returnHub||'credtech'; }

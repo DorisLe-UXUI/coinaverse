@@ -6178,9 +6178,9 @@ video::-webkit-media-controls-play-button {
 
   // ───────── SCREEN: AGE + PARENTAL (onboarding safety step) ─────────
   const AGE_BANDS = [
-    ['u9','Under 9','Simple words, big buttons, more guidance'],
-    ['9_11','9 – 11','Core money games & guided goals'],
-    ['12_14','12 – 14','Full depth: investing, credit, strategy'] ];
+    ['u9','Under 9',''],
+    ['9_11','9 – 11',''],
+    ['12_14','12 – 14',''] ];
 
   SCREENS.age_parental = function(){
     const band = state.ageBand;
@@ -6191,7 +6191,7 @@ video::-webkit-media-controls-play-button {
       </button>`).join('');
     return `
       <div class="ap-screen">
-        <video class="ap-vid" autoplay loop muted playsinline><source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/splash.mp4" type="video/mp4"></video>
+        <video class="ap-vid" autoplay loop muted playsinline><source src="assets/bgvid/splash.mp4" type="video/mp4"><source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/splash.mp4" type="video/mp4"></video>
         <div class="ap-bg"></div>
         <div class="ap-card">
           <div class="ap-eyebrow">ACCOUNT SETUP · STEP 2 OF 3</div>
@@ -7128,6 +7128,19 @@ video::-webkit-media-controls-play-button {
     return [.58,.40,.22,.06,0,-.16,-.32,-.5].map(p => p===0 ? base : shade(base,p));
   }
   const AURAS = ['PULSE','ORBIT RING','SPARKS','NONE'];
+  // Kabria: avatar customization should include face, skin tone, hair (4 free + rest
+  // locked behind Coin Points) and suit style (not color — that's archetype-locked).
+  // NOTE: these save a real preference and show a real picked/selected state, but the
+  // hero art itself can't visually swap face/hair/suit without matching illustrated
+  // variants from Kabria — this wires up the full interaction + data model so it's
+  // ready the moment real art assets exist, same spirit as the archetype colorway.
+  const SKIN_TONES = ['#ffe0bd','#f1c27d','#e0ac69','#c68642','#8d5524','#5a3825'];
+  const FACES = ['🙂','😊','😎','🤓','🥳','🧐'];
+  const HAIR_FREE = ['⬛ BLACK','🟫 BROWN','🟡 BLONDE','⬜ NONE'];
+  window.pickSkinTone = function(i){ state.avatarSkinTone=i; if(window.cvSave)cvSave(); goTo('avatar'); };
+  window.pickFace = function(i){ state.avatarFace=i; if(window.cvSave)cvSave(); goTo('avatar'); };
+  window.pickHair = function(i){ state.avatarHair=i; if(window.cvSave)cvSave(); goTo('avatar'); };
+  window.pickSuit = function(i){ state.avatarSuit=i; if(window.cvSave)cvSave(); goTo('avatar'); };
   // Gender choice (Kabria): kids pick MALE or FEMALE. Female swaps to a
   // "<name>_f.png" hero when that art exists; until then it falls back to the
   // base art (no broken images). Add a token to FEM_CHARS to light up its art.
@@ -7217,6 +7230,11 @@ video::-webkit-media-controls-play-button {
           .av-unlock-ic{font-size:1.2rem}
           .av-unlock-lock{position:absolute;top:2px;right:4px;font-size:.6rem}
           .av-unlock-lbl{font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.06em;color:rgba(255,255,255,.5)}
+          .av-face-grid{display:flex;flex-wrap:wrap;gap:8px}
+          .av-face-chip{position:relative;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);color:#cdd6f4;font:700 .62rem/1 'Orbitron',sans-serif;cursor:pointer;transition:.15s}
+          .av-face-chip.on{border-color:var(--av-sel);background:color-mix(in srgb,var(--av-sel) 18%,transparent);box-shadow:0 0 14px color-mix(in srgb,var(--av-sel) 35%,transparent)}
+          .av-face-chip.locked{opacity:.45;cursor:pointer}
+          .av-face-chip.locked .av-unlock-lock{position:static;margin-left:4px;font-size:.6rem}
         </style>
         <div class="av-grid">
           <!-- LEFT: customization -->
@@ -7227,6 +7245,28 @@ video::-webkit-media-controls-play-button {
               <div class="av-genders">
                 <button class="av-gender${state.gender==='female'?'':' on'}" data-g="male" onclick="pickGender('male')"><span>👦</span> MALE</button>
                 <button class="av-gender${state.gender==='female'?' on':''}" data-g="female" onclick="pickGender('female')"><span>👧</span> FEMALE</button>
+              </div>
+            </div>
+            <div class="av-panel">
+              <div class="av-ph">SKIN TONE</div>
+              <p class="av-hint">Every hero looks like the kid playing. Pick the tone that looks like you.</p>
+              <div class="av-swatches">${SKIN_TONES.map((t,i)=>`<button class="av-swatch${(state.avatarSkinTone==null?2:state.avatarSkinTone)===i?' on':''}" style="--s:${t}" onclick="pickSkinTone(${i})" title="Skin tone ${i+1}"></button>`).join('')}</div>
+            </div>
+            <div class="av-panel">
+              <div class="av-ph">FACE</div>
+              <p class="av-hint">Choose your look.</p>
+              <div class="av-face-grid">${FACES.map((f,i)=>`<button class="av-face-chip${(state.avatarFace==null?0:state.avatarFace)===i?' on':''}" onclick="pickFace(${i})">${f}</button>`).join('')}</div>
+            </div>
+            <div class="av-panel">
+              <div class="av-ph">HAIR <span class="av-lock">4 free · rest need Coin Points</span></div>
+              <div class="av-face-grid">${HAIR_FREE.map((h,i)=>`<button class="av-face-chip${(state.avatarHair==null?0:state.avatarHair)===i?' on':''}" onclick="pickHair(${i})">${h}</button>`).join('')}
+                ${['🎨','✨','👑'].map(ic=>`<button class="av-face-chip locked" onclick="avPreviewLocked('HAIR')">${ic}<span class="av-unlock-lock">🔒</span></button>`).join('')}</div>
+            </div>
+            <div class="av-panel">
+              <div class="av-ph">SUIT STYLE</div>
+              <div class="av-genders">
+                <button class="av-gender${(state.avatarSuit==null?0:state.avatarSuit)===0?' on':''}" onclick="pickSuit(0)"><span>🦺</span> STANDARD</button>
+                <button class="av-gender${state.avatarSuit===1?' on':''}" onclick="pickSuit(1)"><span>🥋</span> ALT</button>
               </div>
             </div>
             <div class="av-panel">
@@ -7242,7 +7282,7 @@ video::-webkit-media-controls-play-button {
               <div class="av-ph">MORE STYLES <span class="av-lock">🔒 COIN STORE</span></div>
               <p class="av-hint">Unlock more looks with Coin Points after you finish setup.</p>
               <div class="av-unlock-grid">
-                ${[['💇','HAIR'],['👟','SHOES'],['🧥','JACKETS'],['🦋','WINGS'],['🛹','BOARDS'],['💃','EMOTES'],['🎨','COLORS']].map(([ic,lb])=>`
+                ${[['👟','SHOES'],['🧥','JACKETS'],['🦋','WINGS'],['🛹','BOARDS'],['💃','EMOTES'],['🎨','NAME COLOR']].map(([ic,lb])=>`
                 <div class="av-unlock-chip" onclick="avPreviewLocked('${lb}')">
                   <span class="av-unlock-ic">${ic}</span>
                   <span class="av-unlock-lock">🔒</span>
@@ -7419,7 +7459,7 @@ video::-webkit-media-controls-play-button {
       `<div class="dist-card hub--${w.color}">`+
         `<button class="dist-x" onclick="closeDistrict()">✕</button>`+
         `<div class="dist-vidwrap">`+
-          `<video class="dist-vid" id="distHostVid" autoplay loop playsinline poster="assets/learn/${token}_d${nn}.jpg"><source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/${token}_d${nn}_host.mp4" type="video/mp4"></video>`+
+          `<video class="dist-vid" id="distHostVid" autoplay loop playsinline poster="assets/learn/${token}_d${nn}.jpg"><source src="assets/bgvid/${token}_d${nn}_host.mp4" type="video/mp4"><source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/${token}_d${nn}_host.mp4" type="video/mp4"></video>`+
           `<button class="dist-mute" id="distMute" onclick="toggleDistMute()" title="Mute / unmute">🔊</button>`+
           `<div class="dist-vidtag">▶ WATCH THE LESSON</div>`+
         `</div>`+
@@ -7780,25 +7820,25 @@ video::-webkit-media-controls-play-button {
 
   // ───────── LEARN → PLAY → MASTER ─────────
   const LESSONS = {
-    vault_game:{title:'Goal Galaxy · Saving',vid:'https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/guardian_d01_host.mp4',poster:'assets/learn/guardian_d01.jpg',
+    vault_game:{title:'Goal Galaxy · Saving',vid:'assets/bgvid/guardian_d01_host.mp4',poster:'assets/learn/guardian_d01.jpg',
       line:'Every gem you protect becomes power. Pick a goal and watch your vault grow.',
       pts:['Set your goal BEFORE you spend — name it, size it, date it','Needs always come before wants: housing, food, transport first','Small consistent saves compound into big wins over time']},
-    emergency_game:{title:'Emergency Vault · Reserve Fund',vid:'https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/guardian_d02_host.mp4',poster:'assets/learn/guardian_d02.jpg',
+    emergency_game:{title:'Emergency Vault · Reserve Fund',vid:'assets/bgvid/guardian_d02_host.mp4',poster:'assets/learn/guardian_d02.jpg',
       line:'An emergency fund is your financial immune system. Keep it sacred — real crises only.',
       pts:['Target 3–6 months of core expenses in your emergency fund','Never raid the emergency fund for a want — that breaks the system','Replenish every coin you use: treat it like a loan to yourself']},
-    satellite_game:{title:'Savings Satellite Net · Automation',vid:'https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/guardian_d03_host.mp4',poster:'assets/learn/guardian_d03.jpg',
+    satellite_game:{title:'Savings Satellite Net · Automation',vid:'assets/bgvid/guardian_d03_host.mp4',poster:'assets/learn/guardian_d03.jpg',
       line:'Automated savings remove the willpower problem. Set it, forget it, grow it.',
       pts:['Pay yourself FIRST: auto-transfer on payday, before you can spend','Even $5/week automated beats $50 saved manually once a month','Review and increase your auto-save % every time your income rises']},
-    security_game:{title:'Security Shield CMD · Fraud Defense',vid:'https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/guardian_d04_host.mp4',poster:'assets/learn/guardian_d04.jpg',
+    security_game:{title:'Security Shield CMD · Fraud Defense',vid:'assets/bgvid/guardian_d04_host.mp4',poster:'assets/learn/guardian_d04.jpg',
       line:'Scammers use urgency and "too good to be true" bait. A Guardian spots them instantly.',
       pts:['Never share passwords, PINs or one-time codes — ever','If it feels too good to be true, it is a scam — always','Block scams fast; hesitation costs you money']},
-    compound_game:{title:'Compound Constellation · Interest',vid:'https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/guardian_d05_host.mp4',poster:'assets/learn/guardian_d05.jpg',
+    compound_game:{title:'Compound Constellation · Interest',vid:'assets/bgvid/guardian_d05_host.mp4',poster:'assets/learn/guardian_d05.jpg',
       line:'Compound interest is the 8th wonder of the world — money that earns money that earns more money.',
       pts:['Starting 10 years earlier doubles your final wealth (Rule of 72)','Reinvest every return: compound works ONLY if you keep it growing','Higher rate + longer time = exponential not linear growth']},
-    dreams_game:{title:'Future Dreams Harbor · Goal Setting',vid:'https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/guardian_d06_host.mp4',poster:'assets/learn/guardian_d06.jpg',
+    dreams_game:{title:'Future Dreams Harbor · Goal Setting',vid:'assets/bgvid/guardian_d06_host.mp4',poster:'assets/learn/guardian_d06.jpg',
       line:'Connecting your savings to a real dream makes every sacrifice feel worthwhile.',
       pts:['Name your dream specifically: not "save money" but "buy a car by June 2026"','Break it down: goal ÷ weeks = weekly save target — simple math','Prioritize by timeline: short-term goals (under 2 yrs) go in cash savings']},
-    resilience_game:{title:'Resilience Arena · Crisis Management',vid:'https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/guardian_d07_host.mp4',poster:'assets/learn/guardian_d07.jpg',
+    resilience_game:{title:'Resilience Arena · Crisis Management',vid:'assets/bgvid/guardian_d07_host.mp4',poster:'assets/learn/guardian_d07.jpg',
       line:'Financial crises hit everyone. Guardians who prepared survive and come back stronger.',
       pts:['Emergency fund = your first line of defense — build it before investing','When crisis hits: needs first, pause wants, no panic decisions','After the crisis: rebuild the fund before returning to normal spending']},
     budget_game:{title:'Budget Builder · 50/30/20 Rule',vid:'',poster:'assets/learn/guardian_d01.jpg',
@@ -8977,7 +9017,7 @@ video::-webkit-media-controls-play-button {
   /* ───────── PERSISTENCE (P1) ───────── */
   function userId(){ return localStorage.getItem('coinaverse_user') || 'guest'; }
   function userKey(){ return 'coinaverse_prog_' + userId(); }
-  const FIELDS = ['coins','level','xp','playerName','archetype','viewingWorld','dailyClaimed','streak','credPct','learned','missionsDone','gamesDone','inventory','skills','articlesRead','gameStars','gameLevels','badges','hubMeters','budgetMeter','meters','hubsVisited','cinemaSeen','challengesClaimed','coinDropClaimed','cinemaSeenMap','gender','avatarColorIdx','avatarAura',
+  const FIELDS = ['coins','level','xp','playerName','archetype','viewingWorld','dailyClaimed','streak','credPct','learned','missionsDone','gamesDone','inventory','skills','articlesRead','gameStars','gameLevels','badges','hubMeters','budgetMeter','meters','hubsVisited','cinemaSeen','challengesClaimed','coinDropClaimed','cinemaSeenMap','gender','avatarColorIdx','avatarAura','avatarSkinTone','avatarFace','avatarHair','avatarSuit',
     // Per-game meta-progression added when the 7 flagship games were rebuilt to match their real GDDs (2026-07-18).
     'mc_vaultTotal','mc_collection','mc_daily','mc_streak',
     'gq_career',
@@ -9330,7 +9370,7 @@ video::-webkit-media-controls-play-button {
    ════════════════════════════════════════════════════════════ */
 (function(){
   const S=()=>window.state||{};
-  const money=n=>'$'+Number(n).toFixed(2);
+  const money=n=>n?'$'+Number(n).toFixed(2):'TBD';
 
   /* ─────────── REAL KABRIA MERCH (from Coincept content) ─────────── */
   const MERCH=[
@@ -9341,14 +9381,19 @@ video::-webkit-media-controls-play-button {
    {id:'cu',name:'Count It Up · Numbers 1–100',type:'Activity Book',ages:'4–8',price:12.99,cat:'Activity Books',status:'available',blurb:'Counting, number tracing & recognition with fun visuals and matching games.'},
    {id:'mu',name:'Multiply Your Way to Success',type:'Activity Book',ages:'5–11',price:12.99,cat:'Activity Books',status:'available',blurb:'Master multiplication with puzzles, word challenges & creative activities.'},
    {id:'bp',name:'My First Budget Planner',type:'Activity Book',ages:'5–12',price:12.99,cat:'Activity Books',status:'available',blurb:'Needs vs wants, savings goals & spend tracking — a child’s first real budget.'},
-   {id:'ad',name:"Addi's Amazing Addition Adventure",type:'Activity Book',ages:'5–9',price:12.99,cat:'Coming Soon',status:'soon',blurb:'Addition stories, fill-in puzzles & themed challenges guided by Addi.'},
-   {id:'mc',name:'Coincept Money Counting Book',type:'Activity Book',ages:'6–10',price:12.99,cat:'Coming Soon',status:'soon',blurb:'Recognize coins & bills, add amounts, and learn the value of a dollar.'},
-   {id:'db',name:'DivBot 3000 Division Adventure',type:'Activity Book',ages:'6–11',price:12.99,cat:'Coming Soon',status:'soon',blurb:'Division stories & puzzles from basic to advanced with DivBot 3000.'},
-   {id:'su',name:'Subby Subtraction Adventure',type:'Activity Book',ages:'5–11',price:12.99,cat:'Coming Soon',status:'soon',blurb:'Subtraction mini-games, coloring & step-by-step practice with Subby.'},
+   {id:'ad',name:"Addi's Amazing Addition Adventure",type:'Activity Book',ages:'5–9',price:12.99,cat:'Activity Books',status:'soon',blurb:'Addition stories, fill-in puzzles & themed challenges guided by Addi.'},
+   {id:'mc',name:'Coincept Money Counting Book',type:'Activity Book',ages:'6–10',price:12.99,cat:'Activity Books',status:'soon',blurb:'Recognize coins & bills, add amounts, and learn the value of a dollar.'},
+   {id:'db',name:'DivBot 3000 Division Adventure',type:'Activity Book',ages:'6–11',price:12.99,cat:'Activity Books',status:'soon',blurb:'Division stories & puzzles from basic to advanced with DivBot 3000.'},
+   {id:'su',name:'Subby Subtraction Adventure',type:'Activity Book',ages:'5–11',price:12.99,cat:'Activity Books',status:'soon',blurb:'Subtraction mini-games, coloring & step-by-step practice with Subby.'},
+   {id:'eb1',name:'Coinaverse E-Book Library',type:'Downloadable E-Book',ages:'5–14',price:0,cat:'Downloadable E-Books',status:'soon',blurb:'Downloadable storybooks starring the Coinaverse heroes — coming soon.'},
+   {id:'ap1',name:'Coinaverse Apparel Line',type:'Apparel',ages:'All Ages',price:0,cat:'Apparel',status:'soon',blurb:'Tees, hoodies & hats featuring your favorite archetype — coming soon.'},
+   {id:'jn1',name:'Coinaverse Journals & Notebooks',type:'Journals & Notebooks',ages:'8–14',price:0,cat:'Journals & Notebooks',status:'soon',blurb:'Goal-tracking journals and notebooks themed to each world — coming soon.'},
+   {id:'ac1',name:'Coinaverse Accessories',type:'Accessories',ages:'All Ages',price:0,cat:'Accessories',status:'soon',blurb:'Backpacks, water bottles & everyday gear — coming soon.'},
+   {id:'cl1',name:'Coinaverse Collectibles',type:'Collectibles',ages:'All Ages',price:0,cat:'Collectibles',status:'soon',blurb:'Character figures and collectible cards from every world — coming soon.'},
   ];
   const MERCH_BY=id=>MERCH.find(m=>m.id===id);
   // category cover theme (Coincept palette: forest green / gold)
-  const COVER_COL={'Flash Cards':['#0e7a3a','#1B5E20'],'Activity Books':['#16794d','#0e5c38'],'Coming Soon':['#3a3358','#241f3e']};
+  const COVER_COL={'Flash Cards':['#0e7a3a','#1B5E20'],'Activity Books':['#16794d','#0e5c38'],'Downloadable E-Books':['#1e6f7a','#123f47'],'Apparel':['#7a3a6f','#3f1247'],'Journals & Notebooks':['#7a5a1e','#472f12'],'Accessories':['#3a5a7a','#12293f'],'Collectibles':['#7a1e3a','#470f1f'],'Coming Soon':['#3a3358','#241f3e']};
   function coverHTML(m){
     const [c1,c2]=COVER_COL[m.cat]||['#1a1340','#0e0a26'];
     return `<div class="mc-cover mc-photo" style="position:relative;background:linear-gradient(150deg,${c1},${c2})">
@@ -9417,7 +9462,7 @@ video::-webkit-media-controls-play-button {
   let _mcat='All';
   window.shopCat=c=>{ _mcat=c; goTo('shop'); };
   window.SCREENS.shop_merch=function(){   /* reverted to original in-game Marketplace per Kabria; merch store kept here unused */
-    const cats=['All','Flash Cards','Activity Books','Coming Soon'];
+    const cats=['All','Activity Books','Downloadable E-Books','Apparel','Journals & Notebooks','Accessories','Flash Cards','Collectibles'];
     const list=_mcat==='All'?MERCH:MERCH.filter(m=>m.cat===_mcat);
     const SHOP_CSS=`
       .shop2-wrap{position:absolute;inset:0;background:linear-gradient(160deg,#030f06,#071a0b);overflow-y:auto;font-family:'Inter',sans-serif}
@@ -9476,8 +9521,8 @@ video::-webkit-media-controls-play-button {
       </div>
       <div class="shop2-hero">
         <div class="shop2-hero-kick">COINCEPT CORPORATION · FINANCIAL LITERACY FOR KIDS</div>
-        <h1 class="shop2-hero-h1">Real books & cards.<br>Real money skills.</h1>
-        <p class="shop2-hero-p">Flash cards, activity books & planners that turn money lessons into something kids actually love. Shipping worldwide.</p>
+        <h1 class="shop2-hero-h1">Bring the Coinaverse<br>into the Real World.</h1>
+        <p class="shop2-hero-p">Discover books, activities, apparel, accessories and collectibles that turn everyday moments into fun financial adventures. Shipping worldwide.</p>
       </div>
       <div class="shop2-tabs">
         ${cats.map(c=>`<button class="shop2-tab ${c===_mcat?'active':''}" onclick="shopCat('${c}')">${c.toUpperCase()}</button>`).join('')}
@@ -10044,7 +10089,9 @@ video::-webkit-media-controls-play-button {
       {name:'Money Basics',e:'🎓',cats:['Money Basics'],c:'#14b8a6'},
       {name:'Earning Saga',e:'💼',cats:['Earning'],c:'#3b82f6'},
       {name:'Saving Saga',e:'💰',cats:['Saving','Counting'],c:'#10b981'},
-      {name:'CoinCept Squad',e:'⚔️',cats:['CoinCept Squad'],c:'#a855f7'},
+      {name:'Coincept Crew Series · Season 1',e:'⚔️',cats:['CoinCept Squad'],c:'#a855f7'},
+      {name:'Hero Spotlights',e:'🦸',cats:['Hero Spotlight'],c:'#fbbf24'},
+      {name:'Villain Spotlights',e:'🦹',cats:['Villain Spotlight'],c:'#ef4444'},
     ];
     const PREMIERES=[
       {t:'Debt Phantom Unleashed',d:'A new villain threatens the Coinaverse. Heroes assemble.',w:'5 days',e:'🦹'},
