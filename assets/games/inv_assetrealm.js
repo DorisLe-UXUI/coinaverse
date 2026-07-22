@@ -98,11 +98,38 @@
   /* ── state ───────────────────────────────────────────────────── */
   let G = null;
 
+  /* ── COSMIC VISUAL SYSTEM — the canvas skyline already paints its own sky
+     gradient over the bottom 45%; this gives the top of the screen (above
+     the skyline) the same nebula/starfield depth used everywhere else in
+     the app (see arcade.js .arc-wrap) instead of a flat solid fill. ── */
+  function injectArCosmicStyle() {
+    if (document.getElementById('arCosmicStyle')) return;
+    const s = document.createElement('style');
+    s.id = 'arCosmicStyle';
+    s.textContent = `
+      #arRoot{background:radial-gradient(130% 70% at 50% -8%,color-mix(in srgb,${ACCENT} 15%,#1a1240),${BG} 60%)!important}
+      .ar-stars{position:absolute;inset:0;bottom:45%;z-index:0;pointer-events:none;overflow:hidden}
+      .ar-star{position:absolute;border-radius:50%;background:#fff;animation:arTwinkle 3.2s ease-in-out infinite}
+      @keyframes arTwinkle{0%,100%{opacity:.12}50%{opacity:.85}}
+    `;
+    document.head.appendChild(s);
+  }
+  function arStarsHTML(n) {
+    let out = '';
+    for (let i = 0; i < (n || 30); i++) {
+      const x = (i * 53.7) % 100, y = (i * 47.3) % 100, sz = 1 + (i % 3), dur = (2.4 + (i % 5) * .4).toFixed(1), delay = ((i * .37) % 3).toFixed(2);
+      out += `<span class="ar-star" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;width:${sz}px;height:${sz}px;animation-duration:${dur}s;animation-delay:${delay}s"></span>`;
+    }
+    return out;
+  }
+
   /* ── screen registration ─────────────────────────────────────── */
   window.SCREENS.game_inv_assetrealm = function () {
     G = null;
+    injectArCosmicStyle();
     setTimeout(initGame, 40);
     return `<div id="arRoot" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none">
+      <div class="ar-stars">${arStarsHTML(30)}</div>
       <canvas id="arCity" style="position:absolute;bottom:0;left:0;width:100%;height:45%;pointer-events:none"></canvas>
       <!-- TOP BAR -->
       <div id="arBar" style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent)">

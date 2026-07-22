@@ -48,11 +48,13 @@
     G=null;
     if(raf){ cancelAnimationFrame(raf); raf=null; }
     setTimeout(initGame,40);
-    return `<div id="bvRoot" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
+    return `<div id="bvRoot" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, #38bdf8 16%, #1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
+      <!-- cosmic scanline overlay (matches arcade.js .arc-wrap recipe) -->
+      <div style="position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(rgba(56,189,248,0) 50%,rgba(56,189,248,.03) 50%);background-size:100% 4px"></div>
       <!-- TOP BAR -->
       <div id="bvBar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 16px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent)">
         <button id="bvBack" style="padding:7px 13px;border:1px solid rgba(56,189,248,.35);border-radius:9px;background:rgba(26,42,74,.6);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.1em;cursor:pointer;white-space:nowrap">← VAULT</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.18em;color:#38bdf8;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">EMERGENCY FUND VAULT</div>
+        <div style="font-family:'Anton',sans-serif;font-size:.9rem;letter-spacing:.05em;color:#38bdf8;text-shadow:0 0 14px #38bdf8aa;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">EMERGENCY FUND VAULT</div>
         <div id="bvTimer" style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:#f59e0b;min-width:44px;text-align:right">90s</div>
       </div>
       <!-- HUD ROW -->
@@ -666,9 +668,9 @@
       ctx.translate((Math.random()-.5)*m,(Math.random()-.5)*m);
     }
 
-    // background
-    ctx.fillStyle='#03040c';
-    ctx.fillRect(0,0,W,H);
+    // background — transparent so the root div's cosmic nebula gradient shows through
+    // (this canvas used to paint a solid #03040c fill every frame, hiding it entirely)
+    ctx.clearRect(0,0,W,H);
 
     // flash overlay
     if(G.flashT>0){
@@ -687,6 +689,28 @@
       ctx.fill();
     });
     ctx.globalAlpha=1;
+
+    // perspective floor — tokens fall through an open vault chamber ("a space", not a
+    // menu), so a few converging lines toward a vanishing point behind the vault plus
+    // receding rungs read as real depth. Purely a visual cue — coordinates below are
+    // untouched by this and token/vault hit-testing is unaffected.
+    (function drawFloorCue(){
+      const horizon = H * 0.5;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(56,189,248,.1)';
+      ctx.lineWidth = 1;
+      for (let i = -3; i <= 3; i++) {
+        ctx.globalAlpha = .5;
+        ctx.beginPath(); ctx.moveTo(W/2, horizon); ctx.lineTo(W/2 + i*W*.3, H); ctx.stroke();
+      }
+      for (let j = 1; j <= 3; j++) {
+        const fy = horizon + (H - horizon) * (j/4);
+        ctx.globalAlpha = .07;
+        ctx.beginPath(); ctx.moveTo(0, fy); ctx.lineTo(W, fy); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    })();
 
     // draw vault
     drawVault(W,H);
@@ -976,11 +1000,20 @@
         <div style="font-family:'Orbitron',sans-serif;font-size:.95rem;color:#f59e0b">🔥 ${G.bestStreak}x</div>
       </div>` : '';
 
+    const confettiHtml = won ? Array.from({ length: 16 }, (_, i) => {
+      const emo = ['✦','●','▲','★'][i % 4], col = ['#38bdf8', '#f59e0b', '#a855f7', '#22c55e'][i % 4];
+      return `<span style="position:absolute;top:-24px;left:${4 + Math.random() * 92}%;font-size:1.3rem;color:${col};animation:bv_confetti 1.7s ease-in ${(Math.random() * .5).toFixed(2)}s forwards;pointer-events:none">${emo}</span>`;
+    }).join('') : '';
     end.innerHTML=`
+      ${confettiHtml}
+      <div style="max-width:360px;width:100%;text-align:center;position:relative;overflow:hidden;padding:26px 22px;border-radius:20px;background:linear-gradient(150deg,rgba(255,255,255,.06),rgba(19,13,50,.92));border:1px solid ${won?'#f59e0b66':'#ef444466'};box-shadow:0 0 50px ${won?'rgba(245,158,11,.25)':'rgba(239,68,68,.25)'}">
+      <style>@keyframes bv_confetti{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(420px) rotate(360deg);opacity:0}}
+      @keyframes bv_shine{to{background-position:-20% 0}}</style>
+      ${won ? `<div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:bv_shine 2.2s ease-in-out .3s 1;pointer-events:none"></div>` : ''}
       <div style="font-size:2.6rem;margin-bottom:4px">${won?'🏦':'💸'}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:.2em;color:${mainColor};margin-bottom:8px">${mainLabel}</div>
+      <div style="font-family:'Anton',sans-serif;font-size:1.15rem;letter-spacing:.06em;color:${mainColor};text-shadow:0 0 14px ${mainColor}88;margin-bottom:8px">${mainLabel}</div>
       <div style="font-size:1.8rem;letter-spacing:.12em;margin-bottom:6px">${starStr}</div>
-      <div style="display:flex;gap:16px;margin-bottom:18px">
+      <div style="display:flex;gap:16px;margin-bottom:18px;justify-content:center">
         <div style="text-align:center">
           <div style="font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.12em;color:#64748b">SAVED</div>
           <div style="font-family:'Orbitron',sans-serif;font-size:1rem;color:#22c55e">$${Math.round(G.savings).toLocaleString()}</div>
@@ -999,9 +1032,10 @@
         <span style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.12em;color:#38bdf8;display:block;margin-bottom:6px">LESSON</span>
         An emergency fund is not optional — it is the wall between a bad day and a financial crisis. Even a small cushion of $500 can prevent debt spirals. Start saving before the emergency happens, because it always happens.
       </div>
-      <div style="display:flex;gap:12px">
+      <div style="display:flex;gap:12px;justify-content:center">
         <button onclick="bvStartLevel(${G.level})" style="padding:12px 24px;border:1px solid rgba(56,189,248,.4);border-radius:12px;background:rgba(26,42,74,.7);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.1em;cursor:pointer">PLAY AGAIN</button>
         <button onclick="window.bud_vaultExit()" style="padding:12px 24px;border:1px solid rgba(26,42,74,.6);border-radius:12px;background:rgba(26,42,74,.4);color:#64748b;font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
+      </div>
       </div>`;
   }
 

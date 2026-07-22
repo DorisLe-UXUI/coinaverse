@@ -233,9 +233,12 @@
   window.SCREENS.game_inv_academy = function () {
     G = null;
     setTimeout(initGame, 40);
-    return `<div id="inv_acad_root" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;">
+    return `<div id="inv_acad_root" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb,#00C853 15%,#1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;">
+      <div id="inv_acad_stars" style="position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden">${(function(){let o='';for(let i=0;i<44;i++){const x=(i*53.7)%100,y=(i*91.3+9)%100,sz=1+(i%3),dur=(2.4+(i%5)*.4).toFixed(1),delay=((i*.37)%3).toFixed(2);o+=`<span style="position:absolute;left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;width:${sz}px;height:${sz}px;border-radius:50%;background:#fff;animation:inv_twinkle ${dur}s ease-in-out infinite;animation-delay:${delay}s"></span>`;}return o;})()}</div>
+      <div id="inv_acad_ui" style="position:absolute;inset:0;display:flex;flex-direction:column;"></div>
       <style>
         #inv_acad_root * { box-sizing: border-box; }
+        #inv_acad_root::after{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(rgba(0,229,255,0) 50%,rgba(0,229,255,.025) 50%);background-size:100% 4px}
         @keyframes inv_pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
         @keyframes inv_glow { 0%,100%{box-shadow:0 0 12px #00C853aa} 50%{box-shadow:0 0 28px #00C853} }
         @keyframes inv_slide_in { from{transform:translateY(30px);opacity:0} to{transform:translateY(0);opacity:1} }
@@ -243,6 +246,11 @@
         @keyframes inv_shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} }
         @keyframes inv_star_pop { 0%{transform:scale(0) rotate(-20deg);opacity:0} 70%{transform:scale(1.3) rotate(5deg)} 100%{transform:scale(1) rotate(0);opacity:1} }
         @keyframes inv_shimmer { 0%{background-position:200% center} 100%{background-position:-200% center} }
+        @keyframes inv_twinkle { 0%,100%{opacity:.12} 50%{opacity:.85} }
+        @keyframes inv_screenshake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
+        .inv_root_shake { animation: inv_screenshake .35s; }
+        @keyframes inv_confetti_fall { 0%{transform:translateY(-30px) rotate(0deg);opacity:1} 100%{transform:translateY(460px) rotate(360deg);opacity:0} }
+        .inv_confetti_piece { position:absolute;top:-24px;font-size:1.3rem;animation:inv_confetti_fall 1.7s ease-in forwards;pointer-events:none }
         .inv_btn {
           background: linear-gradient(135deg, #00C853, #00a844);
           color: #03040c;
@@ -707,6 +715,7 @@
     } else {
       G.timePenalty += timeTaken;
       G.streak = 0;
+      invShakeScreen();
     }
 
     // Visual feedback on buttons
@@ -748,6 +757,33 @@
     }
   };
 
+  function invShakeScreen() {
+    const root = document.getElementById('inv_acad_root');
+    if (!root) return;
+    root.classList.remove('inv_root_shake');
+    void root.offsetWidth;
+    root.classList.add('inv_root_shake');
+    setTimeout(() => { if (root) root.classList.remove('inv_root_shake'); }, 380);
+  }
+
+  // confetti burst for a real academy win (2-3 stars) — same falling/rotating
+  // piece language as arcade.js's .arc-confetti, kept for a consistent feel.
+  function invConfetti(count) {
+    const root = document.getElementById('inv_acad_root');
+    if (!root) return;
+    const colors = ['#00C853', '#69f0ae', '#ffd600', '#fff'];
+    const emojis = ['✦', '●', '▲', '★'];
+    let html = '';
+    for (let i = 0; i < (count || 26); i++) {
+      html += `<span class="inv_confetti_piece" style="left:${(4 + Math.random() * 92).toFixed(1)}%;animation-delay:${(Math.random() * .5).toFixed(2)}s;color:${colors[i % colors.length]}">${emojis[i % emojis.length]}</span>`;
+    }
+    const layer = document.createElement('div');
+    layer.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:40;';
+    layer.innerHTML = html;
+    root.appendChild(layer);
+    setTimeout(() => { if (layer.parentNode) layer.remove(); }, 2200);
+  }
+
   function timeOut(correctIdx) {
     if (!G || G.answered) return;
     G.answered = true;
@@ -755,6 +791,7 @@
     G.levelTotal++;
     G.timePenalty += G.timePerQ;
     G.streak = 0;
+    invShakeScreen();
 
     const q = G.questions[G.qIndex];
     const buttons = document.querySelectorAll('.inv_answer_btn');
@@ -1014,6 +1051,10 @@
       G = null;
       setTimeout(initGame, 40);
     };
+
+    // Celebration confetti on a real win (2-3 stars), richer for a perfect run —
+    // matches the confetti-on-real-wins-only language used across the app.
+    if (stars >= 2) invConfetti(stars === 3 ? 34 : 18);
   }
 
   /* ─── UTILS ──────────────────────────────────────────────── */

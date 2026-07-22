@@ -146,10 +146,26 @@
         '@keyframes trxComboPop{0%{transform:scale(1)}45%{transform:scale(1.35)}100%{transform:scale(1)}}',
         '@keyframes trxWinPop{0%{transform:scale(.7) translateY(14px);opacity:0}60%{transform:scale(1.05) translateY(-4px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}',
         '@keyframes trxFadeIn{0%{opacity:0;transform:translateY(6px)}100%{opacity:1;transform:translateY(0)}}',
+        '@keyframes trxBurst{to{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0}}',
+        '@keyframes trxConfettiFall{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(440px) rotate(360deg);opacity:0}}',
+        '@keyframes trxShine{to{background-position:-20% 0}}',
+        '.trx-wrap{background:radial-gradient(130% 60% at 50% -8%,rgba(167,139,250,.18),#160f2e 44%,#0d0d1a 100%)}',
+        '.trx-wrap::before{content:\'\';position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.6;',
+          'background-image:radial-gradient(1px 1px at 12% 22%,#fff,transparent),radial-gradient(1px 1px at 33% 68%,#fff,transparent),',
+          'radial-gradient(1.4px 1.4px at 58% 15%,#fff,transparent),radial-gradient(1px 1px at 75% 45%,#fff,transparent),',
+          'radial-gradient(1px 1px at 90% 78%,#fff,transparent),radial-gradient(1.4px 1.4px at 20% 88%,#fff,transparent),',
+          'radial-gradient(1px 1px at 48% 92%,#fff,transparent),radial-gradient(1px 1px at 85% 10%,#fff,transparent);',
+          'background-size:170px 170px}',
+        '.trx-wrap::after{content:\'\';position:absolute;inset:0;z-index:5;pointer-events:none;',
+          'background:linear-gradient(rgba(167,139,250,0) 50%,rgba(167,139,250,.025) 50%);background-size:100% 4px}',
+        '.trx-confetti{position:absolute;top:-24px;font-size:1.2rem;animation:trxConfettiFall 1.7s ease-in forwards;pointer-events:none;z-index:1001}',
+        '.trx-win-shine{position:relative;overflow:hidden}',
+        '.trx-win-shine::before{content:\'\';position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%);',
+          'background-size:220% 100%;background-position:120% 0;animation:trxShine 2.2s ease-in-out .3s 1;pointer-events:none;border-radius:20px}',
       '</style>',
-      '<div id="trx-root" style="',
+      '<div id="trx-root" class="trx-wrap" style="',
         'position:relative;width:100%;max-width:480px;margin:0 auto;',
-        'min-height:100dvh;background:linear-gradient(160deg,#0d0d1a 0%,#12102a 100%);',
+        'min-height:100dvh;',
         'display:flex;flex-direction:column;align-items:center;',
         'font-family:\'Nunito\',sans-serif;overflow:hidden;user-select:none;',
         'padding-bottom:env(safe-area-inset-bottom,0px);',
@@ -409,12 +425,14 @@
       var comboTier   = Math.min(s.combo, 10);
       var flashAlpha  = Math.min(0.25 + comboTier * 0.035, 0.6);
       flashScreen('rgba(34,197,94,' + flashAlpha.toFixed(2) + ')');
+      burstParticles('#4ade80', 12 + comboTier);
       if (s.combo >= 3) comboPop();
     } else {
       s.combo   = 0;
       s.score   = Math.max(0, s.score + s.cfg.ptsWrong);
       s.trust   = Math.max(0, s.trust - 10);
       flashScreen('rgba(239,68,68,.25)');
+      burstParticles('#f87171', 10);
       shakeIncoming();
     }
 
@@ -495,6 +513,25 @@
     fl.style.background = color;
     fl.style.opacity    = '1';
     setTimeout(function () { fl.style.opacity = '0'; }, 200);
+  }
+
+  /* ── particle burst — small glowing dots thrown out from the card stack
+     center on every decision (green on correct, red on wrong) ─────────── */
+  function burstParticles(color, n) {
+    var stack = document.getElementById('trx-stack');
+    if (!stack) return;
+    var cx = stack.clientWidth / 2, cy = stack.clientHeight / 2;
+    for (var i = 0; i < (n || 12); i++) {
+      var a = Math.random() * Math.PI * 2, dist = 36 + Math.random() * 90;
+      var p = document.createElement('div');
+      p.style.cssText = 'position:absolute;left:' + cx + 'px;top:' + cy + 'px;width:6px;height:6px;' +
+        'border-radius:50%;background:' + color + ';pointer-events:none;z-index:6;box-shadow:0 0 6px ' + color + ';';
+      p.style.setProperty('--dx', (Math.cos(a) * dist).toFixed(1) + 'px');
+      p.style.setProperty('--dy', (Math.sin(a) * dist).toFixed(1) + 'px');
+      p.style.animation = 'trxBurst .6s ease-out forwards';
+      stack.appendChild(p);
+      (function (el) { setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 650); })(p);
+    }
   }
 
   /* ── combo pop: punchy scale-burst on the combo readout for streaks >= 3 ──
@@ -597,8 +634,14 @@
     /* win gets a punchy overshoot pop; a no-star result gets a soft plain fade —
        so the end screen actually feels different on a win vs a loss, not just the text */
     var entranceAnim = isWin ? 'trxWinPop .5s cubic-bezier(.34,1.56,.64,1)' : 'trxFadeIn .4s ease';
+    // confetti + shine sweep on a real win only (never on a 0-star result)
+    var confettiHTML = isWin ? Array.from({length:16}, function(_, i){
+      var emo = ['✦','●','▲','★'][i%4], col = ['#a78bfa','#facc15','#4ade80','#38bdf8'][i%4];
+      return '<span class="trx-confetti" style="left:'+(4+Math.random()*92).toFixed(1)+'%;animation-delay:'+(Math.random()*.5).toFixed(2)+'s;color:'+col+'">'+emo+'</span>';
+    }).join('') : '';
     return [
-      '<div style="width:100%;display:flex;flex-direction:column;align-items:center;animation:'+entranceAnim+';">',
+      confettiHTML,
+      '<div class="'+(isWin?'trx-win-shine':'')+'" style="width:100%;display:flex;flex-direction:column;align-items:center;animation:'+entranceAnim+';">',
       '<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:6px;">LEVEL '+curLevel+' · '+cfg.name+'</div>',
       '<div style="font-size:44px;margin-bottom:4px;">'+starIcons(stars)+'</div>',
       '<div style="font-size:22px;font-weight:800;color:#e0d6ff;margin-bottom:2px;">'+(stars===3 && isFinalLevel ? 'MISSION ACCOMPLISHED' : stars>=1 ? 'CHALLENGE COMPLETE' : 'NICE TRY!')+'</div>',

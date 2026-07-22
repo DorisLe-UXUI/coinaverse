@@ -174,7 +174,9 @@
     G = null;
     setTimeout(initGame, 40);
     return `
-<div id="nw_root" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:Inter,sans-serif;color:#fff">
+<div id="nw_root" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, ${CYAN} 14%, #1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff">
+  <!-- cosmic scanline overlay (matches arcade.js .arc-wrap recipe) -->
+  <div style="position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(rgba(0,245,255,0) 50%,rgba(0,245,255,.03) 50%);background-size:100% 4px"></div>
 
   <!-- starfield canvas -->
   <canvas id="nw_stars" style="position:absolute;inset:0;width:100%;height:100%;opacity:.5"></canvas>
@@ -197,7 +199,7 @@
       font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.15em;cursor:pointer;
       transition:background .15s;
     " onmouseover="this.style.background='rgba(0,245,255,.18)'" onmouseout="this.style.background='rgba(0,245,255,.08)'">← HUB</button>
-    <div style="font-family:Orbitron,sans-serif;font-size:.72rem;letter-spacing:.18em;color:${CYAN};flex:1;text-align:center;text-shadow:0 0 12px ${CYAN}88">
+    <div style="font-family:'Anton',sans-serif;font-size:.95rem;letter-spacing:.05em;color:${CYAN};flex:1;text-align:center;text-shadow:0 0 14px ${CYAN}aa">
       NEEDS vs. WANTS
     </div>
     <div style="display:flex;gap:10px;align-items:center">
@@ -549,6 +551,11 @@
           55%  { transform:translate(-50%,-50%) scale(1.15); opacity:1; }
           100% { transform:translate(-50%,-50%) scale(1);    opacity:1; }
         }
+        @keyframes nw_confetti {
+          0%   { transform:translateY(-30px) rotate(0deg);   opacity:1; }
+          100% { transform:translateY(420px) rotate(360deg); opacity:0; }
+        }
+        @keyframes nw_shine { to { background-position:-20% 0; } }
       `;
       document.head.appendChild(st);
     }
@@ -830,6 +837,7 @@
       updateHealth(8);
       updateDot(G.currentIdx, true);
       showToast(speedBonus ? `⚡ +${pts} FAST!` : `✅ +${pts}`, TEAL);
+      spawnSortBurst(choice === 'need' ? 'nw_col_need' : 'nw_col_want', choice === 'need' ? TEAL : PINK);
       // Cosmetic-only streak celebration at 5/10/15... in a row — no score/goal impact,
       // the streakBonus math above already handles the real reward escalation.
       if (G.streak > 0 && G.streak % 5 === 0) showStreakCelebration(G.streak);
@@ -941,6 +949,31 @@
       el.style.opacity = '0';
       setTimeout(() => el.remove(), 400);
     }, 850);
+  }
+
+  /* ── correct-sort burst — small particle celebration flying out of the column the
+       item just landed in, so a good decision reads as more than a toast + number ── */
+  function spawnSortBurst(colId, color) {
+    const col = document.getElementById(colId);
+    const root = document.getElementById('nw_root');
+    if (!col || !root) return;
+    const r = col.getBoundingClientRect();
+    const rr = root.getBoundingClientRect();
+    const cx = r.left + r.width / 2 - rr.left, cy = r.top + 22 - rr.top;
+    if (!document.getElementById('nw_burst_style')) {
+      const s = document.createElement('style');
+      s.id = 'nw_burst_style';
+      s.textContent = '@keyframes nw_burst_fly{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.3)}}';
+      document.head.appendChild(s);
+    }
+    for (let i = 0; i < 10; i++) {
+      const el = document.createElement('div');
+      const ang = Math.random() * Math.PI * 2, dist = 20 + Math.random() * 34;
+      const dx = Math.cos(ang) * dist, dy = Math.sin(ang) * dist;
+      el.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;width:6px;height:6px;border-radius:50%;background:${color};box-shadow:0 0 8px ${color};pointer-events:none;z-index:40;--dx:${dx}px;--dy:${dy}px;animation:nw_burst_fly .55s ease-out forwards`;
+      root.appendChild(el);
+      setTimeout(() => { if (el.parentNode) el.remove(); }, 580);
+    }
   }
 
   /* ── screen shake ─────────────────────────────────────────────── */
@@ -1104,7 +1137,12 @@
       animation:nw_card_in .4s ease both;
     `;
 
+    const confettiHtml = won ? Array.from({ length: 16 }, (_, i) => {
+      const emo = ['✦','●','▲','★'][i % 4], col = [CYAN, GOLD, TEAL, PINK][i % 4];
+      return `<span style="position:absolute;top:-24px;left:${4 + Math.random() * 92}%;font-size:1.3rem;color:${col};animation:nw_confetti 1.7s ease-in ${(Math.random() * .5).toFixed(2)}s forwards;pointer-events:none">${emo}</span>`;
+    }).join('') : '';
     overlay.innerHTML = `
+      ${confettiHtml}
       <div style="
         width:min(360px,90vw);
         background:linear-gradient(145deg,rgba(26,42,74,.97),rgba(0,10,30,.98));
@@ -1116,13 +1154,14 @@
         position:relative;overflow:hidden;
       ">
         <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${CYAN},transparent)"></div>
+        ${won ? `<div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:nw_shine 2.2s ease-in-out .3s 1;pointer-events:none"></div>` : ''}
 
         <div style="font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.25em;color:${CYAN}88;margin-bottom:8px">
           ${won ? 'ROUND COMPLETE' : 'BUDGET DEPLETED'}
         </div>
 
         <div style="font-size:2.4rem;margin:6px 0">${starStr}</div>
-        <div style="font-family:Orbitron,sans-serif;font-size:1.3rem;letter-spacing:.1em;color:${won ? GOLD : '#ff4444'};margin-bottom:16px;text-shadow:0 0 12px ${won ? GOLD : '#ff4444'}88">
+        <div style="font-family:'Anton',sans-serif;font-size:1.4rem;letter-spacing:.06em;color:${won ? GOLD : '#ff4444'};margin-bottom:16px;text-shadow:0 0 14px ${won ? GOLD : '#ff4444'}aa">
           ${won ? (stars === 3 ? 'MASTERED!' : stars === 2 ? 'GREAT JOB!' : 'CLEARED!') : 'TRY AGAIN'}
         </div>
 

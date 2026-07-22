@@ -302,10 +302,22 @@
   window.SCREENS[SCREEN_ID] = function () {
     G = freshState();
     setTimeout(initGame, 40);
-    return `<div id="bpRoot" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
+    return `<div id="bpRoot" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, ${TEAL} 14%, #1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
       <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;500;600;700&display=swap');
         #bpRoot * { box-sizing: border-box; }
+        #bpRoot::after { content:''; position:absolute; inset:0; z-index:1; pointer-events:none;
+          background:linear-gradient(rgba(0,229,192,0) 50%,rgba(0,229,192,.03) 50%); background-size:100% 4px; }
+        #bpStars { position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.55;
+          background-image:
+            radial-gradient(1px 1px at 12% 18%, #fff, transparent),
+            radial-gradient(1px 1px at 32% 62%, #fff, transparent),
+            radial-gradient(1.5px 1.5px at 58% 28%, #fff, transparent),
+            radial-gradient(1px 1px at 74% 74%, #fff, transparent),
+            radial-gradient(1px 1px at 88% 14%, #fff, transparent),
+            radial-gradient(1.5px 1.5px at 22% 86%, #fff, transparent),
+            radial-gradient(1px 1px at 46% 8%, #fff, transparent),
+            radial-gradient(1px 1px at 92% 52%, #fff, transparent);
+          background-size: 100% 100%; }
         .bp-card {
           background: linear-gradient(145deg, #0d1f3c, #071428);
           border: 2px solid ${ACCENT};
@@ -439,6 +451,20 @@
           80%     { transform: translateX(5px); }
         }
         .bp-shake { animation: bpShake 0.4s ease; }
+        @keyframes bpBurstFly {
+          0%   { opacity: 1; transform: translate(0,0) scale(1); }
+          100% { opacity: 0; transform: translate(var(--dx),var(--dy)) scale(.3); }
+        }
+        @keyframes bpConfetti {
+          0%   { transform: translateY(-30px) rotate(0deg);   opacity: 1; }
+          100% { transform: translateY(420px) rotate(360deg); opacity: 0; }
+        }
+        @keyframes bpShine { to { background-position: -20% 0; } }
+        @keyframes bpComboPop {
+          0%   { opacity: 0; transform: translate(-50%,-50%) scale(.6); }
+          55%  { opacity: 1; transform: translate(-50%,-50%) scale(1.15); }
+          100% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+        }
         .bp-combo-badge {
           animation: bpCombo 0.5s cubic-bezier(0.36,0.07,0.19,0.97);
         }
@@ -495,6 +521,8 @@
         .bp-level-2 { background: rgba(251,191,36,0.15); border: 1px solid rgba(251,191,36,0.35); color: ${GOLD}; }
         .bp-level-3 { background: rgba(255,77,171,0.15); border: 1px solid rgba(255,77,171,0.4); color: #ff8fc8; }
       </style>
+      <!-- ambient starfield (cosmic bg language, matches arcade.js) -->
+      <div id="bpStars"></div>
       <!-- bg decorations -->
       <div class="bp-grid-deco"></div>
       <!-- ambient store windows (decorative) -->
@@ -503,7 +531,7 @@
       <div id="bpTopBar" style="position:relative;z-index:10;display:flex;align-items:center;gap:10px;padding:12px 16px 10px;background:linear-gradient(180deg,rgba(3,4,12,0.9),transparent)">
         <button id="bpBack" style="padding:7px 13px;border:1px solid rgba(26,42,74,0.8);border-radius:9px;background:rgba(26,42,74,0.35);color:rgba(255,255,255,0.7);font-family:'Orbitron',sans-serif;font-size:0.58rem;letter-spacing:0.1em;cursor:pointer;transition:all 0.15s">← EXIT</button>
         <div style="flex:1;text-align:center">
-          <div style="font-family:'Orbitron',sans-serif;font-size:0.68rem;letter-spacing:0.2em;color:${TEAL}">SMART SPENDING PLAZA</div>
+          <div style="font-family:'Anton',sans-serif;font-size:0.9rem;letter-spacing:0.05em;color:${TEAL};text-shadow:0 0 14px ${TEAL}aa">SMART SPENDING PLAZA</div>
         </div>
         <!-- HUD chips -->
         <div style="display:flex;gap:6px;align-items:center">
@@ -774,6 +802,7 @@
       const pts = 100 + comboBonus;
       G.score += pts;
       floatText(`+${pts}`, correct ? TEAL : RED_ERR, chosenIdx);
+      spawnCardBurst(chosenIdx, TEAL);
       // Cosmetic-only combo celebration at 5-in-a-row — no score/goal impact of its own;
       // the comboBonus math above already carries the real reward escalation.
       if (G.combo > 0 && G.combo % 5 === 0) showComboCelebration(G.combo);
@@ -781,6 +810,7 @@
       G.combo = 0;
       G.score = Math.max(0, G.score - 20);
       floatText('−20', RED_ERR, chosenIdx);
+      flashScreen(RED_ERR);
     }
     updateHUD();
     showResult(chosenIdx, correct, round);
@@ -938,6 +968,61 @@
     }
   }
 
+  /* ── Combo celebration — BUGFIX: this was called on every 5th-in-a-row correct
+       pick but was never defined anywhere in the file, so it threw a ReferenceError
+       that silently aborted the rest of handlePick() (updateHUD()/showResult() never
+       ran) every time a player hit a real combo streak. Now implemented for real. ── */
+  function showComboCelebration(combo) {
+    const root = document.getElementById('bpRoot');
+    if (!root) return;
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position:absolute;top:30%;left:50%;z-index:45;pointer-events:none;
+      text-align:center;white-space:nowrap;transform:translate(-50%,-50%);
+      animation:bpComboPop .55s cubic-bezier(.2,.9,.3,1.3) both;
+    `;
+    el.innerHTML = `
+      <div style="font-size:2.1rem;line-height:1">🔥</div>
+      <div style="font-family:'Anton',sans-serif;font-size:1.05rem;letter-spacing:.06em;color:${GOLD};text-shadow:0 0 16px ${GOLD}">${combo} COMBO!</div>
+    `;
+    root.appendChild(el);
+    setTimeout(() => {
+      el.style.transition = 'opacity .35s ease';
+      el.style.opacity = '0';
+      setTimeout(() => { if (el.parentNode) el.remove(); }, 400);
+    }, 850);
+  }
+
+  /* ── Correct-pick particle burst — a small celebratory pop over the winning card ── */
+  function spawnCardBurst(cardIdx, color) {
+    const card = document.getElementById(`bpCard_${cardIdx}`);
+    const root = document.getElementById('bpRoot');
+    if (!card || !root) return;
+    const r = card.getBoundingClientRect();
+    const rr = root.getBoundingClientRect();
+    const cx = r.left + r.width / 2 - rr.left, cy = r.top + r.height * 0.35 - rr.top;
+    for (let i = 0; i < 12; i++) {
+      const el = document.createElement('div');
+      const ang = Math.random() * Math.PI * 2, dist = 24 + Math.random() * 40;
+      const dx = Math.cos(ang) * dist, dy = Math.sin(ang) * dist;
+      el.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;width:6px;height:6px;border-radius:50%;background:${color};box-shadow:0 0 8px ${color};pointer-events:none;z-index:35;--dx:${dx}px;--dy:${dy}px;animation:bpBurstFly .55s ease-out forwards`;
+      root.appendChild(el);
+      setTimeout(() => { if (el.parentNode) el.remove(); }, 580);
+    }
+  }
+
+  /* ── Full-screen flash on a wrong pick — matches the shake/red-border feedback
+       the card already gets, so a bad pick reads clearly beyond just that one card ── */
+  function flashScreen(color) {
+    const root = document.getElementById('bpRoot');
+    if (!root) return;
+    const el = document.createElement('div');
+    el.style.cssText = `position:absolute;inset:0;z-index:2;pointer-events:none;background:${color};opacity:.22;transition:opacity .4s ease`;
+    root.appendChild(el);
+    requestAnimationFrame(() => { el.style.opacity = '0'; });
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 450);
+  }
+
   /* ── FLOAT TEXT ────────────────────────────────────────────────────────── */
   function floatText(text, color, cardIdx) {
     const layer = document.getElementById('bpFloatLayer');
@@ -960,10 +1045,14 @@
 
   /* ── STAR CALCULATION ──────────────────────────────────────────────────── */
   function calcStars() {
+    // BUGFIX: the final fallback used to be `return 1`, which made the STAR1_SCORE
+    // gate dead code — a player who answered every round wrong (score stuck at 0)
+    // still earned a star and coins via cvAwardGame. Only a real non-zero score
+    // (STAR1_SCORE) should earn any star now.
     if (G.score >= STAR3_SCORE) return 3;
     if (G.score >= STAR2_SCORE) return 2;
     if (G.score >= STAR1_SCORE) return 1;
-    return 1;
+    return 0;
   }
 
   /* ── END GAME ──────────────────────────────────────────────────────────── */
@@ -996,18 +1085,24 @@
     const overlay = document.createElement('div');
     overlay.className = 'bp-overlay';
     overlay.style.position = 'absolute';
+    const confettiHtml = stars >= 1 ? Array.from({ length: 16 }, (_, i) => {
+      const emo = ['✦','●','▲','★'][i % 4], col = [TEAL, GOLD, '#a855f7', '#14b8a6'][i % 4];
+      return `<span style="position:absolute;top:-24px;left:${4 + Math.random() * 92}%;font-size:1.3rem;color:${col};animation:bpConfetti 1.7s ease-in ${(Math.random() * .5).toFixed(2)}s forwards;pointer-events:none">${emo}</span>`;
+    }).join('') : '';
     overlay.innerHTML = `
+      ${confettiHtml}
       <div style="text-align:center;max-width:440px;width:100%">
         <!-- store banner -->
         <div style="font-family:'Orbitron',sans-serif;font-size:0.5rem;letter-spacing:0.2em;color:rgba(255,255,255,0.35);margin-bottom:10px">SMART SPENDING PLAZA — RESULTS</div>
         <!-- stars -->
         <div style="margin-bottom:16px;display:flex;gap:8px;justify-content:center">${starsHtml}</div>
         <!-- score card -->
-        <div style="background:rgba(26,42,74,0.4);border:1px solid rgba(26,42,74,0.8);border-radius:16px;padding:20px;margin-bottom:18px">
+        <div style="background:rgba(26,42,74,0.4);border:1px solid rgba(26,42,74,0.8);border-radius:16px;padding:20px;margin-bottom:18px;position:relative;overflow:hidden">
+          ${stars >= 1 ? `<div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.14) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:bpShine 2.2s ease-in-out .3s 1;pointer-events:none"></div>` : ''}
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
             <div style="text-align:center">
               <div style="font-family:'Orbitron',sans-serif;font-size:0.4rem;letter-spacing:0.1em;color:rgba(255,255,255,0.4);margin-bottom:4px">VALUE SCORE</div>
-              <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem;font-weight:700;color:${TEAL}">${G.score}</div>
+              <div style="font-family:'Anton',sans-serif;font-size:1.5rem;color:${TEAL}">${G.score}</div>
             </div>
             <div style="text-align:center;border-left:1px solid rgba(255,255,255,0.07);border-right:1px solid rgba(255,255,255,0.07)">
               <div style="font-family:'Orbitron',sans-serif;font-size:0.4rem;letter-spacing:0.1em;color:rgba(255,255,255,0.4);margin-bottom:4px">ACCURACY</div>

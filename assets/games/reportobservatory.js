@@ -170,7 +170,16 @@
     curLevel = 1;   // fresh hub entry always starts the campaign at Level 1
     _roHelpShown = false;   // re-show the tutorial once per fresh hub visit
     setTimeout(initGame, 40);
-    return `<div id="roRoot" style="position:absolute;inset:0;background:#0d0920;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
+    return `<style>
+      .ro-wrap{background:radial-gradient(130% 95% at 50% -8%,rgba(139,92,246,.16),#150d30 44%,#0d0920 100%)}
+      .ro-wrap::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(rgba(139,92,246,0) 50%,rgba(139,92,246,.025) 50%);background-size:100% 4px}
+      @keyframes roConfettiFall{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(440px) rotate(360deg);opacity:0}}
+      .ro-confetti{position:absolute;top:-24px;font-size:1.3rem;animation:roConfettiFall 1.7s ease-in forwards;pointer-events:none;z-index:31}
+      @keyframes roShine{to{background-position:-20% 0}}
+      .ro-win-shine{position:relative}
+      .ro-win-shine::before{content:'';position:absolute;inset:-24px;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.14) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:roShine 2.2s ease-in-out .3s 1;pointer-events:none}
+    </style>
+    <div id="roRoot" class="ro-wrap" style="position:absolute;inset:0;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
 
       <!-- Stars canvas background -->
       <canvas id="roStars" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.5"></canvas>
@@ -768,7 +777,15 @@
       ? (curLevel >= 3 ? '👑 MISSION ACCOMPLISHED — ALL 3 LEVELS!' : `MISSION ACCOMPLISHED · LV ${curLevel}`)
       : 'NICE TRY! Power up and try again';
 
-    over.innerHTML = `
+    // confetti + shine sweep on a real completion (stars are always >=1 here, same
+    // leniency as the rest of this game's design — see the stars calc above)
+    over.className = stars >= 1 ? 'ro-win-shine' : '';
+    const confettiHTML = stars >= 1 ? Array.from({length:18},(_,i)=>{
+      const emo=['✦','●','▲','★'][i%4], col=['#8b5cf6','#a78bfa','#34d399','#fbbf24'][i%4];
+      return `<span class="ro-confetti" style="left:${4+Math.random()*92}%;animation-delay:${(Math.random()*.5).toFixed(2)}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+
+    over.innerHTML = `${confettiHTML}
       <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.3em;color:#a78bfa;margin-bottom:10px">${headline}</div>
       <div style="font-size:2.2rem;margin-bottom:6px;letter-spacing:.08em">${starStr}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem;color:#fff;margin-bottom:2px;text-shadow:0 0 24px rgba(167,139,250,.7)">${found}/${goal} ERRORS</div>
@@ -813,7 +830,7 @@
   window.roPlayAgain = function(){
     if(G){ clearInterval(G.timerId); clearTimeout(G._endTimer); }
     const over = document.getElementById('roOver');
-    if(over){ over.style.display = 'none'; over.innerHTML = ''; }
+    if(over){ over.style.display = 'none'; over.innerHTML = ''; over.className = ''; }
 
     // Re-initialize at curLevel — renderReport() fully rebuilds roDoc from scratch,
     // so no manual DOM scrubbing of old .ro-found/badges is needed (it's all replaced).

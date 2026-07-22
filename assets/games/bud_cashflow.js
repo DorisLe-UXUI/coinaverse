@@ -114,12 +114,14 @@
     G = null;
     setTimeout(initGame, 40);
     return `
-<div id="bcWrap" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
+<div id="bcWrap" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, ${GRN} 14%, #1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
+  <!-- cosmic scanline overlay (matches arcade.js .arc-wrap recipe) -->
+  <div style="position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(rgba(34,211,165,0) 50%,rgba(34,211,165,.03) 50%);background-size:100% 4px"></div>
 
   <!-- TOP BAR -->
   <div id="bcTopBar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:8px;padding:10px 14px 8px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent);border-bottom:1px solid rgba(26,42,74,.6)">
     <button id="bcBack" style="padding:6px 12px;border:1px solid rgba(26,42,74,.8);border-radius:8px;background:rgba(26,42,74,.3);color:#93b4e8;font-family:'Orbitron',monospace;font-size:.52rem;letter-spacing:.12em;cursor:pointer;white-space:nowrap">← HUB</button>
-    <div style="font-family:'Orbitron',monospace;font-size:.6rem;letter-spacing:.18em;color:#5a7fc0;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⚡ CASHFLOW COMMAND</div>
+    <div style="font-family:'Anton',sans-serif;font-size:.82rem;letter-spacing:.04em;color:#5a7fc0;text-shadow:0 0 14px rgba(90,127,192,.7);flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⚡ CASHFLOW COMMAND</div>
     <div id="bcScore" style="font-family:'Orbitron',monospace;font-size:.75rem;color:${GOLD};min-width:64px;text-align:right">0 pts</div>
     <div id="bcTimer" style="font-family:'Orbitron',monospace;font-size:.75rem;color:#93b4e8;min-width:42px;text-align:right">60s</div>
   </div>
@@ -193,6 +195,7 @@
       streak: 0,           // consecutive correct drops (cosmetic only — no score math changes)
       streakFlash: 0,
       ambientParticles: [],// gentle drifting motes so idle canvas areas aren't dead-empty
+      dropParts: [],       // burst particles fired on correct/incorrect tile drops
       _raf: null,
     };
 
@@ -379,6 +382,7 @@
 
       G.score += 80;
       spawnFloat(tile.el, `+80`, GRN);
+      spawnDropParticles(tile.x + TILE_W / 2, tile.y + TILE_H / 2, tile.type === 'income' ? GRN : RED, 10);
       bumpStreak();
       updateHUD();
     } else {
@@ -389,6 +393,7 @@
       G.score = Math.max(0, G.score - 20);
       spawnFloat(tile.el, '-20', RED);
       G.streak = 0;
+      G.redFlash = Math.max(G.redFlash, 0.5);
       snapBack(tile);
       updateHUD();
     }
@@ -636,6 +641,28 @@
     }
   }
 
+  /* ── Drop-feedback burst particles — fired on every correct tile drop so a
+     good decision reads as a small celebratory pop, not just a floating number ── */
+  function spawnDropParticles(x, y, color, n){
+    for(let i=0;i<n;i++){
+      const a = Math.random()*Math.PI*2, spd = 40 + Math.random()*90;
+      G.dropParts.push({ x, y, vx:Math.cos(a)*spd, vy:Math.sin(a)*spd-40, r:2+Math.random()*2.5, life:0.5+Math.random()*0.35, color });
+    }
+  }
+  function updateDropParticles(dt){
+    for(const p of G.dropParts){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=180*dt; p.life-=dt; }
+    G.dropParts = G.dropParts.filter(p=>p.life>0);
+  }
+  function drawDropParticles(ctx){
+    for(const p of G.dropParts){
+      ctx.globalAlpha = Math.max(0, p.life*2);
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  }
+
   /* ── Budget meter HUD ───────────────────────────────────────── */
   function updateHUD(){
     const net = G.placedIncome - G.placedExpense;
@@ -686,6 +713,8 @@
         drawBg(ctx, cv.clientWidth, cv.clientHeight);
         updateAmbientParticles(dt, cv.clientWidth, cv.clientHeight);
         drawAmbientParticles(ctx);
+        updateDropParticles(dt);
+        drawDropParticles(ctx);
         drawReactorLive(ctx, cv.clientWidth, cv.clientHeight);
         if(G.streakFlash > 0){
           G.streakFlash -= dt * 1.2;
@@ -996,13 +1025,21 @@
     const o = document.getElementById('bcOver');
     if(!o) return;
     o.style.display = 'flex';
+    const confettiHtml = win ? Array.from({ length: 16 }, (_, i) => {
+      const emo = ['✦','●','▲','★'][i % 4], col = [GRN, GOLD, '#a855f7', '#14b8a6'][i % 4];
+      return `<span style="position:absolute;top:-24px;left:${4 + Math.random() * 92}%;font-size:1.3rem;color:${col};animation:bcConfetti 1.7s ease-in ${(Math.random() * .5).toFixed(2)}s forwards;pointer-events:none">${emo}</span>`;
+    }).join('') : '';
     o.innerHTML = `
-      <div style="max-width:460px;width:90%;text-align:center;padding:32px 28px;border:1px solid ${win?GOLD:RED};border-radius:22px;background:linear-gradient(160deg,rgba(10,18,40,.98),rgba(3,4,12,.98));box-shadow:0 0 70px ${win?'rgba(245,200,66,.35)':'rgba(239,68,68,.35)'};animation:bcOver .4s ease">
-        <style>@keyframes bcOver{0%{transform:scale(.9);opacity:0}100%{transform:scale(1);opacity:1}}</style>
+      ${confettiHtml}
+      <div style="max-width:460px;width:90%;text-align:center;padding:32px 28px;border:1px solid ${win?GOLD:RED};border-radius:22px;background:linear-gradient(160deg,rgba(10,18,40,.98),rgba(3,4,12,.98));box-shadow:0 0 70px ${win?'rgba(245,200,66,.35)':'rgba(239,68,68,.35)'};animation:bcOver .4s ease;position:relative;overflow:hidden">
+        <style>@keyframes bcOver{0%{transform:scale(.9);opacity:0}100%{transform:scale(1);opacity:1}}
+        @keyframes bcConfetti{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(420px) rotate(360deg);opacity:0}}
+        @keyframes bcShine{to{background-position:-20% 0}}</style>
+        ${win ? `<div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:bcShine 2.2s ease-in-out .3s 1;pointer-events:none"></div>` : ''}
         <div style="font-size:2.8rem;margin-bottom:6px">${win?'🏆':'💸'}</div>
-        <div style="font-family:'Orbitron',monospace;font-size:.58rem;letter-spacing:.2em;color:${win?GOLD:RED};margin-bottom:8px">${win?'MONTH SURVIVED!':'BUDGET BUSTED!'}</div>
+        <div style="font-family:'Anton',sans-serif;font-size:1.15rem;letter-spacing:.06em;color:${win?GOLD:RED};text-shadow:0 0 14px ${win?'rgba(245,200,66,.6)':'rgba(239,68,68,.6)'};margin-bottom:8px">${win?'MONTH SURVIVED!':'BUDGET BUSTED!'}</div>
         <div style="font-size:1.8rem;margin:6px 0;letter-spacing:4px">${starStr}</div>
-        <div style="font-family:'Orbitron',monospace;font-size:1.5rem;color:${GOLD};font-weight:900;margin:8px 0">${G.score.toLocaleString()} pts</div>
+        <div style="font-family:'Anton',sans-serif;font-size:1.7rem;color:${GOLD};margin:8px 0">${G.score.toLocaleString()} pts</div>
         <div style="display:flex;gap:8px;justify-content:center;margin:10px 0 14px;flex-wrap:wrap">
           <div style="background:rgba(26,42,74,.5);border:1px solid rgba(26,42,74,.8);border-radius:8px;padding:6px 12px;font-family:'Orbitron',monospace;font-size:.48rem;color:#93b4e8">NET FLOW<br><span style="color:${net>=0?GRN:RED};font-size:.75rem">${net>=0?'+':''}$${net}</span></div>
           <div style="background:rgba(26,42,74,.5);border:1px solid rgba(26,42,74,.8);border-radius:8px;padding:6px 12px;font-family:'Orbitron',monospace;font-size:.48rem;color:#93b4e8">GREEN TIME<br><span style="color:${GRN};font-size:.75rem">${Math.round(greenPct*100)}%</span></div>

@@ -89,6 +89,7 @@
       particles:[],
       basketX:  0.5,         // 0..1 normalised
       spawnAcc: 0,
+      shake:    0,           // decaying screen-shake magnitude, triggered on a bad catch
       last:     0,
       keyL:     false,
       keyR:     false,
@@ -105,8 +106,15 @@
     return `<style>
       @keyframes cllWinPop{0%{transform:scale(.7) translateY(14px);opacity:0}60%{transform:scale(1.05) translateY(-4px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}
       @keyframes cllFadeIn{0%{opacity:0;transform:translateY(6px)}100%{opacity:1;transform:translateY(0)}}
+      @keyframes cllShine{to{background-position:-20% 0}}
+      @keyframes cllConfettiFall{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(440px) rotate(360deg);opacity:0}}
+      .cll-wrap{background:radial-gradient(130% 95% at 50% -8%,rgba(6,182,212,.15),#0a1e28 44%,#03040c 100%)}
+      .cll-wrap::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(rgba(6,182,212,0) 50%,rgba(6,182,212,.025) 50%);background-size:100% 4px}
+      .cll-confetti{position:absolute;top:-24px;font-size:1.3rem;animation:cllConfettiFall 1.7s ease-in forwards;pointer-events:none;z-index:12}
+      .cll-win-shine{position:relative;overflow:hidden}
+      .cll-win-shine::before{content:'';position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:cllShine 2.2s ease-in-out .3s 1;pointer-events:none;border-radius:16px}
     </style>
-    <div id="cllWrap" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none">
+    <div id="cllWrap" class="cll-wrap" style="position:absolute;inset:0;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none">
 
       <!-- TOP BAR -->
       <div id="cllBar" style="position:absolute;top:0;left:0;right:0;z-index:5;padding:10px 14px;display:flex;align-items:center;gap:10px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent)">
@@ -349,6 +357,9 @@
       if(fl.life <= 0) G.floats.splice(f,1);
     }
 
+    // Screen shake decay
+    if(G.shake > 0) G.shake = Math.max(0, G.shake - dt * 2.2);
+
     // Update meter UI
     updateMeterUI();
     updateComboUI();
@@ -388,6 +399,7 @@
       G.comboMult = Math.min(4, 1 + Math.floor(G.combo / 3));
     } else {
       G.combo = 0; G.comboMult = 1;
+      G.shake = 0.5;
     }
 
     // Scoring formula: pts * (1 + streak/10)
@@ -466,6 +478,12 @@
   function render(ctx, W, H, now){
     // Clear
     ctx.clearRect(0,0,W,H);
+
+    // Screen shake on a bad catch — wraps the whole scene since this game has no
+    // separate HUD-in-canvas text to protect (score/timer live in the DOM top bar)
+    const shakeMag = G.shake > 0 ? G.shake * 14 : 0;
+    const shx = shakeMag ? (Math.random()-.5)*shakeMag : 0, shy = shakeMag ? (Math.random()-.5)*shakeMag : 0;
+    ctx.save(); ctx.translate(shx, shy);
 
     // Background glow from utilisation
     const util = G.util;
@@ -579,6 +597,8 @@
         ctx.fillRect(0,0,W,H);
       }
     }
+
+    ctx.restore(); // matches the shake save() at the top of render()
   }
 
   /* ─── DRAW BASKET ─────────────────────────────────────────── */
@@ -687,8 +707,13 @@
     /* win (real stars, no crash) gets a punchy overshoot pop; a util-maxout crash
        gets a plain, subdued fade — so the end screen actually feels different, not just re-texted */
     const endAnim = earlyCrash ? 'cllFadeIn .4s ease' : 'cllWinPop .5s cubic-bezier(.34,1.56,.64,1)';
-    ov.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:center;gap:16px;animation:${endAnim}">
+    // confetti + shine sweep on a real finish only (never on a util-maxout crash)
+    const confettiHTML = !earlyCrash ? Array.from({length:18},(_,i)=>{
+      const emo=['✦','●','▲','★'][i%4], col=['#06b6d4','#38bdf8','#34d399','#fbbf24'][i%4];
+      return `<span class="cll-confetti" style="left:${4+Math.random()*92}%;animation-delay:${(Math.random()*.5).toFixed(2)}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+    ov.innerHTML = `${confettiHTML}
+      <div class="${earlyCrash?'':'cll-win-shine'}" style="display:flex;flex-direction:column;align-items:center;gap:16px;animation:${endAnim}">
       <div style="font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.22em;color:#38bdf8;opacity:.8;margin-bottom:-6px">${headline}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:900;letter-spacing:.06em;background:linear-gradient(135deg,#06b6d4,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0">
         ${G.score}<span style="font-size:.6rem;opacity:.6"> PTS</span>

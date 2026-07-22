@@ -193,6 +193,7 @@
   ══════════════════════════════════════════════════════════════ */
   let G = null;
   let _raf = null;
+  let _iiSeenIntro = false; // module-level so it survives level-up/replay (which recreate G), like ll_scaling_center.js's _scSeenIntro
 
   /* ══════════════════════════════════════════════════════════════
      SCREEN ENTRY
@@ -221,11 +222,20 @@
     from { transform: scale(0.97); opacity: 0; }
     to   { transform: scale(1); opacity: 1; }
   }
+  @keyframes iiConfettiFall {
+    0%   { transform: translateY(-30px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(480px) rotate(360deg); opacity: 0; }
+  }
+  @keyframes iiWinShine { to { background-position: -20% 0; } }
+  @keyframes iiShakeRoot { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-7px)} 40%{transform:translateX(7px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+  .ii-winshine::before { content:''; position:absolute; inset:0; background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%); background-size:220% 100%; background-position:120% 0; animation:iiWinShine 2.2s ease-in-out .3s 1; pointer-events:none; border-radius:inherit }
+  /* Cyber-Premium Gaming HUD scanline — same recipe as arcade.js .arc-wrap::after */
+  #iiRoot::after { content:''; position:absolute; inset:0; z-index:8; pointer-events:none; background:linear-gradient(rgba(124,58,237,0) 50%,rgba(124,58,237,.025) 50%); background-size:100% 4px; }
 </style>
-<div id="iiRoot" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none">
+<div id="iiRoot" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%, ${ACC}26, #13091f 44%, ${BG} 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none">
 
   <!-- Background: holographic grid lines -->
-  <canvas id="iiCanvas" style="position:absolute;inset:0;pointer-events:none;opacity:.18"></canvas>
+  <canvas id="iiCanvas" style="position:absolute;inset:0;pointer-events:none;opacity:.32"></canvas>
 
   <!-- Top bar -->
   <div id="iiTopBar" style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(180deg,rgba(3,4,12,.97) 70%,transparent)">
@@ -321,7 +331,9 @@
     window.removeEventListener('mouseup',    onDragEnd);
     window.removeEventListener('touchmove',  onDragMove);
     window.removeEventListener('touchend',   onDragEnd);
-    if (window.state) state.viewingWorld = 'risktaker';
+    // Builder/Launch Lab hub id is 'builder' (WORLDS.builder) — this game is
+    // reached from the Builder hub's Mini-Games grid, NOT risktaker.
+    if (window.state) state.viewingWorld = 'builder';
     goTo('hub');
   };
 
@@ -358,11 +370,18 @@
   function showHowToPlay () {
     const overlay = document.getElementById('iiHelp');
     if (!overlay) return;
+    // firstTime (label text) is tracked separately from wasPlay (pause logic) —
+    // startLevel() sets phase='play' and kicks off the RAF loop BEFORE this first
+    // auto-show call, so gating the button label on phase alone always read
+    // "RESUME" even on a brand-new launch. _iiSeenIntro (module-level, survives
+    // the level-up/replay G recreation) fixes that.
+    const firstTime = !_iiSeenIntro;
     const wasPlay = G && G.phase === 'play';
     if (wasPlay) {
       G.phase = 'paused';
       cancelAnimationFrame(_raf);
     }
+    _iiSeenIntro = true;
     overlay.style.display = 'flex';
     overlay.innerHTML = `
       <div style="max-width:380px;width:90%;padding:26px 22px;background:rgba(10,5,22,.97);border:1.5px solid ${ACC}88;border-radius:18px;text-align:center;box-shadow:0 0 50px ${ACC}33;max-height:90vh;overflow-y:auto">
@@ -375,7 +394,7 @@
           <li style="margin-bottom:8px"><b style="color:${ACC2}">Watch out:</b> from Level 2 on, match the right customer type too, and keep an eye on the ⚡ energy bar and ⏱ timer — surprise events can shake things up.</li>
           <li><b style="color:${ACC2}">Scoring:</b> good matches earn points and energy; more correct matches and fewer misses mean more stars at the end.</li>
         </ul>
-        <button onclick="window.iiCloseHelp()" style="padding:12px 30px;border:none;border-radius:11px;background:linear-gradient(90deg,${ACC},${ACC2});color:#fff;font-family:Orbitron,sans-serif;font-size:.66rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${wasPlay ? '▶ RESUME' : 'GOT IT — START ▶'}</button>
+        <button onclick="window.iiCloseHelp()" style="padding:12px 30px;border:none;border-radius:11px;background:linear-gradient(90deg,${ACC},${ACC2});color:#fff;font-family:Orbitron,sans-serif;font-size:.66rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${firstTime ? 'GOT IT — START ▶' : '▶ RESUME'}</button>
       </div>`;
   }
 
@@ -887,8 +906,21 @@
       flashFeedback('❌ NICE TRY — FAILED IDEA!', DANGER, false, 'sol_' + sol.id);
     }
 
+    shakeRoot();
     updateHUD();
     setTimeout(() => checkLose(), 300);
+  }
+
+  /* ── whole-screen shake on a bad match — gives every wrong drop a punch
+     of feedback beyond the card recolor, matching the shake/flash treatment
+     the rest of the app uses on bad actions ── */
+  function shakeRoot () {
+    const root = document.getElementById('iiRoot');
+    if (!root) return;
+    root.style.animation = 'none';
+    void root.offsetWidth;
+    root.style.animation = 'iiShakeRoot .35s ease';
+    setTimeout(() => { if (root) root.style.animation = ''; }, 380);
   }
 
   /* ── card animation ──────────────────────────────────────────── */
@@ -1311,7 +1343,7 @@
     const cardAnim = won ? 'iiWinPop .5s cubic-bezier(.2,1.4,.4,1) both' : 'iiLossFade .35s ease both';
 
     el.innerHTML = `
-      <div style="max-width:380px;width:92%;text-align:center;border:1.5px solid ${ACC}88;border-radius:18px;padding:28px 20px;background:linear-gradient(160deg,rgba(10,5,22,.98),rgba(18,8,40,.98));box-shadow:0 0 40px ${ACC}33;overflow-y:auto;max-height:90vh;animation:${cardAnim}">
+      <div class="${won ? 'ii-winshine' : ''}" style="position:relative;max-width:380px;width:92%;text-align:center;border:1.5px solid ${ACC}88;border-radius:18px;padding:28px 20px;background:linear-gradient(160deg,rgba(10,5,22,.98),rgba(18,8,40,.98));box-shadow:0 0 40px ${ACC}33;overflow-y:auto;max-height:90vh;animation:${cardAnim}">
         <div style="font-family:Orbitron,sans-serif;font-size:.56rem;letter-spacing:.24em;color:${ACC2};margin-bottom:10px">IDEA INCUBATOR</div>
         <div style="font-size:1.4rem;font-weight:800;color:#fff;margin-bottom:4px">${titleText}</div>
         <div style="font-size:2rem;margin:12px 0;letter-spacing:3px">${starHTML}</div>
@@ -1355,6 +1387,7 @@
       </div>`;
 
     el.style.display = 'flex';
+    if (won) spawnConfetti(el);
 
     /* button handlers */
     const paBtn = document.getElementById('iiPlayAgain');
@@ -1377,6 +1410,23 @@
       el.style.display = 'none';
       startLevel(3);
     };
+  }
+
+  /* ── confetti burst — real wins only, matches arcade.js's .arc-confetti
+     recipe so a launched startup celebrates like the rest of the app ── */
+  function spawnConfetti (root) {
+    if (!root) return;
+    const colors = [ACC, ACC2, GOLD, GOOD, '#fff'];
+    for (let i = 0; i < 46; i++) {
+      setTimeout(() => {
+        if (!root.isConnected) return;
+        const el = document.createElement('div');
+        const x = Math.random() * 100;
+        el.style.cssText = `position:absolute;top:-24px;left:${x}%;width:${5+Math.random()*5}px;height:${5+Math.random()*5}px;border-radius:${Math.random()>.5?'50%':'2px'};background:${colors[Math.floor(Math.random()*colors.length)]};z-index:70;pointer-events:none;animation:iiConfettiFall ${1.3+Math.random()*.8}s ease-in forwards`;
+        root.appendChild(el);
+        setTimeout(() => el.remove(), 2200);
+      }, i * 28);
+    }
   }
 
   /* ══════════════════════════════════════════════════════════════

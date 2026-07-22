@@ -217,11 +217,13 @@
   window.SCREENS.game_bud_goaltower = function () {
     G = null;
     setTimeout(initGame, 40);
-    return `<div id="gtRoot" style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,#0d1433,#06091a 55%,#03040c);overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
+    return `<div id="gtRoot" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, ${VIOLET_LT} 16%, #1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
+      <!-- cosmic scanline overlay (matches arcade.js .arc-wrap recipe) -->
+      <div style="position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(rgba(167,139,250,0) 50%,rgba(167,139,250,.03) 50%);background-size:100% 4px"></div>
       <!-- top bar -->
       <div style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:10px;padding:11px 16px;background:linear-gradient(180deg,rgba(3,4,12,.9),transparent)">
         <button onclick="window.bud_goaltowerExit()" style="padding:6px 13px;border:1px solid rgba(26,42,74,.7);border-radius:9px;background:rgba(26,42,74,.35);color:#93c5fd;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;flex-shrink:0">← BASE</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.18em;color:#a78bfa;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">🏗 GOAL TRACKER TOWER</div>
+        <div style="font-family:'Anton',sans-serif;font-size:.92rem;letter-spacing:.05em;color:${VIOLET_LT};text-shadow:0 0 14px ${VIOLET_LT}aa;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">🏗 GOAL TRACKER TOWER</div>
         <div id="gtHudRight" style="display:flex;gap:8px;align-items:center;flex-shrink:0">
           <div id="gtScore" style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:${GOLD};min-width:40px;text-align:right">0</div>
           <div id="gtTime" style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:#60a5fa;min-width:38px;text-align:right">90s</div>
@@ -540,9 +542,12 @@
   }
 
   function calcStars() {
+    // BUGFIX: this used to fall through to `return 1` unconditionally, so a round that
+    // timed out with zero goals completed (a real loss) still earned a star + coins via
+    // cvAwardGame. Gate every tier on an actual win — only a completed run can score.
+    if (!G.won) return 0;
     if (G.score >= STAR3 && G.time > 0 && G.wrongPlacements === 0) return 3;
     if (G.score >= STAR2) return 2;
-    if (G.score > 0) return 1;
     return 1;
   }
 
@@ -666,6 +671,23 @@
     for (let y = 0; y < H; y += gridS) {
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
     }
+
+    // perspective floor — towers rise "in a space", not a menu, so a few converging
+    // lines toward a vanishing point plus receding rungs give it real depth (purely
+    // a visual cue, never touches tower/hit-test coordinates above)
+    const horizon = H * 0.58;
+    ctx.strokeStyle = 'rgba(167,139,250,.12)';
+    ctx.lineWidth = 1;
+    for (let i = -3; i <= 3; i++) {
+      ctx.globalAlpha = .5;
+      ctx.beginPath(); ctx.moveTo(W / 2, horizon); ctx.lineTo(W / 2 + i * W * .3, H); ctx.stroke();
+    }
+    for (let j = 1; j <= 3; j++) {
+      const fy = horizon + (H - horizon) * (j / 4);
+      ctx.globalAlpha = .08;
+      ctx.beginPath(); ctx.moveTo(0, fy); ctx.lineTo(W, fy); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
 
     // ambient city glow at bottom
     const grd = ctx.createRadialGradient(W / 2, H, 0, W / 2, H, W * 0.7);
@@ -1153,11 +1175,19 @@
 
     const starHTML = stars >= 3 ? '⭐⭐⭐' : stars === 2 ? '⭐⭐' : stars >= 1 ? '⭐' : '☆';
     const titleText = won ? (stars === 3 ? '🏆 PERFECT TOWER!' : stars === 2 ? '✅ TOWER BUILT!' : '🏅 GOAL ACHIEVED!') : '⏱ TIME\'S UP!';
+    const confettiHtml = won ? Array.from({ length: 16 }, (_, i) => {
+      const emo = ['✦','●','▲','★'][i % 4], col = [VIOLET_LT, GOLD, TEAL, '#a855f7'][i % 4];
+      return `<span style="position:absolute;top:-24px;left:${4 + Math.random() * 92}%;font-size:1.3rem;color:${col};animation:gt_confetti 1.7s ease-in ${(Math.random() * .5).toFixed(2)}s forwards;pointer-events:none">${emo}</span>`;
+    }).join('') : '';
 
     el.innerHTML = `
-      <div style="max-width:380px;width:100%;text-align:center;border:1.5px solid rgba(124,58,237,0.6);border-radius:18px;padding:32px 24px;background:linear-gradient(160deg,rgba(10,6,26,0.98),rgba(20,10,50,0.98))">
+      ${confettiHtml}
+      <div style="max-width:380px;width:100%;text-align:center;border:1.5px solid rgba(124,58,237,0.6);border-radius:18px;padding:32px 24px;background:linear-gradient(160deg,rgba(10,6,26,0.98),rgba(20,10,50,0.98));position:relative;overflow:hidden">
+        <style>@keyframes gt_confetti{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(420px) rotate(360deg);opacity:0}}
+        @keyframes gt_shine{to{background-position:-20% 0}}</style>
+        ${won ? `<div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:gt_shine 2.2s ease-in-out .3s 1;pointer-events:none"></div>` : ''}
         <div style="font-family:'Orbitron',sans-serif;font-size:.65rem;letter-spacing:.22em;color:${VIOLET_LT};margin-bottom:12px">GOAL TRACKER TOWER</div>
-        <div style="font-size:1.6rem;font-weight:800;color:#fff;margin-bottom:6px">${titleText}</div>
+        <div style="font-family:'Anton',sans-serif;font-size:1.5rem;letter-spacing:.03em;color:#fff;margin-bottom:6px">${titleText}</div>
         <div style="font-size:2rem;margin:14px 0;letter-spacing:3px">${starHTML}</div>
         <div style="display:flex;gap:12px;justify-content:center;margin:14px 0">
           <div style="background:rgba(124,58,237,0.18);border:1px solid rgba(124,58,237,0.35);border-radius:10px;padding:10px 18px">

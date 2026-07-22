@@ -272,6 +272,15 @@
     }
   };
 
+  /* ── shake (bad market events / crash) ───────────────────── */
+  function shakeRoot() {
+    const root = document.getElementById('vvRoot');
+    if (!root) return;
+    root.classList.remove('vv-shaking');
+    void root.offsetWidth;
+    root.classList.add('vv-shaking');
+  }
+
   /* ── cleanup ──────────────────────────────────────────── */
   function cleanupGame() {
     G = null;
@@ -384,7 +393,7 @@
       <div style="max-width:360px;width:90%;text-align:center;padding:0 12px;">
         <div style="font-family:Orbitron,monospace;font-size:11px;letter-spacing:2px;color:${AC};margin-bottom:10px;">HOW TO PLAY</div>
         <div style="font-size:2.2rem;margin-bottom:8px;">🌪️</div>
-        <div style="font-family:Orbitron,monospace;font-size:16px;font-weight:900;color:${AC};text-shadow:0 0 20px ${AC}88;margin-bottom:16px;">VOLATILITY VORTEX</div>
+        <div style="font-family:'Anton',sans-serif;font-size:19px;letter-spacing:.02em;color:${AC};text-shadow:0 0 20px ${AC}88;margin-bottom:16px;">VOLATILITY VORTEX</div>
         <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:13px 15px;margin-bottom:20px;text-align:left;">
           <div style="display:flex;flex-direction:column;gap:9px;">
             <div style="display:flex;gap:8px;align-items:flex-start;"><span style="font-size:14px;flex-shrink:0;">🎯</span><span style="font-size:11px;color:rgba(255,255,255,.8);line-height:1.5;">Split $10,000 across <b style="color:${C_CASH}">Cash</b>, <b style="color:${C_CRYPTO}">Crypto</b>, and <b style="color:${C_DIV}">Diversified</b> — finish above where you started.</span></div>
@@ -889,6 +898,7 @@
       // check crash
       if (G.portValue <= SAFETY_THRESHOLD) {
         G.crashed = true;
+        shakeRoot();
         triggerGameOver(false);
         return;
       }
@@ -987,6 +997,11 @@
     };
     G.activeEvents.push(instance);
 
+    // Bad news (net-negative affect) gets a screen shake so a crash/recession
+    // headline lands with real impact, not just a banner — good news doesn't shake.
+    const netAffect = Object.values(ev.affect).reduce((s, v) => s + v, 0);
+    if (netAffect < 0) shakeRoot();
+
     // apply price effects
     Object.entries(ev.affect).forEach(([assetId, delta]) => {
       if (G.prices[assetId] !== undefined) {
@@ -1067,7 +1082,7 @@
     const cfg = getLevelCfg(lv);
     const flash = document.createElement('div');
     flash.style.cssText = `position:absolute;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;background:rgba(0,255,255,.08);pointer-events:none;animation:vvFlash .7s ease forwards;`;
-    flash.innerHTML = `<div style="font-family:Orbitron,monospace;font-size:28px;font-weight:900;color:${AC};text-shadow:0 0 30px ${AC};text-align:center;letter-spacing:3px;">LEVEL ${lv}<br><span style="font-size:14px;color:#fff;">${cfg.title} MODE — BRACE FOR IMPACT</span></div>`;
+    flash.innerHTML = `<div style="font-family:'Anton',sans-serif;font-size:32px;letter-spacing:.04em;color:${AC};text-shadow:0 0 30px ${AC};text-align:center;">LEVEL ${lv}<br><span style="font-family:Orbitron,monospace;font-size:14px;color:#fff;letter-spacing:1px;">${cfg.title} MODE — BRACE FOR IMPACT</span></div>`;
     root.appendChild(flash);
     setTimeout(() => { if (flash.parentNode) flash.parentNode.removeChild(flash); }, 1200);
   }
@@ -1113,13 +1128,17 @@
     const starStr = stars > 0 ? '⭐'.repeat(stars) + '☆'.repeat(3 - stars) : '💸';
 
     overlay.style.display = 'flex';
-    overlay.innerHTML = `
+    const confettiHTML = won ? Array.from({ length: 18 }, (_, i) => {
+      const emo = ['✦', '●', '▲', '★', '💹'][i % 5], col = [AC, GOLD, C_DIV, C_CASH][i % 4];
+      return `<span class="vv-confetti" style="left:${4 + Math.random() * 92}%;animation-delay:${(Math.random() * .5).toFixed(2)}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+    overlay.innerHTML = `${confettiHTML}
       <div class="${won ? 'vvWinPanel' : ''}" style="max-width:360px;width:90%;text-align:center;padding:0 12px;">
         <!-- title -->
         <div style="font-family:Orbitron,monospace;font-size:11px;letter-spacing:2px;color:${AC};margin-bottom:10px;">VOLATILITY VORTEX</div>
 
         <!-- outcome -->
-        <div style="font-family:Orbitron,monospace;font-size:${won?'26px':'22px'};font-weight:900;color:${won?AC:DANGER};margin-bottom:4px;text-shadow:0 0 20px ${won?AC:DANGER}88;line-height:1.2;">
+        <div style="font-family:'Anton',sans-serif;font-size:${won?'30px':'26px'};letter-spacing:.02em;color:${won?AC:DANGER};margin-bottom:4px;text-shadow:0 0 20px ${won?AC:DANGER}88;line-height:1.2;">
           ${won ? 'MARKET SURVIVED' : 'PORTFOLIO CRASHED'}
         </div>
         <div style="font-size:11px;color:rgba(255,255,255,.55);margin-bottom:18px;">${won ? 'You kept the portfolio above safety threshold.' : 'Your portfolio fell below the safety threshold.'}</div>
@@ -1158,7 +1177,7 @@
 
         <!-- buttons -->
         <div style="display:flex;gap:10px;">
-          <button id="vvPlayAgain" style="flex:1;padding:13px;border-radius:10px;background:${AC}22;border:1.5px solid ${AC};color:${AC};font-family:Orbitron,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;font-weight:700;transition:background .2s;">▶ PLAY AGAIN</button>
+          <button id="vvPlayAgain" class="vv-shard" style="flex:1;padding:13px;border-radius:10px;background:${AC}22;border:1.5px solid ${AC};color:${AC};font-family:Orbitron,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;font-weight:700;transition:background .2s;box-shadow:0 0 20px ${AC}44;">▶ PLAY AGAIN</button>
           <button id="vvGoHub" style="flex:1;padding:13px;border-radius:10px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.25);color:#fff;font-family:Orbitron,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;transition:background .2s;">← HUB</button>
         </div>
       </div>
@@ -1213,6 +1232,12 @@
       #vvSliders::-webkit-scrollbar-track { background:transparent; }
       #vvSliders::-webkit-scrollbar-thumb { background:${AC}44; border-radius:4px; }
       #vvBackBtn:hover { background:${AC}22 !important; }
+      @keyframes vvConfettiFall { 0%{transform:translateY(-30px) rotate(0deg);opacity:1} 100%{transform:translateY(460px) rotate(360deg);opacity:0} }
+      .vv-confetti { position:absolute;top:-24px;font-size:1.3rem;animation:vvConfettiFall 1.7s ease-in forwards;pointer-events:none;z-index:120; }
+      @keyframes vvShake {10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-7px)}40%,60%{transform:translateX(7px)}}
+      .vv-shaking { animation:vvShake .45s; }
+      .vv-shard { clip-path:polygon(0 0,92% 0,100% 34%,100% 100%,8% 100%,0 66%) !important; transition:filter .15s; }
+      .vv-shard:hover { filter:brightness(1.1); }
     `;
     document.head.appendChild(style);
   })();

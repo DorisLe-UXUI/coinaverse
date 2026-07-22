@@ -69,11 +69,57 @@
   //  SCREEN ENTRY POINT
   // ──────────────────────────────────────────────────────────────
   window.SCREENS = window.SCREENS || {};
+
+  /* ── COSMIC VISUAL SYSTEM — shared nebula/starfield/scanline recipe (see
+     arcade.js .arc-wrap) applied here so the garden no longer sits on a flat
+     solid background. Scoped to #divd-* ids/classes to avoid any collision
+     with sibling mini-games. ── */
+  function injectDivdCosmicStyle() {
+    if (document.getElementById('divdCosmicStyle')) return;
+    const s = document.createElement('style');
+    s.id = 'divdCosmicStyle';
+    s.textContent = `
+      #divd-root{background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb,${ACCENT} 15%,#1a1240),#130d32 44%,#0A0429 100%)!important}
+      #divd-root::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(rgba(0,229,255,0) 50%,rgba(0,229,255,.025) 50%);background-size:100% 4px}
+      .divd-stars{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+      .divd-star{position:absolute;border-radius:50%;background:#fff;animation:divdTwinkle 3.2s ease-in-out infinite}
+      @keyframes divdTwinkle{0%,100%{opacity:.12}50%{opacity:.85}}
+      @keyframes divdConfettiFall{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(460px) rotate(360deg);opacity:0}}
+      .divd-confetti{position:absolute;top:-24px;font-size:1.3rem;animation:divdConfettiFall 1.7s ease-in forwards;pointer-events:none}
+    `;
+    document.head.appendChild(s);
+  }
+  function divdStarsHTML(n) {
+    let out = '';
+    for (let i = 0; i < (n || 42); i++) {
+      const x = (i * 53.7) % 100, y = (i * 91.3 + 13) % 100, sz = 1 + (i % 3), dur = (2.4 + (i % 5) * .4).toFixed(1), delay = ((i * .37) % 3).toFixed(2);
+      out += `<span class="divd-star" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;width:${sz}px;height:${sz}px;animation-duration:${dur}s;animation-delay:${delay}s"></span>`;
+    }
+    return out;
+  }
+  function divdConfetti(count) {
+    const root = document.getElementById('divd-root');
+    if (!root) return;
+    const colors = [ACCENT, GOLD, '#fff', '#00E676'];
+    const emojis = ['✦', '●', '▲', '★'];
+    let html = '';
+    for (let i = 0; i < (count || 26); i++) {
+      html += `<span class="divd-confetti" style="left:${(4 + Math.random() * 92).toFixed(1)}%;animation-delay:${(Math.random() * .5).toFixed(2)}s;color:${colors[i % colors.length]}">${emojis[i % emojis.length]}</span>`;
+    }
+    const layer = document.createElement('div');
+    layer.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:105;';
+    layer.innerHTML = html;
+    root.appendChild(layer);
+    setTimeout(() => { if (layer.parentNode) layer.remove(); }, 2200);
+  }
+
   window.SCREENS.game_inv_dividend = function () {
     G = null;
     if (raf) { cancelAnimationFrame(raf); raf = null; }
+    injectDivdCosmicStyle();
     setTimeout(initGame, 40);
     return `<div id="divd-root" style="position:absolute;inset:0;background:${BG_DEEP};overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none">
+      <div class="divd-stars">${divdStarsHTML(42)}</div>
 
       <!-- ── TOP BAR ── -->
       <div id="divd-topbar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent)">
@@ -923,6 +969,10 @@
 
     const root = document.getElementById('divd-root');
     if (root) root.append(overlay);
+
+    // Celebration confetti on a real win (2-3 stars) — matches the
+    // confetti-on-real-wins-only language used across the app.
+    if (stars >= 2) divdConfetti(stars === 3 ? 34 : 18);
 
     document.getElementById('divd-play-again')?.addEventListener('click', () => {
       overlay.remove();

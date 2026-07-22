@@ -96,11 +96,13 @@
   window.SCREENS.game_bud_billgrid = function () {
     G = null;
     setTimeout(initGame, 40);
-    return `<div id="bbg_root" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none">
+    return `<div id="bbg_root" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, ${ACCENT_GL} 16%, #1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none">
+      <!-- cosmic scanline overlay (matches arcade.js .arc-wrap recipe) -->
+      <div style="position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(rgba(74,122,191,0) 50%,rgba(74,122,191,.035) 50%);background-size:100% 4px"></div>
       <!-- TOP BAR -->
       <div id="bbg_bar" style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:10px;padding:10px 16px 8px;background:linear-gradient(180deg,rgba(3,4,12,.95),rgba(3,4,12,.0));border-bottom:1px solid rgba(74,122,191,.18)">
         <button id="bbg_back" style="padding:6px 13px;border:1px solid rgba(74,122,191,.45);border-radius:8px;background:rgba(26,42,74,.6);color:${ACCENT_GL};font-family:Orbitron,sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;flex-shrink:0">← HUB</button>
-        <div style="font-family:Orbitron,sans-serif;font-size:.68rem;letter-spacing:.18em;color:${ACCENT_GL};flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">BILL MANAGEMENT GRID</div>
+        <div style="font-family:'Anton',sans-serif;font-size:.92rem;letter-spacing:.06em;color:${ACCENT_GL};text-shadow:0 0 14px ${ACCENT_GL}aa;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">BILL MANAGEMENT GRID</div>
         <button onclick="bbgShowHelp()" title="How to play" style="padding:6px 10px;border:1px solid rgba(74,122,191,.45);border-radius:8px;background:rgba(26,42,74,.6);color:${ACCENT_GL};cursor:pointer;flex-shrink:0;font-size:.75rem">❓</button>
         <div style="display:flex;gap:8px;flex-shrink:0">
           <div style="text-align:center">
@@ -223,7 +225,7 @@
       <div style="max-width:340px;text-align:center">
         <div style="font-family:Orbitron,sans-serif;font-size:.5rem;letter-spacing:.2em;color:${ACCENT_GL};margin-bottom:10px">HOW TO PLAY</div>
         <div style="font-size:2rem;margin-bottom:8px">🧾</div>
-        <div style="font-family:Orbitron,sans-serif;font-size:1rem;margin-bottom:14px">BILL MANAGEMENT GRID</div>
+        <div style="font-family:'Anton',sans-serif;font-size:1.2rem;letter-spacing:.03em;margin-bottom:14px">BILL MANAGEMENT GRID</div>
         <div style="display:flex;gap:8px;margin-bottom:16px;text-align:left">
           <div style="flex:1;background:rgba(255,255,255,.04);border-radius:9px;padding:9px 6px"><div style="font-size:1.1rem">👆</div><div style="font-size:.58rem;color:rgba(255,255,255,.6);margin-top:4px">Drag a bill from the sidebar</div></div>
           <div style="flex:1;background:rgba(255,255,255,.04);border-radius:9px;padding:9px 6px"><div style="font-size:1.1rem">📅</div><div style="font-size:.58rem;color:rgba(255,255,255,.6);margin-top:4px">Drop it on its due-date cell</div></div>
@@ -380,6 +382,8 @@
         @keyframes bbg_flash_red { 0%,100%{background:rgba(239,68,68,.0)} 30%{background:rgba(239,68,68,.35)} }
         @keyframes bbg_drop_in { 0%{opacity:0;transform:scale(.7)} 100%{opacity:1;transform:scale(1)} }
         @keyframes bbg_slide_in { 0%{opacity:0;transform:translateY(-12px)} 100%{opacity:1;transform:translateY(0)} }
+        @keyframes bbg_confetti { 0%{transform:translateY(-30px) rotate(0deg);opacity:1} 100%{transform:translateY(420px) rotate(360deg);opacity:0} }
+        @keyframes bbg_shine { to { background-position:-20% 0 } }
         .bbg_cell_accept { border-color:${ACCENT_GL} !important; background:rgba(74,122,191,.22) !important; }
         .bbg_cell_reject { border-color:${RED} !important; background:rgba(239,68,68,.15) !important; }
       `;
@@ -606,12 +610,27 @@
       const dt = Math.min((ts - last) / 1000, 0.1);
       last = ts;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawAmbientStars(ctx, canvas.width, canvas.height, ts);
       drawDrones(ctx, dt);
       drawParticles(ctx, dt);
       updateOverdueTimers();
       G.raf = requestAnimationFrame(loop);
     }
     G.raf = requestAnimationFrame(loop);
+  }
+
+  /* ── Ambient starfield (purely cosmetic — keeps the cosmic bg alive between drone flights) ── */
+  function drawAmbientStars(ctx, W, H, now) {
+    ctx.save();
+    ctx.fillStyle = ACCENT_GL;
+    for (let i = 0; i < 46; i++) {
+      const sx = (i * 53.7) % W;
+      const sy = (i * 91.3 + now * 0.012 * ((i % 4) + 1)) % H;
+      ctx.globalAlpha = 0.06 + (i % 5) * 0.035;
+      ctx.fillRect(sx, sy, 1 + (i % 3), 1 + (i % 3));
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   function drawDrones(ctx, dt) {
@@ -919,7 +938,7 @@
     trans.innerHTML = `
       <div style="text-align:center;max-width:320px">
         <div style="font-size:2.5rem;margin-bottom:12px">🎉</div>
-        <div style="font-family:Orbitron,sans-serif;font-size:1rem;color:${GREEN};letter-spacing:.15em;margin-bottom:8px">LEVEL ${justDone} COMPLETE!</div>
+        <div style="font-family:'Anton',sans-serif;font-size:1.15rem;color:${GREEN};letter-spacing:.05em;text-shadow:0 0 14px ${GREEN}88;margin-bottom:8px">LEVEL ${justDone} COMPLETE!</div>
         <div style="color:rgba(255,255,255,.7);font-size:.8rem;margin-bottom:20px;line-height:1.6">${TRANSITION_COPY[justDone] || ''}</div>
         <div style="display:flex;gap:16px;justify-content:center;margin-bottom:16px">
           <div style="text-align:center">
@@ -985,10 +1004,16 @@
     over.style.flexDirection = 'column';
     over.style.alignItems = 'center';
     over.style.justifyContent = 'center';
+    const confettiHtml = won ? Array.from({ length: 16 }, (_, i) => {
+      const emo = ['✦', '●', '▲', '★'][i % 4], col = [ACCENT_GL, GOLD, '#a855f7', '#14b8a6'][i % 4];
+      return `<span style="position:absolute;top:-24px;left:${4 + Math.random() * 92}%;font-size:1.3rem;color:${col};animation:bbg_confetti 1.7s ease-in ${(Math.random() * .5).toFixed(2)}s forwards;pointer-events:none">${emo}</span>`;
+    }).join('') : '';
     over.innerHTML = `
-      <div style="text-align:center;max-width:340px;animation:bbg_drop_in .4s ease">
+      ${confettiHtml}
+      <div style="text-align:center;max-width:360px;width:100%;position:relative;overflow:hidden;animation:bbg_drop_in .4s ease;background:linear-gradient(150deg,rgba(255,255,255,.06),rgba(19,13,50,.92));border:1px solid ${won ? GOLD : RED}66;border-radius:20px;padding:28px 22px;box-shadow:0 0 50px ${won ? 'rgba(240,180,41,.25)' : 'rgba(239,68,68,.25)'}">
+        ${won ? `<div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:bbg_shine 2.2s ease-in-out .3s 1;pointer-events:none"></div>` : ''}
         <div style="font-size:2.2rem;margin-bottom:6px">${won ? '🏆' : '💸'}</div>
-        <div style="font-family:Orbitron,sans-serif;font-size:1.05rem;color:${won ? GREEN : RED};letter-spacing:.15em;margin-bottom:12px">${won ? 'MONTH COMPLETE!' : 'TOO MANY LATE BILLS'}</div>
+        <div style="font-family:'Anton',sans-serif;font-size:1.2rem;color:${won ? GREEN : RED};letter-spacing:.08em;margin-bottom:12px">${won ? 'MONTH COMPLETE!' : 'TOO MANY LATE BILLS'}</div>
         <div style="font-size:1.9rem;margin-bottom:8px;letter-spacing:.08em">${starStr}</div>
 
         <!-- Stats grid -->

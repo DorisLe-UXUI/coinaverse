@@ -48,11 +48,97 @@
   /* accumulated window-level listeners so we can remove them all on exit */
   let _winListeners = [];
 
+  /* ── COSMIC VISUAL SYSTEM ─────────────────────────────────────────
+     Matches the nebula/starfield/scanline "Cyber-Premium Gaming HUD" recipe
+     used by arcade.js's .arc-wrap everywhere else in the app (Portfolio HQ
+     previously sat on a flat solid background). Scoped to #phq* ids/classes
+     so it can't collide with sibling mini-games' own styles. ── */
+  function injectPhqCosmicStyle() {
+    if (document.getElementById('phqCosmicStyle')) return;
+    const s = document.createElement('style');
+    s.id = 'phqCosmicStyle';
+    s.textContent = `
+      #phqRoot{background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb,${ACCENT} 15%,#1a1240),#130d32 44%,#0A0429 100%)!important}
+      #phqRoot::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(rgba(0,229,255,0) 50%,rgba(0,229,255,.025) 50%);background-size:100% 4px}
+      .phq-stars{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+      .phq-star{position:absolute;border-radius:50%;background:#fff;animation:phqTwinkle 3.2s ease-in-out infinite}
+      @keyframes phqTwinkle{0%,100%{opacity:.12}50%{opacity:.85}}
+      @keyframes phqShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+      .phq-shake{animation:phqShake .35s}
+      @keyframes phqConfettiFall{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(460px) rotate(360deg);opacity:0}}
+      .phq-confetti{position:absolute;top:-24px;font-size:1.3rem;animation:phqConfettiFall 1.7s ease-in forwards;pointer-events:none}
+    `;
+    document.head.appendChild(s);
+  }
+  function phqStarsHTML(n) {
+    let out = '';
+    for (let i = 0; i < (n || 42); i++) {
+      const x = (i * 53.7) % 100, y = (i * 91.3 + 11) % 100, sz = 1 + (i % 3), dur = 2.4 + (i % 5) * .4, delay = ((i * .37) % 3).toFixed(2);
+      out += `<span class="phq-star" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;width:${sz}px;height:${sz}px;animation-duration:${dur}s;animation-delay:${delay}s"></span>`;
+    }
+    return out;
+  }
+  // small canvas particle burst — reused for rebalance bonuses AND the final
+  // confetti celebration on a real win (2-3 stars)
+  function phqBurst(cx, cy, color, n) {
+    const root = document.getElementById('phqRoot');
+    if (!root) return;
+    const cvs = document.createElement('canvas');
+    cvs.style.cssText = 'position:fixed;left:0;top:0;pointer-events:none;z-index:45';
+    cvs.width = window.innerWidth; cvs.height = window.innerHeight;
+    document.body.appendChild(cvs);
+    const ctx = cvs.getContext('2d');
+    const pieces = Array.from({ length: n || 14 }, () => {
+      const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 110;
+      return { x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 30, r: 2 + Math.random() * 3, life: .5 + Math.random() * .3, max: .8, c: Math.random() > .7 ? '#fbbf24' : color };
+    });
+    let last = performance.now();
+    (function draw(now) {
+      const dt = (now - last) / 1000; last = now;
+      ctx.clearRect(0, 0, cvs.width, cvs.height);
+      let alive = false;
+      pieces.forEach(p => {
+        if (p.life <= 0) return;
+        alive = true;
+        p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 220 * dt; p.life -= dt;
+        ctx.globalAlpha = Math.max(0, p.life / p.max);
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fillStyle = p.c; ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+      if (alive) requestAnimationFrame(draw); else cvs.remove();
+    })(last);
+  }
+  function phqConfetti(count) {
+    const root = document.getElementById('phqRoot');
+    if (!root) return;
+    const colors = [ACCENT, '#fbbf24', '#a855f7', '#40C4FF'];
+    const emojis = ['✦', '●', '▲', '★'];
+    let html = '';
+    for (let i = 0; i < (count || 26); i++) {
+      html += `<span class="phq-confetti" style="left:${(4 + Math.random() * 92).toFixed(1)}%;animation-delay:${(Math.random() * .5).toFixed(2)}s;color:${colors[i % colors.length]}">${emojis[i % emojis.length]}</span>`;
+    }
+    const layer = document.createElement('div');
+    layer.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:35;';
+    layer.innerHTML = html;
+    root.appendChild(layer);
+    setTimeout(() => { if (layer.parentNode) layer.remove(); }, 2200);
+  }
+  function phqShakeScreen() {
+    const root = document.getElementById('phqRoot');
+    if (!root) return;
+    root.classList.remove('phq-shake');
+    void root.offsetWidth;
+    root.classList.add('phq-shake');
+    setTimeout(() => { if (root) root.classList.remove('phq-shake'); }, 380);
+  }
+
   /* ── screen entry ────────────────────────────────────────────── */
   window.SCREENS.game_inv_portfolio = function () {
     G = null;
+    injectPhqCosmicStyle();
     setTimeout(initGame, 40);
     return `<div id="phqRoot" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none">
+      <div class="phq-stars">${phqStarsHTML(42)}</div>
 
       <!-- Top bar -->
       <div style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:10px;padding:12px 16px;background:linear-gradient(180deg,rgba(3,4,12,.95) 60%,transparent)">
@@ -163,8 +249,12 @@
       _eventTimerStartedAt: null,   // wall-clock ms when the active event's response window began
       _eventPausedRemainMs: null,   // ms remaining on that window, saved while help is open
 
-      /* current allocations — must always sum to 100 */
-      allocs: { stocks:40, realestate:20, cash:15, gold:15, etfs:0, crypto:0 },
+      /* current allocations — must always sum to 100
+         (bug fix: this previously read stocks:40,realestate:20,cash:15,gold:15 = 90,
+         10 points short of 100 — the meter/score logic didn't break, but the HUD's
+         own "TOTAL ALLOCATED" readout showed 90% while claiming a healthy portfolio
+         from the very first frame, which reads as broken to a player) */
+      allocs: { stocks:40, realestate:20, cash:25, gold:15, etfs:0, crypto:0 },
       /* which assets are active this level */
       activeAssets: ['stocks','realestate','cash','gold'],
 
@@ -543,6 +633,16 @@
       // visual celebration scales with consecutive rebalance streak — score bonus itself stays a flat +25
       const label = G.rebalanceStreak >= 2 ? `+25 REBALANCE! ×${G.rebalanceStreak}` : '+25 REBALANCE!';
       flashBonus(label, assetId, G.rebalanceStreak);
+      // particle burst at the card that earned it (or screen-center for a global fix)
+      const anchorCard = assetId ? document.getElementById(`phq_card_${assetId}`) : null;
+      const root = document.getElementById('phqRoot');
+      if (anchorCard) {
+        const r = anchorCard.getBoundingClientRect();
+        phqBurst(r.left + r.width / 2, r.top + r.height / 2, ACCENT, 16);
+      } else if (root) {
+        const r = root.getBoundingClientRect();
+        phqBurst(r.left + r.width / 2, r.top + r.height / 2, ACCENT, 16);
+      }
       dismissEvent();
     }
   }
@@ -682,6 +782,12 @@
     /* penalty for being out of green */
     if (divScore < 0.35) {
       G.score = Math.max(0, G.score - dt * 2);
+      // brief screen shake to sell "danger zone" as a bad state — throttled to
+      // once every ~2.5s so it reads as a pulse, not a shudder every frame
+      if (!G._lastDangerShake || now - G._lastDangerShake > 2500) {
+        G._lastDangerShake = now;
+        phqShakeScreen();
+      }
     }
 
     /* event cooldown — level 3 gets a faster, harsher cadence (8-14s) vs level 2 (14-22s) */
@@ -851,6 +957,10 @@
           <button onclick="inv_portfolioExit()" style="flex:1;padding:12px;border:1.5px solid rgba(255,255,255,.25);border-radius:10px;background:rgba(255,255,255,.07);color:rgba(255,255,255,.8);font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← HUB</button>
         </div>
       </div>`;
+
+    // Celebration confetti on a real win (2-3 stars) — consistent with the
+    // confetti-on-real-wins-only language used across the app.
+    if (stars >= 2) phqConfetti(stars === 3 ? 34 : 18);
   }
 
   window.phqPlayAgain = function () {
@@ -875,7 +985,7 @@
       eventTimer: 0,
       rebalanceBonus: 0,
       rebalanceStreak: 0,
-      allocs: { stocks: 40, realestate: 20, cash: 15, gold: 15, etfs: 0, crypto: 0 },
+      allocs: { stocks: 40, realestate: 20, cash: 25, gold: 15, etfs: 0, crypto: 0 },   // sums to 100 — see bug-fix note in initGame()
       activeAssets: ['stocks', 'realestate', 'cash', 'gold'],
       dragging: null,
       dragStartX: 0,

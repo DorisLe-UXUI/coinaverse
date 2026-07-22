@@ -309,17 +309,82 @@
     return 1;
   }
 
+  /* ─── COSMIC VISUAL SYSTEM ───────────────────────────────────────
+     Research Core previously sat on a flat solid background while every
+     other Investopia mini-game (and the shared arcade.js engine) uses the
+     "Cyber-Premium Gaming HUD" nebula/starfield/scanline treatment. This
+     reproduces that same recipe (see arcade.js .arc-wrap) scoped to this
+     file's own #rc_root/#rc_* ids so it can't collide with sibling games. */
+  function injectRCCosmicStyle() {
+    if (q('#rc_cosmic_style')) return;
+    const s = document.createElement('style');
+    s.id = 'rc_cosmic_style';
+    s.textContent = `
+      #rc_root{background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb,${ACCENT} 16%,#1a1240),#130d32 44%,#0A0429 100%)!important}
+      #rc_root::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(rgba(0,229,255,0) 50%,rgba(0,229,255,.025) 50%);background-size:100% 4px}
+      .rc-stars{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+      .rc-star{position:absolute;border-radius:50%;background:#fff;animation:rcTwinkle 3.2s ease-in-out infinite}
+      @keyframes rcTwinkle{0%,100%{opacity:.15}50%{opacity:.9}}
+      @keyframes rcShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+      .rc-shake{animation:rcShake .4s}
+      @keyframes rcConfettiFall{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(460px) rotate(360deg);opacity:0}}
+      .rc-confetti{position:absolute;top:-24px;font-size:1.3rem;animation:rcConfettiFall 1.7s ease-in forwards;pointer-events:none;z-index:210}
+      .rc-lvcard{position:relative;overflow:hidden;transition:transform .18s,box-shadow .18s,border-color .18s;animation:rcCardIn .4s both}
+      .rc-lvcard:hover{transform:translateY(-4px)}
+      .rc-lvcard:nth-child(2){animation-delay:.08s}
+      .rc-lvcard:nth-child(3){animation-delay:.16s}
+      @keyframes rcCardIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+      @keyframes rcGlowPulse{0%,100%{opacity:.5}50%{opacity:1}}
+    `;
+    document.head.appendChild(s);
+  }
+
+  // deterministic pseudo-random starfield (no perf cost re-rolling each render)
+  function rcStarsHTML(n) {
+    let out = '';
+    for (let i = 0; i < (n || 46); i++) {
+      const x = (i * 53.7) % 100, y = (i * 91.3 + 7) % 100, sz = 1 + (i % 3), dur = 2.4 + (i % 5) * .4, delay = ((i * .37) % 3).toFixed(2);
+      out += `<span class="rc-star" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;width:${sz}px;height:${sz}px;animation-duration:${dur}s;animation-delay:${delay}s"></span>`;
+    }
+    return out;
+  }
+
+  // confetti burst for a real win (2-3 stars) — same falling/rotating piece
+  // language as arcade.js's .arc-confetti so a win here reads consistently
+  // with every other mini-game in the app.
+  function rcConfettiBurst(count) {
+    const root = q('#rc_root');
+    if (!root) return;
+    const colors = [ACCENT, HOLD_COL, '#fff', '#69f0ae', '#40C4FF'];
+    const emojis = ['✦', '●', '▲', '★'];
+    let html = '';
+    for (let i = 0; i < (count || 26); i++) {
+      const left = (4 + Math.random() * 92).toFixed(1);
+      const delay = (Math.random() * .5).toFixed(2);
+      const col = colors[i % colors.length];
+      const emo = emojis[i % emojis.length];
+      html += `<span class="rc-confetti" style="left:${left}%;animation-delay:${delay}s;color:${col}">${emo}</span>`;
+    }
+    const layer = document.createElement('div');
+    layer.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:205;';
+    layer.innerHTML = html;
+    root.appendChild(layer);
+    setTimeout(() => { if (layer.parentNode) layer.remove(); }, 2200);
+  }
+
   /* ─── SCREEN REGISTRATION ────────────────────────────────────── */
   window.SCREENS = window.SCREENS || {};
 
   window.SCREENS.game_inv_research = function () {
     G = null;
+    injectRCCosmicStyle();
     setTimeout(initGame, 40);
     return `
 <div id="rc_root" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:'Inter',sans-serif;color:#fff;display:flex;flex-direction:column;">
+  <div class="rc-stars">${rcStarsHTML(46)}</div>
 
   <!-- TOP BAR -->
-  <div id="rc_topbar" style="display:flex;align-items:center;gap:10px;padding:10px 14px 8px;background:#060d16;border-bottom:1px solid ${PANEL_BOR};flex-shrink:0;">
+  <div id="rc_topbar" style="position:relative;z-index:2;display:flex;align-items:center;gap:10px;padding:10px 14px 8px;background:rgba(6,13,22,.85);backdrop-filter:blur(10px);border-bottom:1px solid ${PANEL_BOR};flex-shrink:0;">
     <button id="rc_back" onclick="window.inv_researchExit()" style="background:none;border:1px solid #1a3a2a;color:${ACCENT};font-size:18px;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:inherit;">←</button>
     <div style="flex:1;min-width:0;">
       <div style="font-family:'Orbitron','Inter',sans-serif;font-size:11px;color:${ACCENT};letter-spacing:2px;text-transform:uppercase;">Investopia Hub</div>
@@ -342,40 +407,40 @@
   </div>
 
   <!-- PROGRESS BAR -->
-  <div style="background:#060d16;padding:6px 14px;flex-shrink:0;border-bottom:1px solid ${PANEL_BOR};">
+  <div style="position:relative;z-index:2;background:rgba(6,13,22,.7);padding:6px 14px;flex-shrink:0;border-bottom:1px solid ${PANEL_BOR};">
     <div style="display:flex;align-items:center;gap:8px;">
       <div style="font-size:10px;color:#4a7a5a;letter-spacing:1px;white-space:nowrap;" id="rc_progress_label">Company 1 of 4</div>
       <div style="flex:1;background:#0d1a12;border-radius:3px;height:5px;overflow:hidden;">
-        <div id="rc_progress_bar" style="height:100%;width:0%;background:${ACCENT};border-radius:3px;transition:width 0.4s;"></div>
+        <div id="rc_progress_bar" style="height:100%;width:0%;background:${ACCENT};border-radius:3px;transition:width 0.4s;box-shadow:0 0 8px ${ACCENT}"></div>
       </div>
       <div style="font-size:10px;color:#4a7a5a;white-space:nowrap;" id="rc_correct_count">0 correct</div>
     </div>
   </div>
 
   <!-- MAIN CONTENT -->
-  <div id="rc_main" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:14px 12px 80px;display:flex;flex-direction:column;gap:12px;">
+  <div id="rc_main" style="position:relative;z-index:2;flex:1;overflow-y:auto;overflow-x:hidden;padding:14px 12px 80px;display:flex;flex-direction:column;gap:12px;">
     <!-- injected by renderCard() -->
   </div>
 
   <!-- FEEDBACK TOAST -->
-  <div id="rc_toast" style="position:absolute;bottom:80px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;pointer-events:none;opacity:0;transition:opacity 0.25s;white-space:nowrap;"></div>
+  <div id="rc_toast" style="position:absolute;bottom:80px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;pointer-events:none;opacity:0;transition:opacity 0.25s;white-space:nowrap;z-index:206;"></div>
 
   <!-- LEVEL SELECT OVERLAY (shown at start) -->
-  <div id="rc_level_sel" style="position:absolute;inset:0;background:${BG};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;z-index:100;">
-    <div style="font-family:'Orbitron','Inter',sans-serif;font-size:22px;font-weight:700;color:${ACCENT};text-align:center;">Research Core</div>
+  <div id="rc_level_sel" style="position:absolute;inset:0;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;z-index:100;">
+    <div style="font-family:'Anton',Orbitron,sans-serif;font-size:26px;font-weight:700;letter-spacing:.03em;color:${ACCENT};text-align:center;text-shadow:0 0 22px ${ACCENT}88;">🔬 Research Core</div>
     <div style="font-size:13px;color:#8ab898;text-align:center;max-width:280px;line-height:1.6;">Analyze company metrics and rate each business: Strong Buy, Hold, or Avoid — before time runs out.</div>
 
     <div style="display:flex;flex-direction:column;gap:12px;width:100%;max-width:300px;">
-      <button onclick="window._rcStartLevel(1)" style="background:${PANEL_BG};border:1.5px solid ${ACCENT};border-radius:10px;padding:18px 16px;cursor:pointer;text-align:left;color:#fff;font-family:inherit;">
-        <div style="font-family:'Orbitron','Inter',sans-serif;font-size:13px;color:${ACCENT};font-weight:700;">LEVEL 1 — LEARN</div>
+      <button class="rc-lvcard" onclick="window._rcStartLevel(1)" style="background:linear-gradient(150deg,rgba(255,255,255,.06),${PANEL_BG});border:1.5px solid ${ACCENT};border-radius:12px;padding:18px 16px;cursor:pointer;text-align:left;color:#fff;font-family:inherit;box-shadow:0 0 24px ${ACCENT}22,inset 0 1px 0 rgba(255,255,255,.08);">
+        <div style="font-family:'Orbitron','Inter',sans-serif;font-size:13px;color:${ACCENT};font-weight:700;">🏫 LEVEL 1 — LEARN</div>
         <div style="font-size:12px;color:#8ab898;margin-top:4px;">4 companies · 60 seconds · Clear metrics</div>
       </button>
-      <button onclick="window._rcStartLevel(2)" style="background:${PANEL_BG};border:1.5px solid ${HOLD_COL};border-radius:10px;padding:18px 16px;cursor:pointer;text-align:left;color:#fff;font-family:inherit;">
-        <div style="font-family:'Orbitron','Inter',sans-serif;font-size:13px;color:${HOLD_COL};font-weight:700;">LEVEL 2 — MASTER</div>
+      <button class="rc-lvcard" onclick="window._rcStartLevel(2)" style="background:linear-gradient(150deg,rgba(255,255,255,.06),${PANEL_BG});border:1.5px solid ${HOLD_COL};border-radius:12px;padding:18px 16px;cursor:pointer;text-align:left;color:#fff;font-family:inherit;box-shadow:0 0 24px ${HOLD_COL}22,inset 0 1px 0 rgba(255,255,255,.08);">
+        <div style="font-family:'Orbitron','Inter',sans-serif;font-size:13px;color:${HOLD_COL};font-weight:700;">⚡ LEVEL 2 — MASTER</div>
         <div style="font-size:12px;color:#8ab898;margin-top:4px;">7 companies · 75 seconds · News + analyst noise</div>
       </button>
-      <button onclick="window._rcStartLevel(3)" style="background:${PANEL_BG};border:1.5px solid ${AVOID_COL};border-radius:10px;padding:18px 16px;cursor:pointer;text-align:left;color:#fff;font-family:inherit;">
-        <div style="font-family:'Orbitron','Inter',sans-serif;font-size:13px;color:${AVOID_COL};font-weight:700;">LEVEL 3 — PRO</div>
+      <button class="rc-lvcard" onclick="window._rcStartLevel(3)" style="background:linear-gradient(150deg,rgba(255,255,255,.06),${PANEL_BG});border:1.5px solid ${AVOID_COL};border-radius:12px;padding:18px 16px;cursor:pointer;text-align:left;color:#fff;font-family:inherit;box-shadow:0 0 24px ${AVOID_COL}22,inset 0 1px 0 rgba(255,255,255,.08);">
+        <div style="font-family:'Orbitron','Inter',sans-serif;font-size:13px;color:${AVOID_COL};font-weight:700;">🔥 LEVEL 3 — PRO</div>
         <div style="font-size:12px;color:#8ab898;margin-top:4px;">10 companies · 90 seconds · Hype &amp; panic headlines that lie</div>
       </button>
     </div>
@@ -648,6 +713,10 @@
     // Scale-pulse the whole report card so every rating feels impactful,
     // not just the button strip (fires on BOTH correct and incorrect).
     pulseCard(isCorrect);
+    // Wrong calls additionally get a brief screen shake — correct answers
+    // already have their own glow/pulse celebration, so the shake stays a
+    // dedicated "that was wrong" cue that never fires on a good rating.
+    if (!isCorrect) shakeScreen();
 
     // Streak celebration burst at tuned milestones (3, 5+) — visual only.
     if (isCorrect && STREAK_MILESTONES.includes(G.streak)) {
@@ -730,6 +799,16 @@
     setTimeout(function () { if (card) card.style.transform = 'scale(1)'; }, 180);
   }
 
+  /* ─── JUICE: brief screen shake on a wrong rating ─────────────── */
+  function shakeScreen() {
+    const root = q('#rc_root');
+    if (!root) return;
+    root.classList.remove('rc-shake');
+    void root.offsetWidth; // restart the animation if it's still mid-shake
+    root.classList.add('rc-shake');
+    setTimeout(function () { if (root) root.classList.remove('rc-shake'); }, 420);
+  }
+
   /* ─── JUICE: streak celebration banner ───────────────────────── */
   // Purely visual milestone popup — does not touch G.score. Injects one
   // shared @keyframes block (guarded by id, same idiom used elsewhere in
@@ -785,11 +864,17 @@
     `).join('');
 
     const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:absolute;inset:0;background:' + BG + 'f0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;overflow-x:hidden;z-index:200;padding:24px 16px 40px;';
+    // Bug fix: this overlay used to be identified only by a `div[style*="z-index:200"]`
+    // substring selector in _rcPlayAgain() — browsers re-serialize inline styles as
+    // "z-index: 200" (with a space), so that selector NEVER matched and the old
+    // end-screen stayed stuck on top of the level-select screen after "Play Again."
+    // A real id makes the cleanup reliable regardless of style-string formatting.
+    overlay.id = 'rc_end_overlay';
+    overlay.style.cssText = 'position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb,' + ACCENT + ' 14%,#1a1240),#130d32d8 44%,#0A0429ee 100%);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;overflow-x:hidden;z-index:200;padding:24px 16px 40px;';
 
     overlay.innerHTML = `
       <!-- GLOW ORB -->
-      <div style="width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,${ACCENT}33 0%,transparent 70%);border:2px solid ${ACCENT}44;display:flex;align-items:center;justify-content:center;margin-bottom:12px;flex-shrink:0;">
+      <div style="width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,${ACCENT}33 0%,transparent 70%);border:2px solid ${ACCENT}44;display:flex;align-items:center;justify-content:center;margin-bottom:12px;flex-shrink:0;${stars === 3 ? `animation:rcGlowPulse 1.6s ease-in-out infinite;` : ''}">
         <div style="font-size:40px;">${stars === 3 ? '🔬' : stars === 2 ? '📊' : '📋'}</div>
       </div>
 
@@ -842,15 +927,19 @@
 
     const root = q('#rc_root');
     if (root) root.appendChild(overlay);
+
+    // Celebration moment on a real win (2-3 stars) — confetti burst, richer
+    // for a perfect run, matching the app-wide confetti-on-real-wins language.
+    if (stars >= 2) rcConfettiBurst(stars === 3 ? 34 : 18);
   }
 
   /* ─── PLAY AGAIN ─────────────────────────────────────────────── */
   window._rcPlayAgain = function () {
     const root = q('#rc_root');
     if (!root) return;
-    // Remove end overlay
-    const overlays = root.querySelectorAll('div[style*="z-index:200"]');
-    overlays.forEach(function (o) { o.remove(); });
+    // Remove end overlay (by id — see the bug-fix note where #rc_end_overlay is created)
+    const overlay = q('#rc_end_overlay');
+    if (overlay) overlay.remove();
 
     // Re-show level select
     const lvlSel = q('#rc_level_sel');

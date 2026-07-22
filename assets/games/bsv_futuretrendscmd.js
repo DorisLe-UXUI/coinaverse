@@ -408,7 +408,7 @@
     setTimeout(initGame, 40);
     return `
 <div id="ftcmd_root" style="
-  position:absolute;inset:0;background:#03040c;overflow:hidden;
+  position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, ${ACCENT} 15%, #1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;
   font-family:Inter,sans-serif;color:#fff;display:flex;flex-direction:column;">
 
   <!-- top bar -->
@@ -461,7 +461,16 @@
   </div>
 
   <!-- main area -->
-  <div id="ftcmd_main" style="flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column;">
+  <div id="ftcmd_main" style="flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column;
+    background-image:
+      radial-gradient(1.5px 1.5px at 18% 22%,rgba(255,255,255,.55) 50%,transparent 52%),
+      radial-gradient(1.5px 1.5px at 62% 14%,rgba(255,255,255,.4) 50%,transparent 52%),
+      radial-gradient(1px 1px at 38% 60%,rgba(255,255,255,.45) 50%,transparent 52%),
+      radial-gradient(1.5px 1.5px at 85% 45%,rgba(255,255,255,.32) 50%,transparent 52%),
+      radial-gradient(1px 1px at 10% 78%,rgba(255,255,255,.38) 50%,transparent 52%),
+      radial-gradient(1.5px 1.5px at 90% 82%,rgba(255,255,255,.28) 50%,transparent 52%),
+      linear-gradient(rgba(0,229,255,0) 50%,rgba(0,229,255,.025) 50%);
+    background-size:100% 100%,100% 100%,100% 100%,100% 100%,100% 100%,100% 100%,100% 4px;">
 
     <!-- ambient background art -->
     <div id="ftcmd_bg_art" style="
@@ -525,6 +534,7 @@
   function initGame() {
     const root = document.getElementById('ftcmd_root');
     if (!root) return;
+    ensureFlashAnimStyle();   // cosmic bg / confetti / shake CSS — inject up front, not just on first flash
 
     G = {
       level: 1,
@@ -607,6 +617,10 @@
     G.timeLeft = ROUND_TIMES[lv] || ROUND_TIME_L1;
     updateTimerDisplay();
   }
+
+  // (ensureFlashAnimStyle also carries the cosmic starfield/scanline/shard/shake
+  // CSS — see its definition below. Call it up front so the chrome looks right
+  // from the very first frame, not just after the first feedback flash fires.)
 
   // ── Timer ──────────────────────────────────────────────────────
   function startTimer() {
@@ -939,6 +953,7 @@
       G.streak = 0;
       G.score = Math.max(0, G.score - 30);
       flashFeedback(false, card.name, 0, 0);
+      shakeRoot();
     }
 
     updateScore();
@@ -991,6 +1006,15 @@
 
   function showLevelTransition(lv) {
     clearInterval(G.timerID);
+    // G.phase must leave 'play' here — otherwise handleChoice()'s guard
+    // (`G.phase !== 'play'`) never fires, so keydown ArrowLeft/ArrowRight/i/p
+    // (keyHandler checks the same 'play' phase) keeps calling handleChoice()
+    // against the frozen card underneath this overlay, farming unlimited
+    // score for free until the player clicks "ENTER LEVEL". Real bug found
+    // via testing, not just a console-only edge case: keyHandler is a plain
+    // document-level keydown listener, so any keypress reaches it regardless
+    // of what's visually on top.
+    G.phase = 'transition';
     G._overlayBusy = true;   // level-transition screen owns #ftcmd_end right now — ❓ must not clobber it
     const end = document.getElementById('ftcmd_end');
     if (!end) return;
@@ -1001,7 +1025,7 @@
     end.innerHTML = `
 <div style="text-align:center;padding:30px 24px;max-width:380px;animation:ftcmdWinPop .55s cubic-bezier(.22,1.4,.36,1);">
   <div style="font-size:50px;margin-bottom:16px;">⚡</div>
-  <div style="font-family:Orbitron,monospace;font-size:20px;color:${ACCENT};margin-bottom:8px;">
+  <div style="font-family:'Anton',sans-serif;font-size:24px;letter-spacing:.02em;color:${ACCENT};margin-bottom:8px;">
     MISSION ACCOMPLISHED!
   </div>
   <div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:20px;line-height:1.5;">
@@ -1011,10 +1035,11 @@
     border-radius:12px;padding:14px;margin-bottom:24px;font-size:13px;color:rgba(255,255,255,.7);">
     ${copy.tip}
   </div>
-  <button id="ftcmd_next_lv_btn" style="
+  <button id="ftcmd_next_lv_btn" class="ftcmd-shard" style="
     padding:14px 32px;border-radius:10px;cursor:pointer;
     background:rgba(0,255,255,.1);border:2px solid ${ACCENT};
-    color:${ACCENT};font-size:15px;font-weight:700;font-family:Orbitron,monospace;">
+    color:${ACCENT};font-size:15px;font-weight:700;font-family:Orbitron,monospace;
+    box-shadow:0 0 20px rgba(0,255,255,.25);">
     ENTER LEVEL ${lv} →
   </button>
 </div>`;
@@ -1026,6 +1051,7 @@
       G.correct = 0;
       G.wrong = 0;
       G.decided = false;
+      G.phase = 'play';
       buildLevel(lv);
       renderDots();
       renderCard();
@@ -1093,8 +1119,26 @@
         0%   { opacity:0; transform:scale(.92); }
         100% { opacity:1; transform:scale(1); }
       }
+      @keyframes ftcmdConfettiFall {
+        0%   { transform:translateY(-30px) rotate(0deg); opacity:1; }
+        100% { transform:translateY(460px) rotate(360deg); opacity:0; }
+      }
+      .ftcmd-confetti { position:absolute; top:-24px; font-size:1.3rem; animation:ftcmdConfettiFall 1.7s ease-in forwards; pointer-events:none; z-index:60; }
+      @keyframes ftcmdShake {10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-6px)}40%,60%{transform:translateX(6px)}}
+      .ftcmd-shaking { animation:ftcmdShake .4s; }
+      .ftcmd-shard { clip-path:polygon(0 0,92% 0,100% 34%,100% 100%,8% 100%,0 66%) !important; transition:filter .15s; }
+      .ftcmd-shard:hover { filter:brightness(1.1); }
     `;
     document.head.appendChild(style);
+  }
+
+  // ── Shake (wrong forecast) ──────────────────────────────────────
+  function shakeRoot() {
+    const root = document.getElementById('ftcmd_root');
+    if (!root) return;
+    root.classList.remove('ftcmd-shaking');
+    void root.offsetWidth;
+    root.classList.add('ftcmd-shaking');
   }
 
   // ── Score display ──────────────────────────────────────────────
@@ -1164,7 +1208,12 @@
       ? 'ftcmdWinPop .55s cubic-bezier(.22,1.4,.36,1)'
       : 'ftcmdEndFade .35s ease-out';
 
-    end.innerHTML = `
+    const confettiHTML = won ? Array.from({ length: 18 }, (_, i) => {
+      const emo = ['✦', '●', '▲', '★', '🔭'][i % 5], col = [ACCENT, '#FFD700', '#a855f7', '#00FF88'][i % 4];
+      return `<span class="ftcmd-confetti" style="left:${4 + Math.random() * 92}%;animation-delay:${(Math.random() * .5).toFixed(2)}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+
+    end.innerHTML = `${confettiHTML}
 <div style="text-align:center;padding:28px 20px;max-width:400px;width:100%;animation:${endAnim};">
 
   <div style="font-family:Orbitron,monospace;font-size:11px;color:rgba(0,255,255,.5);
@@ -1172,7 +1221,7 @@
 
   <div style="display:flex;gap:4px;justify-content:center;margin-bottom:14px;">${starsHTML}</div>
 
-  <div style="font-family:Orbitron,monospace;font-size:20px;color:${titleColor};
+  <div style="font-family:'Anton',sans-serif;font-size:26px;letter-spacing:.02em;color:${titleColor};
     margin-bottom:6px;">${titleText}</div>
 
   ${reasonText ? `<div style="font-size:12px;color:rgba(255,107,107,.7);margin-bottom:12px;">${reasonText}</div>` : ''}
@@ -1210,10 +1259,11 @@
   </div>
 
   <div style="display:flex;gap:10px;justify-content:center;">
-    <button id="ftcmd_play_again" style="
+    <button id="ftcmd_play_again" class="ftcmd-shard" style="
       flex:1;max-width:150px;padding:13px;border-radius:10px;cursor:pointer;
       background:rgba(0,255,255,.1);border:2px solid ${ACCENT};
-      color:${ACCENT};font-size:13px;font-weight:700;font-family:Orbitron,monospace;">
+      color:${ACCENT};font-size:13px;font-weight:700;font-family:Orbitron,monospace;
+      box-shadow:0 0 20px rgba(0,255,255,.25);">
       ▶ PLAY AGAIN
     </button>
     <button id="ftcmd_to_hub" style="

@@ -118,10 +118,10 @@
     _removeInputListeners();
     setTimeout(initGame, 40);
     return `
-<div id="mmRoot" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff;touch-action:none">
+<div id="mmRoot" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%, ${ACC}26, #0a0620 44%, ${BG} 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff;touch-action:none">
 
   <!-- Background canvas -->
-  <canvas id="mmBg" style="position:absolute;inset:0;opacity:.22;pointer-events:none"></canvas>
+  <canvas id="mmBg" style="position:absolute;inset:0;opacity:.3;pointer-events:none"></canvas>
 
   <!-- Neon city skyline decorations -->
   <div id="mmSkyline" style="position:absolute;bottom:0;left:0;right:0;height:120px;pointer-events:none;z-index:1"></div>
@@ -180,6 +180,10 @@
     <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,${ACC},${ACC2},${NEON},${ACC2},${ACC},transparent);opacity:.7"></div>
   </div>
 
+  <!-- glow pool beneath the player — a colored light pool grounds the sprite
+       against this near-black cosmic backdrop far better than a dark drop-shadow would -->
+  <div id="mmPlayerGlow" style="position:absolute;bottom:60px;z-index:9;width:100px;height:22px;pointer-events:none;transform:translateX(-50%);left:50%;background:radial-gradient(ellipse at center, ${ACC}66 0%, ${NEON}22 55%, transparent 78%);filter:blur(1px)"></div>
+
   <!-- PLAYER element (basket/character) -->
   <div id="mmPlayer" style="position:absolute;bottom:64px;z-index:10;width:68px;height:52px;pointer-events:none;transform:translateX(-50%);left:50%">
     <canvas id="mmPlayerCanvas" width="68" height="52"></canvas>
@@ -227,7 +231,9 @@
     clearTimeout(_scandalTimer);
     clearInterval(_viralSpike); _viralSpike = null;
     _removeInputListeners();
-    if (window.state) state.viewingWorld = 'risktaker';
+    // Builder/Launch Lab hub id is 'builder' (WORLDS.builder) — this game is
+    // reached from the Builder hub's Mini-Games grid, NOT risktaker.
+    if (window.state) state.viewingWorld = 'builder';
     goTo('hub');
   };
 
@@ -626,6 +632,11 @@
         60%  { transform:translate(-50%,-50%) scale(1) rotate(0deg); opacity:1; }
         100% { transform:translate(-50%,-65%) scale(.92) rotate(0deg); opacity:0; }
       }
+      @keyframes mm_confettiFall { 0%{transform:translateY(-30px) rotate(0deg);opacity:1} 100%{transform:translateY(480px) rotate(360deg);opacity:0} }
+      @keyframes mm_winShine { to { background-position:-20% 0; } }
+      .mm-winshine::before { content:''; position:absolute; inset:0; background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%); background-size:220% 100%; background-position:120% 0; animation:mm_winShine 2.2s ease-in-out .3s 1; pointer-events:none; border-radius:inherit }
+      /* Cyber-Premium Gaming HUD scanline — same recipe as arcade.js .arc-wrap::after */
+      #mmRoot::after { content:''; position:absolute; inset:0; z-index:28; pointer-events:none; background:linear-gradient(rgba(124,58,237,0) 50%,rgba(124,58,237,.025) 50%); background-size:100% 4px; }
     `;
     document.head.appendChild(s);
   })();
@@ -680,6 +691,8 @@
 
     const playerEl = document.getElementById('mmPlayer');
     if (playerEl) playerEl.style.left = G.playerX + 'px';
+    const glowEl = document.getElementById('mmPlayerGlow');
+    if (glowEl) glowEl.style.left = G.playerX + 'px';
   }
 
   /* ── update falling items ────────────────────────────────────── */
@@ -1121,11 +1134,12 @@
     if (stars >= 2)  badges.push({ label:'Viral Bonus',      emoji:'📈', color:NEON });
     badges.push({ label:`+${coins} Coins`, emoji:'🪙', color:GOLD });
 
+    const realWin = !rep0 && stars >= 2; // "real win" bar for the confetti/shine celebration
     const over = document.getElementById('mmOver');
     if (!over) return;
     over.style.display = 'flex';
     over.innerHTML = `
-      <div style="text-align:center;padding:28px 20px;max-width:360px;width:90vw">
+      <div class="${realWin ? 'mm-winshine' : ''}" style="position:relative;text-align:center;padding:28px 20px;max-width:360px;width:90vw">
         <div style="font-family:Orbitron,sans-serif;font-size:.5rem;letter-spacing:.2em;color:${rep0?DANGER:ACC2};margin-bottom:10px">
           ${rep0 ? '⚠ GAME OVER' : 'CAMPAIGN RESULTS'}
         </div>
@@ -1157,6 +1171,23 @@
       </div>
     `;
     window.startL1 = function () { startLevel(1); };
+    if (realWin) spawnConfetti(over);
+  }
+
+  /* ── confetti burst — real wins only, matches arcade.js's .arc-confetti recipe ── */
+  function spawnConfetti (root) {
+    if (!root) return;
+    const colors = [ACC, ACC2, GOLD, GOOD, '#fff'];
+    for (let i = 0; i < 46; i++) {
+      setTimeout(() => {
+        if (!root.isConnected) return;
+        const el = document.createElement('div');
+        const x = Math.random() * 100;
+        el.style.cssText = `position:absolute;top:-24px;left:${x}%;width:${5+Math.random()*5}px;height:${5+Math.random()*5}px;border-radius:${Math.random()>.5?'50%':'2px'};background:${colors[Math.floor(Math.random()*colors.length)]};z-index:35;pointer-events:none;animation:mm_confettiFall ${1.3+Math.random()*.8}s ease-in forwards`;
+        root.appendChild(el);
+        setTimeout(() => el.remove(), 2200);
+      }, i * 28);
+    }
   }
 
   /* ══════════════════════════════════════════════════════════════

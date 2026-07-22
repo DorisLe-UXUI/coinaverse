@@ -607,7 +607,9 @@
      mechanic never changes — just tighter budgets & faster card timers.
   ───────────────────────────────────────────── */
   function renderHelp(stage) {
-    const resuming = gs._helpResumePhase != null;
+    // 'idle' means "fresh entry, first tutorial" (set by startSession()), not an
+    // actual mid-game reopen — only 'playing'/'gate' should read as "resuming"
+    const resuming = gs._helpResumePhase != null && gs._helpResumePhase !== 'idle';
     stage.innerHTML = `
       <div class="bb-gate">
         <div class="bb-gate-icon">🏦</div>
@@ -692,8 +694,14 @@
     else if (stars === 1) lesson = 'You\'re learning! Focus on APR comparison and monthly budget math.';
     else                  lesson = 'NICE TRY! Power up and try again — every loan reviewed is a lesson earned.';
 
-    stage.innerHTML = `
-      <div class="bb-end">
+    // confetti + card shine-sweep on a real win only (never on a 0-star result)
+    const confettiHTML = stars >= 1 ? Array.from({length:18},(_,i)=>{
+      const emo=['✦','●','▲','★'][i%4], col=['#38bdf8','#fbbf24','#34d399','#a78bfa'][i%4];
+      return `<span class="bb-confetti" style="left:${4+Math.random()*92}%;animation-delay:${(Math.random()*.5).toFixed(2)}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+
+    stage.innerHTML = `${confettiHTML}
+      <div class="bb-end${stars>=1?' bb-win-shine':''}">
         <div class="bb-end-level">LEVEL ${curLevel} · ${cfgFor(curLevel).name}</div>
         <div class="bb-end-stars">${starStr}</div>
         <div class="bb-end-score">${gs.score} pts</div>
@@ -1176,7 +1184,7 @@
       width: 100%;
       height: 100%;
       min-height: 100vh;
-      background: #03040c;
+      background: radial-gradient(130% 95% at 50% -8%, rgba(56,189,248,.14), #0a1230 44%, #03040c 100%);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -1184,6 +1192,30 @@
       font-family: 'Inter', sans-serif;
       color: #e2e8f0;
       box-sizing: border-box;
+    }
+    #bb-root::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: linear-gradient(rgba(56,189,248,0) 50%, rgba(56,189,248,.025) 50%);
+      background-size: 100% 4px;
+    }
+    @keyframes bbConfettiFall { 0% { transform: translateY(-30px) rotate(0deg); opacity: 1; } 100% { transform: translateY(440px) rotate(360deg); opacity: 0; } }
+    .bb-confetti { position: absolute; top: -24px; font-size: 1.3rem; animation: bbConfettiFall 1.7s ease-in forwards; pointer-events: none; z-index: 21; }
+    .bb-win-shine { position: relative; overflow: hidden; }
+    @keyframes bbShine { to { background-position: -20% 0; } }
+    .bb-win-shine::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.16) 48%, transparent 66%);
+      background-size: 220% 100%;
+      background-position: 120% 0;
+      animation: bbShine 2.2s ease-in-out .3s 1;
+      pointer-events: none;
+      border-radius: 20px;
     }
 
     #bb-stars {

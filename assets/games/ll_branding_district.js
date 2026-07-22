@@ -236,14 +236,20 @@
     G = null;
     setTimeout(initGame, 40);
     return `
-<div id="bd_root" style="position:absolute;inset:0;background:${DARK_BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff">
+<div id="bd_root" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%, ${ACCENT}26, ${DARK_BG} 46%, #05020e 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff">
 
   <style>
+    /* Cyber-Premium Gaming HUD scanline overlay — same recipe as arcade.js .arc-wrap::after,
+       layered above the city canvas so the whole screen reads as one visual system */
+    #bd_root::after { content:''; position:absolute; inset:0; z-index:16; pointer-events:none; background:linear-gradient(rgba(124,58,237,0) 50%,rgba(124,58,237,.025) 50%); background-size:100% 4px; }
     @keyframes bd_pop_correct { 0%{transform:scale(1)} 35%{transform:scale(1.06)} 100%{transform:scale(1)} }
     @keyframes bd_shake_wrong { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
     @keyframes bd_float_up { 0%{opacity:1;transform:translate(-50%,-50%) scale(1)} 100%{opacity:0;transform:translate(-50%,-140%) scale(1.25)} }
     @keyframes bd_burst_particle { 0%{opacity:1;transform:translate(-50%,-50%) scale(.4)} 100%{opacity:0;transform:translate(calc(-50% + var(--px)),calc(-50% + var(--py))) scale(1)} }
     @keyframes bd_streak_banner { 0%{opacity:0;transform:translate(-50%,-40%) scale(.8)} 18%{opacity:1;transform:translate(-50%,-50%) scale(1.08)} 78%{opacity:1;transform:translate(-50%,-50%) scale(1)} 100%{opacity:0;transform:translate(-50%,-60%) scale(.92)} }
+    @keyframes bd_confetti_fall { 0%{transform:translateY(-30px) rotate(0deg);opacity:1} 100%{transform:translateY(480px) rotate(360deg);opacity:0} }
+    @keyframes bd_win_shine { to{ background-position:-20% 0; } }
+    .bd-winshine::before{content:'';position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:bd_win_shine 2.2s ease-in-out .3s 1;pointer-events:none;border-radius:inherit}
   </style>
 
   <!-- city backdrop canvas -->
@@ -358,7 +364,9 @@
     }
     G = null;
     stopAmbientCity();
-    if (window.state) state.viewingWorld = 'risktaker';
+    // Builder/Launch Lab hub id is 'builder' (WORLDS.builder) — this game is
+    // reached from the Builder hub's Mini-Games grid, NOT risktaker.
+    if (window.state) state.viewingWorld = 'builder';
     goTo('hub');
   };
 
@@ -951,6 +959,7 @@
 
     const starStr = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
     const confusedOut = G.confusion >= CONFUSION_MAX;
+    const won = stars >= 2 && !confusedOut; // "real win" bar for the confetti/shine celebration
     const resultMsg = confusedOut
       ? 'Customer Confusion maxed out — brands lost focus!'
       : G.recognition >= 80
@@ -967,13 +976,13 @@
       padding:20px;box-sizing:border-box;overflow-y:auto;
     `;
     overlay.innerHTML = `
-<div style="max-width:480px;width:100%;text-align:center">
+<div class="${won ? 'bd-winshine' : ''}" style="max-width:480px;width:100%;text-align:center;position:relative">
 
   <!-- stars -->
   <div style="font-size:2.4rem;margin-bottom:6px;text-shadow:0 0 20px ${GOLD}88">${starStr}</div>
 
   <!-- title -->
-  <div style="font-family:Orbitron,sans-serif;font-size:1.3rem;letter-spacing:.18em;color:${LIGHT};margin-bottom:4px;text-shadow:0 0 20px ${ACCENT}aa">
+  <div style="font-family:'Anton',sans-serif;font-size:1.5rem;letter-spacing:.07em;color:${LIGHT};margin-bottom:4px;text-shadow:0 0 20px ${ACCENT}aa">
     ${stars === 3 ? 'PERFECT BRAND!' : stars === 2 ? 'BRAND BUILT!' : stars === 1 ? 'BRAND DRAFTED!' : 'BRAND COLLAPSED!'}
   </div>
   <div style="font-size:.82rem;color:#aaa;margin-bottom:18px">${resultMsg}</div>
@@ -1041,6 +1050,23 @@
 
 </div>`;
     root.appendChild(overlay);
+    if (won) spawnConfetti(root);
+  }
+
+  /* ── confetti burst — real wins only (stars>=2), matches arcade.js's
+     .arc-confetti recipe so a completed brand feels like the rest of the app ── */
+  function spawnConfetti(root) {
+    const colors = [ACCENT, PINK, GOLD, GREEN, '#fff'];
+    for (let i = 0; i < 46; i++) {
+      setTimeout(() => {
+        if (!root.isConnected) return;
+        const el = document.createElement('div');
+        const x = Math.random() * 100;
+        el.style.cssText = `position:absolute;top:-24px;left:${x}%;width:${5+Math.random()*5}px;height:${5+Math.random()*5}px;border-radius:${Math.random()>.5?'50%':'2px'};background:${colors[Math.floor(Math.random()*colors.length)]};z-index:120;pointer-events:none;animation:bd_confetti_fall ${1.3+Math.random()*.8}s ease-in forwards`;
+        root.appendChild(el);
+        setTimeout(() => el.remove(), 2200);
+      }, i * 28);
+    }
   }
 
   window._bd_replay = function () {

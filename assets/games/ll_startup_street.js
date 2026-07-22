@@ -112,6 +112,7 @@
   let G = null;
   let _raf = null;
   let _endTimer = null;
+  let _ssSeenIntro = false; // module-level so it survives level-up/replay (which recreate G), like ll_scaling_center.js's _scSeenIntro
 
   /* ══════════════════════════════════════════════════════════════
      SCREEN REGISTRATION
@@ -122,10 +123,10 @@
     G = null;
     clearTimeout(window._ssInitTimer);
     window._ssInitTimer = setTimeout(initGame, 40);
-    return `<div id="ssRoot" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
+    return `<div id="ssRoot" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%, ${ACCENT}26, #150a2c 44%, ${BG} 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
 
   <!-- Animated background grid -->
-  <canvas id="ssBg" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.35"></canvas>
+  <canvas id="ssBg" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.45"></canvas>
 
   <!-- TOP BAR -->
   <div id="ssTopBar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:8px;padding:10px 14px 8px;background:linear-gradient(180deg,rgba(3,4,12,.97) 70%,transparent);border-bottom:1px solid ${ACCENT}33">
@@ -223,11 +224,18 @@
   function showHowToPlay () {
     const overlay = document.getElementById('ssHelp');
     if (!overlay) return;
+    // firstTime (label text) is tracked separately from wasPlay (pause logic) —
+    // startLevel() sets phase='play' and kicks off the RAF loop BEFORE this first
+    // auto-show call, so gating the button label on phase alone always read
+    // "RESUME" even on a brand-new launch. _ssSeenIntro (module-level, survives
+    // the level-up/replay G recreation) fixes that.
+    const firstTime = !_ssSeenIntro;
     const wasPlay = G && G.phase === 'play';
     if (wasPlay) {
       G.phase = 'paused';
       if (_raf) { cancelAnimationFrame(_raf); _raf = null; }
     }
+    _ssSeenIntro = true;
     overlay.style.display = 'flex';
     overlay.innerHTML = `
       <div style="max-width:380px;width:92%;padding:26px 22px;background:rgba(10,5,22,.97);border:1.5px solid ${ACCENT}88;border-radius:18px;text-align:center;box-shadow:0 0 50px ${ACCENT}33;max-height:90vh;overflow-y:auto">
@@ -240,7 +248,7 @@
           <li style="margin-bottom:8px"><b style="color:${ACCENT_L}">Watch out:</b> from Level 2 on, random events knock a slider down — react fast before the round timer runs out, and don't let Profit or Happiness hit zero.</li>
           <li><b style="color:${ACCENT_L}">Scoring:</b> higher Profit and Happiness at the end of every round earns more stars.</li>
         </ul>
-        <button onclick="window.ssCloseHelp()" style="padding:12px 30px;border:none;border-radius:11px;background:linear-gradient(90deg,${ACCENT_D},${ACCENT});color:#fff;font-family:Orbitron,sans-serif;font-size:.66rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${wasPlay ? '▶ RESUME' : 'GOT IT — START ▶'}</button>
+        <button onclick="window.ssCloseHelp()" style="padding:12px 30px;border:none;border-radius:11px;background:linear-gradient(90deg,${ACCENT_D},${ACCENT});color:#fff;font-family:Orbitron,sans-serif;font-size:.66rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${firstTime ? 'GOT IT — START ▶' : '▶ RESUME'}</button>
       </div>`;
   }
 
@@ -272,6 +280,11 @@
       @keyframes ssCardHitGood{0%{box-shadow:0 0 0 0 rgba(34,211,165,.6),inset 0 0 0 0 rgba(34,211,165,0)}30%{box-shadow:0 0 22px 4px rgba(34,211,165,.55),inset 0 0 18px 0 rgba(34,211,165,.12)}100%{box-shadow:0 0 0 0 rgba(34,211,165,0),inset 0 0 0 0 rgba(34,211,165,0)}}
       @keyframes ssCardHitBad{0%{box-shadow:0 0 0 0 rgba(239,68,68,.6),inset 0 0 0 0 rgba(239,68,68,0)}30%{box-shadow:0 0 22px 4px rgba(239,68,68,.55),inset 0 0 18px 0 rgba(239,68,68,.12)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0),inset 0 0 0 0 rgba(239,68,68,0)}}
       @keyframes ssWinPop{0%{opacity:0;transform:scale(.55) rotate(-8deg)}55%{opacity:1;transform:scale(1.08) rotate(2deg)}80%{transform:scale(.97) rotate(-1deg)}100%{opacity:1;transform:scale(1) rotate(0deg)}}
+      @keyframes ssConfettiFall{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(480px) rotate(360deg);opacity:0}}
+      @keyframes ssWinShine{to{background-position:-20% 0}}
+      .ss-winshine::before{content:'';position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:ssWinShine 2.2s ease-in-out .3s 1;pointer-events:none;border-radius:inherit}
+      /* Cyber-Premium Gaming HUD scanline — same recipe as arcade.js .arc-wrap::after */
+      #ssRoot::after{content:'';position:absolute;inset:0;z-index:38;pointer-events:none;background:linear-gradient(rgba(124,58,237,0) 50%,rgba(124,58,237,.025) 50%);background-size:100% 4px}
       .ss-slider::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:${ACCENT_L};border:2.5px solid #fff;box-shadow:0 0 10px ${ACCENT}88;cursor:pointer}
       .ss-slider::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:${ACCENT_L};border:2.5px solid #fff;cursor:pointer}
       .ss-slider{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:3px;background:rgba(255,255,255,.12);outline:none;cursor:pointer}
@@ -847,8 +860,9 @@
     /* win moments get a bouncy scale+rotate pop-in; bankruptcy keeps the
        plain slide-in fade so the two outcomes feel distinctly different */
     const endAnim = bankrupt ? 'ssSlideIn .5s ease' : 'ssWinPop .55s cubic-bezier(.22,1.4,.4,1)';
+    const realWin = !bankrupt && stars >= 2; // "real win" bar for the confetti/shine celebration
 
-    overEl.innerHTML = `<div style="max-width:90%;width:340px;text-align:center;animation:${endAnim}">
+    overEl.innerHTML = `<div class="${realWin ? 'ss-winshine' : ''}" style="position:relative;max-width:90%;width:340px;text-align:center;animation:${endAnim}">
       <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.18em;color:${ACCENT_L};margin-bottom:10px">
         ${bankrupt ? 'BUSINESS COLLAPSED' : 'PERIOD COMPLETE'}
       </div>
@@ -896,6 +910,24 @@
     if (l2Btn)    l2Btn.onclick    = () => { overEl.style.display='none'; startLevel(nextIdx); };
     if (againBtn) againBtn.onclick = () => { overEl.style.display='none'; startLevel(G.lvIdx); };
     if (hubBtn)   hubBtn.onclick   = window.ll_startup_streetExit;
+
+    if (realWin) spawnConfetti(overEl);
+  }
+
+  /* ── confetti burst — real wins only, matches arcade.js's .arc-confetti recipe ── */
+  function spawnConfetti (root) {
+    if (!root) return;
+    const colors = [ACCENT, ACCENT_L, GOLD, GRN, '#fff'];
+    for (let i = 0; i < 46; i++) {
+      setTimeout(() => {
+        if (!root.isConnected) return;
+        const el = document.createElement('div');
+        const x = Math.random() * 100;
+        el.style.cssText = `position:absolute;top:-24px;left:${x}%;width:${5+Math.random()*5}px;height:${5+Math.random()*5}px;border-radius:${Math.random()>.5?'50%':'2px'};background:${colors[Math.floor(Math.random()*colors.length)]};z-index:60;pointer-events:none;animation:ssConfettiFall ${1.3+Math.random()*.8}s ease-in forwards`;
+        root.appendChild(el);
+        setTimeout(() => el.remove(), 2200);
+      }, i * 28);
+    }
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -927,7 +959,9 @@
     if (_raf) { cancelAnimationFrame(_raf); _raf = null; }
     if (_endTimer) { clearTimeout(_endTimer); _endTimer = null; }
     clearTimeout(window._ssInitTimer);
-    if (window.state) state.viewingWorld = 'risktaker';
+    // Builder/Launch Lab hub id is 'builder' (WORLDS.builder) — this game is
+    // reached from the Builder hub's Mini-Games grid, NOT risktaker.
+    if (window.state) state.viewingWorld = 'builder';
     goTo('hub');
   };
 

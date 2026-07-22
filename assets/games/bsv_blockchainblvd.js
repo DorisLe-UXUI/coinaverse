@@ -71,8 +71,14 @@
       @keyframes bsvStreakOut { 0%{opacity:1} 100%{opacity:0;transform:translateX(-50%) translateY(-14px)} }
       .bsv_streak_banner { animation:bsvStreakIn .3s ease forwards; }
       .bsv_streak_banner.bsv_out { animation:bsvStreakOut .5s ease forwards; }
+      @keyframes bsvConfettiFall { 0%{transform:translateY(-30px) rotate(0deg);opacity:1} 100%{transform:translateY(440px) rotate(360deg);opacity:0} }
+      .bsv_confetti { position:absolute;top:-24px;font-size:1.3rem;animation:bsvConfettiFall 1.7s ease-in forwards;pointer-events:none;z-index:60; }
+      @keyframes bsvBlvdShake {10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-6px)}40%,60%{transform:translateX(6px)}}
+      .bsv_shaking { animation:bsvBlvdShake .4s; }
+      .bsv_shard { clip-path:polygon(0 0,92% 0,100% 38%,100% 100%,8% 100%,0 62%) !important; transition:filter .15s; }
+      .bsv_shard:hover { filter:brightness(1.12); }
     </style>
-    <div id="bsv_bb_root" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff;touch-action:none">
+    <div id="bsv_bb_root" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, ${ACCENT} 15%, #1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff;touch-action:none">
       <!-- Top Bar -->
       <div id="bsv_topbar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent);border-bottom:1px solid rgba(0,255,255,.15)">
         <button id="bsv_back" style="padding:6px 13px;border:1px solid rgba(0,255,255,.35);border-radius:8px;background:rgba(0,255,255,.08);color:${ACCENT};font-family:Inter,sans-serif;font-size:.7rem;letter-spacing:.06em;cursor:pointer">← HUB</button>
@@ -130,7 +136,7 @@
     ov.style.display = 'flex';
     ov.innerHTML = `
       <div style="max-width:420px;width:90%;text-align:center;padding:24px">
-        <div style="font-family:Orbitron,sans-serif;font-size:1.4rem;color:${ACCENT};text-shadow:0 0 20px rgba(0,255,255,.6);margin-bottom:6px">⛓ BLOCKCHAIN BLVD</div>
+        <div style="font-family:'Anton',sans-serif;font-size:1.6rem;letter-spacing:.04em;color:${ACCENT};text-shadow:0 0 20px rgba(0,255,255,.6);margin-bottom:6px">⛓ BLOCKCHAIN BLVD</div>
         <div style="font-size:.8rem;color:rgba(255,255,255,.55);margin-bottom:28px;letter-spacing:.06em">Validate. Order. Seal. Protect the chain.</div>
 
         <div style="display:flex;flex-direction:column;gap:14px">
@@ -635,13 +641,19 @@
   }
 
   // ─── Order check ─────────────────────────────────────────────
+  // `orderScored` guards against a real score-farm exploit: swapping a block
+  // back and forth across its correct slot used to re-award +5 EVERY time it
+  // re-entered 'ordered' state, so a player could stand still and rack up
+  // unlimited score by oscillating two blocks. Now each block only ever pays
+  // out its +5 once (persists even if the block is later bumped back to
+  // 'unordered' by a further swap, or corrupted/repaired by a hacker attack).
   function checkOrder(chainId) {
     if (!G) return;
     const chain = G.chains[chainId];
     chain.blocks.forEach((b, slotIdx) => {
       if (b.state === 'unordered' && slotIdx === b.correctPos) {
         b.state = 'ordered';
-        G.score += 5;
+        if (!b.orderScored) { b.orderScored = true; G.score += 5; }
         spawnParticle(slotIdx * 90 + 30, 100 + chainId * 40, ACCENT);
       } else if (b.state === 'ordered' && slotIdx !== b.correctPos) {
         b.state = 'unordered';
@@ -731,6 +743,7 @@
       // Wrong key — penalty
       G.score = Math.max(0, G.score - 10);
       flashScreen(DANGER);
+      shakeRoot();
     }
     updateScoreDisplay();
     rerenderChain(parseInt(chainId));
@@ -781,6 +794,7 @@
       G.badAdmitted++;
       G.score = Math.max(0, G.score - 25);
       flashScreen(DANGER, 0.5);
+      shakeRoot();
       // Check loss
       if (G.badAdmitted >= G.maxCorrupted) {
         endGame(1);
@@ -813,6 +827,7 @@
     const target = candidates[Math.floor(Math.random() * candidates.length)];
     target.block.state = 'corrupted';
     flashScreen(DANGER, 0.4);
+    shakeRoot();
     spawnParticle(120, 150, DANGER);
     showHackerWarning();
     rerenderChain(target.chainId);
@@ -961,6 +976,16 @@
 
     ctx.clearRect(0, 0, W, H);
 
+    // Ambient nebula glow blobs — same soft-glow language used across the rest
+    // of the app's cosmic backgrounds, so this canvas doesn't read as a plain
+    // flat grid against the cosmic gradient now behind #bsv_bb_root.
+    const ng1 = ctx.createRadialGradient(W * 0.18, H * 0.24, 0, W * 0.18, H * 0.24, W * 0.38);
+    ng1.addColorStop(0, 'rgba(0,255,255,.05)'); ng1.addColorStop(1, 'rgba(0,255,255,0)');
+    ctx.fillStyle = ng1; ctx.fillRect(0, 0, W, H);
+    const ng2 = ctx.createRadialGradient(W * 0.82, H * 0.7, 0, W * 0.82, H * 0.7, W * 0.34);
+    ng2.addColorStop(0, 'rgba(187,136,255,.05)'); ng2.addColorStop(1, 'rgba(187,136,255,0)');
+    ctx.fillStyle = ng2; ctx.fillRect(0, 0, W, H);
+
     // Grid lines
     ctx.strokeStyle = 'rgba(0,255,255,0.04)';
     ctx.lineWidth = 1;
@@ -1029,6 +1054,15 @@
     G._flash = { color, alpha, t: 0.35, maxT: 0.35 };
   }
 
+  // ─── Shake (wrong key / hacker attack / admitted fake) ─────────
+  function shakeRoot() {
+    const root = document.getElementById('bsv_bb_root');
+    if (!root) return;
+    root.classList.remove('bsv_shaking');
+    void root.offsetWidth;
+    root.classList.add('bsv_shaking');
+  }
+
   // ─── HUD updates ──────────────────────────────────────────────
   function updateScoreDisplay() {
     const el = document.getElementById('bsv_score');
@@ -1089,9 +1123,13 @@
     const ov = document.getElementById('bsv_overlay');
     if (!ov) return;
     ov.style.display = 'flex';
-    ov.innerHTML = `
+    const confettiHTML = G.phase === 'won' ? Array.from({ length: 18 }, (_, i) => {
+      const emo = ['✦', '●', '▲', '★', '🔑'][i % 5], col = [ACCENT, GOLD, '#a855f7', '#00DC82'][i % 4];
+      return `<span class="bsv_confetti" style="left:${4 + Math.random() * 92}%;animation-delay:${(Math.random() * .5).toFixed(2)}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+    ov.innerHTML = `${confettiHTML}
       <div style="max-width:440px;width:92%;text-align:center;padding:26px 22px;background:rgba(3,4,12,.95);border:1px solid rgba(0,255,255,.2);border-radius:18px;box-shadow:0 0 40px rgba(0,255,255,.08)">
-        <div style="font-family:Orbitron,sans-serif;font-size:1rem;color:${ACCENT};letter-spacing:.18em;text-shadow:0 0 16px rgba(0,255,255,.5);margin-bottom:4px">
+        <div style="font-family:'Anton',sans-serif;font-size:1.3rem;color:${ACCENT};letter-spacing:.1em;text-shadow:0 0 16px rgba(0,255,255,.5);margin-bottom:4px">
           ${G.phase === 'won' ? 'CHAIN SEALED!' : 'CHAIN BREACHED'}
         </div>
         <div style="font-size:1.8rem;margin:10px 0">${starStr}</div>
@@ -1119,7 +1157,7 @@
         </div>
 
         <div style="display:flex;gap:10px;justify-content:center">
-          <button onclick="bsv_playAgain()" style="flex:1;max-width:160px;padding:11px;border:1px solid rgba(0,255,255,.4);border-radius:10px;background:rgba(0,255,255,.1);color:${ACCENT};font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.1em;cursor:pointer">↺ PLAY AGAIN</button>
+          <button onclick="bsv_playAgain()" class="bsv_shard" style="flex:1;max-width:160px;padding:11px;border:1px solid rgba(0,255,255,.4);border-radius:10px;background:rgba(0,255,255,.1);color:${ACCENT};font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.1em;cursor:pointer;box-shadow:0 0 20px rgba(0,255,255,.25)">↺ PLAY AGAIN</button>
           <button onclick="bsv_blockchainblvdExit()" style="flex:1;max-width:160px;padding:11px;border:1px solid rgba(255,255,255,.15);border-radius:10px;background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
         </div>
       </div>`;

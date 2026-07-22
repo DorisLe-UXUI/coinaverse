@@ -66,8 +66,51 @@
   ══════════════════════════════════════════════════════════════ */
   window.SCREENS = window.SCREENS || {};
 
+  /* ── COSMIC VISUAL SYSTEM — nebula gradient + confetti + screen-shake to
+     match the shared "Cyber-Premium Gaming HUD" recipe used everywhere else
+     (see arcade.js .arc-wrap). Risk Control already had a great radar sweep
+     and scanline canvas — this just gives the root itself the same nebula
+     depth instead of a flat solid fill. Scoped to #rcc-* to avoid collision. ── */
+  function injectRccCosmicStyle() {
+    if (document.getElementById('rccCosmicStyle')) return;
+    const s = document.createElement('style');
+    s.id = 'rccCosmicStyle';
+    s.textContent = `
+      #rcc-root{background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb,${AC} 15%,#1a1240),#130d32 44%,#0A0429 100%)!important}
+      @keyframes rccShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+      .rcc-shake{animation:rccShake .38s}
+      @keyframes rccConfettiFall{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(460px) rotate(360deg);opacity:0}}
+      .rcc-confetti{position:absolute;top:-24px;font-size:1.3rem;animation:rccConfettiFall 1.7s ease-in forwards;pointer-events:none}
+    `;
+    document.head.appendChild(s);
+  }
+  function rccConfetti(count) {
+    const root = document.getElementById('rcc-root');
+    if (!root) return;
+    const colors = [AC, GOLD, '#fff', '#40C4FF'];
+    const emojis = ['✦', '●', '▲', '★'];
+    let html = '';
+    for (let i = 0; i < (count || 26); i++) {
+      html += `<span class="rcc-confetti" style="left:${(4 + Math.random() * 92).toFixed(1)}%;animation-delay:${(Math.random() * .5).toFixed(2)}s;color:${colors[i % colors.length]}">${emojis[i % emojis.length]}</span>`;
+    }
+    const layer = document.createElement('div');
+    layer.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:110;';
+    layer.innerHTML = html;
+    root.appendChild(layer);
+    setTimeout(() => { if (layer.parentNode) layer.remove(); }, 2200);
+  }
+  function rccShakeScreen() {
+    const root = document.getElementById('rcc-root');
+    if (!root) return;
+    root.classList.remove('rcc-shake');
+    void root.offsetWidth;
+    root.classList.add('rcc-shake');
+    setTimeout(() => { if (root) root.classList.remove('rcc-shake'); }, 400);
+  }
+
   window.SCREENS.game_inv_riskcontrol = function () {
     G = null;
+    injectRccCosmicStyle();
     setTimeout(initGame, 40);
     return `
 <div id="rcc-root" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none;">
@@ -714,7 +757,13 @@
     if (!G) return;
     G.health = Math.max(0, G.health - dmg);
     updateHUD();
-    if (label) showFeedback(`⚠ ${label} hit!`, DANGER);
+    if (label) {
+      // Only a genuine missed/expired threat shakes the screen — a partial-credit
+      // "defended but not optimal" chip of damage already has its own softer
+      // '✓ DEFENDED' feedback and shouldn't feel like a full mistake.
+      showFeedback(`⚠ ${label} hit!`, DANGER);
+      rccShakeScreen();
+    }
   }
 
   /* ── finish / game over ─────────────────────────────────────── */
@@ -826,6 +875,10 @@
       "Smart investors don't just chase gains — they protect what they have. Diversifying, holding cash, and managing risk keeps your wealth safe through any storm.";
 
     showEnd();
+
+    // Celebration confetti on a real win (2-3 stars) — matches the
+    // confetti-on-real-wins-only language used across the app.
+    if (stars >= 2) rccConfetti(stars === 3 ? 34 : 18);
   }
 
   /* ── HUD helpers ───────────────────────────────────────────── */

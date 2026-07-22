@@ -221,6 +221,7 @@
 
   /* ── state ─────────────────────────────────────────────────── */
   let G = null;
+  let _pdlSeenIntro = false; // module-level so it survives level-up/replay (which recreate G), like ll_scaling_center.js's _scSeenIntro
 
   /* ── screen registration ────────────────────────────────────── */
   window.SCREENS = window.SCREENS || {};
@@ -234,7 +235,7 @@
   function buildShell() {
     return `
 <style id="pdl_styles">
-  #pdl_root { position:absolute;inset:0;background:${BG};overflow:hidden;
+  #pdl_root { position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%, ${ACCENT}26, #150a2c 44%, ${BG} 100%);overflow:hidden;
     font-family:Inter,sans-serif;color:#fff;user-select:none; }
 
   /* ambient scanlines */
@@ -292,6 +293,17 @@
     0%   { transform:translate(-50%,-50%) scale(.7); opacity:0; }
     25%  { transform:translate(-50%,-70%) scale(1.1); opacity:1; }
     100% { transform:translate(-50%,-140%) scale(1); opacity:0; }
+  }
+  @keyframes pdl_confetti_fall {
+    0%   { transform:translateY(-30px) rotate(0deg); opacity:1; }
+    100% { transform:translateY(480px) rotate(360deg); opacity:0; }
+  }
+  @keyframes pdl_win_shine { to { background-position:-20% 0; } }
+  .pdl-winshine::before {
+    content:'';position:absolute;inset:0;
+    background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%);
+    background-size:220% 100%;background-position:120% 0;
+    animation:pdl_win_shine 2.2s ease-in-out .3s 1;pointer-events:none;border-radius:inherit;
   }
   @keyframes pdl_star_pop {
     0%   { transform:scale(0) rotate(-20deg); opacity:0; }
@@ -565,7 +577,9 @@
       clearTimeout(G._toastTimer);
     }
     G = null;
-    if (window.state) state.viewingWorld = 'risktaker';
+    // Builder/Launch Lab hub id is 'builder' (WORLDS.builder) — this game is
+    // reached from the Builder hub's Mini-Games grid, NOT risktaker.
+    if (window.state) state.viewingWorld = 'builder';
     goTo('hub');
   };
 
@@ -629,6 +643,12 @@
   function showHowToPlay () {
     const overlay = document.getElementById('pdl_help');
     if (!overlay) return;
+    // firstTime (label text) is tracked separately from wasPlaying (pause logic) —
+    // initGame() sets phase='playing' and starts the timer BEFORE this first
+    // auto-show call, so gating the button label on phase alone always read
+    // "RESUME" even on a brand-new launch. _pdlSeenIntro (module-level, survives
+    // the level-up/replay G recreation) fixes that.
+    const firstTime = !_pdlSeenIntro;
     const wasPlaying = G && G.phase === 'playing';
     if (wasPlaying) {
       G.phase = 'paused';
@@ -636,6 +656,7 @@
       clearTimeout(G._bugTimer);
       clearTimeout(G._feedTimer);
     }
+    _pdlSeenIntro = true;
     overlay.style.display = 'flex';
     overlay.innerHTML = `
       <div style="max-width:380px;width:94%;padding:26px 22px;background:rgba(20,8,45,.97);border:1.5px solid ${ACCENT}88;border-radius:18px;text-align:center;box-shadow:0 0 50px ${ACCENT}33;max-height:90vh;overflow-y:auto">
@@ -648,7 +669,7 @@
           <li style="margin-bottom:8px"><b style="color:${AC2}">Watch out:</b> from Level 2 on, bugs 🐛 pop up and drain satisfaction until fixed, and customer feedback cards ask for a specific upgrade — meet the demand for a bonus.</li>
           <li><b style="color:${AC2}">Scoring:</b> higher average satisfaction across every product, spent efficiently, earns more stars when you launch.</li>
         </ul>
-        <button onclick="window.pdlCloseHelp()" style="padding:12px 30px;border:none;border-radius:11px;background:linear-gradient(90deg,${ACCENT},${AC2});color:#fff;font-family:Orbitron,sans-serif;font-size:.66rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${wasPlaying ? '▶ RESUME' : 'GOT IT — START ▶'}</button>
+        <button onclick="window.pdlCloseHelp()" style="padding:12px 30px;border:none;border-radius:11px;background:linear-gradient(90deg,${ACCENT},${AC2});color:#fff;font-family:Orbitron,sans-serif;font-size:.66rem;letter-spacing:.12em;font-weight:900;cursor:pointer">${firstTime ? 'GOT IT — START ▶' : '▶ RESUME'}</button>
       </div>`;
   }
 
@@ -1417,7 +1438,7 @@
     const resultAnim = won ? 'pdl_win_pop .5s cubic-bezier(.2,1.4,.4,1) both' : 'pdl_result_in .45s ease both';
 
     ov.innerHTML = `
-      <div style="
+      <div class="${won ? 'pdl-winshine' : ''}" style="
         width:min(380px,96vw);
         background:linear-gradient(150deg,rgba(20,8,45,.98),rgba(5,3,15,.99));
         border:2px solid ${ACCENT}44;border-radius:22px;padding:24px 20px;
@@ -1508,6 +1529,23 @@
     `;
 
     root.appendChild(ov);
+    if (won) spawnConfetti(root);
+  }
+
+  /* ── confetti burst — real wins only, matches arcade.js's .arc-confetti recipe ── */
+  function spawnConfetti (root) {
+    if (!root) return;
+    const colors = [ACCENT, AC2, GOLD, GREEN, '#fff'];
+    for (let i = 0; i < 46; i++) {
+      setTimeout(() => {
+        if (!root.isConnected) return;
+        const el = document.createElement('div');
+        const x = Math.random() * 100;
+        el.style.cssText = `position:absolute;top:-24px;left:${x}%;width:${5+Math.random()*5}px;height:${5+Math.random()*5}px;border-radius:${Math.random()>.5?'50%':'2px'};background:${colors[Math.floor(Math.random()*colors.length)]};z-index:110;pointer-events:none;animation:pdl_confetti_fall ${1.3+Math.random()*.8}s ease-in forwards`;
+        root.appendChild(el);
+        setTimeout(() => el.remove(), 2200);
+      }, i * 28);
+    }
   }
 
   function statBox(label, val, color) {

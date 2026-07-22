@@ -142,6 +142,8 @@
     let hintsVisible, hintsOpacity;
     let player, obstacles, collectibles;
     let particles;
+    let confetti = [];   // win-screen celebration particles (populated by endGame(), lives outside initGame()'s reset)
+    let shakeT = 0;       // decaying screen-shake magnitude (0..1), triggered on hit
     let rafId;
     let gameEnded;
 
@@ -178,6 +180,7 @@
       obstacles      = [];
       collectibles   = [];
       particles      = [];
+      shakeT         = 0;
       gameEnded      = false;
       player         = makePlayer();
       nextObstAt     = W * 0.9;
@@ -447,6 +450,7 @@
       fico       = Math.max(FICO_MIN, fico - cfg.hitFicoDmg);
       streakCount = 0;
       multiplier  = 1;
+      shakeT      = 0.5;
       player.stunRing = player.r;
       spawnParticles(player.x, player.y, COLORS.red, 12);
       // bounce up slightly
@@ -528,6 +532,9 @@
         if (player.stunRing > player.r * 8) player.stunRing = 0;
       }
 
+      /* screen shake decay */
+      if (shakeT > 0) shakeT = Math.max(0, shakeT - dtS * 2.2);
+
       /* obstacles */
       const obsDx = speed;
       for (const ob of obstacles) {
@@ -575,12 +582,36 @@
       }
     }
 
+    /* ── Confetti (win-screen only, real win — never on a 0-star result) ──── */
+    function updateConfetti() {
+      for (const c of confetti) { c.x += c.vx; c.y += c.vy; c.vy += 0.06; c.rot += c.vr; }
+      confetti = confetti.filter(c => c.y < H + 30);
+    }
+    function drawConfetti() {
+      for (const c of confetti) {
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.rotate(c.rot);
+        ctx.fillStyle = c.color;
+        if (c.shape === 'rect') ctx.fillRect(-c.size / 2, -c.size / 2, c.size, c.size * 1.6);
+        else { ctx.beginPath(); ctx.arc(0, 0, c.size / 2, 0, Math.PI * 2); ctx.fill(); }
+        ctx.restore();
+      }
+    }
+
     /* ── End game ────────────────────────────────────────────────────────── */
     function endGame() {
       screen = SCREENS.END;
 
       const st = S();
       const _rrStars = starRating();
+      confetti = _rrStars >= 1 ? Array.from({ length: 44 }, (_, i) => ({
+        x: Math.random() * W, y: -20 - Math.random() * 260,
+        vx: (Math.random() - 0.5) * 3, vy: 2 + Math.random() * 2.4,
+        rot: Math.random() * Math.PI * 2, vr: (Math.random() - 0.5) * 0.25,
+        color: [COLORS.hudAccent, COLORS.coin, COLORS.star, '#a78bfa'][i % 4],
+        shape: i % 2 === 0 ? 'rect' : 'circle', size: 4 + Math.random() * 4,
+      })) : [];
       const coinsEarned = _rrStars >= 1 && window.cvAwardGame
         ? cvAwardGame('game_repaymentrunway', { level: curLevel, stars: _rrStars, is3star: _rrStars===3, isPerfect: _rrStars===3&&streakCount>=10, badge: 'Repayment Runway Master' })
         : Math.floor(score / 15);
@@ -1495,17 +1526,24 @@
         // under the modal (same "dim over nothing extra" approach as drawPause()).
         drawHelp();
       } else {
+        // screen-shake wraps only the game-world layers (never the HUD text,
+        // which needs to stay readable) — decays via shakeT set in triggerHit()
+        const shakeMag = shakeT > 0 ? shakeT * 14 : 0;
+        const shx = shakeMag ? (Math.random() - 0.5) * shakeMag : 0;
+        const shy = shakeMag ? (Math.random() - 0.5) * shakeMag : 0;
+        ctx.save(); ctx.translate(shx, shy);
         drawBackground();
         drawObstacles();
         drawCollectibles(now);
         drawPlayer(now);
         drawParticles();
+        ctx.restore();
         if (screen === SCREENS.PLAYING || screen === SCREENS.PAUSED) {
           drawHUD(now);
           drawHints();
         }
         if (screen === SCREENS.PAUSED) drawPause();
-        if (screen === SCREENS.END)    drawEnd();
+        if (screen === SCREENS.END)    { updateConfetti(); drawEnd(); drawConfetti(); }
       }
 
       rafId = requestAnimationFrame(loop);

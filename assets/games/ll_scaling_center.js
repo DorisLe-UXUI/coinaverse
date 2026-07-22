@@ -148,8 +148,14 @@
     from { transform:scale(.97); opacity:0; }
     to   { transform:scale(1); opacity:1; }
   }
+  @keyframes sc_confetti_fall { 0%{transform:translateY(-30px) rotate(0deg);opacity:1} 100%{transform:translateY(480px) rotate(360deg);opacity:0} }
+  @keyframes sc_win_shine { to { background-position:-20% 0; } }
+  .sc-winshine::before { content:''; position:absolute; inset:0; background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%); background-size:220% 100%; background-position:120% 0; animation:sc_win_shine 2.2s ease-in-out .3s 1; pointer-events:none; border-radius:inherit }
+  @keyframes sc_shake_root { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+  /* Cyber-Premium Gaming HUD scanline — same recipe as arcade.js .arc-wrap::after */
+  #sc_root::after { content:''; position:absolute; inset:0; z-index:25; pointer-events:none; background:linear-gradient(rgba(124,58,237,0) 50%,rgba(124,58,237,.025) 50%); background-size:100% 4px; }
 </style>
-<div id="sc_root" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none;">
+<div id="sc_root" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%, ${ACC}26, #0d0824 44%, ${BG} 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none;">
   <!-- TOP BAR -->
   <div id="sc_topbar" style="position:absolute;top:0;left:0;right:0;height:52px;background:${BG2};border-bottom:1px solid ${ACC}40;display:flex;align-items:center;padding:0 12px;gap:12px;z-index:30;">
     <button id="sc_back" style="background:${ACC}25;border:1px solid ${ACC}60;color:${ACC2};padding:6px 14px;border-radius:8px;cursor:pointer;font-size:14px;font-family:Inter,sans-serif;">← HUB</button>
@@ -707,11 +713,22 @@
     }
   }
 
+  /* ── whole-screen shake on a blocked/invalid action — gives budget
+     rejections a punch of feedback beyond the flashMsg text ── */
+  function shakeRoot () {
+    const root = document.getElementById('sc_root');
+    if (!root) return;
+    root.style.animation = 'none';
+    void root.offsetWidth;
+    root.style.animation = 'sc_shake_root .35s ease';
+    setTimeout(() => { if (root) root.style.animation = ''; }, 380);
+  }
+
   function onUpgradeClick () {
     if (!G || !G.selectedNode) return;
     const nd = G.selectedNode;
     const cost = 150;
-    if (G.budget < cost) { flashMsg('Not enough budget!', DANGER, nd.x, nd.y); return; }
+    if (G.budget < cost) { flashMsg('Not enough budget!', DANGER, nd.x, nd.y); shakeRoot(); return; }
     if (nd.level >= 3) { flashMsg('Already max level!', WARN, nd.x, nd.y); return; }
     G.budget -= cost;
     nd.level++;
@@ -738,7 +755,7 @@
     const dist = Math.hypot(from.x - to.x, from.y - to.y);
     const cost = Math.round(dist * 0.25);
 
-    if (G.budget < cost) { flashMsg(`Need $${cost} — not enough budget!`, DANGER, midX, midY); return; }
+    if (G.budget < cost) { flashMsg(`Need $${cost} — not enough budget!`, DANGER, midX, midY); shakeRoot(); return; }
 
     G.budget -= cost;
     G.routes.push({
@@ -1329,7 +1346,7 @@
     const endAnim = won ? 'sc_win_pop .5s cubic-bezier(.2,1.4,.4,1) both' : 'sc_loss_fade .35s ease both';
 
     ov.innerHTML = `
-      <div style="text-align:center;padding:20px;animation:${endAnim};">
+      <div class="${won ? 'sc-winshine' : ''}" style="position:relative;text-align:center;padding:20px;animation:${endAnim};">
         <div style="font-size:40px;margin-bottom:6px;">${starStr}</div>
         <div style="font-family:'Orbitron',monospace;font-size:22px;color:${titleCol};margin-bottom:4px;letter-spacing:2px;">${titleMsg}</div>
         <div style="font-size:13px;color:#888;margin-bottom:16px;">Throughput: ${G ? G.score : 0} · Budget remaining: $${G ? G.budget : 0}</div>
@@ -1352,6 +1369,23 @@
       </div>`;
 
     window._scShowLvlSel = showLevelSelect;
+    if (won) spawnConfetti(ov);
+  }
+
+  /* ── confetti burst — real wins only, matches arcade.js's .arc-confetti recipe ── */
+  function spawnConfetti (root) {
+    if (!root) return;
+    const colors = [ACC, ACC2, GOLD, GOOD, '#fff'];
+    for (let i = 0; i < 46; i++) {
+      setTimeout(() => {
+        if (!root.isConnected) return;
+        const el = document.createElement('div');
+        const x = Math.random() * 100;
+        el.style.cssText = `position:absolute;top:-24px;left:${x}%;width:${5+Math.random()*5}px;height:${5+Math.random()*5}px;border-radius:${Math.random()>.5?'50%':'2px'};background:${colors[Math.floor(Math.random()*colors.length)]};z-index:55;pointer-events:none;animation:sc_confetti_fall ${1.3+Math.random()*.8}s ease-in forwards`;
+        root.appendChild(el);
+        setTimeout(() => el.remove(), 2200);
+      }, i * 28);
+    }
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -1363,7 +1397,9 @@
     clearTimeout(_disruptTimer);
     window.removeEventListener('resize', resizeCanvas);
     G = null;
-    if (window.state) state.viewingWorld = 'risktaker';
+    // Builder/Launch Lab hub id is 'builder' (WORLDS.builder) — this game is
+    // reached from the Builder hub's Mini-Games grid, NOT risktaker.
+    if (window.state) state.viewingWorld = 'builder';
     if (window.goTo) goTo('hub');
   };
 

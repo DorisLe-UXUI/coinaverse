@@ -122,7 +122,17 @@
       flashT:0,
       flashColor:'#38bdf8',
       floats:[], // floating score texts
+      parts:[],  // burst particles (correct/wrong feedback)
+      shake:0,   // decaying screen-shake magnitude
     };
+  }
+
+  /* ── Particle burst (canvas-space, 0..1 normalized) ─────────── */
+  function spawnBurst(px,py,color,n){
+    for(let i=0;i<(n||14);i++){
+      const a = Math.random()*Math.PI*2, s = 40+Math.random()*160;
+      G.parts.push({ x:px, y:py, vx:Math.cos(a)*s, vy:Math.sin(a)*s-40, r:2+Math.random()*3, color, life:0.5+Math.random()*0.4, max:0.9 });
+    }
   }
 
   /* ── Screen entry point ────────────────────────────────────── */
@@ -133,8 +143,15 @@
     return `<style>
       @keyframes ccWinPop{0%{transform:scale(.7) translateY(14px);opacity:0}60%{transform:scale(1.05) translateY(-4px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}
       @keyframes ccFadeIn{0%{opacity:0;transform:translateY(6px)}100%{opacity:1;transform:translateY(0)}}
+      @keyframes ccShine{to{background-position:-20% 0}}
+      @keyframes ccConfettiFall{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(440px) rotate(360deg);opacity:0}}
+      .cc-wrap{background:radial-gradient(130% 95% at 50% -8%,rgba(56,189,248,.16),#0a1230 44%,#03040c 100%)}
+      .cc-wrap::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(rgba(56,189,248,0) 50%,rgba(56,189,248,.025) 50%);background-size:100% 4px}
+      .cc-confetti{position:absolute;top:-24px;font-size:1.3rem;animation:ccConfettiFall 1.7s ease-in forwards;pointer-events:none;z-index:26}
+      .cc-win-shine{position:relative;overflow:hidden}
+      .cc-win-shine::before{content:'';position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.18) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:ccShine 2.2s ease-in-out .3s 1;pointer-events:none;border-radius:24px}
     </style>
-    <div id="ccRoot" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
+    <div id="ccRoot" class="cc-wrap" style="position:absolute;inset:0;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
 
       <!-- Stars background -->
       <canvas id="ccStars" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.6"></canvas>
@@ -315,13 +332,21 @@
       return f.t > 0;
     });
 
-    // update HUD
+    // update burst particles
+    G.parts = G.parts.filter(p=>{
+      p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 260*dt; p.life -= dt;
+      return p.life > 0;
+    });
+    if(G.shake > 0) G.shake = Math.max(0, G.shake - dt*2.4);
+
+    // update HUD  (denominators read the ACTUAL level config/queue — levels 1 & 2
+    // have 16/18 items, not 20, and totalTime differs per level: 90/80/70s)
     const bar = document.getElementById('ccTimerBar');
-    if(bar) bar.style.width = (G.timeLeft / 90 * 100) + '%';
+    if(bar) bar.style.width = (G.timeLeft / G.totalTime * 100) + '%';
     const txt = document.getElementById('ccTimerTxt');
     if(txt) txt.textContent = Math.ceil(G.timeLeft) + 's';
     const prog = document.getElementById('ccProgress');
-    if(prog) prog.textContent = G.idx + ' / 20';
+    if(prog) prog.textContent = G.idx + ' / ' + G.queue.length;
     const scoreEl = document.getElementById('ccScoreDisplay');
     if(scoreEl) scoreEl.textContent = G.score;
 
@@ -334,10 +359,25 @@
       arc.setAttribute('stroke', frac > 0.4 ? '#38bdf8' : frac > 0.2 ? '#fbbf24' : '#ef4444');
     }
 
-    // draw
+    // draw — a decaying screen-shake offset wraps the card+particles (never the HUD
+    // or background) so a wrong answer reads as a jolt without the whole scene lurching
+    const shakeMag = G.shake*10;
+    const ox = shakeMag ? (Math.random()-.5)*shakeMag : 0, oy = shakeMag ? (Math.random()-.5)*shakeMag : 0;
     _ccDrawBg(ctx, W, H, G.now || 0);
+    ctx.save(); ctx.translate(ox,oy);
     if(G.idx < G.queue.length) drawCard(ctx, W, H);
+    drawParticles(ctx);
+    ctx.restore();
     drawFloats(ctx, W, H);
+  }
+
+  function drawParticles(ctx){
+    for(const p of G.parts){
+      ctx.globalAlpha = Math.max(0, p.life/p.max);
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   /* ── Draw card ─────────────────────────────────────────────── */
@@ -362,6 +402,12 @@
     const fg=ctx.createLinearGradient(0,H*0.8,0,H);
     fg.addColorStop(0,'transparent'); fg.addColorStop(1,'rgba(56,189,248,.06)');
     ctx.fillStyle=fg; ctx.fillRect(0,H*0.8,W,H*0.2);
+    // perspective floor lines — depth cue only, the card floats "in space" above it
+    const horizon=H*0.78;
+    ctx.save(); ctx.strokeStyle='rgba(56,189,248,.12)'; ctx.lineWidth=1;
+    for(let i=-3;i<=3;i++){ ctx.globalAlpha=.5; ctx.beginPath(); ctx.moveTo(W/2,horizon); ctx.lineTo(W/2+i*W*.3,H); ctx.stroke(); }
+    for(let j=1;j<=3;j++){ const fy=horizon+(H-horizon)*(j/4); ctx.globalAlpha=.08; ctx.beginPath(); ctx.moveTo(0,fy); ctx.lineTo(W,fy); ctx.stroke(); }
+    ctx.globalAlpha=1; ctx.restore();
   }
 
   function drawCard(ctx, W, H){
@@ -484,6 +530,8 @@
     const comboText = G.comboMult > 1 ? `+${pts} x${G.comboMult} COMBO!` : `+${pts}`;
     const floatSize = 14 + Math.min(G.comboMult - 1, 7) * 1.4;
     G.floats.push({ text: comboText, x: W/2, y: H*0.44 - 90, color:'#34d399', alpha:1, t:0.9, size: floatSize });
+    // particle burst scales with combo tier — a x8 streak throws a lot more sparks than a x1 hit
+    spawnBurst(W/2, H*0.44, '#34d399', 10 + G.comboMult*2);
 
     // pulse button
     pulseBtn('ccBtnGood');
@@ -497,10 +545,12 @@
 
     G.flashColor = '#ef4444';
     G.flashT = 0.35;
+    G.shake = 0.55;
 
     const W = document.getElementById('ccCanvas')?.clientWidth || 320;
     const H = document.getElementById('ccCanvas')?.clientHeight || 600;
     G.floats.push({ text:'-50', x: W/2, y: H*0.44 - 90, color:'#ef4444', alpha:1, t:0.7, size:14 });
+    spawnBurst(W/2, H*0.44, '#ef4444', 10);
 
     pulseBtn('ccBtnBad');
     updateComboDisplay();
@@ -570,8 +620,13 @@
     /* win (>=1 star) gets a punchy overshoot pop entrance; a true 0-star result gets a
        plain, subdued fade — so the end card actually feels different, not just re-texted */
     const endAnim = stars >= 1 ? 'ccWinPop .5s cubic-bezier(.34,1.56,.64,1)' : 'ccFadeIn .4s ease';
-    el.innerHTML = `
-      <div style="max-width:360px;width:90%;text-align:center;padding:28px 24px;border:1px solid rgba(56,189,248,.3);border-radius:24px;background:linear-gradient(160deg,rgba(3,4,12,.95),rgba(14,30,50,.95));box-shadow:0 0 60px rgba(56,189,248,.15),inset 0 0 40px rgba(56,189,248,.04);animation:${endAnim}">
+    // confetti + card shine-sweep on real wins only (never on a 0-star timeout)
+    const confettiHTML = stars >= 1 ? Array.from({length:18},(_,i)=>{
+      const emo=['✦','●','▲','★'][i%4], col=['#38bdf8','#fbbf24','#34d399','#a78bfa'][i%4];
+      return `<span class="cc-confetti" style="left:${4+Math.random()*92}%;animation-delay:${(Math.random()*.5).toFixed(2)}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+    el.innerHTML = `${confettiHTML}
+      <div class="${stars>=1?'cc-win-shine':''}" style="max-width:360px;width:90%;text-align:center;padding:28px 24px;border:1px solid rgba(56,189,248,.3);border-radius:24px;background:linear-gradient(160deg,rgba(3,4,12,.95),rgba(14,30,50,.95));box-shadow:0 0 60px rgba(56,189,248,.15),inset 0 0 40px rgba(56,189,248,.04);animation:${endAnim}">
 
         <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.22em;color:#38bdf8;margin-bottom:10px;text-shadow:0 0 10px rgba(56,189,248,.5)">${curLevel>=3?'👑 ALL 3 LEVELS MASTERED!':`LEVEL ${curLevel} · COMPLETE`}</div>
 

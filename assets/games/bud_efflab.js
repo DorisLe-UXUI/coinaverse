@@ -141,7 +141,9 @@
     G = null;
     setTimeout(initGame, 40);
     return `
-<div id="ef_root" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none">
+<div id="ef_root" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, ${AMBER} 14%, #1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none">
+  <!-- cosmic scanline overlay (matches arcade.js .arc-wrap recipe) -->
+  <div style="position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(rgba(245,166,35,0) 50%,rgba(245,166,35,.03) 50%);background-size:100% 4px"></div>
 
   <!-- ambient grid canvas -->
   <canvas id="ef_canvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.4"></canvas>
@@ -164,7 +166,7 @@
       flex-shrink:0;transition:background .15s;
     " onmouseover="this.style.background='rgba(245,166,35,.2)'" onmouseout="this.style.background='rgba(245,166,35,.08)'">← HUB</button>
 
-    <div style="font-family:Orbitron,sans-serif;font-size:.68rem;letter-spacing:.18em;color:${AMBER};flex:1;text-align:center;text-shadow:0 0 12px ${AMBER}66;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+    <div style="font-family:'Anton',sans-serif;font-size:.9rem;letter-spacing:.05em;color:${AMBER};flex:1;text-align:center;text-shadow:0 0 14px ${AMBER}aa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
       EFFICIENCY LAB
     </div>
 
@@ -570,6 +572,11 @@
         0%   { transform: translateY(30px) scale(.95); opacity:0; }
         100% { transform: translateY(0) scale(1);      opacity:1; }
       }
+      @keyframes ef_confetti {
+        0%   { transform: translateY(-30px) rotate(0deg);   opacity:1; }
+        100% { transform: translateY(420px) rotate(360deg); opacity:0; }
+      }
+      @keyframes ef_shine { to { background-position:-20% 0; } }
       #ef_belt::-webkit-scrollbar { height: 3px; }
       #ef_belt::-webkit-scrollbar-track { background: rgba(255,255,255,.04); }
       #ef_belt::-webkit-scrollbar-thumb { background: ${AMBER}55; border-radius:2px; }
@@ -1089,7 +1096,19 @@
 
       // Score: base pts + efficiency bonus
       const effBonus = robot ? 20 : 0;
-      G.score += 100 + effBonus;
+      const gainedPts = 100 + effBonus;
+      G.score += gainedPts;
+
+      // Task-complete juice — floating "+N" + particle burst at the processing icon,
+      // plus a cosmetic streak celebration every 3/6/10 tasks in a row. Wires up
+      // spawnEfFloat/spawnEfBurst/efBumpStreak (previously defined but never called).
+      if (procIcon) {
+        const ir = procIcon.getBoundingClientRect();
+        const ix = ir.left + ir.width / 2, iy = ir.top + ir.height / 2;
+        spawnEfFloat(ix, iy - 24, '+' + gainedPts, GOLD);
+        spawnEfBurst(ix, iy, robot ? PURPLE : AMBER, 12);
+      }
+      efBumpStreak();
 
       if (proc) { proc.style.display = 'none'; proc.style.animation = 'none'; }
 
@@ -1262,7 +1281,12 @@
       display:flex;align-items:center;justify-content:center;
       padding:20px;
     `;
+    const confettiHtml = won ? Array.from({ length: 16 }, (_, i) => {
+      const emo = ['✦','●','▲','★'][i % 4], col = [AMBER, GOLD, '#a855f7', GREEN][i % 4];
+      return `<span style="position:absolute;top:-24px;left:${4 + Math.random() * 92}%;font-size:1.3rem;color:${col};animation:ef_confetti 1.7s ease-in ${(Math.random() * .5).toFixed(2)}s forwards;pointer-events:none">${emo}</span>`;
+    }).join('') : '';
     overlay.innerHTML = `
+      ${confettiHtml}
       <div style="
         width:min(360px,92vw);
         background:linear-gradient(145deg,rgba(26,42,74,.97),rgba(5,8,20,.98));
@@ -1275,13 +1299,14 @@
         animation:ef_result_in .4s ease both;
       ">
         <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${AMBER},transparent)"></div>
+        ${won ? `<div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:ef_shine 2.2s ease-in-out .3s 1;pointer-events:none"></div>` : ''}
 
         <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.25em;color:${AMBER}66;margin-bottom:8px">
           ${won ? 'LAB COMPLETE' : 'RESOURCES DEPLETED'}
         </div>
 
         <div style="font-size:2.4rem;margin:6px 0">${starStr}</div>
-        <div style="font-family:Orbitron,sans-serif;font-size:1.2rem;letter-spacing:.1em;color:${won ? GOLD : RED};margin-bottom:18px;text-shadow:0 0 12px ${won ? GOLD : RED}66">
+        <div style="font-family:'Anton',sans-serif;font-size:1.35rem;letter-spacing:.06em;color:${won ? GOLD : RED};margin-bottom:18px;text-shadow:0 0 14px ${won ? GOLD : RED}88">
           ${won ? (stars === 3 ? 'OPTIMIZED!' : stars === 2 ? 'EFFICIENT!' : 'COMPLETED!') : 'SYSTEM FAILURE'}
         </div>
 

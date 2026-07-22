@@ -186,6 +186,9 @@
   <div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 50% at 50% 100%,rgba(75,45,143,.18),transparent);pointer-events:none"></div>
   <div style="position:absolute;bottom:0;left:0;right:0;height:35%;background:linear-gradient(to top,rgba(10,6,15,.9),transparent);pointer-events:none"></div>
 
+  <!-- scanline overlay — signature Cyber-Premium HUD texture (matches assets/games/arcade.js's .arc-wrap::after) -->
+  <div style="position:absolute;inset:0;z-index:6;pointer-events:none;background:linear-gradient(rgba(0,229,255,0) 50%,rgba(0,229,255,.025) 50%);background-size:100% 4px"></div>
+
   <!-- top bar -->
   <div id="ddt_topbar" style="
     position:absolute;top:0;left:0;right:0;z-index:20;
@@ -204,7 +207,7 @@
 
     <div style="flex:1;min-width:0">
       <div style="font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.2em;color:${VIOLET}88;line-height:1">DEBT DETOX DISTRICT</div>
-      <div style="font-family:Orbitron,sans-serif;font-size:.82rem;letter-spacing:.08em;color:#fff;line-height:1.2;margin-top:1px">DEBT DISCOVERY</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:.82rem;letter-spacing:.08em;color:#fff;line-height:1.2;margin-top:1px;text-shadow:0 0 12px ${VIOLET}99">DEBT DISCOVERY</div>
     </div>
 
     <!-- score -->
@@ -363,6 +366,13 @@
       82% { transform:scale(.96) rotate(-1deg); }
       100%{ opacity:1; transform:scale(1) rotate(0deg); }
     }
+    @keyframes ddt_confetti_fall {
+      0%   { transform:translateY(-30px) rotate(0deg); opacity:1; }
+      100% { transform:translateY(420px) rotate(360deg); opacity:0; }
+    }
+    @keyframes ddt_win_shine { to { background-position:-20% 0; } }
+    .ddt_confetti_piece{ position:absolute;top:-24px;font-size:1.3rem;animation:ddt_confetti_fall 1.7s ease-in forwards;pointer-events:none;z-index:110 }
+    .ddt_win_shine::before{ content:'';position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.18) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:ddt_win_shine 2.2s ease-in-out .3s 1;pointer-events:none }
     #ddt_bin_good:hover { background: linear-gradient(to top, rgba(245,200,66,.22), rgba(245,200,66,.08)) !important; }
     #ddt_bin_bad:hover  { background: linear-gradient(to top, rgba(232,64,96,.22), rgba(232,64,96,.08)) !important; }
   </style>
@@ -425,9 +435,23 @@
 
     /* sky gradient */
     const sky = ctx.createLinearGradient(0, 0, 0, H);
-    sky.addColorStop(0, '#06030E');
-    sky.addColorStop(1, '#130926');
+    sky.addColorStop(0, '#0d0620');
+    sky.addColorStop(0.44, '#130926');
+    sky.addColorStop(1, '#0A0429');
     ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    /* nebula glow wash — echoes the app-wide cosmic HUD backdrop (assets/games/arcade.js
+       .arc-wrap radial-gradient recipe) instead of the old flat void */
+    const neb = ctx.createRadialGradient(W * 0.5, H * -0.05, 0, W * 0.5, H * -0.05, W * 0.95);
+    neb.addColorStop(0, 'rgba(123,82,239,.22)');
+    neb.addColorStop(1, 'rgba(123,82,239,0)');
+    ctx.fillStyle = neb;
+    ctx.fillRect(0, 0, W, H);
+    const neb2 = ctx.createRadialGradient(W * 0.82, H * 0.35, 0, W * 0.82, H * 0.35, W * 0.5);
+    neb2.addColorStop(0, 'rgba(245,200,66,.10)');
+    neb2.addColorStop(1, 'rgba(245,200,66,0)');
+    ctx.fillStyle = neb2;
     ctx.fillRect(0, 0, W, H);
 
     /* stars */
@@ -957,9 +981,11 @@
     stage.appendChild(el);
     setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 850);
 
-    /* particle burst scales with combo depth once past the combo threshold */
-    if (comboLevel >= COMBO_THRESHOLD) {
-      const particleCount = 9 + Math.min(12, comboLevel);
+    /* particle burst on every hit, not just deep combos — small on a miss,
+       richer the deeper the combo runs, so even the first correct sort gets
+       some juice instead of only combo>=3 lighting up */
+    {
+      const particleCount = color === CRIMSON ? 6 : 6 + Math.min(14, comboLevel * 2);
       for (let i = 0; i < particleCount; i++) {
         const p = document.createElement('div');
         const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.4;
@@ -1035,6 +1061,22 @@
     const root = document.getElementById('ddt_root');
     if (root) root.appendChild(banner);
 
+    /* small celebratory burst so the unlock feels like an event, not just a menu swap */
+    for (let i = 0; i < 14; i++) {
+      const p = document.createElement('div');
+      const angle = (Math.PI * 2 * i) / 14 + Math.random() * 0.3;
+      const dist = 60 + Math.random() * 70;
+      const px = Math.cos(angle) * dist, py = Math.sin(angle) * dist;
+      p.style.cssText = `
+        position:absolute;top:44%;left:50%;width:5px;height:5px;border-radius:50%;
+        background:${copy.badgeColor};box-shadow:0 0 8px ${copy.badgeColor};pointer-events:none;z-index:65;
+        --px:${px}px;--py:${py}px;
+        animation:ddt_combo_particle .8s ease-out forwards;
+      `;
+      banner.appendChild(p);
+      setTimeout(() => { if (p.parentNode) p.parentNode.removeChild(p); }, 820);
+    }
+
     document.getElementById('ddt_continue_btn')?.addEventListener('click', () => {
       banner.remove();
       showNextCard();
@@ -1057,7 +1099,11 @@
     /* compute stars */
     let stars;
     if (!won) {
-      stars = G.score >= STAR2_SCORE ? 1 : G.score > 0 ? 1 : 0;
+      // bug fix: both branches here previously evaluated to 1 star (score>=180
+      // gave the exact same single star as score>0), so a strong near-miss run
+      // felt identical to barely scraping by. A high score that ran out of
+      // time/errors now earns 2 stars instead of capping at 1.
+      stars = G.score >= STAR2_SCORE ? 2 : G.score > 0 ? 1 : 0;
     } else if (G.score >= STAR3_SCORE && G.errors === 0) {
       stars = 3;
     } else if (G.score >= STAR2_SCORE) {
@@ -1098,8 +1144,18 @@
        the plainer backdrop fade only */
     const cardAnim = won ? 'ddt_win_pop .55s cubic-bezier(.22,1.4,.4,1) .1s both' : 'ddt_card_in .4s ease both';
 
+    /* confetti burst + card shine-sweep — real wins only, matches the app-wide win celebration */
+    const confettiHtml = won ? Array.from({ length: 16 }, (_, i) => {
+      const emo = ['✦', '●', '▲', '★', '🪙'][i % 5];
+      const col = [GOLD, VIOLET, TEAL, CRIMSON, '#fff'][i % 5];
+      const left = (4 + Math.random() * 92).toFixed(1);
+      const delay = (Math.random() * 0.5).toFixed(2);
+      return `<span class="ddt_confetti_piece" style="left:${left}%;animation-delay:${delay}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+
     overlay.innerHTML = `
-      <div style="
+      ${confettiHtml}
+      <div class="${won ? 'ddt_win_shine' : ''}" style="
         width:min(360px,90vw);
         background:linear-gradient(145deg,rgba(30,18,55,.98),rgba(15,8,28,.99));
         border:2px solid rgba(123,82,239,.4);
@@ -1118,9 +1174,9 @@
 
         <div style="font-size:2.6rem;margin:4px 0 8px">${starStr}</div>
 
-        <div style="font-family:Orbitron,sans-serif;font-size:1.15rem;letter-spacing:.1em;
+        <div style="font-family:'Anton',sans-serif;font-weight:400;font-size:1.5rem;letter-spacing:.05em;
           color:${won ? GOLD : CRIMSON};
-          text-shadow:0 0 14px ${won ? GOLD : CRIMSON}88;margin-bottom:18px">
+          text-shadow:0 0 16px ${won ? GOLD : CRIMSON}99;margin-bottom:18px">
           ${won ? (stars === 3 ? 'DEBT MASTER!' : stars === 2 ? 'WELL SORTED!' : 'CLEARED!') : 'BETTER LUCK!'}
         </div>
 

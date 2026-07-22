@@ -170,7 +170,13 @@
     G = null;
     curLevel = 1; // fresh entry from hub always starts at Level 1
     setTimeout(stBoot, 40);
-    return `<div id="stWrap" style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,#0a1628,#03040c 60%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none">
+    return `<style>
+      .st-wrap{background:radial-gradient(130% 95% at 50% -8%,rgba(251,191,36,.14),#12100a 44%,#03040c 100%)}
+      .st-wrap::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(rgba(251,191,36,0) 50%,rgba(251,191,36,.025) 50%);background-size:100% 4px}
+      @keyframes stConfettiFall{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(440px) rotate(360deg);opacity:0}}
+      .st-confetti{position:absolute;top:-24px;font-size:1.3rem;animation:stConfettiFall 1.7s ease-in forwards;pointer-events:none;z-index:12}
+    </style>
+    <div id="stWrap" class="st-wrap" style="position:absolute;inset:0;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none">
 
       <!-- TOP BAR -->
       <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:10px;padding:11px 16px;background:linear-gradient(180deg,rgba(3,4,12,.92),transparent)">
@@ -766,9 +772,15 @@
     const shimmer   = is3star ? `<style>@keyframes stShimmer{0%{left:-60%}100%{left:130%}}</style>
         <div style="position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(100deg,transparent,rgba(251,191,36,.25),transparent);animation:stShimmer 1.8s ease-in-out .5s 2;pointer-events:none"></div>` : '';
 
+    // confetti on any real win (never on a below-target loss)
+    const confettiHTML = stars >= 1 ? Array.from({length:18},(_,i)=>{
+      const emo=['✦','●','▲','★'][i%4], col=[accentC,'#fbbf24','#38bdf8','#34d399'][i%4];
+      return `<span class="st-confetti" style="left:${4+Math.random()*92}%;animation-delay:${(Math.random()*.5).toFixed(2)}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+
     const o = document.getElementById('stOver'); if(!o) return;
     o.style.display = 'flex';
-    o.innerHTML = `<div style="max-width:440px;width:90%;text-align:center;padding:34px 26px;border:1px solid ${accentC}44;border-radius:24px;background:linear-gradient(160deg,rgba(10,8,2,.98),rgba(3,4,12,.98));box-shadow:0 0 70px ${hexA(accentC,0.35)};animation:${winAnim};${cardExtra}">
+    o.innerHTML = `${confettiHTML}<div style="max-width:440px;width:90%;text-align:center;padding:34px 26px;border:1px solid ${accentC}44;border-radius:24px;background:linear-gradient(160deg,rgba(10,8,2,.98),rgba(3,4,12,.98));box-shadow:0 0 70px ${hexA(accentC,0.35)};animation:${winAnim};${cardExtra}">
       <style>
         @keyframes stOverIn{0%{transform:translateY(30px);opacity:0}100%{transform:translateY(0);opacity:1}}
         @keyframes stOverIn2{0%{transform:scale(.85);opacity:0}65%{transform:scale(1.03);opacity:1}100%{transform:scale(1);opacity:1}}

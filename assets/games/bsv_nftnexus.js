@@ -391,7 +391,7 @@
   window.SCREENS[SCREEN_ID] = function () {
     G = null;
     setTimeout(initGame, 40);
-    return `<div id="nftnexus-root" style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,#03131a,#03040c 60%);overflow:hidden;font-family:Inter,sans-serif;color:#fff;touch-action:none">
+    return `<div id="nftnexus-root" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, ${ACCENT} 15%, #1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff;touch-action:none">
       <!-- Top bar -->
       <div id="nn-topbar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent)">
         <button id="nn-back" style="padding:6px 13px;border:1px solid rgba(0,255,255,.35);border-radius:8px;background:rgba(0,255,255,.08);color:#00FFFF;font-family:Orbitron,sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;flex-shrink:0">← EXIT</button>
@@ -458,18 +458,18 @@
     el.style.display = 'flex';
     el.innerHTML = `
       <div style="max-width:360px;width:90%;text-align:center">
-        <div style="font-family:Orbitron,sans-serif;font-size:1.1rem;letter-spacing:.2em;color:#00FFFF;text-shadow:0 0 20px #00FFFF;margin-bottom:6px">NFT NEXUS</div>
+        <div style="font-family:'Anton',sans-serif;font-size:1.3rem;letter-spacing:.1em;color:#00FFFF;text-shadow:0 0 20px #00FFFF;margin-bottom:6px">NFT NEXUS</div>
         <div style="font-size:.75rem;color:rgba(255,255,255,.55);margin-bottom:28px;line-height:1.5">Drag NFTs to their rightful owners.<br>Reject the fakes. Trust the blockchain.</div>
         <div style="display:flex;flex-direction:column;gap:12px">
-          <button id="nn-lvl1" style="padding:16px;border:2px solid rgba(0,255,255,.5);border-radius:14px;background:rgba(0,255,255,.08);color:#fff;font-family:Orbitron,sans-serif;font-size:.7rem;letter-spacing:.15em;cursor:pointer;transition:all .2s">
+          <button id="nn-lvl1" class="nn-shard" style="padding:16px;border:2px solid rgba(0,255,255,.5);border-radius:14px;background:rgba(0,255,255,.08);color:#fff;font-family:Orbitron,sans-serif;font-size:.7rem;letter-spacing:.15em;cursor:pointer;transition:all .2s;box-shadow:0 0 18px rgba(0,255,255,.15)">
             <div style="color:#00FFFF;font-size:.85rem;margin-bottom:4px">LEVEL 1 — LEARN</div>
             <div style="font-family:Inter,sans-serif;font-size:.65rem;color:rgba(255,255,255,.6);letter-spacing:0;font-weight:400;margin-top:4px">1 blockchain · obvious fakes · single market</div>
           </button>
-          <button id="nn-lvl2" style="padding:16px;border:2px solid rgba(255,100,200,.4);border-radius:14px;background:rgba(255,100,200,.06);color:#fff;font-family:Orbitron,sans-serif;font-size:.7rem;letter-spacing:.15em;cursor:pointer;transition:all .2s">
+          <button id="nn-lvl2" class="nn-shard" style="padding:16px;border:2px solid rgba(255,100,200,.4);border-radius:14px;background:rgba(255,100,200,.06);color:#fff;font-family:Orbitron,sans-serif;font-size:.7rem;letter-spacing:.15em;cursor:pointer;transition:all .2s;box-shadow:0 0 18px rgba(255,100,200,.12)">
             <div style="color:#ff64c8;font-size:.85rem;margin-bottom:4px">LEVEL 2 — MASTER</div>
             <div style="font-family:Inter,sans-serif;font-size:.65rem;color:rgba(255,255,255,.6);letter-spacing:0;font-weight:400;margin-top:4px">multi-chain · near-identical fakes · scammer wallets</div>
           </button>
-          <button id="nn-lvl3" style="padding:16px;border:2px solid rgba(255,179,0,.5);border-radius:14px;background:rgba(255,179,0,.07);color:#fff;font-family:Orbitron,sans-serif;font-size:.7rem;letter-spacing:.15em;cursor:pointer;transition:all .2s">
+          <button id="nn-lvl3" class="nn-shard" style="padding:16px;border:2px solid rgba(255,179,0,.5);border-radius:14px;background:rgba(255,179,0,.07);color:#fff;font-family:Orbitron,sans-serif;font-size:.7rem;letter-spacing:.15em;cursor:pointer;transition:all .2s;box-shadow:0 0 18px rgba(255,179,0,.15)">
             <div style="color:#ffb300;font-size:.85rem;margin-bottom:4px">LEVEL 3 — LEGEND</div>
             <div style="font-family:Inter,sans-serif;font-size:.65rem;color:rgba(255,255,255,.6);letter-spacing:0;font-weight:400;margin-top:4px">3 blockchains · surgical fakes · multi-field verification</div>
           </button>
@@ -795,6 +795,7 @@
 
     // Float text
     spawnFloat(label, correct ? '#00FFFF' : '#ff6464', dropX, dropY);
+    if (!correct) shakeRoot();
 
     // Flash the card
     const card = document.getElementById('nn-nft-card');
@@ -831,6 +832,15 @@
       if (!G || G.ended) return;
       showCurrentCard();
     }, 480);
+  }
+
+  // ── Shake (wrong drop) ────────────────────────────────────────
+  function shakeRoot() {
+    const root = document.getElementById('nftnexus-root');
+    if (!root) return;
+    root.classList.remove('nn-shaking');
+    void root.offsetWidth;
+    root.classList.add('nn-shaking');
   }
 
   // ── Floating text ─────────────────────────────────────────────
@@ -966,9 +976,14 @@
     if (noFakeBonus) badges.push('Authenticity Bonus');
     if (stars === 3) badges.push('Zero Fakes Bonus');
 
-    over.innerHTML = `
+    const confettiHTML = won ? Array.from({ length: 18 }, (_, i) => {
+      const emo = ['✦', '●', '▲', '★', '🎨'][i % 5], col = ['#00FFFF', '#fbbf24', '#a855f7', '#34d399'][i % 4];
+      return `<span class="nn-confetti" style="left:${4 + Math.random() * 92}%;animation-delay:${(Math.random() * .5).toFixed(2)}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+
+    over.innerHTML = `${confettiHTML}
       <div style="max-width:360px;width:90%;text-align:center">
-        <div style="font-family:Orbitron,sans-serif;font-size:1.5rem;color:${wonColor};text-shadow:0 0 20px ${wonColor};margin-bottom:4px">${wonText}</div>
+        <div style="font-family:'Anton',sans-serif;font-size:1.7rem;letter-spacing:.04em;color:${wonColor};text-shadow:0 0 20px ${wonColor};margin-bottom:4px">${wonText}</div>
         <div style="font-size:1.8rem;margin:10px 0;letter-spacing:.1em">${starStr}</div>
         <div style="font-size:.7rem;color:rgba(255,255,255,.5);font-family:Inter,sans-serif;margin-bottom:14px">${reasonStr}</div>
         <!-- Stats -->
@@ -989,7 +1004,7 @@
         </div>
         <!-- Buttons -->
         <div style="display:flex;gap:10px">
-          <button id="nn-play-again" style="flex:1;padding:13px;border:2px solid rgba(0,255,255,.5);border-radius:12px;background:rgba(0,255,255,.1);color:#00FFFF;font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.15em;cursor:pointer">PLAY AGAIN</button>
+          <button id="nn-play-again" class="nn-shard" style="flex:1;padding:13px;border:2px solid rgba(0,255,255,.5);border-radius:12px;background:rgba(0,255,255,.1);color:#00FFFF;font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.15em;cursor:pointer;box-shadow:0 0 22px rgba(0,255,255,.25)">PLAY AGAIN</button>
           <button id="nn-hub-btn" style="flex:1;padding:13px;border:2px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.75);font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.15em;cursor:pointer">← HUB</button>
         </div>
       </div>`;
@@ -1058,6 +1073,12 @@
         transform: translateY(-2px);
         box-shadow: 0 0 40px rgba(0,255,255,.2), 0 12px 40px rgba(0,0,0,.7) !important;
       }
+      @keyframes nnConfettiFall { 0%{transform:translateY(-30px) rotate(0deg);opacity:1} 100%{transform:translateY(440px) rotate(360deg);opacity:0} }
+      .nn-confetti { position:absolute;top:-24px;font-size:1.3rem;animation:nnConfettiFall 1.7s ease-in forwards;pointer-events:none;z-index:60; }
+      @keyframes nnShake {10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-6px)}40%,60%{transform:translateX(6px)}}
+      .nn-shaking { animation:nnShake .4s; }
+      .nn-shard { clip-path:polygon(0 0,92% 0,100% 38%,100% 100%,8% 100%,0 62%) !important; transition:filter .15s; }
+      .nn-shard:hover { filter:brightness(1.12); }
     `;
     document.head.appendChild(s);
   })();

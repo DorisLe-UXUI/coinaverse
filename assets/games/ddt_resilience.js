@@ -430,6 +430,9 @@
   <!-- atmospheric overlays -->
   <div style="position:absolute;inset:0;background:radial-gradient(ellipse 70% 60% at 50% 80%,rgba(75,45,143,.2),transparent);pointer-events:none"></div>
 
+  <!-- scanline texture -->
+  <div style="position:absolute;inset:0;z-index:6;pointer-events:none;background:linear-gradient(rgba(0,229,255,0) 50%,rgba(0,229,255,.025) 50%);background-size:100% 4px"></div>
+
   <!-- top bar -->
   <div id="rh_topbar" style="
     position:absolute;top:0;left:0;right:0;z-index:20;
@@ -448,7 +451,7 @@
 
     <div style="flex:1;min-width:0">
       <div style="font-family:Orbitron,sans-serif;font-size:.5rem;letter-spacing:.2em;color:${VIOLET}88;line-height:1">DEBT DETOX DISTRICT</div>
-      <div style="font-family:Orbitron,sans-serif;font-size:.8rem;letter-spacing:.06em;color:#fff;line-height:1.2;margin-top:1px">RESILIENCE HALL</div>
+      <div style="font-family:'Anton',sans-serif;font-size:.95rem;letter-spacing:.05em;color:#fff;text-shadow:0 0 12px ${VIOLET}88;line-height:1.2;margin-top:1px">RESILIENCE HALL</div>
     </div>
 
     <!-- scenario counter -->
@@ -575,6 +578,29 @@
       from { opacity:0; transform:translateY(12px); }
       to   { opacity:1; transform:translateY(0); }
     }
+    @keyframes rh_particle_burst {
+      0%   { transform:translate(-50%,-50%) translate(0,0) scale(1); opacity:1; }
+      100% { transform:translate(-50%,-50%) translate(var(--dx),var(--dy)) scale(.3); opacity:0; }
+    }
+    @keyframes rh_confetti_fall {
+      0%   { transform:translateY(-30px) rotate(0deg); opacity:1; }
+      100% { transform:translateY(420px) rotate(360deg); opacity:0; }
+    }
+    @keyframes rh_win_shine {
+      to { background-position:-20% 0; }
+    }
+    .rh_confetti_piece {
+      position:absolute;top:-24px;font-size:1.3rem;
+      animation:rh_confetti_fall 1.7s ease-in forwards;
+      pointer-events:none;z-index:110;
+    }
+    .rh_win_shine::before {
+      content:'';position:absolute;inset:0;
+      background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.18) 48%,transparent 66%);
+      background-size:220% 100%;background-position:120% 0;
+      animation:rh_win_shine 2.2s ease-in-out .3s 1;
+      pointer-events:none;
+    }
     .rh_opt_btn {
       width:100%;text-align:left;
       background:rgba(255,255,255,.04);
@@ -634,6 +660,7 @@
       bestCombo:     0,
       meter:         METER_MAX / 2,   // start at 50%
       pillarsLit:    0,
+      correctCount:  0,
       level:         1,
       done:          false,
       active:        false,
@@ -664,6 +691,20 @@
     bg.addColorStop(0.5, '#0A0520');
     bg.addColorStop(1, '#160A30');
     ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    /* cosmic nebula glow washes (violet + gold) so the hall reads as a
+       nebula-lit space instead of a flat gradient */
+    const nebulaViolet = ctx.createRadialGradient(W * 0.5, H * -0.05, 10, W * 0.5, H * -0.05, W * 0.9);
+    nebulaViolet.addColorStop(0, 'rgba(123,82,239,.32)');
+    nebulaViolet.addColorStop(1, 'rgba(123,82,239,0)');
+    ctx.fillStyle = nebulaViolet;
+    ctx.fillRect(0, 0, W, H);
+
+    const nebulaGold = ctx.createRadialGradient(W * 0.84, H * 0.18, 5, W * 0.84, H * 0.18, W * 0.45);
+    nebulaGold.addColorStop(0, 'rgba(245,200,66,.10)');
+    nebulaGold.addColorStop(1, 'rgba(245,200,66,0)');
+    ctx.fillStyle = nebulaGold;
     ctx.fillRect(0, 0, W, H);
 
     /* distant star haze */
@@ -954,13 +995,16 @@
       // flash brightens as the streak builds so hit #1 doesn't look identical to hit #8 (visual only, scoring untouched)
       comboScale = Math.min(1 + G.combo * 0.12, 1.9);
       flashScreen(GOLD, Math.min(0.12 + G.combo * 0.025, 0.32));
+      spawnParticles(GOLD, 7);
       G.pillarsLit = Math.min(G.pillarsLit + 1, TOTAL_PILLARS);
+      G.correctCount++;
     } else {
       pts = 0;
       G.combo = 0;
       animateMeterChange(METER_DRAIN * -1);
       flashScreen(CRIMSON, 0.22);
       shakeStage();
+      spawnParticles(CRIMSON, 5);
     }
 
     G.score = Math.max(0, G.score + pts);
@@ -1185,7 +1229,7 @@
         <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${copy.badgeColor}88,transparent)"></div>
         <div style="font-size:2.2rem;margin-bottom:10px">${copy.icon}</div>
         <div style="font-family:Orbitron,sans-serif;font-size:.48rem;letter-spacing:.2em;color:${copy.eyebrowColor};margin-bottom:6px">${copy.eyebrow}</div>
-        <div style="font-family:Orbitron,sans-serif;font-size:1.05rem;letter-spacing:.08em;color:${copy.titleColor};text-shadow:0 0 14px ${copy.titleColor}66;margin-bottom:14px">${copy.title}</div>
+        <div style="font-family:'Anton',sans-serif;font-size:1.3rem;letter-spacing:.05em;color:${copy.titleColor};text-shadow:0 0 16px ${copy.titleColor}88;margin-bottom:14px">${copy.title}</div>
         <div style="font-size:.78rem;color:${SILVER};line-height:1.7;margin-bottom:20px;max-width:280px;margin-left:auto;margin-right:auto">
           ${copy.body}
         </div>
@@ -1218,7 +1262,9 @@
 
     let stars;
     if (!won || G.meter <= 0) {
-      stars = G.score >= STAR2_SCORE ? 1 : G.score > 0 ? 1 : 0;
+      // a strong near-miss run (high score but meter drained) should read as better
+      // than barely scraping by — award 2 stars, not the same 1 star both branches gave before
+      stars = G.score >= STAR2_SCORE ? 2 : G.score > 0 ? 1 : 0;
     } else if (G.score >= STAR3_SCORE) {
       stars = 3;
     } else if (G.score >= STAR2_SCORE) {
@@ -1244,7 +1290,7 @@
     const starStr  = stars >= 1 ? ['⭐', '⭐⭐', '⭐⭐⭐'][stars - 1] : '💔';
     const meterPct = Math.round(G.meter);
     const answered = G.idx;
-    const accuracy = answered > 0 ? Math.round((G.bestCombo / answered) * 100) : 0;
+    const accuracy = answered > 0 ? Math.round((G.correctCount / answered) * 100) : 0;
 
     const overlay = document.createElement('div');
     overlay.id = 'rh_end_overlay';
@@ -1259,8 +1305,18 @@
     // win gets a bouncy overshooting entrance so it reads as more celebratory than a loss's plain fade
     const endCardAnim = won ? 'rh_win_card_in .65s cubic-bezier(.22,1.4,.36,1) both' : 'rh_lose_card_in .4s ease both';
 
+    // confetti + shine only fire on a real win (deck completed AND meter survived) — never on a loss/timeout
+    const confettiHtml = won ? Array.from({ length: 16 }, (_, i) => {
+      const emo = ['✦', '●', '▲', '★', '🛡️'][i % 5];
+      const col = [GOLD, VIOLET, TEAL, CRIMSON, '#fff'][i % 5];
+      const left = (4 + Math.random() * 92).toFixed(1);
+      const delay = (Math.random() * 0.5).toFixed(2);
+      return `<span class="rh_confetti_piece" style="left:${left}%;animation-delay:${delay}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+
     overlay.innerHTML = `
-      <div style="
+      ${confettiHtml}
+      <div class="${won ? 'rh_win_shine' : ''}" style="
         width:min(380px,92vw);
         background:linear-gradient(145deg,rgba(20,12,40,.99),rgba(10,5,22,.99));
         border:2px solid rgba(123,82,239,.4);
@@ -1280,9 +1336,9 @@
 
         <div style="font-size:2.4rem;margin:4px 0 8px">${starStr}</div>
 
-        <div style="font-family:Orbitron,sans-serif;font-size:1.05rem;letter-spacing:.08em;
+        <div style="font-family:'Anton',sans-serif;font-size:1.3rem;letter-spacing:.04em;
           color:${won ? GOLD : CRIMSON};
-          text-shadow:0 0 12px ${won ? GOLD : CRIMSON}88;
+          text-shadow:0 0 16px ${won ? GOLD : CRIMSON}88;
           margin-bottom:16px">
           ${won
             ? (stars === 3 ? 'RESILIENCE MASTER!' : stars === 2 ? 'STAYING CALM!' : 'GETTING THERE!')
@@ -1295,9 +1351,10 @@
           ${statBox('BEST COMBO', G.bestCombo + '×', TEAL)}
           ${statBox('METER',    meterPct + '%', AMETHYST)}
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:14px">
           ${statBox('SCENARIOS', `${answered}/${TOTAL_SCENARIOS}`, SILVER)}
           ${statBox('PILLARS LIT', G.pillarsLit + '/7', VIOLET)}
+          ${statBox('ACCURACY', accuracy + '%', TEAL)}
         </div>
 
         <!-- coins -->
@@ -1449,6 +1506,29 @@
     if (!stage) return;
     stage.style.animation = 'rh_shake .3s ease';
     setTimeout(() => { stage.style.animation = ''; }, 320);
+  }
+
+  /* small radial particle burst — used on correct (gold) and wrong (crimson) choices */
+  function spawnParticles(color, count) {
+    const root = document.getElementById('rh_root');
+    if (!root) return;
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+      const dist  = 55 + Math.random() * 55;
+      const dx = Math.round(Math.cos(angle) * dist);
+      const dy = Math.round(Math.sin(angle) * dist);
+      const size = 4 + Math.random() * 4;
+      const el = document.createElement('div');
+      el.style.cssText = `
+        position:absolute;top:50%;left:50%;width:${size}px;height:${size}px;
+        border-radius:50%;background:${color};box-shadow:0 0 6px ${color};
+        pointer-events:none;z-index:90;
+        --dx:${dx}px;--dy:${dy}px;
+        animation:rh_particle_burst .7s ease-out forwards;
+      `;
+      root.appendChild(el);
+      setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 720);
+    }
   }
 
   function showFloatingBonus(text, color, scale) {

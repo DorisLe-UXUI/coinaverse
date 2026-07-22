@@ -410,17 +410,17 @@
     <div style="font-family:Orbitron,monospace;font-size:22px;font-weight:700;color:${AC2};text-align:center;text-shadow:0 0 30px ${AC};margin-bottom:20px;">ARENA</div>
     <div style="color:rgba(255,255,255,.6);font-size:13px;text-align:center;max-width:300px;line-height:1.6;margin-bottom:28px;">Stand on stage. Answer investor questions. Raise Investor Confidence to secure your funding round.</div>
     <div style="display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px;">
-      <button id="ipaLvl1Btn" style="padding:16px;background:linear-gradient(135deg,${AC}22,${AC}11);border:1px solid ${AC}66;border-radius:12px;color:#fff;cursor:pointer;text-align:left;transition:all .2s;">
+      <button id="ipaLvl1Btn" class="ipa-lvl-btn" style="padding:16px;background:linear-gradient(135deg,${AC}22,${AC}11);border:1px solid ${AC}66;border-radius:12px;color:#fff;cursor:pointer;text-align:left;transition:all .2s;">
         <div style="font-family:Orbitron,monospace;font-size:11px;letter-spacing:1.5px;color:${AC3};margin-bottom:4px;">LEVEL 1 — LEARN</div>
         <div style="font-size:13px;font-weight:600;margin-bottom:3px;">Friendly Investors</div>
         <div style="font-size:11px;color:rgba(255,255,255,.5);">Textbook questions · 12s per answer · Generous timer</div>
       </button>
-      <button id="ipaLvl2Btn" style="padding:16px;background:linear-gradient(135deg,#1a0030,#0d001a);border:1px solid ${AC}44;border-radius:12px;color:#fff;cursor:pointer;text-align:left;transition:all .2s;">
+      <button id="ipaLvl2Btn" class="ipa-lvl-btn" style="padding:16px;background:linear-gradient(135deg,#1a0030,#0d001a);border:1px solid ${AC}44;border-radius:12px;color:#fff;cursor:pointer;text-align:left;transition:all .2s;">
         <div style="font-family:Orbitron,monospace;font-size:11px;letter-spacing:1.5px;color:${WARM};margin-bottom:4px;">LEVEL 2 — MASTER</div>
         <div style="font-size:13px;font-weight:600;margin-bottom:3px;">Tough Room · Read Personalities</div>
         <div style="font-size:11px;color:rgba(255,255,255,.5);">Investor types matter · 7s per answer · Walk-outs possible</div>
       </button>
-      <button id="ipaLvl3Btn" style="padding:16px;background:linear-gradient(135deg,#2a0006,#0d0002);border:1px solid ${DANGER}55;border-radius:12px;color:#fff;cursor:pointer;text-align:left;transition:all .2s;">
+      <button id="ipaLvl3Btn" class="ipa-lvl-btn" style="padding:16px;background:linear-gradient(135deg,#2a0006,#0d0002);border:1px solid ${DANGER}55;border-radius:12px;color:#fff;cursor:pointer;text-align:left;transition:all .2s;">
         <div style="font-family:Orbitron,monospace;font-size:11px;letter-spacing:1.5px;color:${GOLD};margin-bottom:4px;">LEVEL 3 — FOUNDER</div>
         <div style="font-size:13px;font-weight:600;margin-bottom:3px;">Skeptical Board · Every Word Counts</div>
         <div style="font-size:11px;color:rgba(255,255,255,.5);">No personality hints · 5s per answer · Highest funding goal</div>
@@ -429,6 +429,9 @@
   </div>
 
   <style>
+    /* Cyber-Premium Gaming HUD scanline — same recipe as arcade.js .arc-wrap::after */
+    #ipaRoot::after { content:''; position:absolute; inset:0; z-index:45; pointer-events:none; background:linear-gradient(rgba(124,58,237,0) 50%,rgba(124,58,237,.02) 50%); background-size:100% 4px; }
+    .ipa-lvl-btn:hover { transform:translateY(-3px); box-shadow:0 10px 26px rgba(124,58,237,.4); }
     @keyframes ipaShimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(400%)} }
     @keyframes ipaPulse { 0%,100%{opacity:.7} 50%{opacity:1} }
     @keyframes ipaSlideIn { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
@@ -461,7 +464,9 @@
     }
     G = null;
     cancelAnimationFrame(rafId);
-    if (window.state) state.viewingWorld = 'risktaker';
+    // Builder/Launch Lab hub id is 'builder' (WORLDS.builder) — this game is
+    // reached from the Builder hub's Mini-Games grid, NOT risktaker.
+    if (window.state) state.viewingWorld = 'builder';
     goTo('hub');
   };
 

@@ -127,6 +127,12 @@
   <div style="position:absolute;inset:0;background:radial-gradient(ellipse 90% 60% at 50% 100%,rgba(75,45,143,.22),transparent);pointer-events:none"></div>
   <div style="position:absolute;top:0;left:0;right:0;height:22%;background:linear-gradient(to bottom,rgba(3,4,12,.95),transparent);pointer-events:none"></div>
 
+  <!-- scanline texture -->
+  <div style="position:absolute;inset:0;z-index:6;pointer-events:none;background:linear-gradient(rgba(0,229,255,0) 50%,rgba(0,229,255,.025) 50%);background-size:100% 4px"></div>
+
+  <!-- miss flash (flashed briefly on a wrong rep) -->
+  <div id="gym_missflash" style="position:absolute;inset:0;z-index:20;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,rgba(232,64,96,.5),transparent 70%);opacity:0;"></div>
+
   <!-- top bar -->
   <div id="gym_topbar" style="
     position:absolute;top:0;left:0;right:0;z-index:30;
@@ -142,7 +148,7 @@
 
     <div style="flex:1;text-align:center;">
       <div style="font-family:'Orbitron',monospace;font-size:.7rem;letter-spacing:.15em;color:rgba(255,255,255,.45);text-transform:uppercase">Debt Detox District</div>
-      <div style="font-family:'Orbitron',monospace;font-size:.95rem;font-weight:700;color:${VIOLET};letter-spacing:.08em">Financial Fitness Gym</div>
+      <div style="font-family:'Anton',sans-serif;font-size:1rem;color:${VIOLET};letter-spacing:.08em;text-transform:uppercase;text-shadow:0 0 14px ${VIOLET}bb">Financial Fitness Gym</div>
     </div>
 
     <div style="text-align:right;flex-shrink:0;">
@@ -298,33 +304,43 @@
     display:none;position:absolute;inset:0;z-index:50;
     background:rgba(3,4,12,.88);backdrop-filter:blur(8px);
     flex-direction:column;align-items:center;justify-content:center;
-    padding:24px;text-align:center;gap:14px;
+    padding:24px;text-align:center;
   ">
-    <div style="font-family:'Orbitron',monospace;font-size:1rem;color:${VIOLET};letter-spacing:.15em;text-transform:uppercase">Workout Complete!</div>
-    <div id="gym_stars" style="font-size:2.4rem;letter-spacing:.1em;">⭐⭐⭐</div>
-    <div id="gym_endscore" style="font-family:'Orbitron',monospace;font-size:2rem;font-weight:800;color:${GOLD};">0 pts</div>
-    <div id="gym_endcoins" style="
-      background:rgba(245,200,66,.12);border:1px solid rgba(245,200,66,.35);
-      border-radius:10px;padding:8px 20px;
-      font-size:.9rem;color:${GOLD};font-weight:600;
-    ">+0 coins earned</div>
-    <div id="gym_lesson" style="
-      max-width:340px;font-size:.82rem;color:rgba(255,255,255,.65);
-      line-height:1.6;border-left:3px solid ${VIOLET};
-      padding:10px 14px;background:rgba(75,45,143,.12);
-      border-radius:0 8px 8px 0;text-align:left;
-    "></div>
-    <div style="display:flex;gap:12px;margin-top:6px;">
-      <button id="gym_replay" style="
-        background:rgba(75,45,143,.5);border:1.5px solid ${VIOLET};
-        color:#fff;border-radius:12px;padding:12px 24px;cursor:pointer;
-        font-family:'Orbitron',monospace;font-size:.8rem;letter-spacing:.08em;
-      ">PLAY AGAIN</button>
-      <button id="gym_hub" style="
-        background:${ACCENT};border:1.5px solid ${VIOLET};
-        color:#fff;border-radius:12px;padding:12px 24px;cursor:pointer;
-        font-family:'Orbitron',monospace;font-size:.8rem;letter-spacing:.08em;
-      ">← HUB</button>
+    <div id="gym_endcard" style="
+      position:relative;overflow:hidden;max-width:380px;width:100%;box-sizing:border-box;
+      display:flex;flex-direction:column;align-items:center;gap:14px;
+      padding:28px 22px;border-radius:18px;
+      border:1px solid ${VIOLET};
+      background:linear-gradient(150deg,rgba(255,255,255,.06),rgba(19,13,50,.92));
+      backdrop-filter:blur(20px);
+      box-shadow:0 0 50px rgba(123,82,239,.4),inset 0 1px 0 rgba(255,255,255,.12);
+    ">
+      <div style="font-family:'Anton',sans-serif;font-size:1.5rem;color:${VIOLET};letter-spacing:.08em;text-transform:uppercase;text-shadow:0 0 18px ${VIOLET}">Workout Complete!</div>
+      <div id="gym_stars" style="font-size:2.4rem;letter-spacing:.1em;">⭐⭐⭐</div>
+      <div id="gym_endscore" style="font-family:'Orbitron',monospace;font-size:2rem;font-weight:800;color:${GOLD};">0 pts</div>
+      <div id="gym_endcoins" style="
+        background:rgba(245,200,66,.12);border:1px solid rgba(245,200,66,.35);
+        border-radius:10px;padding:8px 20px;
+        font-size:.9rem;color:${GOLD};font-weight:600;
+      ">+0 coins earned</div>
+      <div id="gym_lesson" style="
+        max-width:340px;font-size:.82rem;color:rgba(255,255,255,.65);
+        line-height:1.6;border-left:3px solid ${VIOLET};
+        padding:10px 14px;background:rgba(75,45,143,.12);
+        border-radius:0 8px 8px 0;text-align:left;
+      "></div>
+      <div style="display:flex;gap:12px;margin-top:6px;">
+        <button id="gym_replay" style="
+          background:rgba(75,45,143,.5);border:1.5px solid ${VIOLET};
+          color:#fff;border-radius:12px;padding:12px 24px;cursor:pointer;
+          font-family:'Orbitron',monospace;font-size:.8rem;letter-spacing:.08em;
+        ">PLAY AGAIN</button>
+        <button id="gym_hub" style="
+          background:${ACCENT};border:1.5px solid ${VIOLET};
+          color:#fff;border-radius:12px;padding:12px 24px;cursor:pointer;
+          font-family:'Orbitron',monospace;font-size:.8rem;letter-spacing:.08em;
+        ">← HUB</button>
+      </div>
     </div>
   </div>
 
@@ -336,7 +352,7 @@
     padding:24px;text-align:center;gap:14px;
   ">
     <div style="font-size:3rem;">😮‍💨</div>
-    <div style="font-family:'Orbitron',monospace;font-size:1.1rem;color:${CRIMSON};letter-spacing:.1em;">STAMINA DEPLETED</div>
+    <div style="font-family:'Anton',sans-serif;font-size:1.2rem;color:${CRIMSON};letter-spacing:.08em;text-transform:uppercase;text-shadow:0 0 10px ${CRIMSON}88">STAMINA DEPLETED</div>
     <div style="font-size:.82rem;color:rgba(255,255,255,.55);max-width:300px;line-height:1.6;">
       Even athletes need to rest and restart. The important thing is to keep showing up.
     </div>
@@ -370,6 +386,38 @@
       from{ opacity:0; transform:translateY(10px); }
       to  { opacity:1; transform:translateY(0); }
     }
+    @keyframes gym_shake {
+      0%,100% { transform:translate(0,0); }
+      20% { transform:translate(-6px,3px); }
+      40% { transform:translate(5px,-4px); }
+      60% { transform:translate(-4px,-2px); }
+      80% { transform:translate(3px,3px); }
+    }
+    @keyframes gym_missflash_anim {
+      0%   { opacity:.5; }
+      100% { opacity:0; }
+    }
+    @keyframes ddt_confetti_fall {
+      0%  { transform:translateY(-30px) rotate(0deg); opacity:1; }
+      100%{ transform:translateY(420px) rotate(360deg); opacity:0; }
+    }
+    @keyframes ddt_win_shine {
+      to { background-position:-20% 0; }
+    }
+    .ddt_confetti_piece {
+      position:absolute; top:-24px; font-size:1.3rem;
+      animation:ddt_confetti_fall 1.7s ease-in forwards;
+      pointer-events:none; z-index:110;
+    }
+    .ddt_win_shine::before {
+      content:'';
+      position:absolute; inset:0;
+      background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.18) 48%,transparent 66%);
+      background-size:220% 100%;
+      background-position:120% 0;
+      animation:ddt_win_shine 2.2s ease-in-out .3s 1;
+      pointer-events:none;
+    }
   </style>
 
 </div>`;
@@ -381,6 +429,12 @@
   function initGame() {
     const root = document.getElementById('gym_root');
     if (!root) return;
+
+    // defensive: if initGame() is ever invoked again on a still-live DOM,
+    // make sure the previous rAF chain can't keep running alongside the new
+    // one (see the Replay/Try-Again handlers below, which now re-enter via
+    // goTo() precisely to avoid that plus duplicate listeners).
+    cancelAnimationFrame(animFrame);
 
     // set up game state
     G = {
@@ -394,7 +448,7 @@
       levelIdx: 0,
       exIdx: 0,        // index into current level's exercises array
       repsDone: 0,
-      phase: 'idle',   // idle | showing | input | feedback | transition
+      phase: 'idle',   // idle | showing | input | feedback | transition | seq_pause
       exercise: null,  // current EXERCISES obj
       swipeDir: 'left',
       swipeDot: 0.5,
@@ -409,6 +463,7 @@
       seqShowIdx: 0,
       seqShowTimer: 0,
       distracts: [],
+      hitParticles: [],
       feedbackTimer: 0,
       transTimer: 0,
       paused: false,
@@ -433,13 +488,11 @@
     // button handlers
     document.getElementById('gym_back').addEventListener('click', window.ddt_gymExit);
     document.getElementById('gym_replay').addEventListener('click', () => {
-      document.getElementById('gym_endoverlay').style.display = 'none';
-      initGame();
+      goTo('game_ddt_gym');
     });
     document.getElementById('gym_hub').addEventListener('click', window.ddt_gymExit);
     document.getElementById('gym_fail_replay').addEventListener('click', () => {
-      document.getElementById('gym_failoverlay').style.display = 'none';
-      initGame();
+      goTo('game_ddt_gym');
     });
     document.getElementById('gym_fail_hub').addEventListener('click', window.ddt_gymExit);
 
@@ -537,6 +590,18 @@
     const bg=bgCtx.createLinearGradient(0,0,0,H);
     bg.addColorStop(0,'#0a0418'); bg.addColorStop(0.5,'#0e0620'); bg.addColorStop(1,'#0a0418');
     bgCtx.fillStyle=bg; bgCtx.fillRect(0,0,W,H);
+
+    // cosmic nebula glow washes — reads as deep space instead of a flat gradient
+    bgCtx.save();
+    const neb1 = bgCtx.createRadialGradient(W*0.26, H*0.16, 0, W*0.26, H*0.16, W*0.65);
+    neb1.addColorStop(0, 'rgba(123,82,239,.30)');
+    neb1.addColorStop(1, 'rgba(123,82,239,0)');
+    bgCtx.fillStyle = neb1; bgCtx.fillRect(0, 0, W, H);
+    const neb2 = bgCtx.createRadialGradient(W*0.8, H*0.88, 0, W*0.8, H*0.88, W*0.55);
+    neb2.addColorStop(0, 'rgba(245,200,66,.14)');
+    neb2.addColorStop(1, 'rgba(245,200,66,0)');
+    bgCtx.fillStyle = neb2; bgCtx.fillRect(0, 0, W, H);
+    bgCtx.restore();
 
     // grid floor
     bgCtx.save();
@@ -674,6 +739,28 @@
         barEl.style.boxShadow = `0 0 12px ${hue}`;
       }
     }
+
+    // hit particle bursts (correct/wrong feedback pops)
+    if (G.hitParticles.length) {
+      for (let i = G.hitParticles.length - 1; i >= 0; i--) {
+        const p = G.hitParticles[i];
+        p.life -= dt;
+        if (p.life <= 0) { G.hitParticles.splice(i, 1); continue; }
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= 0.94; p.vy *= 0.94;
+        const a = Math.max(0, p.life / p.maxLife);
+        gymCtx.save();
+        gymCtx.globalAlpha = a;
+        gymCtx.fillStyle = p.color;
+        gymCtx.shadowColor = p.color;
+        gymCtx.shadowBlur = 8;
+        gymCtx.beginPath();
+        gymCtx.arc(p.x, p.y, p.r * a, 0, Math.PI * 2);
+        gymCtx.fill();
+        gymCtx.restore();
+      }
+    }
   }
 
   /* ── game logic update ───────────────────────────────────────── */
@@ -698,6 +785,13 @@
       }
       return;
     }
+
+    // sequence retry/advance pause — deliberately its own phase (not
+    // 'transition') so this per-frame countdown can never race the
+    // setTimeout in onSeqButtonPress and resolve via beginExercise(), which
+    // used to wrongly reset repsDone mid-exercise. That setTimeout owns
+    // resuming play here.
+    if (G.phase === 'seq_pause') return;
 
     // sequence showing phase
     if (G.phase === 'showing') {
@@ -1067,8 +1161,10 @@
       // wrong — fail this attempt
       updateSeqDisplay();
       scoreRep(false, false);
-      G.phase = 'transition';
-      G.transTimer = 0.6;
+      // 'seq_pause', not 'transition': the setTimeout below owns resuming
+      // play here (see updateGame()'s seq_pause branch for why this can't
+      // share the generic transition countdown).
+      G.phase = 'seq_pause';
       setTimeout(() => {
         if (G && G.exercise && G.exercise.type === 'sequence') {
           startNewSequenceRound();
@@ -1083,9 +1179,12 @@
       // full correct sequence!
       const perfect = true;
       scoreRep(true, perfect);
+      // scoreRep() already moves phase to 'transition' + schedules
+      // beginExercise() itself when this was the exercise's FINAL rep; only
+      // take this sequence-internal pause when more reps remain, using
+      // 'seq_pause' (not 'transition') so the two resolutions can't race.
       if (G.repsDone < G.exercise.reps) {
-        G.phase = 'transition';
-        G.transTimer = 0.5;
+        G.phase = 'seq_pause';
         setTimeout(() => {
           if (G && G.exercise && G.exercise.type === 'sequence') {
             startNewSequenceRound();
@@ -1112,6 +1211,7 @@
       G.maxCombo = Math.max(G.maxCombo, Math.floor(G.combo));
 
       showFeedback(perfect ? 'PERFECT! 💥' : 'GOOD REP! ✓', perfect ? GOLD : GREEN, 0.9, G.combo);
+      spawnHitBurst(perfect ? GOLD : GREEN, perfect ? 10 : 6);
 
       // update rep counter
       const repEl = document.getElementById('gym_repprogress');
@@ -1129,6 +1229,8 @@
       G.stamina = Math.max(0, G.stamina - 18);
       G.combo = Math.max(1, G.combo - 1);
       showFeedback('MISS! ✗', CRIMSON);
+      spawnHitBurst(CRIMSON, 5);
+      triggerMissEffect();
 
       if (G.stamina <= 0) {
         G.failed = true;
@@ -1232,6 +1334,40 @@
     G.feedbackTimer = dur;
   }
 
+  /* ── hit particle bursts (correct/wrong reps) ─────────────────── */
+  function spawnHitBurst(color, n) {
+    if (!G || !gymCanvas) return;
+    const cx = gymCanvas.width / 2, cy = gymCanvas.height * 0.5;
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = 60 + Math.random() * 150;
+      const life = 0.45 + Math.random() * 0.35;
+      G.hitParticles.push({
+        x: cx, y: cy,
+        vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+        life, maxLife: life,
+        r: 2 + Math.random() * 2.5,
+        color,
+      });
+    }
+  }
+
+  /* ── miss screen-shake + flash ────────────────────────────────── */
+  function triggerMissEffect() {
+    const root = document.getElementById('gym_root');
+    if (root) {
+      root.style.animation = 'none';
+      void root.offsetWidth;
+      root.style.animation = 'gym_shake .28s ease';
+    }
+    const flash = document.getElementById('gym_missflash');
+    if (flash) {
+      flash.style.animation = 'none';
+      void flash.offsetWidth;
+      flash.style.animation = 'gym_missflash_anim .4s ease-out';
+    }
+  }
+
   /* ── keyboard support ────────────────────────────────────────── */
   function onKeyDown(e) {
     if (!G || G.phase !== 'input') return;
@@ -1291,6 +1427,25 @@
     document.getElementById('gym_endscore').textContent = G.score.toLocaleString() + ' pts';
     document.getElementById('gym_endcoins').textContent = `+${coins} coins earned`;
     document.getElementById('gym_lesson').textContent = mainLesson;
+
+    /* this overlay is only ever reached by finishing the full 3-level circuit
+       (a stamina-depleted loss goes through the separate gym_failoverlay /
+       showFailOverlay() and never calls endGame()) — so every call here is a
+       genuine win, and gets a confetti burst + card shine-sweep to match. */
+    const card = document.getElementById('gym_endcard');
+    if (card) {
+      const confettiColors = [GOLD, VIOLET, CYAN, GREEN, '#fff'];
+      const confettiEmoji  = ['✦', '●', '▲', '★', '🪙'];
+      const confettiHtml = Array.from({ length: 16 }, (_, i) => {
+        const emo   = confettiEmoji[i % confettiEmoji.length];
+        const col   = confettiColors[i % confettiColors.length];
+        const left  = (4 + Math.random() * 92).toFixed(1);
+        const delay = (Math.random() * 0.5).toFixed(2);
+        return `<span class="ddt_confetti_piece" style="left:${left}%;animation-delay:${delay}s;color:${col}">${emo}</span>`;
+      }).join('');
+      card.classList.add('ddt_win_shine');
+      card.insertAdjacentHTML('afterbegin', confettiHtml);
+    }
 
     /* win moment gets a bouncy scale+rotate pop-in so it FEELS more
        celebratory than a flat display swap — distinct from the plain

@@ -127,13 +127,16 @@
     G = null;
     setTimeout(initGame, 40);
     return `
-<div id="ddtRoot" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
+<div id="ddtRoot" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,#2b1d5e,#160f38 44%,#03040c 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
 
   <!-- Stars bg canvas -->
   <canvas id="ddtStars" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.5"></canvas>
 
   <!-- Road grid canvas (plaza visual) -->
   <canvas id="ddtRoad" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.35"></canvas>
+
+  <!-- Scanline texture (CRT-style overlay, screen-wide, purely decorative) -->
+  <div style="position:absolute;inset:0;z-index:62;pointer-events:none;background:linear-gradient(rgba(0,229,255,0) 50%,rgba(0,229,255,.025) 50%);background-size:100% 4px"></div>
 
   <!-- TOP BAR -->
   <div id="ddtTopBar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;padding:12px 14px;gap:10px;background:linear-gradient(180deg,rgba(3,4,12,.95) 70%,transparent)">
@@ -211,7 +214,7 @@
     end.innerHTML = `
       <div style="max-width:460px;width:92%;padding:28px 24px;background:rgba(10,5,30,.95);border:1px solid rgba(75,45,143,.5);border-radius:20px;text-align:center;box-shadow:0 0 60px rgba(75,45,143,.3);max-height:92vh;overflow-y:auto">
         <div style="font-size:2.2rem;margin-bottom:8px">💜</div>
-        <div style="font-family:Orbitron,sans-serif;font-size:1rem;letter-spacing:.18em;color:#A78BFA;margin-bottom:6px">PAYMENT PLAN PLAZA</div>
+        <div style="font-family:'Anton',sans-serif;font-size:1.5rem;letter-spacing:.1em;color:#A78BFA;margin-bottom:6px;text-shadow:0 0 18px rgba(167,139,250,.75)">PAYMENT PLAN PLAZA</div>
 
         <!-- HOW TO PLAY — 3 concrete steps so first-timers know exactly what to do -->
         <div style="display:flex;gap:8px;margin-bottom:16px;text-align:left">
@@ -525,6 +528,7 @@
 
   function startDrag(e, coinEl, val) {
     if (G.phase !== 'play') return;
+    if (dragGhost) return; // a drag is already in flight (e.g. multi-touch) — ignore overlapping starts
     e.preventDefault();
 
     draggingVal = val;
@@ -568,10 +572,11 @@
     };
 
     const onUp = ev => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup',   onUp);
-      document.removeEventListener('touchmove', onMove);
-      document.removeEventListener('touchend',  onUp);
+      document.removeEventListener('mousemove',   onMove);
+      document.removeEventListener('mouseup',     onUp);
+      document.removeEventListener('touchmove',   onMove);
+      document.removeEventListener('touchend',    onUp);
+      document.removeEventListener('touchcancel', onUp);
 
       if (dragGhost) { dragGhost.remove(); dragGhost = null; }
       if (dragOver) { highlightDrop(dragOver, false); handleDrop(dragOver); }
@@ -582,6 +587,10 @@
     document.addEventListener('mouseup',   onUp);
     document.addEventListener('touchmove', onMove, { passive: false });
     document.addEventListener('touchend',  onUp);
+    // touchcancel (OS gesture interrupts the touch, e.g. a notification pull-down)
+    // must clean up the same way touchend does, otherwise the ghost coin and the
+    // document-level listeners are orphaned permanently once the screen changes.
+    document.addEventListener('touchcancel', onUp);
   }
 
   function handleDrop(debtId) {
@@ -594,6 +603,7 @@
     const remaining = G.budget - G.budgetUsed;
     if (remaining <= 0) {
       showHintPill('No budget remaining for this turn!', '#EF4444');
+      badFlash(true);
       draggingVal = 0;
       return;
     }
@@ -639,6 +649,25 @@
     renderCards();
     renderCoinPool();
     checkWin();
+  }
+
+  /* ── Bad-action feedback (blocked drop, bad event, loss) ───────────────── */
+  function badFlash(shake) {
+    const root = document.getElementById('ddtRoot');
+    if (!root) return;
+    const flash = document.createElement('div');
+    flash.style.cssText = `
+      position:absolute;inset:0;z-index:65;pointer-events:none;
+      background:rgba(239,68,68,.22);
+      animation:ddtBadFlash .4s ease-out forwards;
+    `;
+    root.appendChild(flash);
+    setTimeout(() => flash.remove(), 420);
+    if (shake) {
+      root.style.animation = 'none';
+      void root.offsetWidth; // restart animation
+      root.style.animation = 'ddtShake .4s ease-in-out';
+    }
   }
 
   /* ── Payment impact juice ──────────────────────────────────────────────── */
@@ -715,7 +744,7 @@
     banner.style.cssText = `
       position:absolute;top:22%;left:50%;transform:translate(-50%,-50%) scale(.8);
       z-index:70;pointer-events:none;text-align:center;
-      font-family:Orbitron,sans-serif;font-weight:900;
+      font-family:'Anton',sans-serif;font-weight:400;
       color:#FFD166;text-shadow:0 0 20px rgba(255,209,102,.8),0 0 40px rgba(255,209,102,.4);
       animation:ddtStreakPop 1.4s ease-out forwards;
       white-space:nowrap;
@@ -805,7 +834,7 @@
     }
 
     G.phase = 'play';
-    checkWin();
+    checkWin(true);
     if (G.phase === 'play') {
       renderAll();
       updateRoadLights();
@@ -816,6 +845,7 @@
     const overlay = document.getElementById('ddtEventOverlay');
     overlay.style.display = 'flex';
     const isGood = ev.budgetHit > 0;
+    if (!isGood) badFlash(false);
     overlay.innerHTML = `
       <div style="max-width:380px;width:90%;padding:28px 22px;background:rgba(10,5,30,.96);border:1px solid ${isGood ? 'rgba(6,214,160,.5)' : 'rgba(239,68,68,.5)'};border-radius:18px;text-align:center;box-shadow:0 0 40px ${isGood ? 'rgba(6,214,160,.3)' : 'rgba(239,68,68,.3)'}">
         <div style="font-size:2.5rem;margin-bottom:10px">${ev.icon}</div>
@@ -833,7 +863,13 @@
   };
 
   /* ── Win / Lose check ──────────────────────────────────────────────────── */
-  function checkWin() {
+  // atTurnEnd: the lose-branch must only be evaluated at a true turn boundary
+  // (fresh budget, nothing spent yet) — see advanceTurn(). Checking it mid-turn,
+  // right after a single coin drop, could end the game before the player
+  // finishes allocating the rest of this turn's budget (e.g. a second drop
+  // that's about to fully retire a debt and shrink minRequired). The win
+  // branch has no such ordering hazard, so it's still checked on every call.
+  function checkWin(atTurnEnd) {
     if (!G) return;
 
     const allPaid = G.debts.every(d => d.balance <= 0);
@@ -842,6 +878,7 @@
       setTimeout(() => showEndScreen(true), 600);
       return;
     }
+    if (!atTurnEnd) return;
 
     // Lose: budget exhausted and all debts still have minimum balance unpaid
     const minRequired = G.debts.filter(d=>d.balance>0).reduce((s,d)=>s+d.minPay,0);
@@ -861,7 +898,7 @@
     let stars = 0;
     if (win && turns <= star3T) stars = 3;
     else if (win && turns <= star2T) stars = 2;
-    else if (win) stars = 2;  // any completion = at least 2 stars
+    else if (win) stars = 1;  // won, but slower than the 2-star target — still 1 star, not tied with it
 
     const is3star = stars === 3;
     const coins = stars >= 1 && window.cvAwardGame
@@ -869,10 +906,20 @@
       : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
     if (stars >= 1 && window.cvHubMeter) cvHubMeter('ddt_recovery', stars * 4);
     if (stars < 1 && window.cvSave) cvSave();
+    if (!win) badFlash(false);
 
     // Interest summary
     const intPaid   = G.totalInterestPaid.toFixed(2);
     const starsHtml = '⭐'.repeat(stars) + '<span style="opacity:.2">' + '⭐'.repeat(3 - stars) + '</span>';
+
+    // Confetti burst — real wins only, never on a loss/timeout
+    const confettiHtml = win ? Array.from({ length: 16 }, (_, i) => {
+      const emo = ['✦','●','▲','★','🪙'][i % 5];
+      const col = [GOLD, ACCENT2, GREEN, '#fff', '#A78BFA'][i % 5];
+      const left  = (4 + Math.random() * 92).toFixed(1);
+      const delay = (Math.random() * 0.5).toFixed(2);
+      return `<span class="ddt_confetti_piece" style="left:${left}%;animation-delay:${delay}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
 
     // Strategy recommendation — a distinct lesson per level, so nothing repeats
     const lesson = !win
@@ -886,10 +933,13 @@
     const overlay = document.getElementById('ddtEndOverlay');
     overlay.style.display = 'flex';
     overlay.innerHTML = `
+      ${confettiHtml}
       <div style="max-width:440px;width:92%;padding:28px 22px;background:rgba(10,5,30,.97);border:1px solid rgba(75,45,143,.6);border-radius:20px;text-align:center;box-shadow:0 0 60px rgba(75,45,143,.4);max-height:90vh;overflow-y:auto">
 
-        <div style="font-family:Orbitron,sans-serif;font-size:1.6rem;margin-bottom:4px">${starsHtml}</div>
-        <div style="font-family:Orbitron,sans-serif;font-size:.82rem;letter-spacing:.18em;color:${win?'#A78BFA':'#F87171'};margin-bottom:4px">${win?'DEBT FREE!':'OUT OF BUDGET'}</div>
+        <div class="${win ? 'ddt_win_shine' : ''}" style="position:relative;overflow:hidden;border-radius:14px;padding-top:4px">
+          <div style="font-family:Orbitron,sans-serif;font-size:1.6rem;margin-bottom:4px">${starsHtml}</div>
+          <div style="font-family:'Anton',sans-serif;font-size:1.35rem;letter-spacing:.08em;color:${win?'#A78BFA':'#F87171'};margin-bottom:4px;text-shadow:0 0 16px ${win?'rgba(167,139,250,.7)':'rgba(248,113,113,.45)'}">${win?'DEBT FREE!':'OUT OF BUDGET'}</div>
+        </div>
         <div style="font-size:.72rem;color:rgba(255,255,255,.45);margin-bottom:16px">${win?`Completed in ${turns} turn${turns!==1?'s':''}`:`Minimum payments exceeded your remaining budget on turn ${turns}`}</div>
 
         <!-- Stats row -->
@@ -989,13 +1039,14 @@
       ctx.fillStyle = `rgba(${Math.random()>.5?'167,139,250':'255,209,102'},${a})`;
       ctx.fill();
     }
-    // Nebula blobs
+    // Nebula blobs — alternating violet + gold glow washes for a richer cosmic backdrop
+    const nebulaColors = ['rgba(107,63,207,.12)', 'rgba(255,209,102,.06)'];
     for (let i = 0; i < 4; i++) {
       const grd = ctx.createRadialGradient(
         Math.random()*W, Math.random()*H, 0,
         Math.random()*W, Math.random()*H, 150+Math.random()*200
       );
-      grd.addColorStop(0, 'rgba(75,45,143,.08)');
+      grd.addColorStop(0, nebulaColors[i % 2]);
       grd.addColorStop(1, 'transparent');
       ctx.fillStyle = grd;
       ctx.fillRect(0, 0, W, H);
@@ -1106,6 +1157,38 @@
         32%  { transform: translate(-50%,-50%) scale(1); }
         78%  { opacity: 1; transform: translate(-50%,-50%) scale(1); }
         100% { opacity: 0; transform: translate(-50%,-50%) scale(.92) translateY(-24px); }
+      }
+      @keyframes ddtShake {
+        0%,100% { transform: translateX(0); }
+        20%     { transform: translateX(-8px); }
+        40%     { transform: translateX(7px); }
+        60%     { transform: translateX(-5px); }
+        80%     { transform: translateX(4px); }
+      }
+      @keyframes ddtBadFlash {
+        0%   { opacity: 1; }
+        100% { opacity: 0; }
+      }
+      @keyframes ddt_confetti_fall {
+        0%   { transform: translateY(-30px) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(420px) rotate(360deg); opacity: 0; }
+      }
+      @keyframes ddt_win_shine {
+        to { background-position: -20% 0; }
+      }
+      .ddt_confetti_piece {
+        position: absolute; top: -24px; font-size: 1.3rem;
+        animation: ddt_confetti_fall 1.7s ease-in forwards;
+        pointer-events: none; z-index: 110;
+      }
+      .ddt_win_shine::before {
+        content: '';
+        position: absolute; inset: 0;
+        background: linear-gradient(115deg,transparent 30%,rgba(255,255,255,.18) 48%,transparent 66%);
+        background-size: 220% 100%;
+        background-position: 120% 0;
+        animation: ddt_win_shine 2.2s ease-in-out .3s 1;
+        pointer-events: none;
       }
       .ddt-coin:hover {
         transform: scale(1.1) !important;

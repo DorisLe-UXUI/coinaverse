@@ -430,7 +430,7 @@
   /* ── level select modal ── */
   #bm-lvl-modal {
     position:absolute;inset:0;z-index:30;
-    background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(120% 90% at 50% -10%,rgba(0,255,255,.09),rgba(2,4,10,.88) 70%);display:flex;align-items:center;justify-content:center;
     padding:20px;
   }
   #bm-lvl-box {
@@ -440,7 +440,7 @@
     box-shadow:0 0 50px rgba(0,255,255,.35);text-align:center;
   }
   #bm-lvl-box h2 {
-    font-family:'Orbitron',sans-serif;font-size:.9rem;letter-spacing:.2em;
+    font-family:'Anton',sans-serif;font-size:1.1rem;letter-spacing:.1em;
     color:${AC};margin:0 0 6px;text-shadow:0 0 14px ${AC}99;
   }
   #bm-lvl-box p { font-size:.7rem;color:rgba(255,255,255,.5);margin:0 0 20px;line-height:1.5; }
@@ -449,15 +449,17 @@
     border:1.5px solid rgba(0,255,255,.3);background:rgba(0,255,255,.08);
     color:#fff;font-family:'Orbitron',sans-serif;font-size:.62rem;
     letter-spacing:.12em;cursor:pointer;margin-bottom:10px;
-    transition:border-color .15s,background .15s;text-align:left;
+    transition:border-color .15s,background .15s,filter .15s;text-align:left;
+    clip-path:polygon(0 0,97% 0,100% 20%,100% 100%,3% 100%,0 80%);
   }
+  .bm-lvl-btn:hover { filter:brightness(1.15); }
   .bm-lvl-btn:hover { border-color:${AC};background:rgba(0,255,255,.16); }
   .bm-lvl-btn strong { color:${AC};display:block;margin-bottom:2px; }
   .bm-lvl-btn small { display:block;font-size:.48rem;color:rgba(255,255,255,.4);margin-top:3px; }
   /* ── end overlay ── */
   #bm-end {
     position:absolute;inset:0;z-index:25;
-    background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(120% 90% at 50% -10%,rgba(0,255,255,.09),rgba(2,4,10,.88) 70%);display:flex;align-items:center;justify-content:center;
     padding:20px;
   }
   #bm-end-box {
@@ -488,7 +490,7 @@
   }
   #bm-end-stars { font-size:1.8rem;margin-bottom:8px; }
   #bm-end-title {
-    font-family:'Orbitron',sans-serif;font-size:1rem;letter-spacing:.18em;
+    font-family:'Anton',sans-serif;font-size:1.3rem;letter-spacing:.06em;
     margin-bottom:4px;
   }
   #bm-end-wallet {
@@ -515,6 +517,7 @@
   #bm-end-again {
     background:linear-gradient(135deg,${AC},${AC2});
     color:#000;box-shadow:0 4px 18px rgba(0,255,255,.4);
+    clip-path:polygon(0 0,92% 0,100% 34%,100% 100%,8% 100%,0 66%);
   }
   #bm-end-hub {
     background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);
@@ -539,6 +542,15 @@
     font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.07em;
     color:${RED};vertical-align:middle;margin-left:6px;
   }
+  /* ── confetti (win celebration) ── */
+  @keyframes bmConfettiFall { 0%{transform:translateY(-30px) rotate(0deg);opacity:1} 100%{transform:translateY(460px) rotate(360deg);opacity:0} }
+  .bm-confetti { position:absolute;top:-24px;font-size:1.3rem;animation:bmConfettiFall 1.7s ease-in forwards;pointer-events:none;z-index:60; }
+  /* ── shake (bad actions: insufficient funds / sold out / bankrupt) ── */
+  @keyframes bmShake {10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-6px)}40%,60%{transform:translateX(6px)}}
+  .bm-shaking { animation:bmShake .4s; }
+  /* ── shard CTA (matches the app-wide Cyber-Premium button shape) ── */
+  .bm-shard { clip-path:polygon(0 0,94% 0,100% 30%,100% 100%,6% 100%,0 70%) !important; transition:filter .15s; }
+  .bm-shard:hover { filter:brightness(1.1); }
 </style>
 
 <div id="bm-root">
@@ -1348,7 +1360,13 @@
       white-space:nowrap;pointer-events:none;animation:bmFloat .9s ease-out forwards;`;
     el.textContent = msg;
     const root = document.getElementById('bm-root');
-    if (root) { root.appendChild(el); setTimeout(() => el.remove(), 950); }
+    if (root) {
+      root.appendChild(el);
+      setTimeout(() => el.remove(), 950);
+      root.classList.remove('bm-shaking');
+      void root.offsetWidth;
+      root.classList.add('bm-shaking');
+    }
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -1385,10 +1403,14 @@
 
     const won = reason !== 'lose' && reason !== 'bankrupt';
     const starsStr = '⭐'.repeat(Math.max(0, stars));
+    const confettiHTML = won ? Array.from({ length: 18 }, (_, i) => {
+      const emo = ['✦', '●', '▲', '★', '💎'][i % 5], col = [AC, GOLD, PURPLE, GREEN][i % 4];
+      return `<span class="bm-confetti" style="left:${4 + Math.random() * 92}%;animation-delay:${(Math.random() * .5).toFixed(2)}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
 
     const overlay = document.createElement('div');
     overlay.id = 'bm-end';
-    overlay.innerHTML = `
+    overlay.innerHTML = `${confettiHTML}
       <div id="bm-end-box"${won ? ' class="win"' : ''}>
         <div id="bm-end-badge">${won ? 'MARKET MASTER' : reason === 'bankrupt' ? 'BANKRUPT' : 'TIME EXPIRED'}</div>
         <div id="bm-end-stars">${starsStr || '💔'}</div>

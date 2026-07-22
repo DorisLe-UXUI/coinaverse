@@ -108,7 +108,7 @@
   window.SCREENS.game_ddt_lab = function () {
     G = null;
     setTimeout(initGame, 40);
-    return `<div id="ddt_root" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:'Inter',sans-serif;color:#fff;display:flex;flex-direction:column"></div>`;
+    return `<div id="ddt_root" style="position:absolute;inset:0;background:radial-gradient(60% 40% at 18% 12%,rgba(155,93,255,0.22),transparent 62%),radial-gradient(50% 35% at 88% 8%,rgba(245,200,66,0.12),transparent 60%),radial-gradient(130% 95% at 50% -8%,#2a1f5c 0%,#160f3d 44%,${BG} 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff;display:flex;flex-direction:column"></div>`;
   };
 
   /* ── exit ─────────────────────────────────────────────────── */
@@ -133,14 +133,15 @@
   /* ── level select ─────────────────────────────────────────── */
   function renderLevelSelect(root) {
     root.innerHTML = `
+      ${scanlineOverlay()}
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:24px;padding:24px;box-sizing:border-box">
         <button onclick="window.ddt_labExit()" style="position:absolute;top:14px;left:14px;background:none;border:1px solid ${ACCENT2};border-radius:8px;color:#fff;padding:6px 14px;cursor:pointer;font-size:13px">← HUB</button>
-        <div style="font-family:'Orbitron',monospace;font-size:clamp(16px,3vw,24px);color:${GLOW};letter-spacing:2px;text-align:center;text-shadow:0 0 20px ${GLOW}">⚗️ INTEREST IMPACT LAB</div>
+        <div style="font-family:'Anton',sans-serif;font-size:clamp(18px,3.4vw,27px);color:${GLOW};letter-spacing:1px;text-align:center;text-shadow:0 0 20px ${GLOW}">⚗️ INTEREST IMPACT LAB</div>
         <div style="color:rgba(255,255,255,0.6);font-size:13px;text-align:center;max-width:340px">Master compound interest — fight back before debt takes over</div>
         <div style="display:flex;flex-direction:column;gap:16px;width:100%;max-width:380px">
           ${LEVELS.map((lv, i) => `
-            <button onclick="window._ddtStartLevel(${i})" style="background:linear-gradient(135deg,${DARK} 0%,#120830 100%);border:1px solid ${ACCENT};border-radius:14px;padding:20px;cursor:pointer;text-align:left;transition:border-color 0.2s;width:100%"
-              onmouseover="this.style.borderColor='${GLOW}'" onmouseout="this.style.borderColor='${ACCENT}'">
+            <button onclick="window._ddtStartLevel(${i})" style="${glassCard(ACCENT)};border-radius:14px;padding:20px;cursor:pointer;text-align:left;transition:border-color 0.2s,box-shadow 0.2s;width:100%"
+              onmouseover="this.style.borderColor='${GLOW}'" onmouseout="this.style.borderColor='${ACCENT}99'">
               <div style="font-family:'Orbitron',monospace;font-size:13px;color:${GLOW};margin-bottom:6px">⬛ LEVEL ${i + 1}</div>
               <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">${lv.name}</div>
               <div style="font-size:12px;color:rgba(255,255,255,0.55);line-height:1.5">${lv.desc}</div>
@@ -209,10 +210,11 @@
     const cfg = G.cfg;
 
     root.innerHTML = `
+      ${scanlineOverlay()}
       <!-- TOP BAR -->
       <div id="ddt_topbar" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${DARK};border-bottom:1px solid ${ACCENT};flex-shrink:0;z-index:10">
         <button onclick="window.ddt_labExit()" style="background:none;border:1px solid ${ACCENT2};border-radius:8px;color:#fff;padding:5px 11px;cursor:pointer;font-size:12px;flex-shrink:0">← HUB</button>
-        <div style="font-family:'Orbitron',monospace;font-size:clamp(10px,2.5vw,14px);color:${GLOW};flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⚗️ ${cfg.name}</div>
+        <div style="font-family:'Orbitron',monospace;font-size:clamp(10px,2.5vw,14px);color:${GLOW};flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 10px ${GLOW}99">⚗️ ${cfg.name}</div>
         <div style="display:flex;gap:10px;align-items:center;flex-shrink:0">
           <div style="font-family:'Orbitron',monospace;font-size:12px;color:${GOLD}">💰 <span id="ddt_score">0</span></div>
           <div style="font-family:'Orbitron',monospace;font-size:12px;color:${CYAN}">📅 <span id="ddt_month">1</span>/<span id="ddt_total">${cfg.months}</span></div>
@@ -225,7 +227,7 @@
         <!-- HUD STRIP -->
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <!-- Debt Meter -->
-          <div style="flex:2;min-width:180px;background:${DARK};border:1px solid ${ACCENT};border-radius:12px;padding:12px">
+          <div style="flex:2;min-width:180px;${glassCard(ACCENT)};border-radius:12px;padding:12px">
             <div style="font-size:10px;color:rgba(255,255,255,0.5);letter-spacing:1px;margin-bottom:6px">TOTAL DEBT</div>
             <div style="font-family:'Orbitron',monospace;font-size:clamp(18px,4vw,28px);color:${RED};font-weight:700" id="ddt_debtval">$${fmt(G.totalDebt())}</div>
             <!-- bar -->
@@ -240,7 +242,7 @@
             </div>
           </div>
           <!-- Budget -->
-          <div style="flex:1;min-width:130px;background:${DARK};border:1px solid ${ACCENT};border-radius:12px;padding:12px">
+          <div style="flex:1;min-width:130px;${glassCard(ACCENT)};border-radius:12px;padding:12px">
             <div style="font-size:10px;color:rgba(255,255,255,0.5);letter-spacing:1px;margin-bottom:6px">BUDGET LEFT</div>
             <div style="font-family:'Orbitron',monospace;font-size:clamp(16px,3.5vw,22px);color:${CYAN};font-weight:700" id="ddt_budgetval">$${G.budgetLeft}</div>
             <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:4px">of $${G.budget}/month</div>
@@ -248,7 +250,7 @@
         </div>
 
         <!-- MOLECULE CANVAS -->
-        <div style="position:relative;border:1px solid ${ACCENT};border-radius:14px;overflow:hidden;background:${DARK}">
+        <div style="position:relative;${glassCard(ACCENT)};border-radius:14px;overflow:hidden">
           <canvas id="ddt_canvas" style="width:100%;display:block;image-rendering:pixelated"></canvas>
           <div id="ddt_alarm" style="display:none;position:absolute;inset:0;border:3px solid ${RED};border-radius:14px;pointer-events:none;box-shadow:inset 0 0 30px rgba(239,68,68,0.3)"></div>
         </div>
@@ -329,6 +331,15 @@
     const ctx = G.ctx;
     const W = G.canvas.width, H = G.canvas.height;
     ctx.clearRect(0, 0, W, H);
+
+    /* cosmic nebula wash so the canvas reads as a lab chamber floating in
+       space rather than a flat dark rectangle */
+    const nebula = ctx.createRadialGradient(W * 0.5, H * 0.25, 0, W * 0.5, H * 0.25, Math.max(W, H) * 0.85);
+    nebula.addColorStop(0, 'rgba(155,93,255,0.13)');
+    nebula.addColorStop(0.6, 'rgba(245,200,66,0.05)');
+    nebula.addColorStop(1, 'rgba(3,4,12,0)');
+    ctx.fillStyle = nebula;
+    ctx.fillRect(0, 0, W, H);
 
     /* background grid */
     ctx.strokeStyle = 'rgba(75,45,143,0.15)';
@@ -421,7 +432,7 @@
       const xtraPay     = Math.round(minPay * 1.5);
 
       return `
-        <div id="ddt_loanpanel_${loan.id}" style="background:${DARK};border:1px solid ${loan.color}44;border-radius:12px;padding:12px;transition:border-color 0.3s">
+        <div id="ddt_loanpanel_${loan.id}" style="${glassCard(loan.color, 16)};border-radius:12px;padding:12px;transition:border-color 0.3s,box-shadow 0.3s">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <div>
               <div style="font-weight:700;font-size:14px;color:${loan.color}">${loan.label}</div>
@@ -496,15 +507,27 @@
     renderActionRow();
 
     /* juice: quick pulse on the panel that was just picked, so a selection
-       feels like an event rather than a silent style swap */
+       feels like an event rather than a silent style swap. Skip (bad action)
+       gets a small red shudder+flash; Extra (good action) gets the same
+       pulse plus a tiny particle burst — Minimum stays a neutral pulse. */
     const panelEl = document.getElementById(`ddt_loanpanel_${loanId}`);
     if (panelEl) {
-      const pulseColor = opt === OPT_XTRA ? GREEN : opt === OPT_MIN ? ORANGE : RED;
-      panelEl.animate([
-        { boxShadow: `0 0 0px ${pulseColor}00`, transform: 'scale(1)' },
-        { boxShadow: `0 0 16px ${pulseColor}88`, transform: 'scale(1.015)' },
-        { boxShadow: `0 0 0px ${pulseColor}00`, transform: 'scale(1)' },
-      ], { duration: 320, easing: 'ease-out' });
+      if (opt === OPT_SKIP) {
+        panelEl.animate([
+          { boxShadow: `0 0 0px ${RED}00`, transform: 'translateX(0) scale(1)' },
+          { boxShadow: `0 0 18px ${RED}aa`, transform: 'translateX(-3px) scale(1.01)' },
+          { boxShadow: `0 0 18px ${RED}aa`, transform: 'translateX(3px) scale(1.01)' },
+          { boxShadow: `0 0 0px ${RED}00`, transform: 'translateX(0) scale(1)' },
+        ], { duration: 300, easing: 'ease-out' });
+      } else {
+        const pulseColor = opt === OPT_XTRA ? GREEN : ORANGE;
+        panelEl.animate([
+          { boxShadow: `0 0 0px ${pulseColor}00`, transform: 'scale(1)' },
+          { boxShadow: `0 0 16px ${pulseColor}88`, transform: 'scale(1.015)' },
+          { boxShadow: `0 0 0px ${pulseColor}00`, transform: 'scale(1)' },
+        ], { duration: 320, easing: 'ease-out' });
+        if (opt === OPT_XTRA) burstConfetti(panelEl, GREEN, 6);
+      }
     }
   };
 
@@ -681,12 +704,17 @@
     G.emergency  = null;
     G.phase      = 'choose';
 
+    /* BUGFIX: clear last month's emergency banner BEFORE scheduling this
+       month's — this used to run AFTER scheduleEmergency(), which instantly
+       hid any banner it had just shown, so the emergency notice silently
+       never appeared from month 2 onward (budget still dropped, no on-screen
+       explanation why). */
+    const emEl = document.getElementById('ddt_emergency');
+    if (emEl) emEl.style.display = 'none';
+
     scheduleEmergency();
     renderLoans();
     updateHUD();
-
-    const emEl = document.getElementById('ddt_emergency');
-    if (emEl) emEl.style.display = 'none';
 
     /* result feedback clear */
     const fb = document.getElementById('ddt_result_fb');
@@ -773,6 +801,9 @@
     if (existing) existing.remove();
 
     const msgs = [];
+    if (G.emergency && G.emergencyCost > 0) {
+      msgs.push(`⚠️ ${G.emergency.label} hit this month — $${G.emergencyCost} pulled from budget.`);
+    }
     G.loans.forEach(loan => {
       const opt = G.choices[loan.id];
       if (opt === OPT_SKIP)  msgs.push(`⚠️ ${loan.label}: SKIPPED — balance + late fee!`);
@@ -790,7 +821,7 @@
 
     const fb = document.createElement('div');
     fb.id = 'ddt_result_fb';
-    fb.style.cssText = `background:${DARK};border:1px solid ${capOk ? GREEN : RED};border-radius:12px;padding:12px;font-size:12px;line-height:1.8;color:rgba(255,255,255,0.85)`;
+    fb.style.cssText = `${glassCard(capOk ? GREEN : RED, 20)};border-radius:12px;padding:12px;font-size:12px;line-height:1.8;color:rgba(255,255,255,0.85)`;
     fb.innerHTML = msgs.map(m => `<div>${m}</div>`).join('');
 
     const ar = document.getElementById('ddt_actionrow');
@@ -855,11 +886,11 @@
       opacity:0;transform:scale(.92);transition:opacity .35s ease-out,transform .35s cubic-bezier(.34,1.56,.64,1);
     `;
     overlay.innerHTML = `
-      <div style="font-family:'Orbitron',monospace;font-size:clamp(20px,5vw,32px);color:${won ? GOLD : RED};text-align:center;text-shadow:0 0 24px ${won ? GOLD : RED}">
+      <div style="font-family:'Anton',sans-serif;font-size:clamp(22px,5.5vw,34px);letter-spacing:0.5px;color:${won ? GOLD : RED};text-align:center;text-shadow:0 0 24px ${won ? GOLD : RED}">
         ${won ? '🎉 MISSION ACCOMPLISHED!' : '💀 DEBT OVERFLOW'}
       </div>
       <div id="ddt_end_stars" style="font-size:clamp(28px,8vw,48px)">${starStr}</div>
-      <div style="background:${DARK};border:1px solid ${ACCENT};border-radius:14px;padding:18px 24px;text-align:center;max-width:360px;width:100%">
+      <div id="ddt_end_scorecard" style="position:relative;overflow:hidden;${glassCard(ACCENT)};border-radius:14px;padding:18px 24px;text-align:center;max-width:360px;width:100%">
         <div style="font-family:'Orbitron',monospace;font-size:13px;color:${GOLD};margin-bottom:4px">SCORE</div>
         <div style="font-family:'Orbitron',monospace;font-size:28px;color:#fff;font-weight:700">${G.score.toLocaleString()}</div>
         <div style="display:flex;justify-content:center;gap:20px;margin-top:10px;font-size:13px">
@@ -868,7 +899,7 @@
           ${stars === 3 ? `<div style="color:${GLOW}">🏅 Interest Crusher Badge</div>` : ''}
         </div>
       </div>
-      <div style="background:${ACCENT}22;border:1px solid ${ACCENT};border-radius:14px;padding:18px;max-width:360px;width:100%;font-size:13px;line-height:1.8;color:rgba(255,255,255,0.85)">
+      <div style="background:${ACCENT}22;border:1px solid ${ACCENT};backdrop-filter:blur(12px);box-shadow:0 0 24px ${ACCENT}33;border-radius:14px;padding:18px;max-width:360px;width:100%;font-size:13px;line-height:1.8;color:rgba(255,255,255,0.85)">
         <div style="font-family:'Orbitron',monospace;font-size:11px;color:${GLOW};letter-spacing:1px;margin-bottom:10px">THE LESSON</div>
         ${lessons.map(l => `<div style="margin-bottom:6px">💡 ${l}</div>`).join('')}
       </div>
@@ -879,14 +910,30 @@
     `;
     root.appendChild(overlay);
 
-    /* juice: entrance pop + celebratory burst on a win, shake on a loss —
-       purely presentational, doesn't touch stars/coins/score math above */
+    /* juice: entrance pop + celebratory burst + card shine-sweep on a REAL WIN
+       only, shake on a loss — purely presentational, doesn't touch
+       stars/coins/score math above */
     requestAnimationFrame(() => {
       overlay.style.opacity = '1';
       overlay.style.transform = 'scale(1)';
       if (won) {
         const starsEl = document.getElementById('ddt_end_stars');
         if (starsEl) burstConfetti(starsEl, GOLD, 18 + stars * 6);
+        const scoreCard = document.getElementById('ddt_end_scorecard');
+        if (scoreCard) {
+          const sweep = document.createElement('div');
+          sweep.style.cssText = `
+            position:absolute;top:0;left:-60%;width:40%;height:100%;
+            background:linear-gradient(115deg,transparent 0%,rgba(255,255,255,0.28) 50%,transparent 100%);
+            pointer-events:none;transform:skewX(-15deg);
+          `;
+          scoreCard.appendChild(sweep);
+          sweep.animate([
+            { transform: 'translateX(0%) skewX(-15deg)' },
+            { transform: 'translateX(360%) skewX(-15deg)' },
+          ], { duration: 1100, delay: 250, easing: 'ease-in-out', fill: 'forwards' });
+          setTimeout(() => sweep.remove(), 1600);
+        }
       } else {
         shakeScreen();
       }
@@ -996,6 +1043,21 @@
       el.style.opacity = '0';
     });
     setTimeout(() => el.remove(), 950);
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     VISUAL POLISH HELPERS — glass-card chrome + scanline overlay
+     (ported from the shared arc-wrap recipe used across the app's
+     other games; plain hex/rgba here since this file has no CSS
+     custom properties / color-mix(), just inline styles like the
+     rest of ddt_lab.js)
+  ════════════════════════════════════════════════════════════ */
+  function glassCard(baseColor, glowPx) {
+    glowPx = glowPx || 30;
+    return `background:linear-gradient(150deg,rgba(255,255,255,0.06),rgba(19,13,50,0.92));border:1px solid ${baseColor}99;backdrop-filter:blur(16px);box-shadow:0 0 ${glowPx}px ${baseColor}55,inset 0 1px 0 rgba(255,255,255,0.12)`;
+  }
+  function scanlineOverlay() {
+    return `<div style="position:absolute;inset:0;z-index:6;pointer-events:none;background:linear-gradient(rgba(0,229,255,0) 50%,rgba(0,229,255,.025) 50%);background-size:100% 4px"></div>`;
   }
 
   /* ════════════════════════════════════════════════════════════

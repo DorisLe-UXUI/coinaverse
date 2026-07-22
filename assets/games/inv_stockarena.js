@@ -418,6 +418,17 @@
     0%   { left:-60%; }
     100% { left:130%; }
   }
+  /* ── confetti burst on a real win (2-3 stars) — same falling/rotating piece
+     language as arcade.js's .arc-confetti, added alongside the existing panel
+     shimmer so a top result gets both the glow AND a proper celebration. ── */
+  @keyframes saConfettiFall {
+    0%   { transform:translateY(-30px) rotate(0deg); opacity:1; }
+    100% { transform:translateY(460px) rotate(360deg); opacity:0; }
+  }
+  .sa-confetti {
+    position:absolute;top:-24px;font-size:1.3rem;
+    animation:saConfettiFall 1.7s ease-in forwards;pointer-events:none;
+  }
   /* ── AI rival bar ── */
   #sa-rival {
     position:relative;z-index:5;flex-shrink:0;
@@ -1379,6 +1390,29 @@
         '<button onclick="inv_stockarenaExit()" style="flex:1;min-width:100px;padding:11px;border:1px solid rgba(255,255,255,.2);border-radius:11px;background:rgba(255,255,255,.06);color:#fff;font-family:\'Orbitron\',sans-serif;font-size:.6rem;letter-spacing:.1em;cursor:pointer">← HUB</button>' +
       '</div>' +
     '</div>';
+
+    // Celebration confetti on a real win (2-3 stars) — matches the
+    // confetti-on-real-wins-only language used across the app.
+    if (stars >= 2) saConfetti(stars === 3 ? 34 : 18);
+  }
+
+  // Confetti burst for a real win (2-3 stars) — appended onto #sa-root (not
+  // #sa-over) so it can fall freely across the whole arena, on top of the
+  // result panel that showEndOverlay() just populated.
+  function saConfetti(count) {
+    var root = document.getElementById('sa-root');
+    if (!root) return;
+    var colors = [AC, AC2, GOLD, '#fff'];
+    var emojis = ['✦', '●', '▲', '★'];
+    var html = '';
+    for (var i = 0; i < (count || 26); i++) {
+      html += '<span class="sa-confetti" style="left:' + (4 + Math.random() * 92).toFixed(1) + '%;animation-delay:' + (Math.random() * .5).toFixed(2) + 's;color:' + colors[i % colors.length] + '">' + emojis[i % emojis.length] + '</span>';
+    }
+    var layer = document.createElement('div');
+    layer.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:13;';
+    layer.innerHTML = html;
+    root.appendChild(layer);
+    setTimeout(function () { if (layer.parentNode) layer.remove(); }, 2200);
   }
 
   function srow(label, val, col) {

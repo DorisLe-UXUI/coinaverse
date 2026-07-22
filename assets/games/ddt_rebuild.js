@@ -88,7 +88,7 @@
   window._rbForceWin = function () { if (G) { G.repairedCount = G.lv.buildingCount; G.health = 100; endGame(calcStars()); } };
 
   /* ─── STORED LISTENER REFS (for cleanup) ────────────────────── */
-  let _onDragMove = null, _onDragEnd = null, _onResize = null;
+  let _onDragMove = null, _onDragEnd = null, _onResize = null, _onDragStart = null;
 
   /* ─── HELPERS ───────────────────────────────────────────────── */
   function clamp(v,lo,hi){ return v<lo?lo:v>hi?hi:v; }
@@ -125,12 +125,15 @@
     G = null;
     if(raf){ cancelAnimationFrame(raf); raf=null; }
     setTimeout(initGame, 40);
-    return `<div id="rbRoot" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:'Inter',sans-serif;color:#fff;touch-action:none">
+    return `<div id="rbRoot" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,${ACCENT_DIM},#160b32 44%,${BG} 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff;touch-action:none">
+
+      <!-- SCANLINE TEXTURE OVERLAY -->
+      <div style="position:absolute;inset:0;z-index:15;pointer-events:none;background:linear-gradient(rgba(0,229,255,0) 50%,rgba(0,229,255,.025) 50%);background-size:100% 4px"></div>
 
       <!-- TOP BAR -->
       <div id="rbBar" style="position:absolute;top:0;left:0;right:0;z-index:30;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(3,4,12,.98) 60%,transparent)">
-        <button id="rbBack" style="padding:7px 13px;border:1px solid rgba(75,45,143,.55);border-radius:9px;background:rgba(75,45,143,.25);color:#c4b5fd;font-family:'Orbitron',sans-serif;font-size:.56rem;letter-spacing:.1em;cursor:pointer;white-space:nowrap;flex-shrink:0">← HUB</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.18em;color:${ACCENT_LT};flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">REBUILDING STATION</div>
+        <button id="rbBack" style="padding:7px 13px;border:1px solid rgba(75,45,143,.55);border-radius:9px;background:rgba(75,45,143,.25);color:#c4b5fd;font-family:'Orbitron',sans-serif;font-size:.56rem;letter-spacing:.1em;cursor:pointer;white-space:nowrap;flex-shrink:0;box-shadow:0 0 10px rgba(75,45,143,.35)">← HUB</button>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.18em;color:${ACCENT_LT};text-shadow:0 0 12px rgba(124,82,212,.7);flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">REBUILDING STATION</div>
         <div id="rbTimerWrap" style="text-align:right;flex-shrink:0">
           <div id="rbTimer" style="font-family:'Orbitron',sans-serif;font-size:.88rem;color:${GOLD};font-variant-numeric:tabular-nums">--:--</div>
           <div style="font-size:.42rem;letter-spacing:.1em;color:rgba(255,255,255,.35)">TIME</div>
@@ -193,6 +196,7 @@
     if(_onDragMove){ window.removeEventListener('mousemove', _onDragMove); window.removeEventListener('touchmove', _onDragMove); _onDragMove=null; }
     if(_onDragEnd){  window.removeEventListener('mouseup',  _onDragEnd);  window.removeEventListener('touchend',  _onDragEnd);  _onDragEnd=null; }
     if(_onResize){   window.removeEventListener('resize',   _onResize);   _onResize=null; }
+    if(_onDragStart){ const r=el('rbRoot'); if(r){ r.removeEventListener('mousedown', _onDragStart); r.removeEventListener('touchstart', _onDragStart); } _onDragStart=null; }
   }
 
   window.ddt_rebuildExit = function(){
@@ -225,6 +229,10 @@
       @keyframes rbPop{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1);opacity:1}}
       @keyframes rbWinCardIn{0%{opacity:0;transform:scale(.6) rotate(-6deg) translateY(20px)}55%{opacity:1;transform:scale(1.08) rotate(2deg) translateY(-4px)}80%{transform:scale(.97) rotate(-1deg)}100%{opacity:1;transform:scale(1) rotate(0) translateY(0)}}
       @keyframes rbLoseCardIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+      @keyframes ddt_confetti_fall{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(420px) rotate(360deg);opacity:0}}
+      @keyframes ddt_win_shine{to{background-position:-20% 0}}
+      .ddt_confetti_piece{position:absolute;top:-24px;font-size:1.3rem;animation:ddt_confetti_fall 1.7s ease-in forwards;pointer-events:none;z-index:110}
+      .ddt_win_shine::before{content:'';position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.18) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:ddt_win_shine 2.2s ease-in-out .3s 1;pointer-events:none}
       .rbTile{
         flex-shrink:0;width:92px;height:110px;border-radius:14px;
         display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -250,7 +258,7 @@
     sel.style.display = 'flex';
     sel.innerHTML = `
       <div style="font-size:2.2rem;margin-bottom:4px">🏗️</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.9rem;letter-spacing:.2em;color:${ACCENT_LT};margin-bottom:6px">REBUILDING STATION</div>
+      <div style="font-family:'Anton',sans-serif;font-size:1.3rem;letter-spacing:.1em;color:${ACCENT_LT};text-shadow:0 0 18px rgba(124,82,212,.75);margin-bottom:6px">REBUILDING STATION</div>
       <div style="color:rgba(255,255,255,.6);font-size:.75rem;max-width:320px;line-height:1.65;margin-bottom:22px;text-align:center">Drag action tiles onto broken buildings to restore your city. Each repair raises your Financial Health meter.</div>
       <div style="display:flex;flex-direction:column;gap:11px;width:100%;max-width:340px">
         ${LEVELS.map((lv,i)=>`
@@ -503,8 +511,14 @@
     _onDragMove = onDragMove;
     _onDragEnd  = onDragEnd;
 
-    root.addEventListener('mousedown',  onDragStart);
-    root.addEventListener('touchstart', onDragStart, {passive:false});
+    // Remove any previously registered root drag-start listener before re-adding — startLevel()
+    // (and therefore setupDragInput()) runs again on every "Play Again"/level-change, and root
+    // itself is not recreated on replay, so without this guard each replay stacked one more
+    // mousedown/touchstart listener onto the same #rbRoot node forever.
+    if(_onDragStart){ root.removeEventListener('mousedown', _onDragStart); root.removeEventListener('touchstart', _onDragStart); }
+    _onDragStart = onDragStart;
+    root.addEventListener('mousedown',  _onDragStart);
+    root.addEventListener('touchstart', _onDragStart, {passive:false});
     window.addEventListener('mousemove',  _onDragMove);
     window.addEventListener('touchmove',  _onDragMove, {passive:false});
     window.addEventListener('mouseup',    _onDragEnd);
@@ -546,6 +560,8 @@
       G.health = clamp(G.health - 3, 0, 100);
       G.score  = Math.max(0, G.score - 10);
       G.shakeT = 0.25;
+      G.flashT = 0.2;  // brief red flash — lighter than a full setback hit, but still legible feedback
+      G.flashC = RED;
       checkLose();
       return;
     }
@@ -789,12 +805,41 @@
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0,0,W,H);
 
+    // cosmic nebula washes — always-present atmospheric glow (violet + gold) so the backdrop
+    // reads as deep space instead of flat, independent of the health-driven glow further below
+    const neb1 = ctx.createRadialGradient(W*0.22,H*0.08,4,W*0.22,H*0.08,W*0.55);
+    neb1.addColorStop(0,`rgba(${hexToRgb(ACCENT_LT)},0.20)`);
+    neb1.addColorStop(1,'transparent');
+    ctx.fillStyle = neb1;
+    ctx.fillRect(0,0,W,H);
+    const neb2 = ctx.createRadialGradient(W*0.82,H*0.04,4,W*0.82,H*0.04,W*0.5);
+    neb2.addColorStop(0,`rgba(${hexToRgb(GOLD)},0.12)`);
+    neb2.addColorStop(1,'transparent');
+    ctx.fillStyle = neb2;
+    ctx.fillRect(0,0,W,H);
+
     // ground strip
     const gGrad = ctx.createLinearGradient(0,H*0.88,0,H);
     gGrad.addColorStop(0, lerpHex('#1A1010','#1A1035', healthT));
     gGrad.addColorStop(1, BG);
     ctx.fillStyle = gGrad;
     ctx.fillRect(0, H*0.88, W, H*0.12);
+
+    // perspective floor cue — faint lines converging on a horizon vanishing point, reinforcing
+    // that this is a city district receding into depth (a "space" you restore), not a flat menu
+    ctx.save();
+    ctx.strokeStyle = `rgba(${hexToRgb(ACCENT_LT)},0.09)`;
+    ctx.lineWidth = 1;
+    const vpX = W/2, vpY = H*0.86;
+    const floorLines = 7;
+    for(let fi=0; fi<=floorLines; fi++){
+      const fx = (W/floorLines)*fi;
+      ctx.beginPath();
+      ctx.moveTo(fx, H);
+      ctx.lineTo(vpX, vpY);
+      ctx.stroke();
+    }
+    ctx.restore();
 
     // ambient glow from repaired buildings
     if(healthT>0.3){
@@ -820,11 +865,14 @@
     G.particles.forEach(p=>{
       ctx.globalAlpha = Math.max(0, p.life/p.maxLife);
       ctx.fillStyle   = p.c;
+      ctx.shadowColor = p.c;
+      ctx.shadowBlur  = 6;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
       ctx.fill();
     });
     ctx.globalAlpha = 1;
+    ctx.shadowBlur  = 0;
 
     // floats
     ctx.textAlign    = 'center';
@@ -1063,7 +1111,11 @@
     if(!G) return 0;
     const lv  = G.lv;
     const won = G.repairedCount >= lv.buildingCount && G.health > 0;
-    if(!won && G.score <= 0) return 0;
+    // A non-win (timer ran out before the district was fully restored) is capped at 1 star —
+    // previously `won` was computed but never actually gated the 2/3-star thresholds below,
+    // so a high-score partial run could score a full 3 stars while the screen simultaneously
+    // read "PARTIAL RESTORATION", which made the star reward feel disconnected from the outcome.
+    if(!won) return G.score > 0 ? 1 : 0;
     if(G.score >= lv.starThresholds[0]) return 3;
     if(G.score >= lv.starThresholds[1]) return 2;
     return 1;
@@ -1098,11 +1150,23 @@
     // win moment reads as more celebratory instead of both states swapping in identically.
     const cardAnim = won ? 'rbWinCardIn .6s cubic-bezier(.22,1.4,.36,1) both' : 'rbLoseCardIn .4s ease both';
 
+    // Confetti + card shine-sweep fire ONLY on a real win — never on a partial/timeout/loss.
+    const confettiHtml = won ? Array.from({ length: 16 }, (_, i) => {
+      const emo = ['✦','●','▲','★','🪙'][i % 5];
+      const col = [GOLD, ACCENT_LT, GREEN, '#fff'][i % 4];
+      const left = (4 + Math.random() * 92).toFixed(1);
+      const delay = (Math.random() * 0.5).toFixed(2);
+      return `<span class="ddt_confetti_piece" style="left:${left}%;animation-delay:${delay}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+
     endEl.innerHTML = `
+    ${confettiHtml}
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;animation:${cardAnim}">
-      <div style="font-size:2.5rem;margin-bottom:4px">${won?'🏙️':'🏚️'}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:.2em;color:${mainColor};margin-bottom:8px">${mainLabel}</div>
-      <div style="font-size:1.7rem;letter-spacing:.1em;margin-bottom:4px">${starStr}</div>
+      <div class="${won?'ddt_win_shine':''}" style="position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;gap:6px;padding:20px 30px;border-radius:20px;border:1px solid rgba(${hexToRgb(mainColor)},.5);background:linear-gradient(150deg,rgba(255,255,255,.06),rgba(19,13,50,.92));backdrop-filter:blur(20px);box-shadow:0 0 40px rgba(${hexToRgb(mainColor)},.32),inset 0 1px 0 rgba(255,255,255,.12)">
+        <div style="font-size:2.5rem;margin-bottom:4px">${won?'🏙️':'🏚️'}</div>
+        <div style="font-family:'Anton',sans-serif;font-size:1rem;letter-spacing:.12em;color:${mainColor};text-shadow:0 0 16px rgba(${hexToRgb(mainColor)},.8)">${mainLabel}</div>
+        <div style="font-size:1.7rem;letter-spacing:.1em">${starStr}</div>
+      </div>
 
       <div style="display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap;justify-content:center">
         <div style="text-align:center">

@@ -190,7 +190,24 @@
   window.SCREENS.game_bsv_aiinnovationlabs = function () {
     G = null;
     setTimeout(initGame, 40);
-    return `<div id="ailWrap" style="position:absolute;inset:0;background:${BG};overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;touch-action:none">
+    return `<style>
+      @keyframes ailConfettiFall{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(440px) rotate(360deg);opacity:0}}
+      .ailConfetti{position:absolute;top:-24px;font-size:1.3rem;animation:ailConfettiFall 1.7s ease-in forwards;pointer-events:none;z-index:60}
+      @keyframes ailShake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-5px)}40%,60%{transform:translateX(5px)}}
+      .ailShaking{animation:ailShake .4s}
+      #ailWrap::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
+        background-image:radial-gradient(1.5px 1.5px at 20% 24%,rgba(255,255,255,.55) 50%,transparent 52%),
+          radial-gradient(1.5px 1.5px at 65% 12%,rgba(255,255,255,.4) 50%,transparent 52%),
+          radial-gradient(1px 1px at 40% 66%,rgba(255,255,255,.45) 50%,transparent 52%),
+          radial-gradient(1.5px 1.5px at 82% 40%,rgba(255,255,255,.3) 50%,transparent 52%),
+          radial-gradient(1px 1px at 12% 82%,rgba(255,255,255,.4) 50%,transparent 52%),
+          radial-gradient(1.5px 1.5px at 92% 76%,rgba(255,255,255,.28) 50%,transparent 52%),
+          radial-gradient(1px 1px at 55% 90%,rgba(255,255,255,.3) 50%,transparent 52%);}
+      #ailWrap::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
+        background:linear-gradient(rgba(0,229,255,0) 50%,rgba(0,229,255,.025) 50%);background-size:100% 4px}
+      .bsvShard{clip-path:polygon(0 0,92% 0,100% 38%,100% 100%,8% 100%,0 62%) !important;}
+    </style>
+    <div id="ailWrap" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, ${ACCENT} 16%, #1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;touch-action:none">
 
       <!-- TOP BAR -->
       <div id="ailTop" style="position:absolute;top:0;left:0;right:0;z-index:30;display:flex;align-items:center;gap:8px;padding:10px 12px 8px;background:linear-gradient(180deg,rgba(3,4,12,.95) 60%,transparent)">
@@ -248,7 +265,7 @@
       <div id="ailFlash" style="position:absolute;inset:0;z-index:28;pointer-events:none;opacity:0;transition:opacity .08s"></div>
 
       <!-- LEVEL SELECT OVERLAY -->
-      <div id="ailLevelSel" style="position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 20%,rgba(0,255,255,.06),${BG} 70%);gap:16px;padding:24px">
+      <div id="ailLevelSel" style="position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 20%,rgba(0,255,255,.1),rgba(3,4,12,.55) 75%);gap:16px;padding:24px">
         <div style="font-size:.38rem;letter-spacing:.25em;color:rgba(0,255,255,.5)">BITSTREAM VALLEY</div>
         <div style="font-size:1.3rem;font-weight:900;letter-spacing:.1em;color:${ACCENT};text-shadow:0 0 30px ${ACCENT};text-align:center;line-height:1.2">AI INNOVATION<br>LABS</div>
         <div style="width:48px;height:2px;background:linear-gradient(90deg,transparent,${ACCENT},transparent)"></div>
@@ -266,15 +283,15 @@
         </div>
 
         <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:320px">
-          <button class="ailLvBtn" data-lv="0" style="width:100%;padding:14px 18px;border:1px solid ${ACCENT};border-radius:10px;background:rgba(0,255,255,.07);color:${ACCENT};font-size:.6rem;letter-spacing:.12em;cursor:pointer;font-weight:700;text-align:left">
+          <button class="ailLvBtn bsvShard" data-lv="0" style="width:100%;padding:14px 18px;border:1px solid ${ACCENT};border-radius:10px;background:rgba(0,255,255,.07);color:${ACCENT};font-size:.6rem;letter-spacing:.12em;cursor:pointer;font-weight:700;text-align:left;box-shadow:0 0 18px rgba(0,255,255,.18)">
             ⚡ LEVEL 1 &mdash; LEARN MODE
             <div style="font-size:.44rem;color:rgba(255,255,255,.4);font-weight:400;margin-top:3px;letter-spacing:.06em">Clearly labeled cards &bull; Slow pace &bull; 90 seconds</div>
           </button>
-          <button class="ailLvBtn" data-lv="1" style="width:100%;padding:14px 18px;border:1px solid ${GOLD};border-radius:10px;background:rgba(255,215,0,.06);color:${GOLD};font-size:.6rem;letter-spacing:.12em;cursor:pointer;font-weight:700;text-align:left">
+          <button class="ailLvBtn bsvShard" data-lv="1" style="width:100%;padding:14px 18px;border:1px solid ${GOLD};border-radius:10px;background:rgba(255,215,0,.06);color:${GOLD};font-size:.6rem;letter-spacing:.12em;cursor:pointer;font-weight:700;text-align:left;box-shadow:0 0 18px rgba(255,215,0,.15)">
             🔥 LEVEL 2 &mdash; MASTER MODE
             <div style="font-size:.44rem;color:rgba(255,255,255,.4);font-weight:400;margin-top:3px;letter-spacing:.06em">Subtle bias markers &bull; Fast flow &bull; 90 seconds</div>
           </button>
-          <button class="ailLvBtn" data-lv="2" style="width:100%;padding:14px 18px;border:1px solid #ff4d9d;border-radius:10px;background:rgba(255,77,157,.07);color:#ff4d9d;font-size:.6rem;letter-spacing:.12em;cursor:pointer;font-weight:700;text-align:left">
+          <button class="ailLvBtn bsvShard" data-lv="2" style="width:100%;padding:14px 18px;border:1px solid #ff4d9d;border-radius:10px;background:rgba(255,77,157,.07);color:#ff4d9d;font-size:.6rem;letter-spacing:.12em;cursor:pointer;font-weight:700;text-align:left;box-shadow:0 0 18px rgba(255,77,157,.15)">
             👑 LEVEL 3 &mdash; LEGEND MODE
             <div style="font-size:.44rem;color:rgba(255,255,255,.4);font-weight:400;margin-top:3px;letter-spacing:.06em">Money myths &amp; scam radar &bull; Sharpest scrutiny &bull; 90 seconds</div>
           </button>
@@ -745,6 +762,16 @@
       fl.style.transition = 'opacity .4s ease';
       fl.style.opacity    = '0';
     }, 60);
+    if (type !== 'good') shakeWrap();
+  }
+
+  /* ── SHAKE (wrong sorts only) ──────────────────────────────────── */
+  function shakeWrap() {
+    const w = document.getElementById('ailWrap');
+    if (!w) return;
+    w.classList.remove('ailShaking');
+    void w.offsetWidth; // restart animation if already mid-shake
+    w.classList.add('ailShaking');
   }
 
   /* ── COMBO BADGE (reward escalation, cosmetic only) ───────────────
@@ -894,9 +921,13 @@
     over.style.transform = win ? 'scale(.7)' : 'scale(1)';
     over.style.opacity = win ? '0' : '1';
     over.style.display = 'flex';
-    over.innerHTML = `
+    const confettiHTML = win ? Array.from({ length: 16 }, (_, i) => {
+      const emo = ['✦', '●', '▲', '★'][i % 4], col = [ACCENT, GOLD, '#a855f7', '#14b8a6'][i % 4];
+      return `<span class="ailConfetti" style="left:${4 + Math.random() * 92}%;animation-delay:${(Math.random() * .5).toFixed(2)}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+    over.innerHTML = `${confettiHTML}
       <div style="font-size:.36rem;letter-spacing:.22em;color:rgba(0,255,255,.5)">RESULTS</div>
-      <div style="font-size:1rem;font-weight:900;letter-spacing:.1em;color:${resultColor};text-shadow:0 0 20px ${resultColor}">${resultLabel}</div>
+      <div style="font-family:'Anton',sans-serif;font-size:1.35rem;letter-spacing:.06em;color:${resultColor};text-shadow:0 0 20px ${resultColor}">${resultLabel}</div>
       <div style="font-size:1.8rem;letter-spacing:.1em">${starStr}</div>
 
       <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
@@ -930,7 +961,7 @@
 
       <!-- Buttons -->
       <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
-        <button id="ailPlayAgain" style="padding:12px 22px;border:1px solid ${ACCENT};border-radius:10px;background:rgba(0,255,255,.1);color:${ACCENT};font-size:.58rem;letter-spacing:.12em;cursor:pointer;font-weight:700">▶ PLAY AGAIN</button>
+        <button id="ailPlayAgain" class="bsvShard" style="padding:12px 24px;border:1px solid ${ACCENT};border-radius:10px;background:rgba(0,255,255,.1);color:${ACCENT};font-size:.58rem;letter-spacing:.12em;cursor:pointer;font-weight:700;box-shadow:0 0 22px rgba(0,255,255,.3)">▶ PLAY AGAIN</button>
         <button id="ailHub" style="padding:12px 22px;border:1px solid rgba(255,255,255,.2);border-radius:10px;background:rgba(255,255,255,.04);color:rgba(255,255,255,.7);font-size:.58rem;letter-spacing:.12em;cursor:pointer;font-weight:700">← HUB</button>
       </div>
     `;

@@ -147,8 +147,9 @@
 
   window.SCREENS.game_bsv_cryptocrossing = function () {
     G = null;
+    ensureCosmicStyle();
     setTimeout(initGame, 40);
-    return `<div id="ccWrap" style="position:absolute;inset:0;background:#03040c;overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;touch-action:none">
+    return `<div id="ccWrap" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, ${ACCENT} 15%, #1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff;user-select:none;touch-action:none">
 
       <!-- TOP BAR -->
       <div id="ccTopBar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:8px;padding:10px 12px;background:linear-gradient(180deg,rgba(0,0,0,.85),transparent)">
@@ -178,13 +179,13 @@
       <canvas id="ccCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas>
 
       <!-- LEVEL SELECT OVERLAY (shown first) -->
-      <div id="ccLevelSel" style="position:absolute;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 0%,#001a2e,#03040c 70%);gap:18px;padding:24px">
-        <div style="font-size:1.4rem;font-weight:900;letter-spacing:.12em;color:#00FFFF;text-shadow:0 0 30px #00FFFF">CRYPTO CROSSING</div>
+      <div id="ccLevelSel" style="position:absolute;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 0%,rgba(0,255,255,.1),rgba(3,4,12,.55) 70%);gap:18px;padding:24px">
+        <div style="font-family:'Anton',sans-serif;font-size:1.5rem;letter-spacing:.08em;color:#00FFFF;text-shadow:0 0 30px #00FFFF">CRYPTO CROSSING</div>
         <div style="font-size:.55rem;letter-spacing:.15em;color:rgba(255,255,255,.5);text-align:center;max-width:280px;line-height:1.7">Sprint the digital highway — collect real crypto, dodge scams. Check every symbol before you grab it!</div>
         <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center">
-          <button class="ccLvBtn" data-lv="0" style="padding:14px 22px;border:1px solid #00FFFF;border-radius:10px;background:rgba(0,255,255,.1);color:#00FFFF;font-size:.65rem;letter-spacing:.12em;cursor:pointer;font-weight:700">⚡ LEVEL 1<br><span style="font-size:.5rem;color:rgba(255,255,255,.5);font-weight:400">LEARN MODE</span></button>
-          <button class="ccLvBtn" data-lv="1" style="padding:14px 22px;border:1px solid #FFD700;border-radius:10px;background:rgba(255,215,0,.08);color:#FFD700;font-size:.65rem;letter-spacing:.12em;cursor:pointer;font-weight:700">🔥 LEVEL 2<br><span style="font-size:.5rem;color:rgba(255,255,255,.5);font-weight:400">MASTER MODE</span></button>
-          <button class="ccLvBtn" data-lv="2" style="padding:14px 22px;border:1px solid #ff4d9d;border-radius:10px;background:rgba(255,77,157,.08);color:#ff4d9d;font-size:.65rem;letter-spacing:.12em;cursor:pointer;font-weight:700">👑 LEVEL 3<br><span style="font-size:.5rem;color:rgba(255,255,255,.5);font-weight:400">PRO MODE</span></button>
+          <button class="ccLvBtn bsvShard" data-lv="0" style="padding:14px 22px;border:1px solid #00FFFF;border-radius:10px;background:rgba(0,255,255,.1);color:#00FFFF;font-size:.65rem;letter-spacing:.12em;cursor:pointer;font-weight:700;box-shadow:0 0 18px rgba(0,255,255,.2)">⚡ LEVEL 1<br><span style="font-size:.5rem;color:rgba(255,255,255,.5);font-weight:400">LEARN MODE</span></button>
+          <button class="ccLvBtn bsvShard" data-lv="1" style="padding:14px 22px;border:1px solid #FFD700;border-radius:10px;background:rgba(255,215,0,.08);color:#FFD700;font-size:.65rem;letter-spacing:.12em;cursor:pointer;font-weight:700;box-shadow:0 0 18px rgba(255,215,0,.18)">🔥 LEVEL 2<br><span style="font-size:.5rem;color:rgba(255,255,255,.5);font-weight:400">MASTER MODE</span></button>
+          <button class="ccLvBtn bsvShard" data-lv="2" style="padding:14px 22px;border:1px solid #ff4d9d;border-radius:10px;background:rgba(255,77,157,.08);color:#ff4d9d;font-size:.65rem;letter-spacing:.12em;cursor:pointer;font-weight:700;box-shadow:0 0 18px rgba(255,77,157,.18)">👑 LEVEL 3<br><span style="font-size:.5rem;color:rgba(255,255,255,.5);font-weight:400">PRO MODE</span></button>
         </div>
         <div style="font-size:.42rem;color:rgba(255,255,255,.3);letter-spacing:.1em;text-align:center;line-height:1.8">SWIPE UP → JUMP &nbsp;|&nbsp; SWIPE DOWN → SLIDE &nbsp;|&nbsp; SWIPE LEFT/RIGHT → CHANGE LANE<br>ARROW KEYS + SPACE also work</div>
       </div>
@@ -350,7 +351,7 @@
 
     // Spawn tokens
     G.spawnAcc += dt;
-    const interval = cfg.spawnInterval * (G.sliding ? 1 : 1);
+    const interval = cfg.spawnInterval;
     if (G.spawnAcc >= interval) {
       G.spawnAcc = 0;
       spawnToken(W, H, cfg);
@@ -1001,6 +1002,26 @@
         0%   { opacity:0; transform:scale(.92); }
         100% { opacity:1; transform:scale(1); }
       }
+      @keyframes ccConfettiFall {
+        0%   { transform:translateY(-30px) rotate(0deg); opacity:1; }
+        100% { transform:translateY(440px) rotate(360deg); opacity:0; }
+      }
+      .ccConfetti { position:absolute; top:-24px; font-size:1.3rem; animation:ccConfettiFall 1.7s ease-in forwards; pointer-events:none; z-index:60; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  /* ── COSMIC CHROME (level-select / HUD shell) — idempotent, injected once ──
+     The canvas already draws its own rich starfield/nebula/highway during play;
+     this covers the DOM chrome around it (level-select, buttons) so it matches
+     the same "Cyber-Premium Gaming HUD" language used across the rest of the app. */
+  function ensureCosmicStyle() {
+    if (document.getElementById('ccCosmicStyle')) return;
+    const style = document.createElement('style');
+    style.id = 'ccCosmicStyle';
+    style.textContent = `
+      .bsvShard { clip-path:polygon(0 0,92% 0,100% 38%,100% 100%,8% 100%,0 62%) !important; transition:filter .15s; }
+      .bsvShard:hover { filter:brightness(1.12); }
     `;
     document.head.appendChild(style);
   }
@@ -1043,9 +1064,14 @@
       ? Math.round(G.scamsAvoided / (G.scamsHit + G.scamsAvoided + 0.01) * 100)
       : 100;
 
-    overDiv.innerHTML = `
+    const confettiHTML = won ? Array.from({ length: 18 }, (_, i) => {
+      const emo = ['✦', '●', '▲', '★', '₿'][i % 5], col = ['#00FFFF', '#FFD700', '#a855f7', '#14b8a6'][i % 4];
+      return `<span class="ccConfetti" style="left:${4 + Math.random() * 92}%;animation-delay:${(Math.random() * .5).toFixed(2)}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+
+    overDiv.innerHTML = `${confettiHTML}
       <div style="font-size:2.2rem;letter-spacing:.04em;line-height:1">${starStr}</div>
-      <div style="font-size:1.3rem;font-weight:900;letter-spacing:.1em;color:#00FFFF;text-shadow:0 0 20px #00FFFF">${stars === 3 ? 'BLOCKCHAIN CERTIFIED!' : stars === 2 ? 'DELIVERY COMPLETE' : stars === 1 ? 'DELIVERED' : 'HACKED'}</div>
+      <div style="font-family:'Anton',sans-serif;font-size:1.5rem;letter-spacing:.06em;color:#00FFFF;text-shadow:0 0 20px #00FFFF">${stars === 3 ? 'BLOCKCHAIN CERTIFIED!' : stars === 2 ? 'DELIVERY COMPLETE' : stars === 1 ? 'DELIVERED' : 'HACKED'}</div>
       <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
         <div style="text-align:center;background:rgba(0,255,255,.07);border:1px solid rgba(0,255,255,.2);border-radius:10px;padding:10px 16px">
           <div style="font-size:.38rem;letter-spacing:.12em;color:rgba(255,255,255,.45);margin-bottom:3px">SCORE</div>
@@ -1066,7 +1092,7 @@
         <div style="font-size:.52rem;line-height:1.7;color:rgba(255,255,255,.8)">Real crypto has real value — always verify before you collect. Scam coins and fake wallets are designed to look legitimate. Check the symbol, source, and wallet address before trusting any digital currency.</div>
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
-        <button id="ccReplay" style="padding:12px 22px;border:1px solid #00FFFF;border-radius:10px;background:rgba(0,255,255,.12);color:#00FFFF;font-size:.62rem;letter-spacing:.12em;cursor:pointer;font-weight:700">▶ PLAY AGAIN</button>
+        <button id="ccReplay" class="bsvShard" style="padding:12px 24px;border:1px solid #00FFFF;border-radius:10px;background:rgba(0,255,255,.12);color:#00FFFF;font-size:.62rem;letter-spacing:.12em;cursor:pointer;font-weight:700;box-shadow:0 0 22px rgba(0,255,255,.3)">▶ PLAY AGAIN</button>
         <button id="ccHub" style="padding:12px 22px;border:1px solid rgba(255,255,255,.2);border-radius:10px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.7);font-size:.62rem;letter-spacing:.12em;cursor:pointer">← HUB</button>
       </div>`;
     overDiv.style.display = 'flex';

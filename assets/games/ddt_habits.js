@@ -36,6 +36,9 @@
      Level 3 finish for 3★ — reaching Level 3 has to matter for the rating. */
   const STAR3_SCORE  = 4200;
   const STAR2_SCORE  = 2600;
+  // Exact streak values that pop the big celebratory banner (not every correct
+  // answer once streak>=3 — that's what the inline "🔥 Nx STREAK!" feedback is for).
+  const STREAK_MILESTONES = [3, 6, 10];
 
   /* ── habit data ─────────────────────────────────────────────── */
   // Level 1: simple, obvious pairs
@@ -195,6 +198,12 @@
 
   /* ── state ─────────────────────────────────────────────────── */
   let G = null;
+  // rAF handle for the ambient bg loop, tracked OUTSIDE of G. "PLAY AGAIN" calls
+  // initGame() again on the same live canvas (no fresh DOM), so if this lived only
+  // on G a replay would orphan the previous loop forever (it keeps running because
+  // it reads the shared `G` binding, which is non-null again as soon as the new
+  // game object is created) — tracking it here lets setupBgCanvas() cancel it.
+  let bgLoopId = null;
 
   /* ── screen registration ────────────────────────────────────── */
   window.SCREENS = window.SCREENS || {};
@@ -206,6 +215,9 @@
 
   <!-- ambient bg canvas -->
   <canvas id="ddt_bg" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.7"></canvas>
+
+  <!-- scanline texture -->
+  <div style="position:absolute;inset:0;z-index:6;pointer-events:none;background:linear-gradient(rgba(196,181,253,0) 50%,rgba(196,181,253,.025) 50%);background-size:100% 4px"></div>
 
   <!-- TOP BAR -->
   <div id="ddt_topbar" style="
@@ -223,18 +235,18 @@
       transition:background .2s;
     ">← Hub</button>
     <div style="flex:1;text-align:center">
-      <div style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;color:${PURPLE2};letter-spacing:2px;text-transform:uppercase">
+      <div style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;color:${PURPLE2};letter-spacing:2px;text-transform:uppercase;text-shadow:0 0 12px rgba(167,139,250,.65)">
         Habit Reset Center
       </div>
-      <div id="ddt_levelind" style="font-size:10px;color:${MUTED};margin-top:1px;letter-spacing:1px">LEVEL 1 — LEARN</div>
+      <div id="ddt_levelind" style="font-family:'Orbitron',monospace;font-size:10px;color:${MUTED};margin-top:1px;letter-spacing:1px">LEVEL 1 — LEARN</div>
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-shrink:0">
       <div style="text-align:right">
-        <div style="font-size:9px;color:${VIOLET};letter-spacing:1px;text-transform:uppercase">SCORE</div>
+        <div style="font-family:'Orbitron',monospace;font-size:9px;color:${VIOLET};letter-spacing:1px;text-transform:uppercase">SCORE</div>
         <div id="ddt_score" style="font-family:'Orbitron',monospace;font-size:16px;font-weight:800;color:${GOLD}">0</div>
       </div>
       <div style="text-align:right">
-        <div style="font-size:9px;color:${VIOLET};letter-spacing:1px;text-transform:uppercase">TIME</div>
+        <div style="font-family:'Orbitron',monospace;font-size:9px;color:${VIOLET};letter-spacing:1px;text-transform:uppercase">TIME</div>
         <div id="ddt_timer" style="font-family:'Orbitron',monospace;font-size:16px;font-weight:800;color:#fff">1:00</div>
       </div>
     </div>
@@ -251,7 +263,7 @@
     <div style="display:flex;align-items:center;gap:6px">
       <span style="font-size:15px">🔥</span>
       <div>
-        <div style="font-size:9px;color:${VIOLET};letter-spacing:1px">STREAK</div>
+        <div style="font-family:'Orbitron',monospace;font-size:9px;color:${VIOLET};letter-spacing:1px">STREAK</div>
         <div id="ddt_streak" style="font-family:'Orbitron',monospace;font-size:14px;font-weight:700;color:${GOLD}">0</div>
       </div>
     </div>
@@ -259,21 +271,21 @@
       <div style="display:flex;align-items:center;gap:5px">
         <span style="font-size:13px">💰</span>
         <div>
-          <div style="font-size:9px;color:${VIOLET};letter-spacing:1px">COINS</div>
+          <div style="font-family:'Orbitron',monospace;font-size:9px;color:${VIOLET};letter-spacing:1px">COINS</div>
           <div id="ddt_coins_hud" style="font-family:'Orbitron',monospace;font-size:13px;color:${GOLD2}">0</div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:5px">
         <span style="font-size:13px">💪</span>
         <div>
-          <div style="font-size:9px;color:${VIOLET};letter-spacing:1px">STRENGTH</div>
+          <div style="font-family:'Orbitron',monospace;font-size:9px;color:${VIOLET};letter-spacing:1px">STRENGTH</div>
           <div id="ddt_strength" style="font-family:'Orbitron',monospace;font-size:13px;color:${PURPLE2}">Lv.1</div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:5px">
         <span style="font-size:13px">⚡</span>
         <div>
-          <div style="font-size:9px;color:${RED};letter-spacing:1px">ERRORS</div>
+          <div style="font-family:'Orbitron',monospace;font-size:9px;color:${RED};letter-spacing:1px">ERRORS</div>
           <div id="ddt_errors" style="font-family:'Orbitron',monospace;font-size:13px;color:${RED}">0/${MAX_ERRORS}</div>
         </div>
       </div>
@@ -295,7 +307,7 @@
   <div id="ddt_feedback" style="
     position:absolute;top:50%;left:50%;transform:translate(-50%,-60%);
     z-index:50;pointer-events:none;opacity:0;
-    font-family:'Orbitron',monospace;font-size:22px;font-weight:900;
+    font-family:'Anton',sans-serif;font-size:26px;font-weight:400;letter-spacing:.04em;
     text-shadow:0 0 20px currentColor;transition:opacity .3s;
   "></div>
 
@@ -309,10 +321,19 @@
     align-items:center;justify-content:center;flex-direction:column;
     text-align:center;padding:24px;
   ">
-    <div id="ddt_end_title" style="font-family:'Orbitron',monospace;font-size:22px;font-weight:900;color:${PURPLE2};margin-bottom:8px;letter-spacing:2px"></div>
-    <div id="ddt_end_stars" style="font-size:42px;margin:12px 0;letter-spacing:6px"></div>
-    <div id="ddt_end_coins" style="font-family:'Orbitron',monospace;font-size:18px;color:${GOLD};margin-bottom:4px"></div>
-    <div id="ddt_end_xp" style="font-size:12px;color:${VIOLET};margin-bottom:16px"></div>
+    <div id="ddt_confetti_layer" style="position:absolute;inset:0;overflow:hidden;pointer-events:none"></div>
+    <div id="ddt_end_card" style="
+      position:relative;overflow:hidden;width:100%;max-width:380px;
+      border:1px solid rgba(167,139,250,.55);border-radius:16px;
+      background:linear-gradient(150deg,rgba(255,255,255,.06),rgba(19,13,50,.92));
+      backdrop-filter:blur(20px);box-shadow:0 0 50px rgba(124,58,237,.35),inset 0 1px 0 rgba(255,255,255,.12);
+      padding:20px 18px 16px;margin-bottom:16px;
+    ">
+      <div id="ddt_end_title" style="font-family:'Anton',sans-serif;font-size:27px;font-weight:400;color:${PURPLE2};margin-bottom:8px;letter-spacing:.04em;text-shadow:0 0 18px currentColor"></div>
+      <div id="ddt_end_stars" style="font-size:42px;margin:12px 0;letter-spacing:6px"></div>
+      <div id="ddt_end_coins" style="font-family:'Orbitron',monospace;font-size:18px;color:${GOLD};margin-bottom:4px"></div>
+      <div id="ddt_end_xp" style="font-family:'Orbitron',monospace;font-size:11px;color:${VIOLET}"></div>
+    </div>
     <div id="ddt_end_lesson" style="
       max-width:420px;font-size:13px;line-height:1.7;color:rgba(196,181,253,.85);
       background:rgba(75,45,143,.15);border:1px solid rgba(75,45,143,.4);
@@ -322,14 +343,15 @@
       <button id="ddt_replay" style="
         background:linear-gradient(135deg,${ACCENT},${PURPLE});
         border:none;color:#fff;padding:12px 28px;border-radius:10px;
-        font-family:'Orbitron',monospace;font-size:13px;font-weight:700;
-        cursor:pointer;letter-spacing:1px;transition:transform .15s;
+        font-family:'Anton',sans-serif;font-size:15px;font-weight:400;
+        cursor:pointer;letter-spacing:.08em;transition:transform .15s;
+        box-shadow:0 0 20px rgba(124,58,237,.5);
       ">PLAY AGAIN</button>
       <button id="ddt_hub" style="
         background:transparent;border:2px solid ${MUTED};
         color:${VIOLET};padding:12px 28px;border-radius:10px;
-        font-family:'Orbitron',monospace;font-size:13px;font-weight:700;
-        cursor:pointer;letter-spacing:1px;transition:border-color .2s;
+        font-family:'Anton',sans-serif;font-size:15px;font-weight:400;
+        cursor:pointer;letter-spacing:.08em;transition:border-color .2s;
       ">← HUB</button>
     </div>
   </div>
@@ -366,6 +388,11 @@
     startLevel(3);
     return true;
   };
+
+  /* ── back-button hover handlers (named + module-scope so repeated       ── */
+  /* ── addEventListener calls across replays dedupe instead of stacking) ── */
+  function handleBackBtnEnter() { this.style.background = 'rgba(75,45,143,.5)'; }
+  function handleBackBtnLeave() { this.style.background = 'rgba(75,45,143,.25)'; }
 
   /* ── init ──────────────────────────────────────────────────── */
   function initGame() {
@@ -404,16 +431,19 @@
     setupMachines();
     startLevel(1);
 
-    // Button listeners
+    // Button listeners (named handlers so replays don't stack duplicate listeners)
     document.getElementById('ddt_back').addEventListener('click', window.ddt_habitsExit);
-    document.getElementById('ddt_back').addEventListener('mouseenter', function(){ this.style.background='rgba(75,45,143,.5)'; });
-    document.getElementById('ddt_back').addEventListener('mouseleave', function(){ this.style.background='rgba(75,45,143,.25)'; });
+    document.getElementById('ddt_back').addEventListener('mouseenter', handleBackBtnEnter);
+    document.getElementById('ddt_back').addEventListener('mouseleave', handleBackBtnLeave);
   }
 
   /* ── bg canvas (ambient particles) ────────────────────────── */
   function setupBgCanvas() {
     const c = document.getElementById('ddt_bg');
     if (!c) return;
+    // Cancel any bg loop left running from a previous initGame() call (e.g. a
+    // "PLAY AGAIN" replay) before starting a new one — see bgLoopId comment above.
+    if (bgLoopId !== null) { cancelAnimationFrame(bgLoopId); bgLoopId = null; }
     const ctx = c.getContext('2d');
     const root = document.getElementById('ddt_root');
     const W = root.offsetWidth, H = root.offsetHeight;
@@ -434,6 +464,16 @@
       const _hbg=ctx.createLinearGradient(0,0,0,H);
       _hbg.addColorStop(0,'#080518'); _hbg.addColorStop(0.5,'#0c0620'); _hbg.addColorStop(1,'#080518');
       ctx.fillStyle=_hbg; ctx.fillRect(0,0,W,H);
+
+      // Nebula glow washes (violet + gold) so the backdrop reads as cosmic instead
+      // of a flat grid — painted before the grid/particles so they sit underneath.
+      const neb1 = ctx.createRadialGradient(W*0.26,H*0.10,0, W*0.26,H*0.10, Math.max(W,H)*0.7);
+      neb1.addColorStop(0,'rgba(124,58,237,.30)'); neb1.addColorStop(1,'rgba(124,58,237,0)');
+      ctx.fillStyle = neb1; ctx.fillRect(0,0,W,H);
+      const neb2 = ctx.createRadialGradient(W*0.80,H*0.88,0, W*0.80,H*0.88, Math.max(W,H)*0.6);
+      neb2.addColorStop(0,'rgba(251,191,36,.16)'); neb2.addColorStop(1,'rgba(251,191,36,0)');
+      ctx.fillStyle = neb2; ctx.fillRect(0,0,W,H);
+
       ctx.strokeStyle = `rgba(75,45,143,0.08)`;
       ctx.lineWidth = 1;
       for (let x = 0; x < W; x += 60) {
@@ -457,10 +497,12 @@
     function loop() {
       if (!G) return;
       drawGrid();
-      G.animHandle = requestAnimationFrame(loop);
+      bgLoopId = requestAnimationFrame(loop);
+      G.animHandle = bgLoopId;
     }
     drawGrid();
-    G.animHandle = requestAnimationFrame(loop);
+    bgLoopId = requestAnimationFrame(loop);
+    G.animHandle = bgLoopId;
   }
 
   /* ── machines strip ────────────────────────────────────────── */
@@ -690,6 +732,12 @@
       return;
     }
     const scenario = G.scenarioArr[G.l2Order[G.currentScenarioIdx]];
+    // Start the speed-bonus clock the moment this scenario actually becomes visible.
+    // (Setting this only after the *next* answer — as the old code did — left it
+    // undefined for each level's first scenario, and stale across the level-transition
+    // screen for the first scenario of the level after, skewing the speed bonus both
+    // ways.)
+    G.l2StartTime = Date.now();
     const arena = document.getElementById('ddt_arena');
     arena.innerHTML = '';
 
@@ -857,6 +905,7 @@
     G.matchedCount++;
     G.streak++;
     if (G.streak > G.bestStreak) G.bestStreak = G.streak;
+    if (STREAK_MILESTONES.includes(G.streak)) showStreakMilestone(G.streak);
 
     const streakMult = Math.min(1 + (G.streak - 1) * 0.2, 3);
     let pts = Math.round(BASE_SCORE * streakMult);
@@ -957,9 +1006,10 @@
     showFeedback(`✗ MISMATCH! -${MISMATCH_PEN}`, RED);
     drawConnectionLine(badEl, goodEl, RED);
 
-    // Shake
+    // Shake + flash
     shakeEl(badEl);
     shakeEl(goodEl);
+    flashScreenBad();
 
     setTimeout(() => {
       // Reset styles
@@ -1004,6 +1054,7 @@
       btn.style.background = `linear-gradient(135deg,rgba(34,197,94,.3),rgba(13,8,24,.9))`;
       G.streak++;
       if (G.streak > G.bestStreak) G.bestStreak = G.streak;
+      if (STREAK_MILESTONES.includes(G.streak)) showStreakMilestone(G.streak);
       const streakMult = Math.min(1 + (G.streak - 1) * 0.2, 3);
       let pts = Math.round(BASE_SCORE * streakMult);
       if (elapsed < 4000) pts += SPEED_BONUS;
@@ -1022,6 +1073,7 @@
       G.score = Math.max(0, G.score - MISMATCH_PEN);
       showFeedback(`✗ NOT THE BEST CHOICE! -${MISMATCH_PEN}`, RED);
       shakeEl(btn);
+      flashScreenBad();
       // Highlight correct
       Array.from(container.children).forEach(b => {
         const label = b.querySelector('div')?.textContent;
@@ -1060,7 +1112,6 @@
 
     setTimeout(() => {
       G.currentScenarioIdx++;
-      G.l2StartTime = Date.now();
       if (G.currentScenarioIdx >= G.l2Order.length) {
         clearInterval(G.timerHandle);
         if (G.level < 3) {
@@ -1104,7 +1155,7 @@
         min-height:300px;text-align:center;gap:16px;
       ">
         <div style="font-size:48px;animation:ddt_pulse 1s infinite">🏆</div>
-        <div style="font-family:'Orbitron',monospace;font-size:20px;font-weight:900;color:${GOLD};letter-spacing:2px">
+        <div style="font-family:'Anton',sans-serif;font-size:26px;font-weight:400;color:${GOLD};letter-spacing:.04em;text-shadow:0 0 16px rgba(251,191,36,.7)">
           ${copy.title}
         </div>
         <div style="font-size:13px;color:${VIOLET};max-width:300px;line-height:1.6">
@@ -1120,8 +1171,9 @@
         <button id="ddt_next_lvl" style="
           background:linear-gradient(135deg,${ACCENT},${PURPLE});
           border:none;color:#fff;padding:13px 32px;border-radius:10px;
-          font-family:'Orbitron',monospace;font-size:13px;font-weight:700;
-          cursor:pointer;letter-spacing:1px;margin-top:8px;
+          font-family:'Anton',sans-serif;font-size:15px;font-weight:400;
+          cursor:pointer;letter-spacing:.08em;margin-top:8px;
+          box-shadow:0 0 20px rgba(124,58,237,.5);
         ">${copy.btnLabel}</button>
       </div>
     `;
@@ -1194,12 +1246,27 @@
     return 0;
   }
 
+  // Named handlers (not inline arrow functions) so that repeated endGame() calls
+  // across multiple playthroughs in one session dedupe instead of stacking —
+  // otherwise every replay adds one more listener and a later single click on
+  // "PLAY AGAIN"/"HUB" would fire initGame()/ddt_habitsExit() that many times over.
+  function handleReplayClick() {
+    const overlay = document.getElementById('ddt_endoverlay');
+    if (overlay) overlay.style.display = 'none';
+    initGame();
+  }
+  function handleHubClick() {
+    window.ddt_habitsExit();
+  }
+
   function endGame(stars) {
     if (!G) return;
     clearInterval(G.timerHandle);
     cancelAnimationFrame(G.animHandle);
+    ensureKeyframes();
 
     const is3star = stars === 3;
+    const won = stars >= 1; // any stars earned = real reward landed (coins/XP/hub-meter); 0 stars is the "not reset" fail state
     const coins = stars >= 1 && window.cvAwardGame
       ? cvAwardGame('game_ddt_habits', { level: G.level, stars, is3star, isPerfect: is3star, badge: 'Habit Hero' })
       : (stars === 3 ? 150 : stars === 2 ? 100 : stars >= 1 ? 50 : 0);
@@ -1215,6 +1282,8 @@
     const coinsEl = document.getElementById('ddt_end_coins');
     const xpEl    = document.getElementById('ddt_end_xp');
     const lessonEl= document.getElementById('ddt_end_lesson');
+    const cardEl  = document.getElementById('ddt_end_card');
+    const confettiLayer = document.getElementById('ddt_confetti_layer');
 
     if (stars === 0) {
       titleEl.textContent = 'HABITS NOT RESET';
@@ -1231,18 +1300,25 @@
     coinsEl.textContent = `+${coins} Recovery Coins`;
     xpEl.textContent    = `+${Math.round(coins / 4)} XP  •  Best Streak: ${G.bestStreak}  •  Score: ${G.score.toLocaleString()}`;
 
+    // Confetti burst + card shine-sweep — real wins only, never on the 0-star ending
+    if (confettiLayer) {
+      confettiLayer.innerHTML = won ? Array.from({ length: 16 }, (_, i) => {
+        const emo = ['✦', '●', '▲', '★', '🪙'][i % 5];
+        const col = [GOLD, PURPLE2, VIOLET, GREEN, '#fff'][i % 5];
+        const left = (4 + Math.random() * 92).toFixed(1);
+        const delay = (Math.random() * 0.5).toFixed(2);
+        return `<span class="ddt_confetti_piece" style="left:${left}%;animation-delay:${delay}s;color:${col}">${emo}</span>`;
+      }).join('') : '';
+    }
+    if (cardEl) cardEl.classList.toggle('ddt_win_shine', won);
+
     lessonEl.innerHTML = `
       <div style="font-family:'Orbitron',monospace;font-size:10px;letter-spacing:2px;color:${PURPLE2};margin-bottom:8px;text-transform:uppercase">💡 END LESSON</div>
       Financial health is built on daily habits. Impulse shopping, minimum-only payments, no budget, and late bills are the four habits most likely to keep someone in debt. Each one has a direct replacement that costs nothing but intention. <strong style="color:${GOLD}">Awareness is the first step</strong> — then practice makes the new habit automatic.
     `;
 
-    document.getElementById('ddt_replay').addEventListener('click', () => {
-      overlay.style.display = 'none';
-      initGame();
-    });
-    document.getElementById('ddt_hub').addEventListener('click', () => {
-      window.ddt_habitsExit();
-    });
+    document.getElementById('ddt_replay').addEventListener('click', handleReplayClick);
+    document.getElementById('ddt_hub').addEventListener('click', handleHubClick);
   }
 
   /* ── streak milestone banner (purely cosmetic — no score/goal impact) ── */
@@ -1255,8 +1331,8 @@
       z-index:70;pointer-events:none;opacity:0;
       background:linear-gradient(135deg,${ACCENT},${PURPLE});
       border:2px solid ${GOLD};border-radius:14px;padding:10px 22px;
-      font-family:'Orbitron',monospace;font-size:16px;font-weight:900;color:${GOLD};
-      letter-spacing:1px;box-shadow:0 0 30px rgba(251,191,36,.5);white-space:nowrap;
+      font-family:'Anton',sans-serif;font-size:19px;font-weight:400;color:${GOLD};
+      letter-spacing:.04em;text-shadow:0 0 14px rgba(251,191,36,.8);box-shadow:0 0 30px rgba(251,191,36,.5);white-space:nowrap;
       transition:opacity .25s ease-out,transform .25s cubic-bezier(.34,1.56,.64,1);
     `;
     el.textContent = `🔥 ${streak} STREAK!`;
@@ -1295,6 +1371,23 @@
       { transform: 'translateX(4px)' },
       { transform: 'translateX(0)' },
     ], { duration: 400, easing: 'ease-out' });
+  }
+
+  // Brief full-screen red vignette pulse on a wrong answer — complements the
+  // per-element shakeEl() with a whole-arena "bad move" cue.
+  function flashScreenBad() {
+    const root = document.getElementById('ddt_root');
+    if (!root) return;
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position:absolute;inset:0;z-index:65;pointer-events:none;
+      background:radial-gradient(ellipse at center,rgba(239,68,68,0) 55%,rgba(239,68,68,.35) 100%);
+      opacity:0;transition:opacity .12s ease-out;
+    `;
+    root.appendChild(el);
+    requestAnimationFrame(() => { el.style.opacity = '1'; });
+    setTimeout(() => { if (el) el.style.opacity = '0'; }, 140);
+    setTimeout(() => el.remove(), 500);
   }
 
   function drawConnectionLine(fromEl, toEl, color) {
@@ -1397,6 +1490,23 @@
       @keyframes ddt_glow {
         0%,100% { box-shadow:0 0 8px ${PURPLE}; }
         50%     { box-shadow:0 0 20px ${PURPLE2}, 0 0 40px ${ACCENT}; }
+      }
+      @keyframes ddt_confetti_fall {
+        0%   { transform:translateY(-30px) rotate(0deg); opacity:1; }
+        100% { transform:translateY(420px) rotate(360deg); opacity:0; }
+      }
+      @keyframes ddt_win_shine { to { background-position:-20% 0; } }
+      .ddt_confetti_piece {
+        position:absolute;top:-24px;font-size:1.3rem;
+        animation:ddt_confetti_fall 1.7s ease-in forwards;
+        pointer-events:none;z-index:110;
+      }
+      .ddt_win_shine::before {
+        content:'';position:absolute;inset:0;
+        background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.18) 48%,transparent 66%);
+        background-size:220% 100%;background-position:120% 0;
+        animation:ddt_win_shine 2.2s ease-in-out .3s 1;
+        pointer-events:none;
       }
     `;
     document.head.appendChild(style);
