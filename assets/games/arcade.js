@@ -17,14 +17,20 @@
   /* ── shared helpers ── */
   function rr(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
   function hexA(hex,a){ const h=(hex||'#60a5fa').replace('#',''); const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h,16); return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')'; }
-  function sprite(ctx,e,x,y,r,glow){ ctx.save(); if(glow){ctx.shadowColor=glow;ctx.shadowBlur=14;} ctx.font=(r*2)+"px serif"; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(e,x,y); ctx.restore(); }
+  function sprite(ctx,e,x,y,r,glow){ ctx.save();
+    // soft glow pool beneath every sprite — a dark drop-shadow disappears against this app's
+    // near-black cosmic backgrounds, so "grounding" reads instead as a light pool underneath
+    if(glow){ const grd=ctx.createRadialGradient(x,y+r*0.75,0,x,y+r*0.75,r*0.7); grd.addColorStop(0,hexA(glow,.32)); grd.addColorStop(1,hexA(glow,0));
+      ctx.fillStyle=grd; ctx.beginPath(); ctx.ellipse(x,y+r*0.75,r*0.7,r*0.24,0,0,Math.PI*2); ctx.fill(); }
+    if(glow){ctx.shadowColor=glow;ctx.shadowBlur=14;} ctx.font=(r*2)+"px serif"; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(e,x,y); ctx.restore(); }
   function lbl(ctx,t,x,y,col,size,font){ ctx.font="700 "+(size||12)+"px '"+(font||'Inter')+"',sans-serif"; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle=col; ctx.fillText(t,x,y); }
+  function spark(ctx,x,y,r){ ctx.save(); ctx.translate(x,y); ctx.beginPath(); ctx.moveTo(0,-r); ctx.lineTo(r*.3,-r*.3); ctx.lineTo(r,0); ctx.lineTo(r*.3,r*.3); ctx.lineTo(0,r); ctx.lineTo(-r*.3,r*.3); ctx.lineTo(-r,0); ctx.lineTo(-r*.3,-r*.3); ctx.closePath(); ctx.fill(); ctx.restore(); }
   window.arcRR=rr; window.arcHexA=hexA; window.arcSprite=sprite; window.arcLbl=lbl;  // for mechanics
 
   /* ── effects API given to mechanics ── */
   function mkAPI(){
     return {
-      burst(x,y,c,n){ for(let i=0;i<(n||10);i++){ const a=Math.random()*7,s=0.12+Math.random()*0.5; A.g.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-0.2,s:2+Math.random()*3,c,life:0.5+Math.random()*0.3,max:0.8}); } },
+      burst(x,y,c,n){ for(let i=0;i<(n||10);i++){ const a=Math.random()*7,s=0.12+Math.random()*0.5; A.g.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-0.2,s:2+Math.random()*3.5,c,life:0.5+Math.random()*0.35,max:0.85,star:Math.random()<0.3}); } },
       ring(x,y,c){ A.g.rings.push({x,y,r:0.25,c,life:0.5}); },
       float(x,y,t,c,big){ A.g.floats.push({x,y,t,c:c||'#fde68a',life:0.95,big:!!big}); },
       flash(c){ A.g.flash=0.25; A.g.flashC=c||A.cfg.accent; },
@@ -78,7 +84,11 @@
     .arc-btn{padding:14px 30px;margin:5px;border:none;cursor:pointer;font:400 .9rem/1 'Anton',sans-serif;letter-spacing:.08em;color:#001f24;background:var(--ac);box-shadow:0 0 20px color-mix(in srgb,var(--ac) 55%,transparent);clip-path:polygon(0 0,92% 0,100% 38%,100% 100%,8% 100%,0 62%);transition:.16s}
     .arc-btn:hover{filter:brightness(1.1);box-shadow:0 0 30px color-mix(in srgb,var(--ac) 80%,transparent)}
     .arc-btn.ghost{background:transparent;color:#d0bcff;border:1px solid #8B5CF6;box-shadow:none}
-    .arc-btn.ghost:hover{background:rgba(139,92,246,.18)}`;
+    .arc-btn.ghost:hover{background:rgba(139,92,246,.18)}
+    .arc-card.win-shine::before{content:'';position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 66%);background-size:220% 100%;background-position:120% 0;animation:arcShine 2.2s ease-in-out .3s 1;pointer-events:none}
+    @keyframes arcShine{to{background-position:-20% 0}}
+    @keyframes arcConfetti{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(420px) rotate(360deg);opacity:0}}
+    .arc-confetti{position:absolute;top:-24px;font-size:1.3rem;animation:arcConfetti 1.7s ease-in forwards;pointer-events:none}`;
     document.head.appendChild(s);
   }
 
@@ -229,6 +239,10 @@
     raf=requestAnimationFrame(loop);
   }
 
+  // mechanics that play out "in a space" (a roaming player/target) read well with a
+  // floor horizon; the panel-style ones (quiz/match/sort) already fill the frame with
+  // their own card/grid layout, so a ground plane behind them would just be clutter.
+  const FLOOR_MECHS={catch:1,lane:1,tap:1,balance:1,aim:1,grow:1,stack:1};
   function render(ctx,W,H,now){
     const g=A.g, cfg=A.cfg, mech=MECH[cfg.mech]||{};
     ctx.clearRect(0,0,W,H);
@@ -239,14 +253,25 @@
     ctx.fillStyle=hexA(cfg.accent||'#60a5fa',.5);
     for(let i=0;i<64;i++){ const sx=(i*47.7%W), sy=((i*97.3+now*0.014*((i%4)+1))%H); ctx.globalAlpha=0.08+(i%5)*0.045; ctx.fillRect(sx,sy,1+(i%3),1+(i%3)); }
     ctx.globalAlpha=1;
-    for(let i=0;i<3;i++){ const ox2=W*(.2+i*.32), oy2=H*(.25+((i*137)%40)/100)+Math.sin(now*0.00025+i*2)*H*.05, r=W*(.09+i%2*.03);
-      const gr=ctx.createRadialGradient(ox2,oy2,0,ox2,oy2,r); gr.addColorStop(0,hexA(cfg.accent,.07)); gr.addColorStop(1,hexA(cfg.accent,0));
+    for(let i=0;i<4;i++){ const ox2=W*(.14+i*.24), oy2=H*(.22+((i*137)%40)/100)+Math.sin(now*0.00022+i*2)*H*.06, r=W*(.1+i%2*.04);
+      const gr=ctx.createRadialGradient(ox2,oy2,0,ox2,oy2,r); gr.addColorStop(0,hexA(cfg.accent,.08)); gr.addColorStop(1,hexA(cfg.accent,0));
       ctx.fillStyle=gr; ctx.fillRect(ox2-r,oy2-r,r*2,r*2); }
     ctx.globalAlpha=1;
+    // perspective floor — a few converging lines toward a vanishing point plus receding
+    // horizontal rungs, purely a depth cue (never touches hit-testing/gameplay coords)
+    if(FLOOR_MECHS[cfg.mech]){
+      const horizon=H*.64;
+      ctx.save(); ctx.strokeStyle=hexA(cfg.accent,.1); ctx.lineWidth=1;
+      for(let i=-3;i<=3;i++){ ctx.globalAlpha=.5; ctx.beginPath(); ctx.moveTo(W/2,horizon); ctx.lineTo(W/2+i*W*.28,H); ctx.stroke(); }
+      for(let j=1;j<=3;j++){ const fy=horizon+(H-horizon)*(j/4); ctx.globalAlpha=.07; ctx.beginPath(); ctx.moveTo(0,fy); ctx.lineTo(W,fy); ctx.stroke(); }
+      ctx.globalAlpha=1; ctx.restore();
+    }
     if(g.flash>0){ ctx.fillStyle=hexA(g.flashC,g.flash*0.22); ctx.fillRect(0,0,W,H); }
     if(mech.render) mech.render(ctx,g,cfg,A.api,W,H);
     // particles / rings / floats
-    for(const p of g.parts){ ctx.globalAlpha=Math.max(0,p.life/p.max); ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x*W,p.y*H,p.s,0,7); ctx.fill(); }
+    for(const p of g.parts){ ctx.globalAlpha=Math.max(0,p.life/p.max); ctx.fillStyle=p.c;
+      const px=p.x*W, py=p.y*H, grow=Math.min(1,(p.max-p.life)/(p.max*0.25)), sz=p.s*(0.6+grow*0.4);
+      if(p.star) spark(ctx,px,py,sz*1.7); else { ctx.beginPath(); ctx.arc(px,py,sz,0,7); ctx.fill(); } }
     ctx.globalAlpha=1;
     for(const r of g.rings){ ctx.globalAlpha=Math.max(0,r.life/0.5); ctx.strokeStyle=r.c; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(r.x*W,r.y*H,r.r*W*0.12,0,7); ctx.stroke(); }
     ctx.globalAlpha=1;
@@ -285,7 +310,11 @@
     }
     const o=document.getElementById('arcOver'); if(!o)return; o.style.display='flex';
     const mastered=win&&A.lv>=3;
-    o.innerHTML=`<div class="arc-card">
+    const confetti = win ? Array.from({length:16},(_,i)=>{
+      const emo=['✦','●','▲','★'][i%4], col=[cfg.accent,'#fbbf24','#a855f7','#14b8a6'][i%4];
+      return `<span class="arc-confetti" style="left:${4+Math.random()*92}%;animation-delay:${(Math.random()*.5).toFixed(2)}s;color:${col}">${emo}</span>`;
+    }).join('') : '';
+    o.innerHTML=`${confetti}<div class="arc-card${win?' win-shine':''}">
       <div style="font-size:3rem;margin-bottom:6px">${mastered?'👑':win?'🏆':'⏱'}</div>
       <div style="font:700 .58rem/1 'Orbitron',sans-serif;letter-spacing:.2em;color:var(--ac);margin-bottom:8px">${mastered?'ALL 3 LEVELS MASTERED!':win?('LEVEL '+A.lv+' — '+(cfg.winMsg||'MISSION COMPLETE!')):"TIME'S UP — LEVEL "+A.lv}</div>
       <h1 style="font-family:'Anton',sans-serif;font-size:2rem;margin:0 0 6px">${score} pts</h1>
