@@ -623,11 +623,18 @@
 
     /* ── Draw helpers ────────────────────────────────────────────────────── */
     /* ── ambient decor (generated once, purely cosmetic — CredTech Galaxy skyline) ── */
-    let stars = null, skylineFar = null, skylineNear = null, dataStreaks = null;
+    let stars = null, skylineFar = null, skylineNear = null, dataStreaks = null, glowOrbs = null;
     function initDecor() {
       stars = Array.from({ length: 70 }, () => ({
         x: Math.random() * W, y: Math.random() * GROUND_Y * 0.92,
         r: 0.6 + Math.random() * 1.6, phase: Math.random() * Math.PI * 2, spd: 0.6 + Math.random() * 1.2,
+      }));
+      // drifting glow-pool orbs — premium cosmic ambience layer, this world's
+      // sky-blue accent (added alongside the existing stars/skyline/data-streaks
+      // so this screen gets the same treatment as the rest of the app, e.g. arcade.js)
+      glowOrbs = Array.from({ length: 3 }, (_, i) => ({
+        x: 0.16 + i * 0.34, y: 0.18 + ((i * 137) % 40) / 100,
+        r: 0.16 + (i % 2) * 0.05, ph: i * 2.3, sp: 0.00018 + i * 0.00004,
       }));
       const mkSkyline = (count, baseH) => {
         let x = 0; const arr = [];
@@ -676,6 +683,17 @@
       sky.addColorStop(1, '#1a1450');
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, H);
+
+      // drifting glow-pool orbs — premium cosmic ambience layer, this world's sky-blue accent
+      const nowMs = Date.now();
+      for (const o of glowOrbs) {
+        const ox = o.x * W, oy = (o.y + Math.sin(nowMs * o.sp + o.ph) * 0.06) * GROUND_Y, r = o.r * W;
+        const og = ctx.createRadialGradient(ox, oy, 0, ox, oy, r);
+        og.addColorStop(0, 'rgba(56,189,248,.09)');
+        og.addColorStop(1, 'rgba(56,189,248,0)');
+        ctx.fillStyle = og;
+        ctx.fillRect(ox - r, oy - r, r * 2, r * 2);
+      }
 
       // twinkling stars — fills the "dead void" above the runway with ambient life
       const t = Date.now() / 1000;

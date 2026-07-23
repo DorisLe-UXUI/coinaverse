@@ -64,6 +64,14 @@
 
   let G = null;
   let raf = null;
+  let _gen = 0;              // bumped on every (re)entry / reset — lets a stale,
+                              // already-superseded deferred initGame() recognize
+                              // it lost the race and bail out instead of
+                              // clobbering whatever a newer entry already built
+  let _eventsBound = false;   // guards bindEvents() from stacking duplicate
+                              // listeners across "PLAY AGAIN" (which re-runs
+                              // initGame() on the SAME #divd-root/buttons
+                              // instead of a fresh mount)
 
   // ──────────────────────────────────────────────────────────────
   //  SCREEN ENTRY POINT
@@ -115,9 +123,22 @@
 
   window.SCREENS.game_inv_dividend = function () {
     G = null;
+    _gen++;
+    const myGen = _gen;
+    _eventsBound = false;   // a brand-new #divd-root is about to be mounted
     if (raf) { cancelAnimationFrame(raf); raf = null; }
     injectDivdCosmicStyle();
-    setTimeout(initGame, 40);
+    // Deferred one tick so the HTML returned below has actually been inserted
+    // into the DOM (goTo() assigns it to app.innerHTML right after this
+    // function returns) before initGame() goes looking for #divd-root. The
+    // generation check makes any now-stale call a no-op if the screen gets
+    // entered again (e.g. a fast double-tap on the hub tile) before this
+    // fires: previously, that second entry's own initGame() would win the
+    // DOM lookup, but THIS older, delayed call could still fire afterward
+    // and silently rebuild G from scratch — wiping out a game the player had
+    // already started and tapped "GOT IT" on, leaving them stuck back on the
+    // tutorial gate with no visible cause and no way to start.
+    setTimeout(() => { if (myGen === _gen) initGame(); }, 40);
     return `<div id="divd-root" style="position:absolute;inset:0;background:${BG_DEEP};overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none">
       <div class="divd-stars">${divdStarsHTML(42)}</div>
 
@@ -186,6 +207,11 @@
   function initGame() {
     const root = document.getElementById('divd-root');
     if (!root) return;
+
+    _divdPauseStartTs = null;   // guard against a leftover pause timestamp from
+                                 // a previous session bleeding into a fresh game
+                                 // (closeHowToPlay() re-baselines the clock
+                                 // whenever this is non-null)
 
     const numPlots = PLOTS_L1;
     G = {
@@ -308,7 +334,7 @@
 
   function layoutPlots() {
     const garden = document.getElementById('divd-garden');
-    if (!garden) return;
+    if (!garden || !G) return;
     garden.innerHTML = '';
 
     const n = G.plots.length;
@@ -469,6 +495,7 @@
   }
 
   function handlePlotTap(idx) {
+    if (!G) return;
     const plot = G.plots[idx];
     if (!plot) return;
 
@@ -513,6 +540,7 @@
   }
 
   function handleUpgrade(idx) {
+    if (!G) return;
     const plot = G.plots[idx];
     if (!plot || !plot.treeType) return;
     const t = TREE_TYPES.find(x => x.id === plot.treeType);
@@ -535,6 +563,7 @@
   }
 
   function collectPayout(idx) {
+    if (!G) return;
     const plot = G.plots[idx];
     if (!plot || plot.pendingPay <= 0) return;
     const amt = plot.pendingPay;
@@ -552,6 +581,7 @@
   //  REINVEST
   // ──────────────────────────────────────────────────────────────
   function handleReinvest() {
+    if (!G) return;
     // Collect all pending first
     G.plots.forEach(p => { if (p.pendingPay > 0) collectPayout(p.idx); });
 
@@ -607,6 +637,7 @@
   }
 
   function computeTotalIncome() {
+    if (!G) return 0;
     return G.plots.reduce((s, p) => s + computePayout(p), 0);
   }
 
@@ -663,6 +694,7 @@
   }
 
   function updateAllPlots() {
+    if (!G) return;
     G.plots.forEach(p => updatePlotEl(p));
   }
 
@@ -977,13 +1009,20 @@
     document.getElementById('divd-play-again')?.addEventListener('click', () => {
       overlay.remove();
       if (raf) { cancelAnimationFrame(raf); raf = null; }
-      if (G && G._kbHandler) {
-        document.removeEventListener('keydown', G._kbHandler);
-        G._kbHandler = null;
-      }
-      window.removeEventListener('resize', resizeCanvas);
       G = null;
-      setTimeout(initGame, 40);
+      // Unlike the very first entry, #divd-root and every child element
+      // (garden plots, shop cards, the exit/reinvest/help buttons) are
+      // already mounted and are NOT being torn down here — only G itself is
+      // being reset — so there is nothing to wait a tick for. Calling
+      // initGame() synchronously means G goes directly from "the game that
+      // just ended" to "a freshly-built G with plots ready", with no gap in
+      // between where the still-interactive old plot tiles / REINVEST ALL
+      // button could be tapped while G was null. That gap is exactly what
+      // used to throw "Cannot read properties of null (reading 'plots')" on
+      // a stray tap, and — via the same deferred-initGame mechanism used on
+      // first entry — could also let a slow rebuild silently stomp a game
+      // already in progress.
+      initGame();
     });
     document.getElementById('divd-hub-btn')?.addEventListener('click', () => {
       window.inv_dividendExit();
@@ -994,12 +1033,11 @@
   //  EXIT FUNCTION
   // ──────────────────────────────────────────────────────────────
   window.inv_dividendExit = function () {
+    _gen++;   // invalidate any still-pending deferred initGame() from this session
     if (raf) { cancelAnimationFrame(raf); raf = null; }
-    if (G && G._kbHandler) {
-      document.removeEventListener('keydown', G._kbHandler);
-      G._kbHandler = null;
-    }
+    document.removeEventListener('keydown', kbHandler);
     window.removeEventListener('resize', resizeCanvas);
+    _eventsBound = false;
     G = null;
     if (window.state) state.viewingWorld = 'investor';
     goTo('hub');
@@ -1113,6 +1151,7 @@
   //  TOOLTIP
   // ──────────────────────────────────────────────────────────────
   function showPlotTooltip(idx, e) {
+    if (!G) return;
     const plot = G.plots[idx];
     if (!plot) return;
     const tip = document.getElementById('divd-tooltip');
@@ -1175,23 +1214,33 @@
   // ──────────────────────────────────────────────────────────────
   //  EVENT BINDING
   // ──────────────────────────────────────────────────────────────
+  // Keyboard: R to reinvest, space to collect all. Module-level (not rebuilt
+  // per-G) since it only ever needs to be attached once per #divd-root mount
+  // — it reads the live G at fire time, so it stays correct across every
+  // "PLAY AGAIN" reset without needing to be re-bound.
+  function kbHandler(e) {
+    if (!G || !G.running) return;
+    if (e.key === 'r' || e.key === 'R') handleReinvest();
+    if (e.key === ' ') {
+      e.preventDefault();
+      G.plots.forEach(p => { if (p.pendingPay > 0) collectPayout(p.idx); });
+    }
+  }
+
   function bindEvents() {
-    document.getElementById('divd-exit-btn')?.addEventListener('click', window.inv_dividendExit);
+    // initGame() re-runs on every "PLAY AGAIN" against the SAME #divd-root
+    // (it isn't re-mounted), so without this guard every replay stacked one
+    // more copy of every listener below onto the still-live exit/reinvest/
+    // help buttons and onto window/document — e.g. a single REINVEST ALL
+    // click after a few replays would fire handleReinvest() several times.
+    if (_eventsBound) return;
+    _eventsBound = true;
+
+    document.getElementById('divd-exit-btn')?.addEventListener('click', () => window.inv_dividendExit());
     document.getElementById('divd-reinvest-btn')?.addEventListener('click', handleReinvest);
     document.getElementById('divd-help-btn')?.addEventListener('click', () => window.divdShowHelp());
     window.addEventListener('resize', resizeCanvas);
-
-    // Keyboard: R to reinvest, space to collect all
-    const kbHandler = (e) => {
-      if (!G || !G.running) return;
-      if (e.key === 'r' || e.key === 'R') handleReinvest();
-      if (e.key === ' ') {
-        e.preventDefault();
-        G.plots.forEach(p => { if (p.pendingPay > 0) collectPayout(p.idx); });
-      }
-    };
     document.addEventListener('keydown', kbHandler);
-    G._kbHandler = kbHandler;
   }
 
 })();

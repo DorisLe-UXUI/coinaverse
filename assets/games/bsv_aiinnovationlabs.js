@@ -311,7 +311,7 @@
     if (raf) { cancelAnimationFrame(raf); raf = null; }
     if (G && G._evClean) G._evClean.forEach(fn => fn());
     G = null;
-    if (window.state) state.viewingWorld = 'builder';
+    if (window.state) state.viewingWorld = 'risktaker';
     if (window.goTo) goTo('hub');
   };
 

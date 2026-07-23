@@ -164,12 +164,22 @@
           'background-size:220% 100%;background-position:120% 0;animation:trxShine 2.2s ease-in-out .3s 1;pointer-events:none;border-radius:20px}',
       '</style>',
       '<div id="trx-root" class="trx-wrap" style="',
-        'position:relative;width:100%;max-width:480px;margin:0 auto;',
+        'position:relative;z-index:0;width:100%;max-width:480px;margin:0 auto;',
         'min-height:100dvh;',
         'display:flex;flex-direction:column;align-items:center;',
         'font-family:\'Nunito\',sans-serif;overflow:hidden;user-select:none;',
         'padding-bottom:env(safe-area-inset-bottom,0px);',
       '">',
+
+        /* ambient cosmic backdrop canvas — drifting starfield + soft glow-pool
+           rings, added behind everything else. z-index:-1 here only sinks it
+           below trx-root's OWN children (not some unrelated ancestor further up
+           the tree) because trx-root now has an explicit z-index:0 above, which
+           makes it establish its own local stacking context — without that,
+           position:relative + z-index:auto does NOT create one, and a negative
+           z-index descendant can end up painted behind an outer container's
+           opaque background instead, invisible even though it draws correctly. */
+        '<canvas id="trx-stars" style="position:absolute;inset:0;z-index:-1;pointer-events:none;width:100%;height:100%"></canvas>',
 
         /* header */
         '<div style="width:100%;display:flex;align-items:center;justify-content:space-between;',
@@ -330,6 +340,74 @@
     ].join('');
 
     return el;
+  }
+
+  /* ── ambient cosmic backdrop canvas ────────────────────────────────
+     Dark nebula gradient already lives in the .trx-wrap CSS; this canvas ADDS
+     the drifting starfield + soft glow-pool rings using CredTech's sky-blue
+     accent (#38bdf8), matching the "premium cosmic" treatment used elsewhere
+     in the app (see arcade.js's render()). This game has no canvas/game-loop
+     of its own (cards are plain DOM elements), so this runs its own tiny RAF
+     loop, started in initGame() and torn down in trxExit()/trxRestart(). ── */
+  var _cosRaf = null, _cosResize = null;
+  function startCosmicCanvas() {
+    var cv = document.getElementById('trx-stars');
+    if (!cv) return;
+    var ctx = cv.getContext('2d');
+    var W, H, stars, orbs;
+
+    function resize() {
+      var root = document.getElementById('trx-root');
+      W = cv.width  = (root ? root.clientWidth  : window.innerWidth) || 1;
+      H = cv.height = (root ? root.clientHeight : window.innerHeight) || 1;
+      stars = [];
+      for (var i = 0; i < 70; i++) {
+        stars.push({
+          x: Math.random() * W, y: Math.random() * H,
+          r: Math.random() * 1.3 + 0.3, a: Math.random() * 0.5 + 0.15,
+          tw: Math.random() * 2 + 0.5, ph: Math.random() * Math.PI * 2,
+        });
+      }
+      orbs = [];
+      for (var j = 0; j < 3; j++) {
+        orbs.push({
+          x: W * (0.18 + j * 0.32), y: H * (0.18 + ((j * 53) % 40) / 100),
+          r: W * (0.18 + (j % 2) * 0.05), ph: j * 2.2, sp: 0.00018 + j * 0.00004,
+        });
+      }
+    }
+    resize();
+    _cosResize = resize;
+    window.addEventListener('resize', _cosResize);
+
+    (function draw(now) {
+      _cosRaf = requestAnimationFrame(draw);
+      if (!W || !H) return;
+      ctx.clearRect(0, 0, W, H);
+      // drifting glow-pool orbs
+      for (var i = 0; i < orbs.length; i++) {
+        var o = orbs[i];
+        var oy = o.y + Math.sin(now * o.sp + o.ph) * H * 0.06;
+        var g = ctx.createRadialGradient(o.x, oy, 0, o.x, oy, o.r);
+        g.addColorStop(0, 'rgba(56,189,248,0.10)');
+        g.addColorStop(1, 'rgba(56,189,248,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(o.x - o.r, oy - o.r, o.r * 2, o.r * 2);
+      }
+      // twinkling starfield
+      for (var k = 0; k < stars.length; k++) {
+        var s = stars[k];
+        var a = s.a + Math.sin(now * 0.001 * s.tw + s.ph) * s.a * 0.6;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(224,214,255,' + Math.max(0, a).toFixed(3) + ')';
+        ctx.fill();
+      }
+    })(performance.now());
+  }
+  function stopCosmicCanvas() {
+    if (_cosRaf) { cancelAnimationFrame(_cosRaf); _cosRaf = null; }
+    if (_cosResize) { window.removeEventListener('resize', _cosResize); _cosResize = null; }
   }
 
   /* ── drag / swipe logic ─────────────────────────────────────────── */
@@ -705,6 +783,7 @@
     document.removeEventListener('keydown', onKey);
     if (_mmHandler) { document.removeEventListener('mousemove', _mmHandler); _mmHandler = null; }
     if (_muHandler) { document.removeEventListener('mouseup',   _muHandler); _muHandler = null; }
+    stopCosmicCanvas();
     curLevel = 1;
     if (global.state) global.state.viewingWorld = 'credtech';
     if (typeof global.goTo === 'function') global.goTo('credtech_hub');
@@ -715,6 +794,7 @@
     document.removeEventListener('keydown', onKey);
     if (_mmHandler) { document.removeEventListener('mousemove', _mmHandler); _mmHandler = null; }
     if (_muHandler) { document.removeEventListener('mouseup',   _muHandler); _muHandler = null; }
+    stopCosmicCanvas(); // the old #trx-stars canvas is about to be replaced below
     /* re-run the screen in-place (replays the level currently in curLevel) */
     var container = document.getElementById('trx-root');
     if (container && container.parentNode) {
@@ -769,6 +849,8 @@
     };
     document.addEventListener('mousemove', _mmHandler);
     document.addEventListener('mouseup',   _muHandler);
+
+    startCosmicCanvas();
   }
 
   /* ── how-to-play overlay: shown once at first boot, reopened via ❓ ──────

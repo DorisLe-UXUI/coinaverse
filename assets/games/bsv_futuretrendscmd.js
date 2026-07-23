@@ -9,7 +9,7 @@
 
   const ACCENT     = '#00FFFF';
   const SCREEN_ID  = 'game_bsv_futuretrendscmd';
-  const WORLD_ID   = 'builder';
+  const WORLD_ID   = 'risktaker';
 
   // ── Game constants ─────────────────────────────────────────────
   const ROUND_TIME_L1    = 90;   // seconds

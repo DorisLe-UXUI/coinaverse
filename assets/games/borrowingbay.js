@@ -1137,22 +1137,38 @@
     const canvas = document.getElementById('bb-stars');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    let W, H, stars;
+    let W, H, stars, orbs;
 
     function resize() {
       W = canvas.width  = canvas.offsetWidth;
       H = canvas.height = canvas.offsetHeight;
-      stars = Array.from({ length: 80 }, () => ({
+      stars = Array.from({ length: 90 }, () => ({
         x: Math.random() * W,
         y: Math.random() * H,
-        r: Math.random() * 1.2 + 0.2,
+        r: Math.random() * 1.3 + 0.25,
         a: Math.random(),
         da: (Math.random() * 0.005 + 0.001) * (Math.random() > 0.5 ? 1 : -1),
+      }));
+      // drifting glow-pool orbs — premium cosmic ambience layer, this world's
+      // sky-blue accent (matches the treatment used across the rest of the app,
+      // e.g. arcade.js's render()), added alongside the existing twinkling stars
+      orbs = Array.from({ length: 3 }, (_, i) => ({
+        x: W * (0.16 + i * 0.34), y: H * (0.2 + ((i * 137) % 40) / 100),
+        r: W * (0.15 + (i % 2) * 0.05), ph: i * 2.1, sp: 0.0006 + i * 0.00015,
       }));
     }
 
     function draw() {
       ctx.clearRect(0, 0, W, H);
+      const now = performance.now();
+      orbs.forEach(o => {
+        const oy = o.y + Math.sin(now * o.sp + o.ph) * H * 0.05;
+        const g = ctx.createRadialGradient(o.x, oy, 0, o.x, oy, o.r);
+        g.addColorStop(0, 'rgba(56,189,248,.10)');
+        g.addColorStop(1, 'rgba(56,189,248,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(o.x - o.r, oy - o.r, o.r * 2, o.r * 2);
+      });
       stars.forEach(s => {
         s.a += s.da;
         if (s.a > 1 || s.a < 0) s.da *= -1;

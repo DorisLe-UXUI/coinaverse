@@ -227,6 +227,7 @@
   window.SCREENS = window.SCREENS || {};
   window.SCREENS.game_ll_product_dev_lab = function () {
     G = null;
+    stopPdlAmbient();
     setTimeout(initGame, 40);
     return buildShell();
   };
@@ -390,6 +391,10 @@
 
   <!-- ═══ AMBIENT CANVAS ═══ -->
   <canvas id="pdl_canvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:.55"></canvas>
+  <!-- ═══ AMBIENT FX: twinkling starfield + drifting nebula glow — layered
+       above the static hex-grid pass so the large empty area below the
+       upgrade cards (and behind the how-to-play overlay) isn't a flat void ═══ -->
+  <canvas id="pdl_canvas_fx" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:.6"></canvas>
 
   <!-- ═══ TOP BAR ═══ -->
   <div id="pdl_topbar" style="
@@ -577,6 +582,7 @@
       clearTimeout(G._toastTimer);
     }
     G = null;
+    stopPdlAmbient();
     // Builder/Launch Lab hub id is 'builder' (WORLDS.builder) — this game is
     // reached from the Builder hub's Mini-Games grid, NOT risktaker.
     if (window.state) state.viewingWorld = 'builder';
@@ -591,6 +597,7 @@
     if (!root) return;
 
     injectCanvas();
+    startPdlAmbient();
 
     G = {
       level:          1,
@@ -739,6 +746,79 @@
     }
     ctx.closePath();
     ctx.stroke();
+  }
+
+  /* ── ambient fx: twinkling starfield + drifting nebula glow ──────
+     Runs on its own SEPARATE canvas (pdl_canvas_fx) layered above the
+     static hex-grid pass (injectCanvas/drawHex, above) so the grid never
+     needs to be re-rendered every frame. This is what actually fills the
+     large empty area below the upgrade cards (and reads through behind
+     the how-to-play overlay) instead of the near-black void the static
+     hex-grid alone left behind. Same twinkle/drift recipe ported from
+     ll_branding_district.js's startAmbientCity()/stopAmbientCity(),
+     generalised (no billboard-specific bits) for this file's card layout. ── */
+  let _pdlAmbientStars = [];
+  let _pdlAmbientOrbs  = [];
+  let _pdlAmbientRaf   = null;
+  function startPdlAmbient() {
+    const canvas = document.getElementById('pdl_canvas_fx');
+    if (!canvas) return;
+    const W = window.innerWidth, H = window.innerHeight;
+    canvas.width  = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    _pdlAmbientStars = [];
+    for (let i = 0; i < 80; i++) {
+      _pdlAmbientStars.push({
+        x: Math.random() * W, y: Math.random() * H,
+        r: Math.random() * 1.3 + .3,
+        phase: Math.random() * Math.PI * 2,
+        speed: .6 + Math.random() * 1.3,
+      });
+    }
+    const orbCols = [ACCENT, AC2, AC3, CYAN];
+    _pdlAmbientOrbs = [];
+    for (let i = 0; i < 5; i++) {
+      _pdlAmbientOrbs.push({
+        bx: Math.random() * W, by: Math.random() * H,
+        r: Math.min(W, H) * (.16 + Math.random() * .1),
+        color: orbCols[i % orbCols.length],
+        phase: Math.random() * Math.PI * 2,
+        speed: .12 + Math.random() * .18,
+      });
+    }
+
+    const t0 = performance.now();
+    function frame(now) {
+      _pdlAmbientRaf = requestAnimationFrame(frame);
+      const t = (now - t0) / 1000;
+      ctx.clearRect(0, 0, W, H);
+
+      /* drifting nebula glow orbs — slow, cosmetic-only parallax drift */
+      _pdlAmbientOrbs.forEach(o => {
+        const ox = o.bx + Math.sin(t * o.speed + o.phase) * W * .06;
+        const oy = o.by + Math.cos(t * o.speed * .8 + o.phase) * H * .05;
+        const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, o.r);
+        g.addColorStop(0, o.color + '26');
+        g.addColorStop(1, o.color + '00');
+        ctx.fillStyle = g;
+        ctx.fillRect(ox - o.r, oy - o.r, o.r * 2, o.r * 2);
+      });
+
+      /* twinkling stars — gentle opacity oscillation, no movement */
+      _pdlAmbientStars.forEach(s => {
+        const tw = .25 + .55 * (0.5 + 0.5 * Math.sin(t * s.speed + s.phase));
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${tw})`;
+        ctx.fill();
+      });
+    }
+    _pdlAmbientRaf = requestAnimationFrame(frame);
+  }
+  function stopPdlAmbient() {
+    if (_pdlAmbientRaf) { cancelAnimationFrame(_pdlAmbientRaf); _pdlAmbientRaf = null; }
   }
 
   /* ── timer ──────────────────────────────────────────────────── */

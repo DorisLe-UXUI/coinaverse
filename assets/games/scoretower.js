@@ -503,11 +503,24 @@
   function drawStars(ctx, W, H, now){
     if(!G._stars){
       G._stars = [];
-      for(let i=0;i<55;i++) G._stars.push({x:Math.random(),y:Math.random(),r:0.4+Math.random()*1.0,sp:0.2+Math.random()*0.8,ph:Math.random()*Math.PI*2});
+      for(let i=0;i<80;i++) G._stars.push({x:Math.random(),y:Math.random(),r:0.5+Math.random()*1.3,sp:0.2+Math.random()*0.8,ph:Math.random()*Math.PI*2});
+    }
+    if(!G._orbs){
+      // drifting glow-pool orbs — premium cosmic ambience layer, this world's
+      // sky-blue accent (the tower's own gold vignette stays untouched; this is
+      // an added backdrop layer, matching the treatment used across the app)
+      G._orbs = [];
+      for(let i=0;i<3;i++) G._orbs.push({ox:0.16+i*0.34, oy:0.2+((i*137)%40)/100, r:0.14+(i%2)*0.05, ph:i*2.1});
+    }
+    for(const o of G._orbs){
+      const ox = o.ox*W, oy = (o.oy + Math.sin(now*0.00018 + o.ph)*0.05) * H, r = o.r*W;
+      const g = ctx.createRadialGradient(ox,oy,0,ox,oy,r);
+      g.addColorStop(0,'rgba(56,189,248,.10)'); g.addColorStop(1,'rgba(56,189,248,0)');
+      ctx.fillStyle = g; ctx.fillRect(ox-r,oy-r,r*2,r*2);
     }
     for(const s of G._stars){
-      const a = 0.12 + 0.08*Math.sin(now*0.001*s.sp + s.ph);
-      ctx.globalAlpha = a;
+      const a = 0.18 + 0.22*Math.sin(now*0.001*s.sp + s.ph);
+      ctx.globalAlpha = Math.max(0,a);
       ctx.fillStyle = '#fff';
       ctx.beginPath(); ctx.arc(s.x*W, s.y*H, s.r, 0, Math.PI*2); ctx.fill();
     }

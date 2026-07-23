@@ -201,6 +201,7 @@
   window.SCREENS.game_ll_idea_incubator = function () {
     G = null;
     cancelAnimationFrame(_raf);
+    stopIiAmbient();
     setTimeout(initGame, 40);
     return `
 <style id="iiStyles">
@@ -236,6 +237,10 @@
 
   <!-- Background: holographic grid lines -->
   <canvas id="iiCanvas" style="position:absolute;inset:0;pointer-events:none;opacity:.32"></canvas>
+  <!-- Ambient overlay: twinkling starfield + drifting nebula glow — same recipe as
+       ll_branding_district.js's bd_city_fx layer, keeps the at-rest board from
+       reading as a flat void the way a single static grid pass does -->
+  <canvas id="iiAmbientFx" style="position:absolute;inset:0;pointer-events:none;opacity:.6"></canvas>
 
   <!-- Top bar -->
   <div id="iiTopBar" style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(180deg,rgba(3,4,12,.97) 70%,transparent)">
@@ -326,6 +331,7 @@
     G = null;
     _drag = null;
     cancelAnimationFrame(_raf);
+    stopIiAmbient();
     /* remove drag listeners that may be live if user exits mid-drag */
     window.removeEventListener('mousemove',  onDragMove);
     window.removeEventListener('mouseup',    onDragEnd);
@@ -349,6 +355,7 @@
 
     /* background canvas grid */
     drawBgGrid();
+    startIiAmbient();
 
     startLevel(1);
 
@@ -452,6 +459,83 @@
       ctx.arc(ox, oy, r, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+
+  /* ── ambient overlay: twinkling starfield + drifting nebula glow ──
+     Cheap per-frame pass on a SEPARATE small canvas layered above the
+     static holographic grid (drawBgGrid, above) — avoids re-running the
+     grid/orb draw every frame while keeping the otherwise-static board
+     (especially the large empty area below the card rows) feeling alive
+     instead of a frozen, flat void. Ported from ll_branding_district.js's
+     startAmbientCity()/stopAmbientCity() twinkle recipe, generalised
+     (no city/billboard specifics) and blended with soft drifting nebula
+     orbs so it also reads as "cosmic" at rest, not just gridlines. ── */
+  let _iiAmbientStars = [];
+  let _iiAmbientOrbs  = [];
+  let _iiAmbientRaf   = null;
+  function startIiAmbient () {
+    const canvas = document.getElementById('iiAmbientFx');
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = window.innerWidth, H = window.innerHeight;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    _iiAmbientStars = [];
+    for (let i = 0; i < 80; i++) {
+      _iiAmbientStars.push({
+        x: Math.random() * W, y: Math.random() * H,
+        r: Math.random() * 1.3 + .3,
+        phase: Math.random() * Math.PI * 2,
+        speed: .6 + Math.random() * 1.3,
+      });
+    }
+    const orbCols = [ACC, ACC2, NEON, GOLD];
+    _iiAmbientOrbs = [];
+    for (let i = 0; i < 5; i++) {
+      _iiAmbientOrbs.push({
+        bx: Math.random() * W, by: Math.random() * H,
+        r: Math.min(W, H) * (.16 + Math.random() * .1),
+        color: orbCols[i % orbCols.length],
+        phase: Math.random() * Math.PI * 2,
+        speed: .12 + Math.random() * .18,
+      });
+    }
+
+    const t0 = performance.now();
+    function frame (now) {
+      _iiAmbientRaf = requestAnimationFrame(frame);
+      const t = (now - t0) / 1000;
+      ctx.clearRect(0, 0, W, H);
+
+      /* drifting nebula glow orbs — slow, cosmetic-only parallax drift */
+      _iiAmbientOrbs.forEach(o => {
+        const ox = o.bx + Math.sin(t * o.speed + o.phase) * W * .06;
+        const oy = o.by + Math.cos(t * o.speed * .8 + o.phase) * H * .05;
+        const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, o.r);
+        g.addColorStop(0, o.color + '26');
+        g.addColorStop(1, o.color + '00');
+        ctx.fillStyle = g;
+        ctx.fillRect(ox - o.r, oy - o.r, o.r * 2, o.r * 2);
+      });
+
+      /* twinkling stars — gentle opacity oscillation, no movement */
+      _iiAmbientStars.forEach(s => {
+        const tw = .25 + .55 * (0.5 + 0.5 * Math.sin(t * s.speed + s.phase));
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${tw})`;
+        ctx.fill();
+      });
+    }
+    _iiAmbientRaf = requestAnimationFrame(frame);
+  }
+  function stopIiAmbient () {
+    if (_iiAmbientRaf) { cancelAnimationFrame(_iiAmbientRaf); _iiAmbientRaf = null; }
   }
 
   /* ══════════════════════════════════════════════════════════════

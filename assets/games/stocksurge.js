@@ -1498,13 +1498,19 @@
     var el = document.getElementById('ss-cards');
     if (!el) return;
     var owned = (window.state && state.ss_cards) || {};
+    // TEMP AI-generated CEO portraits — swap for Kabria's final character art when delivered
     var grid = STOCKS.map(function (s) {
       var tiers = CARD_RARITIES.map(function (r) {
         var has = !!owned[s.ticker + ':' + r.id];
         return '<span style="width:9px;height:9px;border-radius:50%;display:inline-block;margin:0 1px;background:' + (has ? r.color : 'rgba(255,255,255,.15)') + '"></span>';
       }).join('');
       return '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px;text-align:center">' +
-        '<div style="font-size:1.6rem">' + s.icon + '</div>' +
+        '<div style="position:relative;width:48px;height:48px;margin:0 auto">' +
+          '<img src="assets/game/stocksurge_ceos/' + s.ticker + '.png" alt="' + s.ceo + '" ' +
+            'style="width:48px;height:48px;border-radius:50%;object-fit:cover;display:block;border:2px solid rgba(168,85,247,.55);box-shadow:0 0 10px rgba(168,85,247,.4)" ' +
+            'onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' +
+          '<div style="display:none;width:48px;height:48px;border-radius:50%;align-items:center;justify-content:center;font-size:1.6rem;background:rgba(255,255,255,.06)">' + s.icon + '</div>' +
+        '</div>' +
         '<div style="font-family:\'Orbitron\',sans-serif;font-size:.5rem;color:#fff;font-weight:900;margin-top:4px">' + s.ceo + '</div>' +
         '<div style="font-size:.4rem;color:rgba(255,255,255,.4);margin:2px 0">' + s.ticker + '</div>' +
         '<div>' + tiers + '</div>' +

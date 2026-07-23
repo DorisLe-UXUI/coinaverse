@@ -610,6 +610,7 @@
       const dt = Math.min((ts - last) / 1000, 0.1);
       last = ts;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawAmbientNebula(ctx, canvas.width, canvas.height, ts);
       drawAmbientStars(ctx, canvas.width, canvas.height, ts);
       drawDrones(ctx, dt);
       drawParticles(ctx, dt);
@@ -617,6 +618,37 @@
       G.raf = requestAnimationFrame(loop);
     }
     G.raf = requestAnimationFrame(loop);
+  }
+
+  /* ── Ambient nebula glow pools (purely cosmetic) ──────────────────
+     BUGFIX/POLISH: this game's ambient layer used to be just the faint
+     scanline (CSS) + a sparse dim starfield below — noticeably flatter
+     than sibling games (bud_goaltower.js, arcade.js), which both layer
+     drifting radial-gradient glow pools + a nebula swirl on top of the
+     same cosmic bg recipe. Ported that here, adapted lightly: #bbg_canvas
+     sits ABOVE the calendar DOM (z-index:8, pointer-events:none) rather
+     than behind it like the single-canvas sibling games, so these pools
+     paint over bill text/icons — kept to ~0.045 alpha (roughly half of
+     arcade.js's already-subtle 0.08) so the grid stays fully legible;
+     it reads as ambient color grading, not clutter. Blue #3B82F6 per spec. */
+  const NEBULA_BLUE = '#3B82F6';
+  function nebulaRGBA(a) {
+    const n = parseInt(NEBULA_BLUE.slice(1), 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+  function drawAmbientNebula(ctx, W, H, now) {
+    ctx.save();
+    for (let i = 0; i < 3; i++) {
+      const ox = W * (0.18 + i * 0.34);
+      const oy = H * (0.24 + ((i * 131) % 40) / 100) + Math.sin(now * 0.00015 + i * 2.1) * H * 0.04;
+      const r  = W * (0.24 + (i % 2) * 0.09);
+      const grd = ctx.createRadialGradient(ox, oy, 0, ox, oy, r);
+      grd.addColorStop(0, nebulaRGBA(0.045));
+      grd.addColorStop(1, nebulaRGBA(0));
+      ctx.fillStyle = grd;
+      ctx.fillRect(ox - r, oy - r, r * 2, r * 2);
+    }
+    ctx.restore();
   }
 
   /* ── Ambient starfield (purely cosmetic — keeps the cosmic bg alive between drone flights) ── */

@@ -71,6 +71,12 @@
   /* ─── HELPERS ─────────────────────────────────────────────── */
   function clamp(v,lo,hi){ return v<lo?lo:v>hi?hi:v; }
   function rnd(lo,hi){ return lo+Math.random()*(hi-lo); }
+  // Reserved pixel height of the top bar + utilization meter + combo badge HUD
+  // overlay (all position:absolute DOM chrome drawn ON TOP of the canvas). Falling
+  // items must spawn at/below this line — spawning above it (e.g. the old fixed
+  // y:-0.06) put freshly-spawned icons behind/under that opaque chrome, which read
+  // as "spawns off-screen, clipped by the top edge."
+  const UI_TOP_PX = 160;
 
   /* ─── RESET ───────────────────────────────────────────────── */
   function reset(level){
@@ -303,11 +309,10 @@
     const prog = clamp(1 - G.time/G.cfg.time, 0, 1);
     const spawnRate = G.cfg.spawnStart + prog * (G.cfg.spawnEnd - G.cfg.spawnStart);
     G.spawnAcc += dt * spawnRate;
-    while(G.spawnAcc >= 1){ G.spawnAcc -= 1; spawnItem(prog); }
+    while(G.spawnAcc >= 1){ G.spawnAcc -= 1; spawnItem(prog, H); }
 
     // Move items
     const baseSpeed = (0.14 + prog * 0.14) * H; // fraction of screen per second
-    const CANVAS_TOP = 160 / H; // normalised top offset for UI
     for(let i = G.items.length - 1; i >= 0; i--){
       const it = G.items[i];
       it.y += dt * (baseSpeed * it.speedMult) / H;
@@ -366,18 +371,22 @@
   }
 
   /* ─── SPAWN ───────────────────────────────────────────────── */
-  function spawnItem(prog){
+  function spawnItem(prog, H){
     const isGood = Math.random() < 0.52; // slightly more good than bad
     const levelPool = POOLS[G.level - 1] || POOLS[0];
     const pool = isGood ? levelPool.good : levelPool.bad;
     const def = pool[Math.floor(Math.random() * pool.length)];
     const x = rnd(0.07, 0.93);
+    // Spawn just below the reserved HUD chrome (top bar + meter + combo badge) so
+    // the icon badge starts fully inside the visible play area instead of off-canvas
+    // above it / hidden behind the overlay — see UI_TOP_PX above.
+    const topSafe = UI_TOP_PX / (H || 700);
     G.items.push({
       good:      isGood,
       def:       def,
       x:         x,
       baseX:     x,
-      y:         -0.06,
+      y:         topSafe + rnd(0, 0.03),
       speedMult: rnd(0.8, 1.3 + prog * 0.5),
       driftFreq: rnd(2.5, 4.5),
       driftAmp:  isGood ? 0 : rnd(0.03, 0.08),
@@ -474,6 +483,43 @@
     el.style.background = el.style.color.replace(')',', .1)').replace('rgb','rgba');
   }
 
+  /* ─── COSMIC AMBIENT BACKDROP — dark nebula + drifting starfield + soft glow-pool
+     rings, tinted with this world's sky-blue accent (#38bdf8), so the play area
+     reads as part of the same CredTech Galaxy cosmic look as the hub/shared arcade
+     districts instead of a flat per-game vignette. Adapted from arcade.js's render()
+     (ambient starfield + drifting glow orbs) — purely cosmetic, drawn first so every
+     reactive/gameplay layer paints on top of it. ─────────────────────────────── */
+  function drawCosmicAmbient(ctx, W, H, now){
+    if(!G._cllStars){
+      G._cllStars = Array.from({length:70}, () => ({
+        x: Math.random(), y: Math.random(), r: 0.5+Math.random()*1.4,
+        a: 0.15+Math.random()*0.45, tw: 0.4+Math.random()*1.4, ph: Math.random()*Math.PI*2,
+        drift: (Math.random()-0.5)*0.006,
+      }));
+    }
+    // Drifting glow-pool orbs
+    for(let i=0;i<3;i++){
+      const ox = W*(0.16+i*0.34);
+      const oy = H*(0.2+((i*137)%40)/100) + Math.sin(now*0.00016 + i*2.1) * H*0.06;
+      const r  = W*(0.16 + (i%2)*0.05);
+      const g = ctx.createRadialGradient(ox,oy,0,ox,oy,r);
+      g.addColorStop(0,'rgba(56,189,248,0.10)');
+      g.addColorStop(1,'rgba(56,189,248,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(ox-r,oy-r,r*2,r*2);
+    }
+    // Twinkling, slowly-drifting starfield
+    for(const s of G._cllStars){
+      s.y += s.drift;
+      if(s.y<0) s.y+=1; if(s.y>1) s.y-=1;
+      const a = s.a + Math.sin(now*0.001*s.tw + s.ph) * s.a * 0.5;
+      ctx.beginPath();
+      ctx.arc(s.x*W, s.y*H, s.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(224,242,254,${Math.max(0,a).toFixed(3)})`;
+      ctx.fill();
+    }
+  }
+
   /* ─── RENDER ──────────────────────────────────────────────── */
   function render(ctx, W, H, now){
     // Clear
@@ -484,6 +530,9 @@
     const shakeMag = G.shake > 0 ? G.shake * 14 : 0;
     const shx = shakeMag ? (Math.random()-.5)*shakeMag : 0, shy = shakeMag ? (Math.random()-.5)*shakeMag : 0;
     ctx.save(); ctx.translate(shx, shy);
+
+    // Premium cosmic ambience — dark nebula/starfield/glow rings (see above)
+    drawCosmicAmbient(ctx, W, H, now);
 
     // Background glow from utilisation
     const util = G.util;
@@ -543,15 +592,24 @@
       ctx.textBaseline = 'middle';
       ctx.fillText(it.def.icon, x, y);
 
-      // Label below icon
+      // Label below icon — auto-shrinks to fit so the FULL text always reads
+      // (previously hard-truncated anything over 10 chars with an ellipsis, e.g.
+      // "Low Balance" rendered as "Low Balanc…" — most labels in this game are
+      // longer than 10 chars, so almost every item was being clipped).
       ctx.save();
-      ctx.font = `600 ${clamp(sz*0.38,8,12)}px Inter,sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillStyle = it.good ? '#86efac' : '#fca5a5';
       ctx.shadowBlur = 0;
-      // Short label - trim to fit
-      const lbl = it.def.label.length > 10 ? it.def.label.slice(0,10)+'…' : it.def.label;
+      const lbl = it.def.label;
+      let lblSize = clamp(sz*0.38,8,12);
+      ctx.font = `600 ${lblSize}px Inter,sans-serif`;
+      const maxLabelW = Math.max(sz*3.2, 92); // available label band under the icon
+      const lblW = ctx.measureText(lbl).width;
+      if(lblW > maxLabelW){
+        lblSize = Math.max(7, lblSize * (maxLabelW / lblW)); // shrink-to-fit, floored so it stays legible
+        ctx.font = `600 ${lblSize}px Inter,sans-serif`;
+      }
       ctx.fillText(lbl, x, y + sz + 4);
       ctx.restore();
     });

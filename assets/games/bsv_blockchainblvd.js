@@ -13,6 +13,11 @@
   const WARN    = '#FF9500';
   const GOLD    = '#FFD700';
   const BG      = '#03040c';
+  // Risktaker world-identity red (hub accent, #EF4444) — used ONLY for the
+  // level-select ambient nebula/starfield glow below, so that screen still ties
+  // back visually to its parent world even though this game's own HUD accent
+  // (ACCENT, above) is cyan.
+  const RISKTAKER_GLOW = '#EF4444';
 
   const KEYS = ['🔑','🗝️','🔐','🛡️','⚙️'];
 
@@ -114,7 +119,7 @@
       window.removeEventListener('resize', _resizeHandler);
       _resizeHandler = null;
     }
-    if (window.state) state.viewingWorld = 'builder';
+    if (window.state) state.viewingWorld = 'risktaker';
     goTo('hub');
   };
 
@@ -129,13 +134,51 @@
     showLevelSelect();
   }
 
+  // ─── Level-select ambient background ──────────────────────────
+  // Premium-cosmic nebula + drifting/twinkling starfield, matching the recipe
+  // arcade.js's .arc-wrap uses elsewhere in the app (same retrofit already
+  // applied to Portfolio HQ, Research Center, etc. — see their injectPhqCosmicStyle-
+  // style helpers). The level-select here is a DOM overlay (#bsv_overlay), not a
+  // canvas, so this is built as CSS/DOM layers rather than canvas draw calls.
+  // Scoped to bsv_bb_* class names and only ever injected from showLevelSelect()
+  // below, so it never touches the in-game canvas view (which already has its
+  // own cosmic bgParticles treatment, untouched here) or any sibling bsv_ game.
+  function injectBsvBbLvCosmicStyle() {
+    if (document.getElementById('bsvBbLvCosmicStyle')) return;
+    const s = document.createElement('style');
+    s.id = 'bsvBbLvCosmicStyle';
+    s.textContent = `
+      .bsv_bb_lvbg{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+        background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, ${RISKTAKER_GLOW} 18%, #1a1240),#130d32 46%,#07030f 100%)}
+      .bsv_bb_lvbg::after{content:'';position:absolute;inset:0;background:radial-gradient(120% 90% at 50% 4%,rgba(239,68,68,.12),rgba(7,3,15,0) 62%)}
+      .bsv_bb_stars{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+      .bsv_bb_star{position:absolute;border-radius:50%;background:#fff}
+      @keyframes bsvBbLvTwinkle{0%,100%{opacity:.12}50%{opacity:.85}}
+      @keyframes bsvBbLvDrift{0%{transform:translateY(0)}100%{transform:translateY(-10px)}}
+    `;
+    document.head.appendChild(s);
+  }
+  function bsvBbStarsHTML(n) {
+    let out = '';
+    for (let i = 0; i < (n || 46); i++) {
+      const x = (i * 53.7) % 100, y = (i * 91.3 + 11) % 100, sz = 1 + (i % 3),
+            twDur = (2.4 + (i % 5) * .4).toFixed(1), twDelay = ((i * .37) % 3).toFixed(2),
+            drDur = (7 + (i % 6) * 1.3).toFixed(1), drDelay = ((i * .53) % 5).toFixed(2);
+      out += `<span class="bsv_bb_star" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;width:${sz}px;height:${sz}px;animation:bsvBbLvTwinkle ${twDur}s ease-in-out infinite ${twDelay}s,bsvBbLvDrift ${drDur}s ease-in-out infinite alternate ${drDelay}s"></span>`;
+    }
+    return out;
+  }
+
   // ─── Level Select Screen ──────────────────────────────────────
   function showLevelSelect() {
     const ov = document.getElementById('bsv_overlay');
     if (!ov) return;
     ov.style.display = 'flex';
+    injectBsvBbLvCosmicStyle();
     ov.innerHTML = `
-      <div style="max-width:420px;width:90%;text-align:center;padding:24px">
+      <div class="bsv_bb_lvbg"></div>
+      <div class="bsv_bb_stars">${bsvBbStarsHTML(46)}</div>
+      <div style="position:relative;z-index:1;max-width:420px;width:90%;text-align:center;padding:24px">
         <div style="font-family:'Anton',sans-serif;font-size:1.6rem;letter-spacing:.04em;color:${ACCENT};text-shadow:0 0 20px rgba(0,255,255,.6);margin-bottom:6px">⛓ BLOCKCHAIN BLVD</div>
         <div style="font-size:.8rem;color:rgba(255,255,255,.55);margin-bottom:28px;letter-spacing:.06em">Validate. Order. Seal. Protect the chain.</div>
 

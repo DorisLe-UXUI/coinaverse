@@ -127,10 +127,10 @@
     G = null;
     setTimeout(initGame, 40);
     return `
-<div id="ddtRoot" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,#2b1d5e,#160f38 44%,#03040c 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
+<div id="ddtRoot" style="position:absolute;inset:0;background:radial-gradient(60% 48% at 14% 0%,rgba(245,158,11,.20),transparent 64%),radial-gradient(52% 44% at 90% 4%,rgba(255,209,102,.13),transparent 62%),radial-gradient(130% 95% at 50% -8%,#4B2D8F,#2b1d5e 32%,#160f38 60%,#03040c 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none;-webkit-user-select:none">
 
   <!-- Stars bg canvas -->
-  <canvas id="ddtStars" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.5"></canvas>
+  <canvas id="ddtStars" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.75"></canvas>
 
   <!-- Road grid canvas (plaza visual) -->
   <canvas id="ddtRoad" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.35"></canvas>
@@ -183,10 +183,10 @@
   <div id="ddtFloats" style="position:absolute;inset:0;z-index:25;pointer-events:none;overflow:hidden"></div>
 
   <!-- Event overlay -->
-  <div id="ddtEventOverlay" style="position:absolute;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.88);backdrop-filter:blur(8px)"></div>
+  <div id="ddtEventOverlay" style="position:absolute;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.72);backdrop-filter:blur(8px)"></div>
 
   <!-- End overlay -->
-  <div id="ddtEndOverlay" style="position:absolute;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.92);backdrop-filter:blur(10px)"></div>
+  <div id="ddtEndOverlay" style="position:absolute;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.76);backdrop-filter:blur(10px)"></div>
 
   <!-- Strategy hint pill -->
   <div id="ddtHintPill" style="position:absolute;bottom:16px;left:12px;right:12px;z-index:30;display:none;background:rgba(75,45,143,.25);border:1px solid rgba(75,45,143,.5);border-radius:12px;padding:10px 14px;font-size:.78rem;color:rgba(255,255,255,.8);text-align:center;backdrop-filter:blur(4px)"></div>
@@ -199,7 +199,7 @@
     const root = document.getElementById('ddtRoot');
     if (!root) return;
 
-    drawStars();
+    if (!ambRaf) ambRaf = requestAnimationFrame(ambientLoop);
     drawRoadGrid();
 
     showLevelSelect();
@@ -1020,37 +1020,69 @@
     G.hintTimer = setTimeout(() => { pill.style.display = 'none'; }, 3000);
   }
 
-  /* ── Draw star field ───────────────────────────────────────────────────── */
-  function drawStars() {
-    const canvas = document.getElementById('ddtStars');
-    if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width  = canvas.clientWidth  * dpr;
-    canvas.height = canvas.clientHeight * dpr;
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-    const W = canvas.clientWidth, H = canvas.clientHeight;
+  /* ── Ambient cosmic backdrop — dark nebula + drifting starfield/particle layer ──
+     Premium-cosmic treatment adapted from assets/games/arcade.js's ambient-background
+     pattern (deterministic per-star drift formula + slow-orbiting glow-pool blobs),
+     given its own small persistent rAF loop so it plays continuously behind the
+     level-select/event/end overlays too, not just while a turn is being played.
+     Amber (#F59E0B) is blended in alongside the existing violet/gold so this
+     mini-game's backdrop still reads as part of the Debt Detox world's amber
+     identity, not just a generic purple screen. ── */
+  function renderAmbient(ctx, W, H, now) {
+    ctx.clearRect(0, 0, W, H);
+    // drifting starfield — deterministic per-star position + twinkle (no per-frame
+    // reseeding, so stars drift smoothly instead of jittering randomly every frame)
     for (let i = 0; i < 150; i++) {
-      const x = Math.random() * W, y = Math.random() * H;
-      const r = Math.random() * 1.3 + 0.2;
-      const a = Math.random() * 0.7 + 0.1;
+      const sx = (i * 53.7) % W;
+      const sy = (i * 91.3 + now * 0.012 * ((i % 4) + 1)) % H;
+      const r  = 0.7 + (i % 3) * 0.75;
+      const tw = 0.35 + 0.62 * (0.5 + 0.5 * Math.sin(now * 0.0016 + i));
       ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${Math.random()>.5?'167,139,250':'255,209,102'},${a})`;
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${i % 3 === 0 ? '245,158,11' : i % 2 === 0 ? '167,139,250' : '255,209,102'},${tw.toFixed(3)})`;
+      ctx.shadowColor = i % 3 === 0 ? 'rgba(245,158,11,.9)' : 'rgba(255,209,102,.9)';
+      ctx.shadowBlur = r * 2.4;
       ctx.fill();
+      ctx.shadowBlur = 0;
     }
-    // Nebula blobs — alternating violet + gold glow washes for a richer cosmic backdrop
-    const nebulaColors = ['rgba(107,63,207,.12)', 'rgba(255,209,102,.06)'];
-    for (let i = 0; i < 4; i++) {
-      const grd = ctx.createRadialGradient(
-        Math.random()*W, Math.random()*H, 0,
-        Math.random()*W, Math.random()*H, 150+Math.random()*200
-      );
-      grd.addColorStop(0, nebulaColors[i % 2]);
+    // soft drifting nebula glow pools — violet + amber + gold, layered for richness
+    // (bigger/bolder than plain stars so the backdrop reads as "glow pools," not dots)
+    const pools = [
+      { cx: 0.20, cy: 0.16, r: 0.40, c: '107,63,207'  },
+      { cx: 0.82, cy: 0.10, r: 0.34, c: '245,158,11'  },
+      { cx: 0.55, cy: 0.88, r: 0.46, c: '255,209,102' },
+      { cx: 0.10, cy: 0.70, r: 0.30, c: '75,45,143'   },
+      { cx: 0.90, cy: 0.62, r: 0.28, c: '245,158,11'  },
+    ];
+    pools.forEach((p, i) => {
+      const dx = Math.sin(now * 0.00018 + i * 2.1) * W * 0.04;
+      const dy = Math.cos(now * 0.00021 + i * 1.7) * H * 0.03;
+      const cx = p.cx * W + dx, cy = p.cy * H + dy, r = p.r * Math.max(W, H);
+      const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      grd.addColorStop(0, `rgba(${p.c},.30)`);
+      grd.addColorStop(0.55, `rgba(${p.c},.10)`);
       grd.addColorStop(1, 'transparent');
       ctx.fillStyle = grd;
       ctx.fillRect(0, 0, W, H);
+    });
+  }
+
+  let ambRaf = null, ambW = 0, ambH = 0;
+  function ambientLoop(ts) {
+    const root   = document.getElementById('ddtRoot');
+    const canvas = document.getElementById('ddtStars');
+    if (!root || !canvas) { ambRaf = null; return; }
+    const dpr = window.devicePixelRatio || 1;
+    const cw = canvas.clientWidth, ch = canvas.clientHeight;
+    if (cw !== ambW || ch !== ambH) {
+      canvas.width  = cw * dpr;
+      canvas.height = ch * dpr;
+      ambW = cw; ambH = ch;
     }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    renderAmbient(ctx, cw, ch, ts || 0);
+    ambRaf = requestAnimationFrame(ambientLoop);
   }
 
   /* ── Draw road grid (plaza visual) ────────────────────────────────────── */
@@ -1099,6 +1131,14 @@
     monGrd.addColorStop(0.5, 'rgba(75,45,143,.15)');
     monGrd.addColorStop(1, 'transparent');
     ctx.fillStyle = monGrd;
+    ctx.fillRect(0, 0, W, H);
+
+    // Amber accent wash — ties this district's backdrop back to the Debt Detox
+    // world's canonical amber (#F59E0B), layered wider/softer than the violet glow above
+    const amberGrd = ctx.createRadialGradient(vp.x, horizon, 0, vp.x, horizon, 130);
+    amberGrd.addColorStop(0, 'rgba(245,158,11,.10)');
+    amberGrd.addColorStop(1, 'transparent');
+    ctx.fillStyle = amberGrd;
     ctx.fillRect(0, 0, W, H);
 
     // Lit road segments for paid debts
@@ -1205,6 +1245,7 @@
   /* ── Exit ──────────────────────────────────────────────────────────────── */
   window.ddt_plazaExit = function () {
     if (G && G.hintTimer) { clearTimeout(G.hintTimer); G.hintTimer = null; }
+    if (ambRaf) { cancelAnimationFrame(ambRaf); ambRaf = null; }
     G = null;
     if (window.state) state.viewingWorld = WORLD_ID;
     goTo('hub');

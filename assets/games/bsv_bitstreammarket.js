@@ -132,7 +132,7 @@
   window.bsv_bitstreammarketExit = function () {
     G = null;
     clearAllTimers();
-    if (window.state) state.viewingWorld = 'builder';
+    if (window.state) state.viewingWorld = 'risktaker';
     goTo('hub');
   };
 

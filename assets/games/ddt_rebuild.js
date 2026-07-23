@@ -79,6 +79,7 @@
 
   /* ─── STATE ─────────────────────────────────────────────────── */
   let G = null, raf = null;
+  let ambRaf = null, ambW = 0, ambH = 0;   // persistent ambient-backdrop loop (see renderAmbient/ambientLoop below)
 
   /* ─── DEBUG HOOK (dev/QA only) ───────────────────────────────── */
   window._rbDbg = function () {
@@ -119,13 +120,79 @@
     ctx.closePath();
   }
 
+  /* ─── AMBIENT COSMIC BACKDROP ───────────────────────────────────
+     Premium-cosmic treatment adapted from assets/games/arcade.js's ambient
+     background pattern (deterministic drifting starfield + slow-orbiting
+     nebula glow pools), drawn on a dedicated #rbAmbient canvas via its own
+     small persistent rAF loop — independent of G/phase, so the level-select
+     and end screens (where the main #rbCanvas building-grid render never
+     runs) aren't a flat undecorated void. The in-game #rbCanvas render()
+     still draws its own richer nebula+buildings on top during actual play;
+     this layer only shows through when that canvas is empty/idle.        ─── */
+  function renderAmbient(ctx, W, H, now){
+    ctx.clearRect(0,0,W,H);
+    for(let i=0;i<130;i++){
+      const sx = (i*51.3) % W;
+      const sy = (i*87.7 + now*0.011*((i%4)+1)) % H;
+      const r  = 0.7 + (i%3)*0.75;
+      const tw = 0.35 + 0.60*(0.5+0.5*Math.sin(now*0.0017+i));
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI*2);
+      const col = i%3===0 ? '245,158,11' : (i%2===0 ? hexToRgb(ACCENT_LT) : hexToRgb(GOLD));
+      ctx.fillStyle = `rgba(${col},${tw.toFixed(3)})`;
+      ctx.shadowColor = `rgba(${col},.9)`;
+      ctx.shadowBlur = r*2.4;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    const pools = [
+      { cx:0.18, cy:0.14, r:0.38, c: hexToRgb(ACCENT_LT) },
+      { cx:0.84, cy:0.10, r:0.32, c: '245,158,11' },
+      { cx:0.50, cy:0.90, r:0.44, c: hexToRgb(GOLD) },
+      { cx:0.12, cy:0.72, r:0.28, c: hexToRgb(ACCENT) },
+      { cx:0.88, cy:0.66, r:0.26, c: '245,158,11' },
+    ];
+    pools.forEach((p,i)=>{
+      const dx = Math.sin(now*0.00017+i*2.3)*W*0.04;
+      const dy = Math.cos(now*0.00020+i*1.6)*H*0.03;
+      const cx = p.cx*W+dx, cy = p.cy*H+dy, r = p.r*Math.max(W,H);
+      const grd = ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+      grd.addColorStop(0, `rgba(${p.c},.30)`);
+      grd.addColorStop(0.55, `rgba(${p.c},.10)`);
+      grd.addColorStop(1, 'transparent');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0,0,W,H);
+    });
+  }
+
+  function ambientLoop(ts){
+    const root   = el('rbRoot');
+    const canvas = el('rbAmbient');
+    if(!root || !canvas){ ambRaf = null; return; }
+    const dpr = window.devicePixelRatio||1;
+    const cw = canvas.clientWidth, ch = canvas.clientHeight;
+    if(cw !== ambW || ch !== ambH){
+      canvas.width  = cw*dpr;
+      canvas.height = ch*dpr;
+      ambW = cw; ambH = ch;
+    }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    renderAmbient(ctx, cw, ch, ts||0);
+    ambRaf = requestAnimationFrame(ambientLoop);
+  }
+
   /* ─── SCREEN REGISTRATION ───────────────────────────────────── */
   window.SCREENS = window.SCREENS || {};
   window.SCREENS.game_ddt_rebuild = function(){
     G = null;
     if(raf){ cancelAnimationFrame(raf); raf=null; }
     setTimeout(initGame, 40);
-    return `<div id="rbRoot" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,${ACCENT_DIM},#160b32 44%,${BG} 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff;touch-action:none">
+    return `<div id="rbRoot" style="position:absolute;inset:0;background:radial-gradient(60% 48% at 86% 0%,rgba(245,158,11,.20),transparent 64%),radial-gradient(52% 44% at 12% 6%,rgba(255,196,66,.12),transparent 62%),radial-gradient(130% 95% at 50% -8%,${ACCENT},${ACCENT_DIM} 32%,#160b32 60%,${BG} 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff;touch-action:none">
+
+      <!-- AMBIENT COSMIC BACKDROP — persistent dark nebula + drifting starfield layer,
+           independent of game phase, so level-select/end screens aren't a flat void -->
+      <canvas id="rbAmbient" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.78"></canvas>
 
       <!-- SCANLINE TEXTURE OVERLAY -->
       <div style="position:absolute;inset:0;z-index:15;pointer-events:none;background:linear-gradient(rgba(0,229,255,0) 50%,rgba(0,229,255,.025) 50%);background-size:100% 4px"></div>
@@ -183,10 +250,10 @@
       <div id="rbSetbackSlot" style="position:absolute;top:112px;left:0;right:0;z-index:40;pointer-events:none"></div>
 
       <!-- END OVERLAY -->
-      <div id="rbEnd" style="display:none;position:absolute;inset:0;z-index:60;background:rgba(3,4,12,.94);flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center"></div>
+      <div id="rbEnd" style="display:none;position:absolute;inset:0;z-index:60;background:rgba(3,4,12,.78);flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center"></div>
 
       <!-- LEVEL SELECT -->
-      <div id="rbSelect" style="position:absolute;inset:0;z-index:55;background:rgba(3,4,12,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px"></div>
+      <div id="rbSelect" style="position:absolute;inset:0;z-index:55;background:rgba(3,4,12,.80);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px"></div>
 
     </div>`;
   };
@@ -203,6 +270,7 @@
     cleanupListeners();
     G = null;
     if(raf){ cancelAnimationFrame(raf); raf=null; }
+    if(ambRaf){ cancelAnimationFrame(ambRaf); ambRaf=null; }
     if(window.state) state.viewingWorld = 'rebuilder';
     goTo('hub');
   };
@@ -215,6 +283,7 @@
     const back = el('rbBack');
     if(back) back.onclick = ()=> window.ddt_rebuildExit();
 
+    if(!ambRaf) ambRaf = requestAnimationFrame(ambientLoop);
     injectStyles();
     showLevelSelect();
   }

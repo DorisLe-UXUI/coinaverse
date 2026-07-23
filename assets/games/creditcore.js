@@ -394,6 +394,14 @@
       ctx.beginPath(); ctx.arc(st.x*W,st.y*H*0.75,st.r,0,6.28); ctx.fill();
     }
     ctx.globalAlpha=1;
+    // drifting glow-pool orbs — premium cosmic ambience layer, this world's sky-blue
+    // accent (matches the treatment used across the rest of the app, e.g. arcade.js)
+    for(let i=0;i<3;i++){
+      const ox=W*(0.16+i*0.34), oy=H*(0.22+((i*137)%40)/100)+Math.sin(t*0.5+i*2)*H*0.05, r=W*(0.12+(i%2)*0.04);
+      const og=ctx.createRadialGradient(ox,oy,0,ox,oy,r);
+      og.addColorStop(0,'rgba(56,189,248,.09)'); og.addColorStop(1,'transparent');
+      ctx.fillStyle=og; ctx.fillRect(ox-r,oy-r,r*2,r*2);
+    }
     // center radial ambient
     const cg=ctx.createRadialGradient(W/2,H*0.44,0,W/2,H*0.44,W*0.55);
     cg.addColorStop(0,'rgba(56,189,248,.07)'); cg.addColorStop(1,'transparent');

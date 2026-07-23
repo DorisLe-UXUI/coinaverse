@@ -706,7 +706,7 @@
 
   /* ─── STAR CANVAS — gently twinkling/drifting so the observatory backdrop
      behind the scrolling report doc isn't a dead, motionless field ──────── */
-  let _roStarField = null, _roStarRaf = null;
+  let _roStarField = null, _roStarRaf = null, _roOrbField = null;
   function drawStars(){
     const cv = document.getElementById('roStars');
     if(!cv) return;
@@ -724,6 +724,16 @@
         drift: (Math.random()-0.5)*3,  // slow vertical drift px/s
       });
     }
+    // drifting glow-pool orbs — premium cosmic ambience layer, this world's
+    // sky-blue accent (the observatory's own violet vignette stays untouched;
+    // this is an added backdrop layer, matching the treatment used across the app)
+    _roOrbField = [];
+    for(let i=0;i<3;i++){
+      _roOrbField.push({
+        x: cv.width*(0.18+i*0.32), y: cv.height*(0.2+((i*137)%40)/100),
+        r: cv.width*(0.16+(i%2)*0.05), ph: i*2.2, sp: 0.00016+i*0.00004,
+      });
+    }
     if(_roStarRaf) cancelAnimationFrame(_roStarRaf);
     const start = performance.now();
     (function animate(now){
@@ -734,6 +744,12 @@
       const ctx = cv2.getContext('2d');
       const t = (now - start) / 1000;
       ctx.clearRect(0,0,cv2.width,cv2.height);
+      for(const o of _roOrbField){
+        const oy = o.y + Math.sin(now*o.sp + o.ph) * cv2.height*0.05;
+        const g = ctx.createRadialGradient(o.x,oy,0,o.x,oy,o.r);
+        g.addColorStop(0,'rgba(56,189,248,.09)'); g.addColorStop(1,'rgba(56,189,248,0)');
+        ctx.fillStyle = g; ctx.fillRect(o.x-o.r,oy-o.r,o.r*2,o.r*2);
+      }
       for(const s of _roStarField){
         s.y += s.drift * (1/60);
         if(s.y < -4) s.y = cv2.height+4;

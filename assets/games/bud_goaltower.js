@@ -416,7 +416,14 @@
     const n = G.goals.length;
     const topBar = 52;
     const handH = getHandH(H);
-    const towerArea = H - topBar - handH - 16;
+    // BUGFIX: this gap was only 16px, which left the tower's ground plinth +
+    // building-name label (drawn at the very bottom of towerArea, see
+    // drawTower) just 16px above the hand panel — colliding with the
+    // floating hint text ("DRAG cards onto...", drawn at H-handH-4) and
+    // crowding the "MILESTONE CARDS" header right below it. 40px gives both
+    // elements clearance without shrinking floor height (floorH is capped
+    // at 38px well before towerArea gets this tight on any real viewport).
+    const towerArea = H - topBar - handH - 40;
     const padding = 12;
     const totalW = W - padding * 2;
     const towerW = Math.min(140, (totalW - (n - 1) * 10) / n);
@@ -440,13 +447,18 @@
     const handH = getHandH(H);
     const handY = H - handH;
     const cardW = Math.min(90, (W - 16) / G.maxHand - 8);
-    const cardH = Math.min(115, handH - 16);
+    // BUGFIX: cards used to start only 8px below handY, giving the "MILESTONE
+    // CARDS — DRAG TO TOWER" header (drawn at handY+4, ~9px font) just 4px of
+    // clearance before the card row's rounded top edge started drawing over
+    // it. Pushing cards down to handY+18 (and trimming cardH by the same 10px
+    // so the row's bottom edge stays put) gives the header its own clear band.
+    const cardH = Math.min(115, handH - 26);
     const totalW = G.hand.length * (cardW + 8) - 8;
     const startX = (W - totalW) / 2;
 
     return G.hand.map((card, i) => ({
       x: startX + i * (cardW + 8),
-      y: handY + 8,
+      y: handY + 18,
       w: cardW,
       h: cardH,
       card
@@ -910,18 +922,16 @@
     roundRect(ctx, cx, cy, cw, ch, 8);
     ctx.stroke();
 
-    // goal color stripe top
+    // goal color stripe top — this is the card's goal indicator (paired with
+    // the matching border color above). BUGFIX: a redundant "🚲 Buy a Bike"
+    // goal-name text stamp used to render here on every card too, duplicating
+    // the tower's single building-name label and covering up each card's own
+    // correct milestone label (Save Weekly / Reach Goal / Avoid Impulse Buys
+    // etc.). Removed — the color stripe + border already identify which
+    // goal a card belongs to.
     ctx.fillStyle = hexAlpha(accentC, 0.5);
     roundRectTop(ctx, cx, cy, cw, 6, 8);
     ctx.fill();
-
-    // goal icon + name
-    ctx.fillStyle = accentC;
-    ctx.font = `bold 8px 'Orbitron', sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    const goalName = gs ? gs.def.icon + ' ' + gs.def.name : '?';
-    ctx.fillText(goalName, cx + cw / 2, cy + 10);
 
     // milestone icon
     ctx.font = `${Math.min(28, ch * 0.28)}px serif`;

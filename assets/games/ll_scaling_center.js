@@ -133,6 +133,7 @@
   window.SCREENS['game_ll_scaling_center'] = function () {
     G = null;
     cancelAnimationFrame(_raf);
+    stopScAmbient();
     setTimeout(initGame, 40);
     return `
 <style id="sc_styles">
@@ -156,6 +157,11 @@
   #sc_root::after { content:''; position:absolute; inset:0; z-index:25; pointer-events:none; background:linear-gradient(rgba(124,58,237,0) 50%,rgba(124,58,237,.025) 50%); background-size:100% 4px; }
 </style>
 <div id="sc_root" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%, ${ACC}26, #0d0824 44%, ${BG} 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none;">
+  <!-- AMBIENT FX: twinkling starfield + drifting nebula glow, always running
+       behind the topbar/canvas/overlays so the how-to-play and level-select
+       screens (which otherwise show nothing but the flat root gradient)
+       read as alive, matching ll_branding_district.js's ambient treatment -->
+  <canvas id="sc_ambient_fx" style="position:absolute;inset:0;pointer-events:none;"></canvas>
   <!-- TOP BAR -->
   <div id="sc_topbar" style="position:absolute;top:0;left:0;right:0;height:52px;background:${BG2};border-bottom:1px solid ${ACC}40;display:flex;align-items:center;padding:0 12px;gap:12px;z-index:30;">
     <button id="sc_back" style="background:${ACC}25;border:1px solid ${ACC}60;color:${ACC2};padding:6px 14px;border-radius:8px;cursor:pointer;font-size:14px;font-family:Inter,sans-serif;">← HUB</button>
@@ -233,6 +239,7 @@
     if (!_canvas) return;
     _ctx = _canvas.getContext('2d');
     resizeCanvas();
+    startScAmbient();
 
     document.getElementById('sc_back').addEventListener('click', window.ll_scaling_centerExit);
     document.getElementById('sc_upgrade_btn').addEventListener('click', onUpgradeClick);
@@ -271,6 +278,88 @@
     _canvas.width  = root.clientWidth;
     _canvas.height = root.clientHeight - 52 - 60;
     if (G && G.phase === 'play') layoutNodes();
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     AMBIENT FX — twinkling starfield + drifting nebula glow
+     Runs continuously from initGame() to exit, independent of G/phase
+     (unlike gameLoop's _raf, which only exists mid-level) so the
+     how-to-play and level-select screens — which have no node graph to
+     look at yet — aren't just the flat root gradient. Same twinkle/drift
+     recipe ported from ll_branding_district.js's startAmbientCity(), with
+     larger/brighter nebula glow orbs than that recipe so they still read
+     through this file's near-opaque sc_overlay/sc_help backdrops (small
+     star-sized dots alone would get lost under that much dark overlay).
+  ══════════════════════════════════════════════════════════════ */
+  let _scAmbientStars = [];
+  let _scAmbientOrbs  = [];
+  let _scAmbientRaf   = null;
+  function startScAmbient () {
+    const canvas = document.getElementById('sc_ambient_fx');
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.offsetWidth  || window.innerWidth;
+    const H = canvas.offsetHeight || window.innerHeight;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    _scAmbientStars = [];
+    for (let i = 0; i < 90; i++) {
+      _scAmbientStars.push({
+        x: Math.random() * W, y: Math.random() * H,
+        r: Math.random() * 1.3 + .3,
+        phase: Math.random() * Math.PI * 2,
+        speed: .6 + Math.random() * 1.3,
+      });
+    }
+    const orbCols = [ACC, ACC2, CYAN, GOLD];
+    _scAmbientOrbs = [];
+    for (let i = 0; i < 5; i++) {
+      _scAmbientOrbs.push({
+        bx: Math.random() * W, by: Math.random() * H,
+        r: Math.min(W, H) * (.2 + Math.random() * .12),
+        color: orbCols[i % orbCols.length],
+        phase: Math.random() * Math.PI * 2,
+        speed: .12 + Math.random() * .18,
+      });
+    }
+
+    const t0 = performance.now();
+    function frame (now) {
+      _scAmbientRaf = requestAnimationFrame(frame);
+      const t = (now - t0) / 1000;
+      ctx.clearRect(0, 0, W, H);
+
+      /* drifting nebula glow orbs — larger + slightly stronger alpha than
+         the sibling recipe so they still show through the how-to-play /
+         level-select overlays' dark backdrops */
+      _scAmbientOrbs.forEach(o => {
+        const ox = o.bx + Math.sin(t * o.speed + o.phase) * W * .06;
+        const oy = o.by + Math.cos(t * o.speed * .8 + o.phase) * H * .05;
+        const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, o.r);
+        g.addColorStop(0, o.color + '30');
+        g.addColorStop(1, o.color + '00');
+        ctx.fillStyle = g;
+        ctx.fillRect(ox - o.r, oy - o.r, o.r * 2, o.r * 2);
+      });
+
+      /* twinkling stars — gentle opacity oscillation, no movement */
+      _scAmbientStars.forEach(s => {
+        const tw = .25 + .55 * (0.5 + 0.5 * Math.sin(t * s.speed + s.phase));
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${tw})`;
+        ctx.fill();
+      });
+    }
+    _scAmbientRaf = requestAnimationFrame(frame);
+  }
+  function stopScAmbient () {
+    if (_scAmbientRaf) { cancelAnimationFrame(_scAmbientRaf); _scAmbientRaf = null; }
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -1393,6 +1482,7 @@
   ══════════════════════════════════════════════════════════════ */
   window.ll_scaling_centerExit = function () {
     cancelAnimationFrame(_raf);
+    stopScAmbient();
     clearTimeout(_flashTimer);
     clearTimeout(_disruptTimer);
     window.removeEventListener('resize', resizeCanvas);

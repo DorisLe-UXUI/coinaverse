@@ -131,6 +131,25 @@
     return buildShell();
   };
 
+  /* ─── AMBIENT COSMIC LAYER ───────────────────────────────────────
+     Same "premium cosmic" recipe used elsewhere in Investopia (dark nebula +
+     drifting starfield, see inv_dividend.js's .divd-stars / arcade.js's
+     canvas-drawn ambient starfield+orbs) adapted here as lightweight DOM/CSS
+     rather than a per-frame canvas draw, since this screen has no ambient
+     render loop of its own. Deterministic placement formula (not Math.random)
+     so the markup is stable/reproducible, matching the dividend district
+     pattern. Investopia accent #10B981 used for every glow/tint below. ── */
+  function saStarsHTML(n) {
+    n = n || 46;
+    var out = '';
+    for (var i = 0; i < n; i++) {
+      var x = (i * 53.7) % 100, y = (i * 91.3 + 13) % 100;
+      var sz = 1 + (i % 3), dur = (2.6 + (i % 5) * .45).toFixed(1), delay = ((i * .34) % 3).toFixed(2);
+      out += '<span class="sa-star" style="left:' + x.toFixed(1) + '%;top:' + y.toFixed(1) + '%;width:' + sz + 'px;height:' + sz + 'px;animation-duration:' + dur + 's;animation-delay:' + delay + 's"></span>';
+    }
+    return out;
+  }
+
   /* ─── BUILD SHELL HTML ───────────────────────────────────────── */
   function buildShell() {
     return `
@@ -138,7 +157,10 @@
   /* ── root ── */
   #sa-root {
     position:absolute;inset:0;
-    background:radial-gradient(ellipse at 50% -10%, #001f0a 0%, #03040c 60%, #020309 100%);
+    background:
+      radial-gradient(120% 70% at 50% -8%, rgba(16,185,129,.16), transparent 58%),
+      radial-gradient(90% 65% at 12% 108%, rgba(16,185,129,.09), transparent 62%),
+      radial-gradient(ellipse at 50% -10%, #001f0a 0%, #03040c 60%, #020309 100%);
     overflow:hidden;font-family:'Inter',sans-serif;color:#fff;
     display:flex;flex-direction:column;
   }
@@ -146,10 +168,21 @@
   #sa-root::before {
     content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
     background-image:
-      linear-gradient(rgba(0,200,83,.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,200,83,.04) 1px, transparent 1px);
+      linear-gradient(rgba(0,200,83,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,200,83,.045) 1px, transparent 1px);
     background-size:42px 42px;
   }
+  /* ── drifting starfield — covers the whole arena so it reads "alive"
+       everywhere, not just in the stock list. Named .sa-starfield (not
+       .sa-stars) since .sa-stars is already used further below for the
+       end-screen star-rating row's font sizing. ── */
+  .sa-starfield { position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden; }
+  .sa-star  { position:absolute;border-radius:50%;background:#fff;animation:saTwinkle 3.4s ease-in-out infinite; }
+  @keyframes saTwinkle { 0%,100%{opacity:.10} 50%{opacity:.78} }
+  /* ── soft drifting nebula glow orbs ── */
+  .sa-orbs { position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden; }
+  .sa-orb  { position:absolute;border-radius:50%;filter:blur(1px);animation:saOrbDrift ease-in-out infinite alternate; }
+  @keyframes saOrbDrift { 0%{transform:translate(0,0)} 100%{transform:translate(22px,-26px)} }
   /* ── topbar ── */
   #sa-top {
     position:relative;z-index:6;display:flex;align-items:center;
@@ -228,9 +261,32 @@
   .sa-tick-up { color:${AC2}; }
   .sa-tick-dn { color:${RED}; }
   .sa-tick-fl { color:rgba(255,255,255,.4); }
-  /* ── scrollable stock list ── */
+  /* ── scrollable stock list ──
+       #sa-stocks-outer carries the flex:1 + holds a persistent ambient
+       backdrop (#sa-stocks-ambient) BEHIND the actual scrollable card list.
+       renderStocks() replaces #sa-stocks' innerHTML on every price tick, so
+       the ambient visual lives in a sibling instead of inside #sa-stocks —
+       otherwise it would be wiped every ~1-2s. This backdrop always fills
+       100% of the available height regardless of how few cards there are or
+       how tall the viewport is, so there's never a flat/dead gap below the
+       cards. ── */
+  #sa-stocks-outer {
+    position:relative;z-index:5;flex:1;min-height:0;
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  #sa-stocks-ambient { position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden; }
+  .sa-floor-glow {
+    position:absolute;left:50%;bottom:-12%;width:150%;height:65%;
+    transform:translateX(-50%);
+    background:radial-gradient(ellipse at 50% 100%, rgba(16,185,129,.20), transparent 68%);
+  }
+  .sa-ghost-chart {
+    position:absolute;left:0;right:0;bottom:4%;width:100%;height:48%;
+    animation:saGhostDrift 24s ease-in-out infinite alternate;
+  }
+  @keyframes saGhostDrift { 0%{transform:translateY(0) scaleY(1)} 100%{transform:translateY(-9px) scaleY(1.035)} }
   #sa-stocks {
-    position:relative;z-index:5;flex:1;overflow-y:auto;
+    position:relative;z-index:1;flex:1;overflow-y:auto;
     padding:8px 9px;display:flex;flex-direction:column;gap:7px;
   }
   #sa-stocks::-webkit-scrollbar { width:3px; }
@@ -526,6 +582,12 @@
   }
 </style>
 <div id="sa-root">
+  <div class="sa-starfield">` + saStarsHTML(46) + `</div>
+  <div class="sa-orbs">
+    <div class="sa-orb" style="left:8%;top:5%;width:190px;height:190px;background:radial-gradient(circle,rgba(16,185,129,.22),transparent 70%);animation-duration:17s"></div>
+    <div class="sa-orb" style="right:4%;top:16%;width:150px;height:150px;background:radial-gradient(circle,rgba(0,230,118,.16),transparent 70%);animation-duration:20s;animation-delay:-4s"></div>
+    <div class="sa-orb" style="left:32%;bottom:10%;width:230px;height:230px;background:radial-gradient(circle,rgba(16,185,129,.14),transparent 70%);animation-duration:23s;animation-delay:-9s"></div>
+  </div>
   <div id="sa-top">
     <button class="sa-back" onclick="inv_stockarenaExit()">← HUB</button>
     <div id="sa-gametitle">STOCK MARKET ARENA</div>
@@ -558,8 +620,21 @@
   <!-- Ticker tape -->
   <div id="sa-tape"><div id="sa-tape-inner"></div></div>
 
-  <!-- Stock list -->
-  <div id="sa-stocks"></div>
+  <!-- Stock list (ambient holographic backdrop lives behind the scrollable
+       cards so there is never a flat/dead gap below them, regardless of how
+       many stocks the level has or how tall the viewport is) -->
+  <div id="sa-stocks-outer">
+    <div id="sa-stocks-ambient" aria-hidden="true">
+      <div class="sa-floor-glow"></div>
+      <svg class="sa-ghost-chart" viewBox="0 0 400 200" preserveAspectRatio="none">
+        <polyline points="0,150 40,130 80,145 120,90 160,110 200,60 240,80 280,40 320,65 360,30 400,50"
+                  fill="none" stroke="#10B981" stroke-width="2" opacity="0.16"/>
+        <polyline points="0,172 40,176 80,162 120,169 160,142 200,151 240,121 280,131 320,101 360,113 400,96"
+                  fill="none" stroke="#10B981" stroke-width="1.5" opacity="0.09"/>
+      </svg>
+    </div>
+    <div id="sa-stocks"></div>
+  </div>
 
   <!-- Qty selector -->
   <div id="sa-qty-row">

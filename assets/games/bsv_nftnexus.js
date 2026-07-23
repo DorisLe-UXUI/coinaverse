@@ -9,7 +9,7 @@
 
   const ACCENT      = '#00FFFF';
   const SCREEN_ID   = 'game_bsv_nftnexus';
-  const WORLD_ID    = 'builder';
+  const WORLD_ID    = 'risktaker';
 
   // Per-level tuning — level 3 is tighter on time and stricter on fakes.
   const ROUND_TIME_BY_LEVEL = { 1: 90, 2: 90, 3: 75 }; // seconds

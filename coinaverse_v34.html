@@ -5996,6 +5996,8 @@ video::-webkit-media-controls-play-button {
     .sec-hud span{background:rgba(2,12,18,.5);border:1px solid rgba(94,234,212,.18);padding:7px 14px;border-radius:22px}
     .sec-hud b{color:#fff;display:inline-block;transition:transform .18s}
     .sec-arena{position:relative;flex:1;width:100%;max-width:780px;margin:0 auto;overflow:hidden;border:1px solid rgba(94,234,212,.2);border-radius:22px;background:linear-gradient(180deg,rgba(6,24,34,.35),rgba(2,10,16,.5));box-shadow:inset 0 0 60px rgba(0,0,0,.5)}
+    .sec-arena::before{content:'';position:absolute;inset:-10%;pointer-events:none;background:radial-gradient(38% 40% at 25% 20%,rgba(20,184,166,.22),transparent 70%),radial-gradient(34% 36% at 78% 78%,rgba(56,189,248,.16),transparent 70%);filter:blur(24px);opacity:.85;animation:nebula 22s ease-in-out infinite alternate}
+    .sec-arena::after{content:'';position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(1px 1px at 18% 22%,rgba(255,255,255,.75),transparent),radial-gradient(1px 1px at 68% 15%,rgba(255,255,255,.55),transparent),radial-gradient(1.5px 1.5px at 42% 48%,rgba(190,240,255,.65),transparent),radial-gradient(1px 1px at 85% 38%,rgba(255,255,255,.55),transparent),radial-gradient(1px 1px at 12% 65%,rgba(255,255,255,.45),transparent),radial-gradient(1.2px 1.2px at 58% 72%,rgba(255,255,255,.55),transparent),radial-gradient(1px 1px at 90% 82%,rgba(255,255,255,.45),transparent),radial-gradient(1px 1px at 30% 88%,rgba(255,255,255,.5),transparent);animation:twinkle 6s ease-in-out infinite}
     .sec-obj{position:absolute;top:-90px;width:84px;height:84px;display:flex;align-items:center;justify-content:center;cursor:pointer;will-change:top;transition:transform .12s}
     .sec-obj:hover{transform:scale(1.08)}
     .sec-obj img{width:78px;height:78px;object-fit:contain;pointer-events:none;filter:drop-shadow(0 5px 14px rgba(0,0,0,.45))}
@@ -6050,6 +6052,23 @@ video::-webkit-media-controls-play-button {
 
   function emgInit(){ _emg = { fund:200, round:0, phase:'play', raided:false, brokeMoment:false, fb:"Your Emergency Fund starts at 200 💎. Protect it through 6 events — emergencies only!" }; }
 
+  // Shared "premium cosmic" ambient treatment for Guardian (SaveScape Orbit) mini-games —
+  // dark nebula radial-gradient bloom + drifting starfield, matching the in-family look
+  // already established by VAULT_CSS/.vlt-wrap (Goal Galaxy). Add class="gcw" to a screen's
+  // absolutely-positioned root wrapper (which must set its own dark base `background` +
+  // `overflow`) and include this CSS once in that screen's <style> block.
+  // NOTE: the nebula/twinkle layers use inset:0 (no negative bleed) on purpose — several
+  // screens use overflow-y:auto for legit scrolling, and a negative inset would otherwise
+  // register as extra scrollable overflow on those screens.
+  const GCOSMIC_BG = "radial-gradient(120% 80% at 50% 120%,rgba(20,184,166,.16),transparent 55%),radial-gradient(140% 120% at 50% -10%,#0c3b4a 0%,#072433 42%,#04141d 70%,#020a11 100%)";
+  const GCOSMIC_CSS = `
+    .gcw::before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;background:radial-gradient(40% 38% at 22% 28%,rgba(20,184,166,.28),transparent 70%),radial-gradient(36% 34% at 80% 22%,rgba(56,189,248,.18),transparent 70%),radial-gradient(34% 32% at 70% 84%,rgba(246,181,35,.10),transparent 70%);filter:blur(26px);opacity:.85;animation:gcNebula 22s ease-in-out infinite alternate}
+    .gcw::after{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;background-image:radial-gradient(1px 1px at 20% 30%,rgba(255,255,255,.8),transparent),radial-gradient(1px 1px at 70% 60%,rgba(255,255,255,.6),transparent),radial-gradient(1.5px 1.5px at 40% 80%,rgba(190,240,255,.7),transparent),radial-gradient(1px 1px at 85% 20%,rgba(255,255,255,.6),transparent),radial-gradient(1px 1px at 55% 15%,rgba(255,255,255,.5),transparent),radial-gradient(1.2px 1.2px at 12% 70%,rgba(255,255,255,.6),transparent),radial-gradient(1px 1px at 92% 75%,rgba(255,255,255,.5),transparent),radial-gradient(1px 1px at 30% 50%,rgba(255,255,255,.55),transparent),radial-gradient(1px 1px at 65% 92%,rgba(255,255,255,.5),transparent),radial-gradient(1.3px 1.3px at 95% 40%,rgba(190,240,255,.55),transparent);animation:gcTwinkle 6s ease-in-out infinite}
+    @keyframes gcNebula{0%{transform:translate3d(0,0,0) scale(1)}100%{transform:translate3d(0,-3%,0) scale(1.08)}}
+    @keyframes gcTwinkle{0%,100%{opacity:.4}50%{opacity:.75}}
+    .gcw>*{position:relative;z-index:1}
+  `;
+
   SCREENS.emergency_game = function(){
     if (!_emg) emgInit();
     const e = _emg;
@@ -6075,8 +6094,9 @@ video::-webkit-media-controls-play-button {
     const ev = EMG_EVENTS[e.round];
     const isCrisis = ev.choices.some(c=>c.d&&c.d<0);
     const fundColor = fillPct>60?'#14b8a6':fillPct>30?'#f59e0b':'#ef4444';
-    return `<div style="position:absolute;inset:0;background:linear-gradient(160deg,#03090f,#071520);font-family:'Inter',sans-serif;color:#fff;display:flex;flex-direction:column;overflow:hidden">
+    return `<div class="gcw" style="position:absolute;inset:0;background:${GCOSMIC_BG};font-family:'Inter',sans-serif;color:#fff;display:flex;flex-direction:column;overflow:hidden">
       <style>
+        ${GCOSMIC_CSS}
         @keyframes emgCardIn{from{transform:translateX(80px) scale(.96);opacity:0}to{transform:translateX(0) scale(1);opacity:1}}
         @keyframes emgCardOut{from{transform:translateX(0);opacity:1}to{transform:translateX(-80px) scale(.96);opacity:0}}
         @keyframes emgShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-7px)}80%{transform:translateX(7px)}}
@@ -6095,7 +6115,7 @@ video::-webkit-media-controls-play-button {
         <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;color:rgba(255,255,255,.35)">EVENT ${e.round+1}/${EMG_EVENTS.length}</div>
       </div>
       <div style="flex:1;display:grid;grid-template-columns:160px 1fr;gap:0;overflow:hidden;min-height:0">
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:24px 12px 12px;border-right:1px solid rgba(255,255,255,.06);gap:10px">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 12px 12px;border-right:1px solid rgba(255,255,255,.06);gap:10px">
           <div style="font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.14em;color:rgba(255,255,255,.35)">EMERGENCY FUND</div>
           <div style="position:relative;width:72px;height:160px;border-radius:12px;overflow:hidden;border:2px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3)">
             <div style="position:absolute;bottom:0;left:0;right:0;height:${fillPct}%;background:linear-gradient(0deg,${fundColor},${fundColor}aa);transition:height .8s cubic-bezier(.4,0,.2,1)">
@@ -6115,7 +6135,7 @@ video::-webkit-media-controls-play-button {
             ${Array.from({length:EMG_EVENTS.length},(_, k)=>`<div style="width:10px;height:10px;border-radius:50%;background:${k<e.round?fundColor:k===e.round?'rgba(255,255,255,.8)':'rgba(255,255,255,.15)'}"></div>`).join('')}
           </div>
         </div>
-        <div style="display:flex;flex-direction:column;justify-content:flex-start;padding:24px 18px;overflow-y:auto">
+        <div style="display:flex;flex-direction:column;justify-content:center;padding:24px 18px;overflow-y:auto">
           <div id="emg-card" style="background:${isCrisis?'rgba(239,68,68,.06)':'rgba(20,184,166,.06)'};border:1px solid ${isCrisis?'rgba(239,68,68,.3)':'rgba(20,184,166,.25)'};border-radius:16px;padding:20px;margin-bottom:16px">
             <div style="display:inline-block;padding:4px 12px;border-radius:999px;background:${isCrisis?'rgba(239,68,68,.15)':'rgba(245,158,11,.15)'};font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.16em;color:${isCrisis?'#f87171':'#fbbf24'};margin-bottom:12px">${isCrisis?'🚨 CRISIS EVENT':'⚠️ LIFE EVENT'}</div>
             <p style="font-size:1rem;line-height:1.65;margin:0;font-weight:600">${ev.q}</p>
@@ -6495,12 +6515,15 @@ video::-webkit-media-controls-play-button {
 
   // ───────── GAME: SATELLITE (Savings Automation) ─────────
   let _sat=null;
-  window.satInit=function(){_sat={score:0,round:1,totalRounds:3,saved:0,goal:300,timer:25,items:[],interval:null,running:false};};
+  // phase:'intro' (pre-game splash, never auto-runs) → 'playing' (Start pressed, HUD live) → 'done' (time's up)
+  window.satInit=function(){_sat={score:0,round:1,totalRounds:3,saved:0,goal:300,timer:25,items:[],interval:null,running:false,phase:'intro'};};
+  window.satStart=function(){ satInit(); _sat.phase='playing'; goTo('satellite_game'); };
   SCREENS.satellite_game=function(){
     if(!_sat) satInit();
     const s=_sat;
     const SAT_CSS=`
-      .sat-wrap{position:absolute;inset:0;background:linear-gradient(160deg,#020e1a,#041828);display:flex;flex-direction:column;overflow:hidden;font-family:'Inter',sans-serif}
+      ${GCOSMIC_CSS}
+      .sat-wrap{position:absolute;inset:0;background:${GCOSMIC_BG};display:flex;flex-direction:column;overflow:hidden;font-family:'Inter',sans-serif}
       .sat-topbar{display:flex;align-items:center;gap:10px;padding:12px 18px;background:rgba(2,14,26,.9);border-bottom:1px solid rgba(20,184,166,.2);flex-shrink:0}
       .sat-title{font-family:'Orbitron',sans-serif;font-size:.7rem;letter-spacing:.2em;color:#5eead4}
       .sat-stats{display:flex;gap:10px;margin-left:auto}
@@ -6522,9 +6545,9 @@ video::-webkit-media-controls-play-button {
       .sat-btn{padding:13px 32px;border:none;border-radius:12px;background:linear-gradient(135deg,#14b8a6,#0d9488);color:#fff;font-family:'Orbitron',sans-serif;font-size:.78rem;letter-spacing:.12em;cursor:pointer;box-shadow:0 8px 24px rgba(20,184,166,.35);transition:.2s}
       .sat-btn:hover{transform:translateY(-2px);filter:brightness(1.08)}
     `;
-    if(!s.running){
+    if(s.phase==='playing'&&!s.running){
       setTimeout(()=>{
-        if(!_sat) return;
+        if(!_sat||_sat.phase!=='playing') return;
         _sat.running=true;
         const COINS=['💰','💎','⚡','🪙','💵'];
         const TRAPS=['🛍️','🍕','🎮','👗','🎲'];
@@ -6561,9 +6584,9 @@ video::-webkit-media-controls-play-button {
         _sat.tint=setInterval(()=>{
           if(!_sat) return;
           if(window.state&&state.currentScreen&&state.currentScreen!=='satellite_game'){clearInterval(_sat.interval);clearInterval(_sat.tint);_sat.running=false;return;}
-          t--; document.getElementById('satTimer')&&(document.getElementById('satTimer').textContent=t+'s');
+          t--; _sat.timer=t; document.getElementById('satTimer')&&(document.getElementById('satTimer').textContent=t+'s');
           if(t<=0){
-            clearInterval(_sat.interval); clearInterval(_sat.tint); _sat.running=false;
+            clearInterval(_sat.interval); clearInterval(_sat.tint); _sat.running=false; _sat.phase='done';
             const won=_sat.saved>=_sat.goal;
             if(won&&window.cvAddXP) cvAddXP(30,0);
             if(won&&window.cvSave) cvSave();
@@ -6573,9 +6596,9 @@ video::-webkit-media-controls-play-button {
       },300);
     }
     const pct=Math.min(100,(_sat.saved/_sat.goal)*100);
-    const won=!_sat.running&&_sat.saved>=_sat.goal;
-    const lost=!_sat.running&&_sat.timer<=0&&!won;
-    return `<div class="sat-wrap"><style>${SAT_CSS}</style>
+    const finished=s.phase==='done';
+    const won=finished&&_sat.saved>=_sat.goal;
+    return `<div class="sat-wrap gcw"><style>${SAT_CSS}</style>
       <div class="sat-topbar">
         <button class="vlt-back" onclick="satExit()">← HUB</button>
         <div class="sat-title">SAVINGS SATELLITE NET</div>
@@ -6587,7 +6610,7 @@ video::-webkit-media-controls-play-button {
       </div>
       <div class="sat-field" id="satField">
         <div class="sat-stars"></div>
-        <div class="sat-center">
+        ${s.phase!=='intro'?`<div class="sat-center">
           <div style="position:relative;width:140px;height:140px;margin:0 auto">
             <div class="sat-planet"></div>
             <div class="sat-ring"></div>
@@ -6595,18 +6618,18 @@ video::-webkit-media-controls-play-button {
           <div style="font-family:'Anton',sans-serif;font-size:1.1rem;color:#fff">TAP 💰 TO SAVE · AVOID 🛍️</div>
           <div class="sat-bar-wrap"><div class="sat-bar" id="satBar" style="width:${pct}%"></div></div>
           <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;color:#5eead4;letter-spacing:.14em">${Math.round(pct)}% SAVED · GOAL $${_sat.goal}</div>
-          ${(!_sat.running&&_sat.timer<=0)||won?`<div style="text-align:center;padding:20px">
+          ${finished?`<div style="text-align:center;padding:20px">
             <div style="font-size:2rem;margin-bottom:8px">${won?'🎉':'💔'}</div>
             <div style="font-family:'Anton',sans-serif;font-size:1.4rem;margin-bottom:6px">${won?'AUTO-SAVE MASTERED!':'NEED MORE PRACTICE'}</div>
             <div style="color:rgba(255,255,255,.6);font-size:.85rem;margin-bottom:16px">${won?'You saved $'+_sat.saved+' — great automation skills!':'You saved $'+_sat.saved+'. Tap savings faster next time!'}</div>
-            <button class="sat-btn" onclick="satInit();goTo('satellite_game')">▶ PLAY AGAIN</button>
+            <button class="sat-btn" onclick="satStart()">▶ PLAY AGAIN</button>
             <button class="sat-btn" style="margin-left:10px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2)" onclick="satExit()">← HUB</button>
           </div>`:''}
-        </div>
-        ${!_sat.running&&_sat.timer>0?`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px">
+        </div>`:''}
+        ${s.phase==='intro'?`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px">
           <div style="font-family:'Anton',sans-serif;font-size:1.5rem">SAVINGS SATELLITE NET</div>
           <div style="color:rgba(255,255,255,.6);max-width:340px;text-align:center;line-height:1.6">Tap 💰 coins to save them. Avoid 🛍️ spending temptations. Reach the $${_sat.goal} goal!</div>
-          <button class="sat-btn" onclick="satInit();goTo('satellite_game')">▶ START GAME</button>
+          <button class="sat-btn" onclick="satStart()">▶ START GAME</button>
         </div>`:''}
       </div>
     </div>`;
@@ -6666,7 +6689,8 @@ video::-webkit-media-controls-play-button {
       },200);
     }
     const won=c.years>=c.maxYears;
-    return `<div style="position:absolute;inset:0;background:linear-gradient(160deg,#020913,#031424);display:flex;flex-direction:column;overflow-y:auto;font-family:'Inter',sans-serif">
+    return `<div class="gcw" style="position:absolute;inset:0;background:${GCOSMIC_BG};display:flex;flex-direction:column;overflow-y:auto;font-family:'Inter',sans-serif">
+      <style>${GCOSMIC_CSS}</style>
       <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;background:rgba(2,9,19,.9);border-bottom:1px solid rgba(20,184,166,.2);flex-shrink:0">
         <button onclick="compExit()" style="padding:7px 14px;border:1px solid rgba(20,184,166,.3);border-radius:9px;background:rgba(20,184,166,.08);color:#5eead4;font-family:'Orbitron',sans-serif;font-size:.6rem;cursor:pointer">← HUB</button>
         <div style="font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.2em;color:#5eead4">COMPOUND CONSTELLATION</div>
@@ -6730,8 +6754,8 @@ video::-webkit-media-controls-play-button {
       {q:'You hit a setback and can\'t save for 3 months. What\'s the best move?',opts:['Give up the goal','Borrow to catch up','Adjust the timeline and continue','Spend the savings'],ans:2,hint:'Flexible timelines beat giving up — adjust, don\'t abandon'},
     ];
     if(d.step==='pick'){
-      return `<div style="position:absolute;inset:0;background:linear-gradient(160deg,#020913,#031020);display:flex;flex-direction:column;overflow-y:auto;font-family:'Inter',sans-serif">
-        <style>@keyframes drmCardIn{from{transform:translateY(18px) scale(.97);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}@keyframes drmNumPop{0%{transform:scale(.7);opacity:0}65%{transform:scale(1.18)}100%{transform:scale(1);opacity:1}}</style>
+      return `<div class="gcw" style="position:absolute;inset:0;background:${GCOSMIC_BG};display:flex;flex-direction:column;overflow-y:auto;font-family:'Inter',sans-serif">
+        <style>${GCOSMIC_CSS}@keyframes drmCardIn{from{transform:translateY(18px) scale(.97);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}@keyframes drmNumPop{0%{transform:scale(.7);opacity:0}65%{transform:scale(1.18)}100%{transform:scale(1);opacity:1}}</style>
         <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;background:rgba(2,9,19,.9);border-bottom:1px solid rgba(14,165,233,.2);flex-shrink:0">
           <button onclick="dreamsExit()" style="padding:7px 14px;border:1px solid rgba(14,165,233,.3);border-radius:9px;background:rgba(14,165,233,.08);color:#38bdf8;font-family:'Orbitron',sans-serif;font-size:.6rem;cursor:pointer">← HUB</button>
           <div style="font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.2em;color:#38bdf8">FUTURE DREAMS HARBOR</div>
@@ -6741,7 +6765,7 @@ video::-webkit-media-controls-play-button {
           <h2 style="font-family:'Anton',sans-serif;font-size:1.8rem;margin:0 0 8px">WHAT ARE YOU SAVING FOR?</h2>
           <p style="color:rgba(255,255,255,.55);margin:0 0 28px;line-height:1.6">Give your savings a name. Dreams with clear goals get funded — vague "save money" goals don't.</p>
           <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;text-align:left">
-            ${DREAMS.map((dr,i)=>`<div onclick="dreamsPickDream(${i})" style="padding:20px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:16px;cursor:pointer;transition:border-color .2s,background .2s,transform .15s;animation:drmCardIn .3s ${(i*.08).toFixed(2)}s ease both" onmouseover="this.style.borderColor='${dr.color}';this.style.background='${dr.color}18';this.style.transform='translateY(-3px)'" onmouseout="this.style.borderColor='rgba(255,255,255,.1)';this.style.background='rgba(255,255,255,.04)';this.style.transform=''">
+            ${DREAMS.map((dr,i)=>`<div onclick="dreamsPickDream(${i})" style="padding:20px;background:rgba(20,184,166,.05);border:1px solid rgba(94,234,212,.16);border-radius:16px;cursor:pointer;transition:border-color .2s,background .2s,transform .15s;animation:drmCardIn .3s ${(i*.08).toFixed(2)}s ease both" onmouseover="this.style.borderColor='${dr.color}';this.style.background='${dr.color}18';this.style.transform='translateY(-3px)'" onmouseout="this.style.borderColor='rgba(94,234,212,.16)';this.style.background='rgba(20,184,166,.05)';this.style.transform=''">
               <div style="font-size:2.2rem;margin-bottom:8px">${dr.icon}</div>
               <div style="font-family:'Anton',sans-serif;font-size:1rem;margin-bottom:4px">${dr.name}</div>
               <div style="font-family:'Orbitron',sans-serif;font-size:.65rem;color:${dr.color};font-weight:700">$${dr.price.toLocaleString()}</div>
@@ -6753,8 +6777,8 @@ video::-webkit-media-controls-play-button {
     if(d.step==='calc'){
       const dream=DREAMS[d.dream];
       const weekSave=Math.ceil(dream.price/(d.years*52));
-      return `<div style="position:absolute;inset:0;background:linear-gradient(160deg,#020913,#031020);display:flex;flex-direction:column;overflow-y:auto;font-family:'Inter',sans-serif">
-        <style>@keyframes drmCardIn{from{transform:translateY(18px) scale(.97);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}@keyframes drmNumPop{0%{transform:scale(.7);opacity:0}65%{transform:scale(1.18)}100%{transform:scale(1);opacity:1}}</style>
+      return `<div class="gcw" style="position:absolute;inset:0;background:${GCOSMIC_BG};display:flex;flex-direction:column;overflow-y:auto;font-family:'Inter',sans-serif">
+        <style>${GCOSMIC_CSS}@keyframes drmCardIn{from{transform:translateY(18px) scale(.97);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}@keyframes drmNumPop{0%{transform:scale(.7);opacity:0}65%{transform:scale(1.18)}100%{transform:scale(1);opacity:1}}</style>
         <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;background:rgba(2,9,19,.9);border-bottom:1px solid ${dream.color}44;flex-shrink:0">
           <button onclick="dreamsGoBack()" style="padding:7px 14px;border:1px solid rgba(255,255,255,.15);border-radius:9px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.6);font-family:'Orbitron',sans-serif;font-size:.6rem;cursor:pointer">← BACK</button>
           <div style="font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.2em;color:${dream.color}">FUTURE DREAMS HARBOR</div>
@@ -6795,8 +6819,8 @@ video::-webkit-media-controls-play-button {
     }
     if(d.step==='quiz'){
       const q=QUIZ[d.qIdx];
-      return `<div style="position:absolute;inset:0;background:linear-gradient(160deg,#020913,#031020);display:flex;flex-direction:column;overflow-y:auto;font-family:'Inter',sans-serif">
-        <style>@keyframes drmCardIn{from{transform:translateY(18px) scale(.97);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}@keyframes drmOptIn{from{transform:translateX(22px);opacity:0}to{transform:translateX(0);opacity:1}}.drm-opt{transition:border-color .15s,background .15s,transform .12s!important}.drm-opt:hover{border-color:#38bdf8!important;background:rgba(14,165,233,.1)!important;transform:translateX(5px)!important}</style>
+      return `<div class="gcw" style="position:absolute;inset:0;background:${GCOSMIC_BG};display:flex;flex-direction:column;overflow-y:auto;font-family:'Inter',sans-serif">
+        <style>${GCOSMIC_CSS}@keyframes drmCardIn{from{transform:translateY(18px) scale(.97);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}@keyframes drmOptIn{from{transform:translateX(22px);opacity:0}to{transform:translateX(0);opacity:1}}.drm-opt{transition:border-color .15s,background .15s,transform .12s!important}.drm-opt:hover{border-color:#38bdf8!important;background:rgba(14,165,233,.1)!important;transform:translateX(5px)!important}</style>
         <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;background:rgba(2,9,19,.9);border-bottom:1px solid rgba(14,165,233,.2);flex-shrink:0">
           <button onclick="dreamsExit()" style="padding:7px 14px;border:1px solid rgba(255,255,255,.15);border-radius:9px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.6);font-family:'Orbitron',sans-serif;font-size:.6rem;cursor:pointer">← HUB</button>
           <div style="font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.2em;color:#38bdf8">CHALLENGE · ${d.qIdx+1}/${QUIZ.length}</div>
@@ -6814,7 +6838,8 @@ video::-webkit-media-controls-play-button {
       const pct=Math.round(correct/QUIZ.length*100);
       const qReward=pct===100?500:pct>=90?300:pct>=80?125:0;
       if(qReward>0 && !d._rewarded){ d._rewarded=true; if(window.state){state.coins=(state.coins||0)+qReward;if(window.cvAddXP)cvAddXP(Math.round(qReward/5),0);if(window.cvSave)cvSave();} }
-      return `<div style="position:absolute;inset:0;background:linear-gradient(160deg,#020913,#031020);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Inter',sans-serif;text-align:center;padding:24px">
+      return `<div class="gcw" style="position:absolute;inset:0;background:${GCOSMIC_BG};display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Inter',sans-serif;text-align:center;padding:24px">
+        <style>${GCOSMIC_CSS}</style>
         <div style="font-size:3rem;margin-bottom:16px">${correct===3?'🌟':correct>=2?'⭐':'💡'}</div>
         <div style="font-family:'Anton',sans-serif;font-size:1.8rem;margin-bottom:8px">${correct===3?'DREAM MASTER!':correct>=2?'GOAL SETTER!':'KEEP LEARNING!'}</div>
         <div style="color:rgba(255,255,255,.6);max-width:400px;line-height:1.65;margin-bottom:12px">You got ${correct}/${QUIZ.length} correct (${pct}%). ${correct===3?'You understand goal-based saving — your dream is achievable!':correct>=2?'Good work! Review the hint on missed questions.':'Nice try — power up and go again!'}</div>
@@ -6825,7 +6850,7 @@ video::-webkit-media-controls-play-button {
         </div>
       </div>`;
     }
-    return `<div style="position:absolute;inset:0;background:#020913"></div>`;
+    return `<div style="position:absolute;inset:0;background:#020a11"></div>`;
   };
   window.dreamsPickDream=function(i){_drm.dream=i;_drm.step='calc';_drm.years=3;goTo('dreams_game');};
   window.dreamsAnswer=function(choice){
@@ -6853,36 +6878,40 @@ video::-webkit-media-controls-play-button {
     if(!_res) resInit();
     const r=_res;
     if(r.step==='start'){
-      return `<div style="position:absolute;inset:0;background:linear-gradient(160deg,#0a0518,#1a0a00);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Inter',sans-serif;text-align:center;padding:24px">
+      const hpct0=Math.max(0,Math.min(100,r.health));
+      const hcol0=hpct0>60?'#34d399':hpct0>30?'#fbbf24':'#f87171';
+      return `<div class="gcw" style="position:absolute;inset:0;background:${GCOSMIC_BG};display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Inter',sans-serif;text-align:center;padding:24px">
+        <style>${GCOSMIC_CSS}</style>
         <div style="font-size:3rem;margin-bottom:16px">🛡️</div>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:#f59e0b;margin-bottom:10px">RESILIENCE ARENA</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:#5eead4;margin-bottom:10px">RESILIENCE ARENA</div>
         <h2 style="font-family:'Anton',sans-serif;font-size:1.8rem;margin:0 0 12px">CRISIS MANAGER</h2>
         <p style="color:rgba(255,255,255,.6);max-width:400px;line-height:1.65;margin:0 0 24px">Life throws curveballs. You have a $1,500 emergency fund and 80% financial health. Make the right calls across 5 crises. Keep your health above 0 to WIN.</p>
         <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-bottom:28px">
-          <div style="padding:12px 20px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:12px;font-family:'Orbitron',sans-serif;font-size:.6rem;color:#fbbf24">💰 FUND: $${r.fund}</div>
-          <div style="padding:12px 20px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:12px;font-family:'Orbitron',sans-serif;font-size:.6rem;color:#f87171">❤️ HEALTH: ${r.health}%</div>
+          <div style="padding:12px 20px;background:rgba(20,184,166,.1);border:1px solid rgba(20,184,166,.3);border-radius:12px;font-family:'Orbitron',sans-serif;font-size:.6rem;color:#5eead4">💰 FUND: $${r.fund}</div>
+          <div style="padding:12px 20px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);border-radius:12px;font-family:'Orbitron',sans-serif;font-size:.6rem;color:${hcol0}">❤️ HEALTH: ${r.health}%</div>
         </div>
-        <button onclick="resFaceCrisis()" style="padding:14px 36px;background:linear-gradient(135deg,#f59e0b,#d97706);border:none;border-radius:13px;color:#1a0500;font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:.12em;cursor:pointer;box-shadow:0 10px 28px rgba(245,158,11,.4);font-weight:900">▶ FACE THE CRISIS</button>
+        <button onclick="resFaceCrisis()" style="padding:14px 36px;background:linear-gradient(135deg,#14b8a6,#0d9488);border:none;border-radius:13px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:.12em;cursor:pointer;box-shadow:0 10px 28px rgba(20,184,166,.4);font-weight:900">▶ FACE THE CRISIS</button>
       </div>`;
     }
     if(r.step==='crisis'&&r.evIdx<RES_EVENTS.length){
       const ev=RES_EVENTS[r.evIdx];
       const hpct=Math.max(0,Math.min(100,r.health));
       const hcol=hpct>60?'#34d399':hpct>30?'#fbbf24':'#f87171';
-      return `<div style="position:absolute;inset:0;background:linear-gradient(160deg,#0a0518,#1a0a00);display:flex;flex-direction:column;font-family:'Inter',sans-serif;overflow-y:auto">
+      return `<div class="gcw" style="position:absolute;inset:0;background:${GCOSMIC_BG};display:flex;flex-direction:column;font-family:'Inter',sans-serif;overflow-y:auto">
         <style>
+          ${GCOSMIC_CSS}
           @keyframes resCardIn{from{transform:translateY(22px) scale(.97);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
           @keyframes resCardOut{from{transform:translateX(0);opacity:1}to{transform:translateX(-64px) scale(.96);opacity:0}}
           @keyframes resOptIn{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
           @keyframes resHpPop{0%{transform:scale(.8);opacity:0}65%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
           .res-opt{transition:border-color .15s,background .15s,transform .15s!important}
-          .res-opt:hover{border-color:#f59e0b!important;background:rgba(245,158,11,.09)!important;transform:translateX(5px)!important}
+          .res-opt:hover{border-color:#14b8a6!important;background:rgba(20,184,166,.09)!important;transform:translateX(5px)!important}
         </style>
-        <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;background:rgba(10,5,24,.9);border-bottom:1px solid rgba(245,158,11,.2);flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;background:rgba(2,10,17,.9);border-bottom:1px solid rgba(20,184,166,.2);flex-shrink:0">
           <button onclick="resExit()" style="padding:7px 14px;border:1px solid rgba(255,255,255,.15);border-radius:9px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.6);font-family:'Orbitron',sans-serif;font-size:.6rem;cursor:pointer">← HUB</button>
-          <div style="font-family:'Orbitron',sans-serif;font-size:.65rem;letter-spacing:.2em;color:#f59e0b">CRISIS ${r.evIdx+1}/${RES_EVENTS.length}</div>
+          <div style="font-family:'Orbitron',sans-serif;font-size:.65rem;letter-spacing:.2em;color:#5eead4">CRISIS ${r.evIdx+1}/${RES_EVENTS.length}</div>
           <div style="margin-left:auto;display:flex;gap:10px">
-            <span style="font-family:'Orbitron',sans-serif;font-size:.6rem;color:#fbbf24">💰 $${r.fund}</span>
+            <span style="font-family:'Orbitron',sans-serif;font-size:.6rem;color:#5eead4">💰 $${r.fund}</span>
             <span id="res-hp" style="font-family:'Orbitron',sans-serif;font-size:.6rem;color:${hcol}">❤️ ${r.health}%</span>
           </div>
         </div>
@@ -6903,7 +6932,8 @@ video::-webkit-media-controls-play-button {
     if(r.step==='feedback'){
       const ev=RES_EVENTS[r.evIdx-1]; const pick=r.lastResult;
       const pos=pick.f>0;
-      return `<div style="position:absolute;inset:0;background:linear-gradient(160deg,#0a0518,#1a0a00);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Inter',sans-serif;text-align:center;padding:24px">
+      return `<div class="gcw" style="position:absolute;inset:0;background:${GCOSMIC_BG};display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Inter',sans-serif;text-align:center;padding:24px">
+        <style>${GCOSMIC_CSS}</style>
         <div style="font-size:2.5rem;margin-bottom:14px">${pos?'✅':'⚠️'}</div>
         <div style="font-family:'Anton',sans-serif;font-size:1.5rem;margin-bottom:8px;color:${pos?'#34d399':'#f87171'}">${pos?'SMART MOVE!':'TOUGH LESSON'}</div>
         <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:16px 20px;max-width:420px;margin:0 0 24px;color:rgba(255,255,255,.7);line-height:1.6;font-size:.9rem">
@@ -6911,27 +6941,28 @@ video::-webkit-media-controls-play-button {
           ${pick.f>0?'✓ Good choice — financial health improved!':'✗ This weakened your position — here\'s why: using credit for emergencies creates debt that compounds the problem.'}
         </div>
         <div style="display:flex;gap:12px;margin-bottom:24px">
-          <div style="padding:10px 18px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:10px;font-family:'Orbitron',sans-serif;font-size:.6rem;color:#fbbf24">💰 $${r.fund}</div>
-          <div style="padding:10px 18px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:10px;font-family:'Orbitron',sans-serif;font-size:.6rem;color:${r.health>50?'#34d399':'#f87171'}">❤️ ${r.health}%</div>
+          <div style="padding:10px 18px;background:rgba(20,184,166,.1);border:1px solid rgba(20,184,166,.25);border-radius:10px;font-family:'Orbitron',sans-serif;font-size:.6rem;color:#5eead4">💰 $${r.fund}</div>
+          <div style="padding:10px 18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);border-radius:10px;font-family:'Orbitron',sans-serif;font-size:.6rem;color:${r.health>50?'#34d399':'#f87171'}">❤️ ${r.health}%</div>
         </div>
-        <button onclick="${r.evIdx<RES_EVENTS.length?'_res.step=\'crisis\';goTo(\'resilience_game\')':'_res.step=\'done\';goTo(\'resilience_game\')'}" style="padding:13px 32px;background:linear-gradient(135deg,#f59e0b,#d97706);border:none;border-radius:12px;color:#1a0500;font-family:'Orbitron',sans-serif;font-size:.75rem;letter-spacing:.12em;cursor:pointer;font-weight:900">
+        <button onclick="resNext()" style="padding:13px 32px;background:linear-gradient(135deg,#14b8a6,#0d9488);border:none;border-radius:12px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.75rem;letter-spacing:.12em;cursor:pointer;font-weight:900">
           ${r.evIdx<RES_EVENTS.length?'NEXT CRISIS →':'SEE RESULTS →'}
         </button>
       </div>`;
     }
     if(r.step==='done'){
       const won=r.health>0;
-      return `<div style="position:absolute;inset:0;background:linear-gradient(160deg,#0a0518,#1a0a00);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Inter',sans-serif;text-align:center;padding:24px">
+      return `<div class="gcw" style="position:absolute;inset:0;background:${GCOSMIC_BG};display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Inter',sans-serif;text-align:center;padding:24px">
+        <style>${GCOSMIC_CSS}</style>
         <div style="font-size:3rem;margin-bottom:14px">${won?'🏆':'💔'}</div>
         <div style="font-family:'Anton',sans-serif;font-size:2rem;margin-bottom:10px">${won?'RESILIENT GUARDIAN!':'GAME OVER'}</div>
         <div style="color:rgba(255,255,255,.6);max-width:400px;line-height:1.65;margin:0 0 22px">${won?`You survived all 5 crises with ${r.health}% health and $${r.fund} remaining. Your emergency fund was your superpower!`:'Your financial health hit 0. But now you know: the emergency fund is everything. Build it before you need it.'}</div>
         <div style="display:flex;gap:10px">
-          <button onclick="resInit();goTo('resilience_game')" style="padding:13px 26px;background:linear-gradient(135deg,#f59e0b,#d97706);border:none;border-radius:12px;color:#1a0500;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer;font-weight:900">▶ PLAY AGAIN</button>
+          <button onclick="resInit();goTo('resilience_game')" style="padding:13px 26px;background:linear-gradient(135deg,#14b8a6,#0d9488);border:none;border-radius:12px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.1em;cursor:pointer;font-weight:900">▶ PLAY AGAIN</button>
           <button onclick="resExit()" style="padding:13px 20px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:12px;color:rgba(255,255,255,.7);font-family:'Orbitron',sans-serif;font-size:.7rem;cursor:pointer">← HUB</button>
         </div>
       </div>`;
     }
-    return `<div style="position:absolute;inset:0;background:#0a0518"></div>`;
+    return `<div style="position:absolute;inset:0;background:#020a11"></div>`;
   };
   window.resPick=function(i){
     const ev=RES_EVENTS[_res.evIdx];const o=ev.opts[i];
@@ -6943,6 +6974,13 @@ video::-webkit-media-controls-play-button {
   };
   window.resExit=function(){_res=null;state.viewingWorld='guardian';goTo('hub');};
   window.resFaceCrisis=function(){if(_res){_res.step='crisis';goTo('resilience_game');}};
+  // Pre-existing bug fixed in passing (unrelated to the 3 assigned Guardian bugs): the
+  // "NEXT CRISIS"/"SEE RESULTS" button used an inline onclick that mutated the bare `_res`
+  // identifier directly. Inline onclick="..." attributes execute in the global scope, not
+  // inside this IIFE's closure, so `_res` there threw "ReferenceError: _res is not defined"
+  // and silently soft-locked every player after crisis 1. Routed through a window-exposed
+  // function (the same pattern already used by resFaceCrisis/resExit/resPick) instead.
+  window.resNext=function(){ if(!_res) return; _res.step = _res.evIdx<RES_EVENTS.length ? 'crisis' : 'done'; goTo('resilience_game'); };
   window._resPickAnim=function(i){
     const card=document.getElementById('res-card');
     if(card){card.style.animation='resCardOut .26s ease forwards';}
@@ -11102,59 +11140,59 @@ window.playDistrictGame = function(token, i) {
 
   </script>
   <!-- Real playable games (canvas) — loaded after main script, override the stub SCREENS.game_* -->
-  <script src="assets/games/lessonspecs.js?v=59"></script>
-  <script src="assets/games/lessondeck.js?v=59"></script>
-  <script src="assets/games/moneycatcher.js?v=59"></script>
-  <script src="assets/games/goalquest.js?v=59"></script>
-  <script src="assets/games/stocksurge.js?v=59"></script>
-  <script src="assets/games/bizop.js?v=59"></script>
-  <script src="assets/games/blockbuilder.js?v=59"></script>
-  <script src="assets/games/debtsurv.js?v=59"></script>
-  <script src="assets/games/ficoracer.js?v=59"></script>
-  <script src="assets/games/creditcore.js?v=59"></script>
-  <script src="assets/games/scoretower.js?v=59"></script>
-  <script src="assets/games/borrowingbay.js?v=59"></script>
-  <script src="assets/games/trustexchange.js?v=59"></script>
-  <script src="assets/games/repaymentrunway.js?v=59"></script>
-  <script src="assets/games/creditlimitlab.js?v=59"></script>
-  <script src="assets/games/reportobservatory.js?v=59"></script>
-  <script src="assets/games/inv_academy.js?v=59"></script>
-  <script src="assets/games/inv_assetrealm.js?v=59"></script>
-  <script src="assets/games/inv_dividend.js?v=59"></script>
-  <script src="assets/games/inv_portfolio.js?v=59"></script>
-  <script src="assets/games/inv_research.js?v=59"></script>
-  <script src="assets/games/inv_riskcontrol.js?v=59"></script>
-  <script src="assets/games/inv_stockarena.js?v=59"></script>
-  <script src="assets/games/bud_billgrid.js?v=59"></script>
-  <script src="assets/games/bud_cashflow.js?v=59"></script>
-  <script src="assets/games/bud_efflab.js?v=59"></script>
-  <script src="assets/games/bud_goaltower.js?v=59"></script>
-  <script src="assets/games/bud_needswants.js?v=59"></script>
-  <script src="assets/games/bud_plaza.js?v=59"></script>
-  <script src="assets/games/bud_vault.js?v=59"></script>
-  <script src="assets/games/bsv_aiinnovationlabs.js?v=59"></script>
-  <script src="assets/games/bsv_bitstreammarket.js?v=59"></script>
-  <script src="assets/games/bsv_blockchainblvd.js?v=59"></script>
-  <script src="assets/games/bsv_cryptocrossing.js?v=59"></script>
-  <script src="assets/games/bsv_futuretrendscmd.js?v=59"></script>
-  <script src="assets/games/bsv_nftnexus.js?v=59"></script>
-  <script src="assets/games/bsv_volatilityvortex.js?v=59"></script>
-  <script src="assets/games/ll_branding_district.js?v=59"></script>
-  <script src="assets/games/ll_idea_incubator.js?v=59"></script>
-  <script src="assets/games/ll_investor_pitch.js?v=59"></script>
-  <script src="assets/games/ll_marketing_metropolis.js?v=59"></script>
-  <script src="assets/games/ll_product_dev_lab.js?v=59"></script>
-  <script src="assets/games/ll_scaling_center.js?v=59"></script>
-  <script src="assets/games/ll_startup_street.js?v=59"></script>
-  <script src="assets/games/ddt_discovery.js?v=59"></script>
-  <script src="assets/games/ddt_gym.js?v=59"></script>
-  <script src="assets/games/ddt_habits.js?v=59"></script>
-  <script src="assets/games/ddt_lab.js?v=59"></script>
-  <script src="assets/games/ddt_plaza.js?v=59"></script>
-  <script src="assets/games/ddt_rebuild.js?v=59"></script>
-  <script src="assets/games/ddt_resilience.js?v=59"></script>
-  <script src="assets/games/arccfg.js?v=59"></script>
-  <script src="assets/games/arcade.js?v=59"></script>
-  <script src="assets/games/capstones.js?v=59"></script>
+  <script src="assets/games/lessonspecs.js?v=63"></script>
+  <script src="assets/games/lessondeck.js?v=63"></script>
+  <script src="assets/games/moneycatcher.js?v=63"></script>
+  <script src="assets/games/goalquest.js?v=63"></script>
+  <script src="assets/games/stocksurge.js?v=63"></script>
+  <script src="assets/games/bizop.js?v=63"></script>
+  <script src="assets/games/blockbuilder.js?v=63"></script>
+  <script src="assets/games/debtsurv.js?v=63"></script>
+  <script src="assets/games/ficoracer.js?v=63"></script>
+  <script src="assets/games/creditcore.js?v=63"></script>
+  <script src="assets/games/scoretower.js?v=63"></script>
+  <script src="assets/games/borrowingbay.js?v=63"></script>
+  <script src="assets/games/trustexchange.js?v=63"></script>
+  <script src="assets/games/repaymentrunway.js?v=63"></script>
+  <script src="assets/games/creditlimitlab.js?v=63"></script>
+  <script src="assets/games/reportobservatory.js?v=63"></script>
+  <script src="assets/games/inv_academy.js?v=63"></script>
+  <script src="assets/games/inv_assetrealm.js?v=63"></script>
+  <script src="assets/games/inv_dividend.js?v=63"></script>
+  <script src="assets/games/inv_portfolio.js?v=63"></script>
+  <script src="assets/games/inv_research.js?v=63"></script>
+  <script src="assets/games/inv_riskcontrol.js?v=63"></script>
+  <script src="assets/games/inv_stockarena.js?v=63"></script>
+  <script src="assets/games/bud_billgrid.js?v=63"></script>
+  <script src="assets/games/bud_cashflow.js?v=63"></script>
+  <script src="assets/games/bud_efflab.js?v=63"></script>
+  <script src="assets/games/bud_goaltower.js?v=63"></script>
+  <script src="assets/games/bud_needswants.js?v=63"></script>
+  <script src="assets/games/bud_plaza.js?v=63"></script>
+  <script src="assets/games/bud_vault.js?v=63"></script>
+  <script src="assets/games/bsv_aiinnovationlabs.js?v=63"></script>
+  <script src="assets/games/bsv_bitstreammarket.js?v=63"></script>
+  <script src="assets/games/bsv_blockchainblvd.js?v=63"></script>
+  <script src="assets/games/bsv_cryptocrossing.js?v=63"></script>
+  <script src="assets/games/bsv_futuretrendscmd.js?v=63"></script>
+  <script src="assets/games/bsv_nftnexus.js?v=63"></script>
+  <script src="assets/games/bsv_volatilityvortex.js?v=63"></script>
+  <script src="assets/games/ll_branding_district.js?v=63"></script>
+  <script src="assets/games/ll_idea_incubator.js?v=63"></script>
+  <script src="assets/games/ll_investor_pitch.js?v=63"></script>
+  <script src="assets/games/ll_marketing_metropolis.js?v=63"></script>
+  <script src="assets/games/ll_product_dev_lab.js?v=63"></script>
+  <script src="assets/games/ll_scaling_center.js?v=63"></script>
+  <script src="assets/games/ll_startup_street.js?v=63"></script>
+  <script src="assets/games/ddt_discovery.js?v=63"></script>
+  <script src="assets/games/ddt_gym.js?v=63"></script>
+  <script src="assets/games/ddt_habits.js?v=63"></script>
+  <script src="assets/games/ddt_lab.js?v=63"></script>
+  <script src="assets/games/ddt_plaza.js?v=63"></script>
+  <script src="assets/games/ddt_rebuild.js?v=63"></script>
+  <script src="assets/games/ddt_resilience.js?v=63"></script>
+  <script src="assets/games/arccfg.js?v=63"></script>
+  <script src="assets/games/arcade.js?v=63"></script>
+  <script src="assets/games/capstones.js?v=63"></script>
 </body>
 </html>

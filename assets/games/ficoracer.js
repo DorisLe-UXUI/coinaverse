@@ -80,6 +80,40 @@
     {q:'A 750 FICO score is…',opts:['Very good','Poor','Average'],ans:0,fact:'750-799 is Very Good — strong choices!',fico:+20,cash:5},
   ];
 
+  /* ── TEMP AI-generated SFX placeholder — swap for Kabria's final audio when delivered ──
+     Tiny procedurally-generated arcade SFX (temporary — see assets/audio/ficoracer/).
+     playSfx() respects the existing global sound toggle (the 🔊/🔇 button in the header,
+     window.isAudioOn()/AUDIO.on) so muting there silences these too. Uses its own cloned-node
+     player (not window.playClip, which is built for single-voice narration) so overlapping
+     SFX — e.g. two pickups back to back — don't cut each other off. ── */
+  const SFX_DIR='assets/audio/ficoracer/';
+  const SFX_FILES={ pickup:'pickup_collect', damage:'damage_drop', boost:'boost_whoosh',
+                     beep:'countdown_beep', go:'countdown_go', finish:'finish_fanfare',
+                     engine:'engine_hum_loop' };
+  const _sfxCache={};
+  function sfxSoundOn(){ try{ return window.isAudioOn?window.isAudioOn():true; }catch(e){ return true; } }
+  function preloadSfx(){
+    Object.keys(SFX_FILES).forEach(k=>{ if(_sfxCache[k]) return;
+      try{ const a=new Audio(SFX_DIR+SFX_FILES[k]+'.wav'); a.preload='auto'; a.load(); _sfxCache[k]=a; }catch(e){} });
+  }
+  function playSfx(name, opts){
+    if(!sfxSoundOn()) return null;
+    const file=SFX_FILES[name]; if(!file) return null;
+    let base=_sfxCache[name];
+    if(!base){ try{ base=new Audio(SFX_DIR+file+'.wav'); base.preload='auto'; _sfxCache[name]=base; }catch(e){ return null; } }
+    try{
+      // the engine hum is a single persistent looping instance (so it can be stopped later);
+      // everything else clones the cached node so rapid repeats can overlap
+      const node=(name==='engine')?base:base.cloneNode(true);
+      node.volume=(opts&&typeof opts.volume==='number')?opts.volume:1;
+      node.loop=!!(opts&&opts.loop);
+      if(name!=='engine') node.currentTime=0;
+      const p=node.play(); if(p&&p.catch) p.catch(()=>{});
+      return node;
+    }catch(e){ return null; }
+  }
+  function stopSfx(name){ const a=_sfxCache[name]; if(a){ try{ a.pause(); a.currentTime=0; }catch(e){} } }
+
   /* ══════════════ 3D libs (three r128 + self-hosted FBXLoader) ══════════════ */
   function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>{ s.remove(); rej(new Error('load fail '+src)); }; document.head.appendChild(s); }); }
   let _libsP=null;
@@ -252,6 +286,7 @@
   function startRace(li, models, carIdx){
     if(G) teardown();
     const wrap=document.getElementById('fr3dWrap'); if(!wrap) return;
+    preloadSfx();   // TEMP AI-generated SFX placeholder — swap for Kabria's final audio when delivered
     const L=LEVELS[li];
     carIdx=(typeof carIdx==='number'&&carIdx>=0&&carIdx<CARS.length)?carIdx:0;
     const order=[carIdx,...[0,1,2,3].filter(i=>i!==carIdx)];   // order[0]=player's chosen car (GDD §11), order[1..3]=AI rivals
@@ -560,7 +595,7 @@
         carStats:{topSpeedMul:CARS[carIdx].topSpeedMul, steerRateMul:CARS[carIdx].steerRateMul, boostMul:CARS[carIdx].boostMul},
         fico:850, cash:0, band:BANDS[0],
         lap:1, done:false, phase:'count', countT:3.4,
-        s:0, d:0, v:0, steerVis:0, spin:0, boost:0, boosting:0, offroad:false,
+        s:0, d:0, v:0, steerVis:0, spin:0, boost:0, boosting:0, boostSfxOn:false, offroad:false,
         gatesRight:0, gatesWrong:0, paysOnTime:0, missed:0,
         ai:[1,2,3].map(i=>({ s:-(i*.008)-.006, d:(i-2)*3.2, v:0, spin:0, prog:0,
                              skill:L.aiSkill*(CARS[order[i]].ai?1:1), def:CARS[order[i]],
@@ -625,8 +660,10 @@
     G.fico=Math.max(0,Math.min(850,G.fico+delta));
     const b=bandFor(G.fico);
     if(b!==G.band){
+      const prevBand=G.band;
       G.band=b;
       const bd=document.getElementById('frBand'); if(bd){ bd.textContent=b.label; bd.style.color=b.col; }
+      if(BANDS.indexOf(b)>BANDS.indexOf(prevBand)) playSfx('damage');   // TEMP AI-generated SFX placeholder — swap for Kabria's final audio when delivered — only cue on a DROP into a worse band, not on recovery
       if(b.st>=4) msg('🔥 '+b.label+'!', '#ef4444');
       else if(b.spd<1) msg('⚠ '+b.label+' — car slowed!', '#f87171');
       if(b.spd===0 && !G.done) finishRace(false,'destroyed');
@@ -686,10 +723,13 @@
       G.countT-=dt;
       const c=document.getElementById('frCount');
       if(c){ const n=Math.ceil(G.countT-0.4);
-        c.textContent=G.countT>0.4?String(Math.max(1,n)):'GO!';
+        const txt=G.countT>0.4?String(Math.max(1,n)):'GO!';
+        // TEMP AI-generated SFX placeholder — swap for Kabria's final audio when delivered — beep on each 3-2-1 tick, brighter tone on GO
+        if(txt!==G._countTxt){ G._countTxt=txt; playSfx(txt==='GO!'?'go':'beep'); }
+        c.textContent=txt;
         c.style.transform='scale('+(1+((G.countT%1)))+')';
-        if(G.countT<=0){ c.style.display='none'; G.phase='race'; } }
-      else if(G.countT<=0) G.phase='race';
+        if(G.countT<=0){ c.style.display='none'; G.phase='race'; if(!G._engineSnd) G._engineSnd=playSfx('engine',{volume:.35,loop:true}); } }
+      else if(G.countT<=0){ G.phase='race'; if(!G._engineSnd) G._engineSnd=playSfx('engine',{volume:.35,loop:true}); }
     }
 
     const racing=G.phase==='race'&&!G.done;
@@ -705,6 +745,8 @@
         steer+=Math.max(-1,Math.min(1,G.dragX));
       }
       const wantBoost=(G.keys[' ']||G.keys['arrowup']||G.keys['w'])&&G.boost>0&&b.spd>=.5;
+      if(wantBoost && !G.boostSfxOn) playSfx('boost');   // TEMP AI-generated SFX placeholder — swap for Kabria's final audio when delivered — fire once on activation, not every frame
+      G.boostSfxOn=wantBoost;
       G.boosting=wantBoost?1:Math.max(0,G.boosting-dt*3);
       if(wantBoost) G.boost=Math.max(0,G.boost-dt*.4);
       G.offroad=Math.abs(G.d)>G.W-.9;
@@ -787,6 +829,7 @@
         if(d.k==='check') G.paysOnTime++;
         if(d.k==='x') G.missed++;
         if(!d.good){ G.spin=.8; }
+        playSfx(d.good?'pickup':'damage');   // TEMP AI-generated SFX placeholder — swap for Kabria's final audio when delivered
         msg((d.good?'':'💥 ')+d.msg, d.good?'#34d399':'#f87171');
       }
     });
@@ -838,6 +881,8 @@
   /* ══════════════ FINISH ══════════════ */
   function finishRace(finished, why){
     if(!G||G.done) return; G.done=true;
+    stopSfx('engine');
+    if(why!=='destroyed') playSfx('finish');   // TEMP AI-generated SFX placeholder — swap for Kabria's final audio when delivered — skip the victory fanfare on a destroyed-car ending, the damage cue already covered that beat
     const L=G.L, rank=finished?(G.rank||4):4;
     const win=finished && rank<=3;
     const stars=!finished?0:(rank===1?3:rank===2?2:rank===3?1:0);   // podium only — P4 gets consolation, not flagship pay
@@ -892,6 +937,7 @@
   function teardown(){
     cancelAnimationFrame(raf); raf=null;
     if(!G) return;
+    stopSfx('engine');   // TEMP AI-generated SFX placeholder — swap for Kabria's final audio when delivered — don't let the hum loop leak past an exit-mid-race
     if(G._cleanup) G._cleanup();
     try{
       if(G.scene.background&&G.scene.background.dispose) G.scene.background.dispose();

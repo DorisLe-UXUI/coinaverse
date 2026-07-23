@@ -42,6 +42,13 @@
   const TOKEN='risktaker', TXN_PER_BLOCK=4, GATE_EVERY=24;
   const CHROME_TOP=132;           // px reserved at top for the DOM HUD chrome
   const BOTTOM_PAD=12;            // px reserved at bottom
+  // Absolute cap on transaction-tile / puzzle-chip card height (and therefore font size).
+  // Card height used to be a flat fraction of the lane band height (b.h), which is fine at
+  // 3-5 lanes but at 1 lane (Level 1) the band is the ENTIRE screen, so card height — and the
+  // font sizes derived from it — ballooned past 300px/100px, printing overlapping illegible
+  // text ("smears") whenever 2+ tiles were on screen. Width already had this same cap
+  // (Math.min(W*.20,150)) — height never did. This closes that gap.
+  const CARD_H_MAX=46;
   let G=null, raf=null, LV=0;
 
   /* ── 3-LEVEL SYSTEM — GDD §07 + Appendix D "Level Comparison Matrix" ── */
@@ -56,7 +63,7 @@
       col:'#38bdf8', colDim:'rgba(56,189,248,.18)' },
     { key:'city', name:'VALIDATOR CITY', sub:'MEDIUM · FAST', icon:'🏙️',
       desc:'An enormous cyber metropolis. Juggle 3 chains, zap hackers, and keep every validator tower in consensus.',
-      lanes:3, blocksGoal:9, round:110, spawnMul:.86,
+      lanes:3, blocksGoal:9, round:110, spawnMul:1.25,
       dupRate:.12, expRate:.13, bugRate:.11, fraudBase:.14, fraudRamp:.18,
       hasHackers:true, hasConsensus:true, hasContracts:false, hasVote:false, hasPower:false,
       corruptEvery:15, corruptMax:7, spreadOnFail:true,
@@ -64,7 +71,7 @@
       col:'#a855f7', colDim:'rgba(168,85,247,.18)' },
     { key:'core', name:'GENESIS CORE', sub:'HARD · VERY FAST', icon:'🌌',
       desc:'The heart of the Coinaverse. 5 chains, smart contracts, network-split votes, and a draining power grid.',
-      lanes:5, blocksGoal:12, round:130, spawnMul:.72,
+      lanes:5, blocksGoal:12, round:130, spawnMul:1.3,
       dupRate:.13, expRate:.14, bugRate:.12, fraudBase:.18, fraudRamp:.20,
       hasHackers:true, hasConsensus:true, hasContracts:true, hasVote:true, hasPower:true,
       corruptEvery:11, corruptMax:6, spreadOnFail:true,
@@ -287,7 +294,7 @@
     for(let i=lane.tiles.length-1;i>=0;i--){
       const it=lane.tiles[i]; if(it.dead) continue;
       const tx=it.x*W, ty=b.y0+b.h*.62;
-      const halfW=Math.min(78,W*.115), halfH=b.h*.30;
+      const halfW=Math.min(78,W*.115), halfH=Math.min(b.h*.30,CARD_H_MAX*0.6);
       if(nx*W>=tx-halfW && nx*W<=tx+halfW && Math.abs(pxY-ty)<halfH){ hitTile(lane,it); return; }
     }
   }
@@ -444,7 +451,11 @@
       if(lane.puzzle){ lane.puzzle.t-=dt; if(lane.puzzle.t<=0){ resolvePuzzle(lane, -1); } return; }
       lane.spawnT-=dt*slow;
       if(lane.spawnT<=0){
-        lane.spawnT=Math.max(.5,(0.95-prog*0.35)*cfg.spawnMul)*(G.overclockT>0?0.6:1);
+        // Base/ramp/floor raised (was 0.95/0.35/0.5): a tile takes ~8s+ to cross the
+        // full lane at its scroll speed (vx), so the old interval let a new card spawn
+        // long before the previous one cleared its own width — cards piled up into an
+        // overlapping conga-line, worst at L3 (lowest spawnMul) within ~7s of level start.
+        lane.spawnT=Math.max(1.0,(2.0-prog*0.6)*cfg.spawnMul)*(G.overclockT>0?0.6:1);
         spawnTile(lane,prog);
       }
       for(const it of lane.tiles){
@@ -608,7 +619,7 @@
     const shown=Math.min(lane.chainCount,4);
     for(let i=0;i<shown;i++){
       const cx=14+i*(cs+gap);
-      if(i>0){ ctx.strokeStyle=cfg.col+'99'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(cx-(cs+gap)+cs*0.5,cy); ctx.lineTo(cx-cs*0.5,cy); ctx.stroke(); }
+      if(i>0){ ctx.save(); ctx.shadowColor=cfg.col; ctx.shadowBlur=8; ctx.strokeStyle=cfg.col+'99'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(cx-(cs+gap)+cs*0.5,cy); ctx.lineTo(cx-cs*0.5,cy); ctx.stroke(); ctx.restore(); }
       draw3DCube(ctx,cx,cy,cs, lane.corruptT>0 ? '#ef4444' : cfg.col, lane.corruptT>0);
     }
     if(lane.chainCount>4){ ctx.fillStyle='rgba(255,255,255,.7)'; ctx.font="10px 'Anton',sans-serif"; ctx.textAlign='left'; ctx.fillText('+'+(lane.chainCount-4), 14+4*(cs+gap), cy); }
@@ -648,7 +659,7 @@
       ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillStyle=cfg.col; ctx.font="8px 'Orbitron',sans-serif"; ctx.fillText('MATCH THE HASH: '+lane.puzzle.target.join(' '),W/2,b.y0+b.h*0.20);
       for(let i=0;i<3;i++){
-        const segW=W/3, cx=segW*i+segW/2, cy0=b.y0+b.h*0.55, w=Math.min(segW*0.8,150), h=b.h*0.4;
+        const segW=W/3, cx=segW*i+segW/2, cy0=b.y0+b.h*0.55, w=Math.min(segW*0.8,150), h=Math.min(b.h*0.4,CARD_H_MAX);
         const opt=lane.puzzle.opts[i];
         ctx.shadowColor=cfg.col; ctx.shadowBlur=8; ctx.fillStyle='rgba(56,189,248,.14)'; ctx.strokeStyle=cfg.col; ctx.lineWidth=1.4;
         rr(ctx,cx-w/2,cy0-h/2,w,h,8); ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
@@ -676,7 +687,7 @@
   }
 
   function drawTile(ctx,it,b,W,now){
-    const x=it.x*W, y=b.y0+b.h*.62, w=Math.min(W*.20,150), h=b.h*0.5;
+    const x=it.x*W, y=b.y0+b.h*.62, w=Math.min(W*.20,150), h=Math.min(b.h*0.5,CARD_H_MAX);
     let col,glow,txtc;
     if(it.kind==='valid'){ col='rgba(34,211,238,.16)'; glow='#22d3ee'; txtc='#a5f3fc'; }
     else if(it.kind==='fraud'){ col='rgba(239,68,68,.16)'; glow='#ef4444'; txtc='#fca5a5'; }

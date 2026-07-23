@@ -249,7 +249,7 @@
   ══════════════════════════════════════════════════════════ */
   window.bsv_volatilityvortexExit = function () {
     cleanupGame();
-    if (window.state) state.viewingWorld = 'builder';
+    if (window.state) state.viewingWorld = 'risktaker';
     goTo('hub');
   };
 
