@@ -116,10 +116,25 @@
   const VEHICLE_TIERS=[
     { label:'STARTER',        e:'🚗', glow:'#f97316' },
     { label:'IMPROVED',       e:'🚙', glow:'#fb923c' },
-    { label:'ELITE',          e:'🏎️', glow:'#fbbf24' },
-    { label:'LEGENDARY',      e:'🏎️', glow:'#fde047' },
-    { label:'FIN. CHAMPION',  e:'🏎️', glow:'#ffffff' }
+    { label:'ELITE',          e:'🏎️', glow:'#fbbf24', shape:'elite' },
+    { label:'LEGENDARY',      e:'🏎️', glow:'#fde047', shape:'legendary' },
+    { label:'FIN. CHAMPION',  e:'🏎️', glow:'#ffffff', shape:'champion' }
   ];
+  // GDD Vehicle Systems: "Each tier changes the silhouette, paint and FX —
+  // not just stat bars." Tiers 0-1 keep distinct emoji (🚗/🚙); tiers 2-4
+  // previously all rendered the identical 🏎️ glyph, differing only by glow
+  // color. `shape` now drives a real per-tier vector silhouette — see
+  // drawVehicleShape / drawEliteShape / drawLegendaryShape / drawChampionShape
+  // just above drawPlayer().
+
+  /* ─── DEBT GENERATOR VISUALS (GDD: Debt Portals / Collection Stations /
+     Debt Reactors are distinct structures — previously every arena rendered
+     a generic 🏭 regardless of gen.type, only gen.label text differed) ──── */
+  const GEN_VISUALS={
+    portal:  { e:'🌀', color:'#a855f7', ring:'rgba(168,85,247,0.55)' },
+    station: { e:'📡', color:'#38bdf8', ring:'rgba(56,189,248,0.55)'  },
+    reactor: { e:'🏭', color:'#f97316', ring:'rgba(249,115,22,0.55)' }
+  };
 
   /* ─── ACHIEVEMENTS (GDD §04 Achievement System — client subset) ─ */
   const ACHIEVEMENTS=[
@@ -255,6 +270,9 @@
   function clamp(v,lo,hi){ return v<lo?lo:v>hi?hi:v; }
   function rnd(lo,hi){ return lo+Math.random()*(hi-lo); }
   function dist2(ax,ay,bx,by){ const dx=ax-bx,dy=ay-by; return dx*dx+dy*dy; }
+  // Stable hash (NOT Math.random) — used by arena backdrops so procedural
+  // skyline/fortress/reactor silhouettes don't jitter every animation frame.
+  function pseudoRand(n){ const x=Math.sin(n*12.9898)*43758.5453; return x-Math.floor(x); }
   function geo(W,H){
     const pad=8, topUI=hudH;
     const aw=W-pad*2, ah=H-topUI-pad;
@@ -749,8 +767,9 @@
     if(en.hp<=0 && !en.dead){ en.dead=true; onEnemyDefeated(en); }
   }
   function onGeneratorDestroyed(gen){
-    burst(gen.x,gen.y,'#a855f7',16);
-    floatTxt(gen.x,gen.y-0.06,'🏭 '+gen.label.toUpperCase()+' DESTROYED!','#e9d5ff',true);
+    const vis=GEN_VISUALS[gen.type]||GEN_VISUALS.portal;
+    burst(gen.x,gen.y,vis.color,16);
+    floatTxt(gen.x,gen.y-0.06,vis.e+' '+gen.label.toUpperCase()+' DESTROYED!','#e9d5ff',true);
     G.shake=0.3;
     G.debtBalance=clamp(G.debtBalance-30,0,1000);
     G.debtDestroyed+=30;
@@ -1399,14 +1418,146 @@
     ctx.restore();
   }
 
+  /* ─── ARENA-SPECIFIC BACKDROPS (GDD §03 design mandate: "No arena is
+     simply longer... Debt Alley is gritty city streets; Collection Citadel
+     is a fortress..." — previously all 3 arenas shared one generic
+     dark-purple radial gradient + neon grid + gold/violet rim rings, with
+     only the enemy roster / boss / text label differing). Each function
+     below draws genuinely different scene content while the shared
+     gold/violet "gladiator pit" accent language (grid + rim rings + crowd
+     dots, drawn once in drawArena) still ties every arena to the same game.
+     Placement uses pseudoRand(seed) (a stable hash), not Math.random(), so
+     silhouettes hold still frame-to-frame — only glow/pulse/sweep FX
+     animate off `now`. ────────────────────────────────────────────────── */
+  function drawAlleyScene(ctx,sh,ox,oy,now){
+    // Gritty city-street skyline along the top & bottom edges
+    for(const edge of [0,1]){
+      let x=ox, i=edge*97+1;
+      while(x<ox+sh){
+        const bw=sh*(0.06+pseudoRand(i*3.1)*0.05);
+        const bh=sh*(edge===0?0.06+pseudoRand(i*5.7)*0.09:0.04+pseudoRand(i*5.7)*0.06);
+        const by=edge===0?oy:oy+sh-bh;
+        ctx.fillStyle='rgba(9,7,18,0.88)';
+        ctx.fillRect(x,by,bw,bh);
+        // flickering lit windows (GDD: "damaged infrastructure flicker")
+        const wCount=1+Math.floor(pseudoRand(i*2.2)*3);
+        for(let w=0;w<wCount;w++){
+          if(pseudoRand(i*13+w*7)>0.45){
+            const flick=0.35+0.55*Math.max(0,Math.sin(now*0.0022+i+w*1.7));
+            ctx.fillStyle=`rgba(251,191,36,${0.3*flick})`;
+            ctx.fillRect(x+bw*(0.15+w*0.28), by+(edge===0?bh*0.2:bh*0.55), bw*0.12, bh*0.16);
+          }
+        }
+        x+=bw+sh*0.006; i++;
+      }
+    }
+    // Holographic neon ad signs (GDD: "holographic collection warnings")
+    const signs=[{y:0.16,c:'249,115,22',side:0},{y:0.58,c:'236,72,153',side:1},{y:0.38,c:'168,85,247',side:0}];
+    signs.forEach((sgn,si)=>{
+      const pulse=0.5+0.5*Math.sin(now*0.0026+si*2.1);
+      const sx=ox+(sgn.side?sh*0.90:sh*0.015), sy=oy+sh*sgn.y;
+      ctx.fillStyle=`rgba(${sgn.c},${0.12+0.10*pulse})`;
+      ctx.fillRect(sx,sy,sh*0.095,sh*0.017);
+    });
+    // Rain streaks over rain-slicked streets
+    ctx.strokeStyle='rgba(186,206,255,0.09)'; ctx.lineWidth=1;
+    for(let r=0;r<12;r++){
+      const rx=ox+((r*83+now*0.10)%sh), ry=oy+((r*57)%sh);
+      ctx.beginPath(); ctx.moveTo(rx,ry); ctx.lineTo(rx-sh*0.018,ry+sh*0.045); ctx.stroke();
+    }
+  }
+  function drawCitadelScene(ctx,sh,ox,oy,now){
+    // Crenellated stone parapet ringing the fortress
+    const mw=sh*0.045, mh=sh*0.020, gap=sh*0.018;
+    ctx.fillStyle='rgba(32,38,54,0.85)';
+    for(let x=ox;x<ox+sh;x+=mw+gap){ ctx.fillRect(x,oy,mw,mh); ctx.fillRect(x,oy+sh-mh,mw,mh); }
+    for(let y=oy;y<oy+sh;y+=mw+gap){ ctx.fillRect(ox,y,mh,mw); ctx.fillRect(ox+sh-mh,y,mh,mw); }
+    // Corner watchtowers with a sweeping surveillance beam (GDD: "surveillance towers")
+    const corners=[[ox+sh*0.07,oy+sh*0.07,0],[ox+sh*0.93,oy+sh*0.07,1],[ox+sh*0.07,oy+sh*0.93,2],[ox+sh*0.93,oy+sh*0.93,3]];
+    corners.forEach(([cx,cy,ci])=>{
+      ctx.fillStyle='rgba(18,22,34,0.92)';
+      ctx.fillRect(cx-sh*0.026,cy-sh*0.026,sh*0.052,sh*0.052);
+      ctx.beginPath(); ctx.moveTo(cx,cy-sh*0.048); ctx.lineTo(cx-sh*0.018,cy-sh*0.024); ctx.lineTo(cx+sh*0.018,cy-sh*0.024); ctx.closePath();
+      ctx.fillStyle='rgba(13,16,26,0.92)'; ctx.fill();
+      const ang=now*0.0005+ci*1.65;
+      const lx=cx+Math.cos(ang)*sh*0.42, ly=cy+Math.sin(ang)*sh*0.42;
+      const beam=ctx.createLinearGradient(cx,cy,lx,ly);
+      beam.addColorStop(0,'rgba(147,197,253,0.12)'); beam.addColorStop(1,'rgba(147,197,253,0)');
+      ctx.strokeStyle=beam; ctx.lineWidth=sh*0.05;
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(lx,ly); ctx.stroke();
+    });
+    // Hanging chain motifs from the top edge (GDD: "chained gates")
+    ctx.strokeStyle='rgba(148,163,184,0.28)'; ctx.lineWidth=1.5;
+    for(let c=0;c<6;c++){
+      const cx=ox+sh*(0.1+c*0.16);
+      for(let seg=0;seg<5;seg++){
+        const cy=oy+sh*0.012+seg*sh*0.024;
+        ctx.beginPath(); ctx.ellipse(cx,cy,sh*0.007,sh*0.011,0,0,Math.PI*2); ctx.stroke();
+      }
+    }
+  }
+  function drawCoreScene(ctx,sh,ox,oy,now){
+    const cx=ox+sh/2, cy=oy+sh/2;
+    // Reactor conduits radiating from the molten core
+    const pipeCount=10;
+    for(let p=0;p<pipeCount;p++){
+      const ang=(p/pipeCount)*Math.PI*2;
+      const len=sh*(0.36+pseudoRand(p*3.3)*0.09);
+      const x1=cx+Math.cos(ang)*sh*0.11, y1=cy+Math.sin(ang)*sh*0.11;
+      const x2=cx+Math.cos(ang)*len, y2=cy+Math.sin(ang)*len;
+      ctx.strokeStyle='rgba(40,20,18,0.7)'; ctx.lineWidth=sh*0.017;
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      const pulse=(Math.sin(now*0.002+p*1.3)+1)/2;
+      ctx.strokeStyle=`rgba(251,146,60,${0.18+0.28*pulse})`; ctx.lineWidth=sh*0.007;
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    }
+    // Molten reactor-core glow at the center (GDD: "the heart of debt itself")
+    const coreR=sh*0.13*(1+0.05*Math.sin(now*0.0025));
+    const coreGrad=ctx.createRadialGradient(cx,cy,0,cx,cy,coreR);
+    coreGrad.addColorStop(0,'rgba(254,215,170,0.5)');
+    coreGrad.addColorStop(0.45,'rgba(251,113,60,0.26)');
+    coreGrad.addColorStop(1,'rgba(251,60,40,0)');
+    ctx.fillStyle=coreGrad;
+    ctx.beginPath(); ctx.arc(cx,cy,coreR,0,Math.PI*2); ctx.fill();
+    // Industrial hazard-stripe banding along the edges
+    const stripeW=sh*0.032;
+    for(let s=0;s<Math.ceil(sh/stripeW);s+=2){
+      ctx.fillStyle='rgba(251,146,60,0.12)';
+      ctx.fillRect(ox+s*stripeW,oy,stripeW,sh*0.012);
+      ctx.fillRect(ox+s*stripeW,oy+sh-sh*0.012,stripeW,sh*0.012);
+    }
+    // Embers rising off the reactor floor
+    for(let e=0;e<12;e++){
+      const ex=ox+sh*pseudoRand(e*7.7);
+      const t=(now*0.00035+pseudoRand(e*3.1))%1;
+      ctx.globalAlpha=(1-t)*0.5;
+      ctx.fillStyle='#fb923c';
+      ctx.beginPath(); ctx.arc(ex,oy+sh*(1-t),1.6,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }
+
   function drawArena(ctx,W,H,g,now){
     const {sh,ox,oy}=g;
     ctx.fillStyle='#0a0714'; ctx.fillRect(0,0,W,H);
     ctx.save(); ctx.beginPath(); ctx.rect(ox,oy,sh,sh); ctx.clip();
-    const grad=ctx.createRadialGradient(ox+sh/2,oy+sh*0.45,sh*0.05, ox+sh/2,oy+sh/2,sh*0.8);
-    grad.addColorStop(0,'#241a3d'); grad.addColorStop(0.55,'#150f28'); grad.addColorStop(1,'#08050f');
+    const idx=(G&&G.lvlIdx)||0;
+    let grad;
+    if(idx===0){ // DEBT ALLEY — neon financial slums
+      grad=ctx.createRadialGradient(ox+sh/2,oy+sh*0.45,sh*0.05, ox+sh/2,oy+sh/2,sh*0.8);
+      grad.addColorStop(0,'#241a3d'); grad.addColorStop(0.55,'#150f28'); grad.addColorStop(1,'#08050f');
+    } else if(idx===1){ // COLLECTION CITADEL — cold stone fortress
+      grad=ctx.createRadialGradient(ox+sh/2,oy+sh*0.45,sh*0.05, ox+sh/2,oy+sh/2,sh*0.8);
+      grad.addColorStop(0,'#1c2338'); grad.addColorStop(0.55,'#141a2c'); grad.addColorStop(1,'#07090f');
+    } else { // DEBT APOCALYPSE CORE — molten reactor heart
+      grad=ctx.createRadialGradient(ox+sh/2,oy+sh*0.5,sh*0.04, ox+sh/2,oy+sh/2,sh*0.8);
+      grad.addColorStop(0,'#3a1a15'); grad.addColorStop(0.5,'#20110f'); grad.addColorStop(1,'#08050a');
+    }
     ctx.fillStyle=grad; ctx.fillRect(ox,oy,sh,sh);
-    // Neon grid — redder when Interest Pressure is high, purple otherwise
+    if(idx===0) drawAlleyScene(ctx,sh,ox,oy,now);
+    else if(idx===1) drawCitadelScene(ctx,sh,ox,oy,now);
+    else drawCoreScene(ctx,sh,ox,oy,now);
+    // Neon grid — redder when Interest Pressure is high, purple otherwise (shared "gladiator pit" identity)
     const ipFrac=G.interestPressure/100;
     ctx.strokeStyle=`rgba(${Math.round(168+ipFrac*80)},${Math.round(85-ipFrac*65)},${Math.round(247-ipFrac*200)},0.075)`; ctx.lineWidth=1;
     const step=sh/14;
@@ -1444,16 +1595,34 @@
   function drawGenerators(ctx,g,now){
     for(const gen of G.generators){
       if(!gen.alive) continue;
+      const vis=GEN_VISUALS[gen.type]||GEN_VISUALS.portal;
       const [sx,sy]=toScreen(gen.x,gen.y,g);
       const pr=g.sh*0.045*(1+0.08*Math.sin(now*0.006));
-      ctx.strokeStyle='rgba(168,85,247,0.55)'; ctx.lineWidth=2;
-      ctx.shadowColor='#a855f7'; ctx.shadowBlur=16;
+      ctx.strokeStyle=vis.ring; ctx.lineWidth=2;
+      ctx.shadowColor=vis.color; ctx.shadowBlur=16;
       ctx.beginPath(); ctx.arc(sx,sy,pr,0,Math.PI*2); ctx.stroke();
-      ctx.font=(g.sh*0.05)+'px serif'; ctx.fillText('🏭',sx,sy);
+      // Per-type reskin detail (GDD: Debt Portal / Collection Station / Debt
+      // Reactor are distinct structures, not one generic generator)
+      ctx.save();
+      if(gen.type==='station'){
+        const ang=now*0.0025;
+        ctx.strokeStyle='rgba(125,211,252,0.55)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(sx+Math.cos(ang)*pr*1.3, sy+Math.sin(ang)*pr*1.3); ctx.stroke();
+      } else if(gen.type==='reactor'){
+        ctx.setLineDash([5,4]);
+        ctx.strokeStyle='rgba(251,191,36,0.4)'; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.arc(sx,sy,pr*1.3,0,Math.PI*2); ctx.stroke();
+      } else { // portal
+        ctx.setLineDash([4,5]); ctx.lineDashOffset=-now*0.03;
+        ctx.strokeStyle='rgba(216,180,254,0.5)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.arc(sx,sy,pr*1.32,0,Math.PI*2); ctx.stroke();
+      }
+      ctx.restore();
+      ctx.font=(g.sh*0.05)+'px serif'; ctx.fillText(vis.e,sx,sy);
       ctx.shadowBlur=0;
       const bw=g.sh*0.07, bh=4;
       ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(sx-bw/2,sy-pr-10,bw,bh);
-      ctx.fillStyle='#a855f7'; ctx.fillRect(sx-bw/2,sy-pr-10,bw*clamp(gen.hp/gen.maxHp,0,1),bh);
+      ctx.fillStyle=vis.color; ctx.fillRect(sx-bw/2,sy-pr-10,bw*clamp(gen.hp/gen.maxHp,0,1),bh);
     }
   }
   function drawCitizens(ctx,g,now){
@@ -1525,6 +1694,65 @@
     ctx.fillText(b.name,sx,sy+sz*1.15);
   }
 
+  /* ─── VEHICLE TIER SILHOUETTES (GDD Vehicle Systems: "each tier changes
+     the silhouette, paint and FX — not just stat bars." Elite/Legendary/
+     Fin. Champion previously all rendered the identical 🏎️ glyph, differing
+     only by glow color.) Each shape is drawn nose-right at the origin;
+     drawPlayer already does ctx.translate(sx,sy) + ctx.scale(G.dir,1) and
+     sets shadowColor/shadowBlur before calling this — exactly like the
+     emoji fillText it replaces — so hit-flash and facing still work. ──── */
+  function drawEliteShape(ctx,sz,glow){
+    // low tapered wedge — sleek single-nose sports silhouette
+    ctx.fillStyle='#1e2230';
+    ctx.beginPath();
+    ctx.moveTo(sz*0.95,0); ctx.lineTo(sz*0.45,-sz*0.32); ctx.lineTo(-sz*0.70,-sz*0.30);
+    ctx.lineTo(-sz*0.90,0); ctx.lineTo(-sz*0.70,sz*0.30); ctx.lineTo(sz*0.45,sz*0.32);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle=glow; ctx.lineWidth=Math.max(1,sz*0.045);
+    ctx.beginPath(); ctx.moveTo(-sz*0.85,0); ctx.lineTo(sz*0.9,0); ctx.stroke();
+    ctx.fillStyle='rgba(196,219,255,0.4)';
+    ctx.beginPath(); ctx.ellipse(0,0,sz*0.26,sz*0.15,0,0,Math.PI*2); ctx.fill();
+  }
+  function drawLegendaryShape(ctx,sz,glow){
+    // wider angular hull with twin rear spoiler fins — bulkier than Elite
+    ctx.fillStyle='#22232e';
+    ctx.beginPath();
+    ctx.moveTo(sz*1.05,0); ctx.lineTo(sz*0.5,-sz*0.42); ctx.lineTo(-sz*0.55,-sz*0.46);
+    ctx.lineTo(-sz*0.85,-sz*0.24); ctx.lineTo(-sz*0.85,sz*0.24); ctx.lineTo(-sz*0.55,sz*0.46);
+    ctx.lineTo(sz*0.5,sz*0.42);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle=glow;
+    ctx.beginPath(); ctx.moveTo(-sz*0.85,-sz*0.24); ctx.lineTo(-sz*1.10,-sz*0.42); ctx.lineTo(-sz*0.66,-sz*0.30); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-sz*0.85,sz*0.24); ctx.lineTo(-sz*1.10,sz*0.42); ctx.lineTo(-sz*0.66,sz*0.30); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle=glow; ctx.lineWidth=Math.max(1,sz*0.05);
+    ctx.beginPath(); ctx.moveTo(-sz*0.5,0); ctx.lineTo(sz*0.95,0); ctx.stroke();
+    ctx.fillStyle='rgba(255,240,200,0.4)';
+    ctx.beginPath(); ctx.ellipse(sz*0.05,0,sz*0.30,sz*0.17,0,0,Math.PI*2); ctx.fill();
+  }
+  function drawChampionShape(ctx,sz,glow,now){
+    // diamond/arrow hovercraft — widest silhouette, halo ring + wing blades
+    const ha=0.4+0.3*Math.sin(now*0.006);
+    ctx.strokeStyle=`rgba(255,255,255,${ha})`; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(0,0,sz*1.15,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle='#262530';
+    ctx.beginPath();
+    ctx.moveTo(sz*1.15,0); ctx.lineTo(sz*0.25,-sz*0.5); ctx.lineTo(-sz*0.35,-sz*0.30);
+    ctx.lineTo(-sz*1.05,0); ctx.lineTo(-sz*0.35,sz*0.30); ctx.lineTo(sz*0.25,sz*0.5);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle=glow;
+    ctx.beginPath(); ctx.moveTo(-sz*0.1,-sz*0.32); ctx.lineTo(-sz*0.55,-sz*0.66); ctx.lineTo(-sz*0.05,-sz*0.42); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-sz*0.1,sz*0.32); ctx.lineTo(-sz*0.55,sz*0.66); ctx.lineTo(-sz*0.05,sz*0.42); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle=glow; ctx.lineWidth=Math.max(1,sz*0.055);
+    ctx.beginPath(); ctx.moveTo(-sz*0.95,0); ctx.lineTo(sz*1.05,0); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.5)';
+    ctx.beginPath(); ctx.ellipse(sz*0.1,0,sz*0.24,sz*0.15,0,0,Math.PI*2); ctx.fill();
+  }
+  function drawVehicleShape(ctx,sz,shape,glow,now){
+    if(shape==='elite') drawEliteShape(ctx,sz,glow);
+    else if(shape==='legendary') drawLegendaryShape(ctx,sz,glow);
+    else if(shape==='champion') drawChampionShape(ctx,sz,glow,now);
+  }
+
   function drawPlayer(ctx,g,now){
     const [sx,sy]=toScreen(G.px,G.py,g);
     const sz=g.sh*0.055;
@@ -1561,7 +1789,8 @@
     ctx.shadowColor=G.hitFlash>0?'#ef4444':vt.glow;
     ctx.shadowBlur=G.hitFlash>0?28:14;
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.font=sz*2.1+'px serif'; ctx.fillText(vt.e,0,0);
+    if(vt.shape) drawVehicleShape(ctx,sz,vt.shape,vt.glow,now);
+    else { ctx.font=sz*2.1+'px serif'; ctx.fillText(vt.e,0,0); }
     if(G.debtBalance>400){
       ctx.globalAlpha=0.5+0.3*Math.sin(now*0.015);
       ctx.font=sz*1.4+'px serif';
@@ -1573,6 +1802,48 @@
       ctx.globalAlpha=G.hitFlash*0.55; ctx.fillStyle='#ef4444';
       ctx.beginPath(); ctx.arc(sx,sy,sz*1.4,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1;
     }
+  }
+
+  /* ─── NEMESIS RESKINS PER ARENA (GDD Nemesis System: "Truck I → Truck II
+     → Debt Tank → Debt Destroyer → Overlord Truck" — of the 3 shipped
+     arenas, all previously rendered the identical 🚛 glyph, differing only
+     by the nemesisName text label.) Drawn at the origin; drawNemesis already
+     translates+scales(flip*ipScale,ipScale) and sets the shadow before
+     calling this. ──────────────────────────────────────────────────────── */
+  function drawDebtTankShape(ctx,sz){
+    // low, wide armored tank — treads + turret + barrel (Collection Citadel)
+    ctx.fillStyle='#1c1c22';
+    ctx.fillRect(-sz*1.05,-sz*0.62,sz*2.1,sz*0.26);
+    ctx.fillRect(-sz*1.05,sz*0.36,sz*2.1,sz*0.26);
+    ctx.fillStyle='#3f3f46';
+    for(let i=-4;i<=4;i++){
+      ctx.beginPath(); ctx.arc(i*sz*0.24,-sz*0.49,sz*0.095,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(i*sz*0.24,sz*0.49,sz*0.095,0,Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle='#52525b';
+    ctx.beginPath();
+    ctx.moveTo(-sz*0.85,-sz*0.36); ctx.lineTo(sz*0.55,-sz*0.36); ctx.lineTo(sz*0.95,0);
+    ctx.lineTo(sz*0.55,sz*0.36); ctx.lineTo(-sz*0.85,sz*0.36);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#71717a';
+    ctx.beginPath(); ctx.arc(-sz*0.1,0,sz*0.34,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#3f3f46';
+    ctx.fillRect(sz*0.05,-sz*0.07,sz*0.85,sz*0.14);
+  }
+  function drawDebtDestroyerShape(ctx,sz,now){
+    // bulkier spiked destroyer with a pulsing red core (Debt Apocalypse Core)
+    ctx.fillStyle='#2a1414';
+    ctx.beginPath();
+    ctx.moveTo(sz*1.1,0); ctx.lineTo(sz*0.6,-sz*0.5); ctx.lineTo(-sz*0.5,-sz*0.58);
+    ctx.lineTo(-sz*1.05,-sz*0.28); ctx.lineTo(-sz*1.05,sz*0.28); ctx.lineTo(-sz*0.5,sz*0.58);
+    ctx.lineTo(sz*0.6,sz*0.5);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#7f1d1d';
+    ctx.beginPath(); ctx.moveTo(-sz*1.05,-sz*0.28); ctx.lineTo(-sz*1.38,-sz*0.48); ctx.lineTo(-sz*0.80,-sz*0.30); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-sz*1.05,sz*0.28); ctx.lineTo(-sz*1.38,sz*0.48); ctx.lineTo(-sz*0.80,sz*0.30); ctx.closePath(); ctx.fill();
+    const pulse=0.5+0.4*Math.sin(now*0.008);
+    ctx.fillStyle=`rgba(239,68,68,${0.3+0.6*pulse})`;
+    ctx.beginPath(); ctx.arc(sz*0.05,0,sz*0.22,0,Math.PI*2); ctx.fill();
   }
 
   function drawNemesis(ctx,g,now){
@@ -1595,7 +1866,10 @@
     ctx.save(); ctx.translate(sx,sy); ctx.scale(flip*ipScale,ipScale);
     ctx.shadowColor='#ef4444'; ctx.shadowBlur=22;
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.font=sz*2.0+'px serif'; ctx.fillText('🚛',0,0);
+    const nIdx=G.lvlIdx||0;
+    if(nIdx===1) drawDebtTankShape(ctx,sz);
+    else if(nIdx===2) drawDebtDestroyerShape(ctx,sz,now);
+    else { ctx.font=sz*2.0+'px serif'; ctx.fillText('🚛',0,0); }
     ctx.restore(); ctx.shadowBlur=0;
     const pulse=(Math.sin(now*0.008)*0.5+0.5)*0.4+0.2;
     ctx.strokeStyle=`rgba(239,68,68,${pulse})`; ctx.lineWidth=2;

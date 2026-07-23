@@ -52,17 +52,74 @@
   /* ── Car state bands (CarStateManager.cs) ── */
   // exact CarStateManager.cs thresholds: >800 NoDamage · >700 Dents · >600 Scratches ·
   // >500 Smoke · >400 FlatTires(50%) · >350 Fire(10%) · >300 Immobile(no steer) · ≤300 Destroyed
+  // `icon` (GDD §16 — colorblind-safe iconography): a distinct shape per band so the HUD
+  // band readout never relies on color alone.
   const BANDS=[
-    { min:800, label:'NO DAMAGE',   st:0, spd:1.00, steer:true,  col:'#34d399' },
-    { min:700, label:'DENTS',       st:1, spd:1.00, steer:true,  col:'#a3e635' },
-    { min:600, label:'SCRATCHES',   st:2, spd:1.00, steer:true,  col:'#fbbf24' },
-    { min:500, label:'SMOKE',       st:3, spd:1.00, steer:true,  col:'#fb923c' },
-    { min:400, label:'FLAT TIRES',  st:3, spd:0.50, steer:true,  col:'#f87171' },
-    { min:350, label:'ON FIRE',     st:4, spd:0.12, steer:true,  col:'#ef4444' },
-    { min:300, label:'IMMOBILE',    st:4, spd:0.12, steer:false, col:'#dc2626' },
-    { min:-1,  label:'DESTROYED',   st:4, spd:0.00, steer:false, col:'#991b1b' },
+    { min:800, label:'NO DAMAGE',   st:0, spd:1.00, steer:true,  col:'#34d399', icon:'●' },
+    { min:700, label:'DENTS',       st:1, spd:1.00, steer:true,  col:'#a3e635', icon:'◆' },
+    { min:600, label:'SCRATCHES',   st:2, spd:1.00, steer:true,  col:'#fbbf24', icon:'▲' },
+    { min:500, label:'SMOKE',       st:3, spd:1.00, steer:true,  col:'#fb923c', icon:'■' },
+    { min:400, label:'FLAT TIRES',  st:3, spd:0.50, steer:true,  col:'#f87171', icon:'✦' },
+    { min:350, label:'ON FIRE',     st:4, spd:0.12, steer:true,  col:'#ef4444', icon:'✖' },
+    { min:300, label:'IMMOBILE',    st:4, spd:0.12, steer:false, col:'#dc2626', icon:'⛔' },
+    { min:-1,  label:'DESTROYED',   st:4, spd:0.00, steer:false, col:'#991b1b', icon:'☠' },
   ];
   function bandFor(f){ for(const b of BANDS){ if(f>b.min) return b; } return BANDS[BANDS.length-1]; }
+
+  /* ── Visible car damage by band (Gap: damage was audio/particle/HUD-only before).
+     Layered ON TOP of the existing smoke/fire particles + HUD color — never replaces
+     them. Index-aligned with BANDS. colorMul/soot darken+scorch the body paint, decals
+     is how many pre-built dent/scratch overlay planes are revealed, dent is a cheap
+     one-shot vertex perturbation amount (world units), ember tints emissive for the
+     fire bands. ── */
+  const DAMAGE_VIS=[
+    { colorMul:1.00, soot:0.00, decals:0, dent:0.000, ember:0.00 },  // NO DAMAGE
+    { colorMul:0.94, soot:0.05, decals:2, dent:0.000, ember:0.00 },  // DENTS
+    { colorMul:0.88, soot:0.12, decals:3, dent:0.000, ember:0.00 },  // SCRATCHES
+    { colorMul:0.76, soot:0.22, decals:4, dent:0.020, ember:0.00 },  // SMOKE
+    { colorMul:0.62, soot:0.32, decals:5, dent:0.035, ember:0.00 },  // FLAT TIRES
+    { colorMul:0.46, soot:0.48, decals:6, dent:0.060, ember:0.50 },  // ON FIRE
+    { colorMul:0.32, soot:0.62, decals:6, dent:0.080, ember:0.65 },  // IMMOBILE
+    { colorMul:0.16, soot:0.80, decals:6, dent:0.100, ember:0.80 },  // DESTROYED
+  ];
+  const SOOT_HEX=0x18110b, EMBER_HEX=0xff5522;
+
+  /* ── Accessibility (GDD §16) — large text, reduced motion, colorblind-safe icons.
+     Persisted on window.state like fr_carKey so it survives a reload; small additive
+     toggles, no HUD restructure. ── */
+  function a11yGet(){ return Object.assign({largeText:false,reducedMotion:false}, (window.state&&state.fr_a11y)||{}); }
+  window.frSetA11y=function(key,val){
+    if(!window.state) return;
+    state.fr_a11y=Object.assign(a11yGet(), {[key]:val});
+    if(window.cvSave) cvSave();
+    if(G) G.reducedMotion=!!a11yGet().reducedMotion;
+    applyA11yVisuals();
+  };
+  window.frToggleA11yPanel=function(){
+    const p=document.getElementById('frA11yPanel'); if(!p) return;
+    p.style.display=(p.style.display==='none'||!p.style.display)?'block':'none';
+  };
+  function applyA11yVisuals(){
+    const a=a11yGet();
+    const root=document.getElementById('frRoot');
+    if(root) root.classList.toggle('frLargeText', !!a.largeText);
+    const lt=document.getElementById('frChkLargeText'); if(lt) lt.checked=!!a.largeText;
+    const rm=document.getElementById('frChkReducedMotion'); if(rm) rm.checked=!!a.reducedMotion;
+  }
+  function frA11yControlHTML(){
+    const a=a11yGet();
+    return `<div style="position:relative;pointer-events:auto">
+      <button onclick="frToggleA11yPanel()" title="Accessibility settings" style="width:34px;height:34px;border-radius:10px;border:1px solid rgba(125,211,252,.4);background:rgba(10,16,40,.7);color:#7dd3fc;font-size:1rem;cursor:pointer">♿</button>
+      <div id="frA11yPanel" style="display:none;position:absolute;top:40px;right:0;width:180px;padding:10px 12px;border-radius:12px;border:1px solid rgba(125,211,252,.35);background:rgba(6,10,28,.97);font-family:'Inter',sans-serif;color:#fff;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.5)">
+        <label class="frA11yLbl" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;font-size:.68rem">
+          <input type="checkbox" id="frChkLargeText" ${a.largeText?'checked':''} onchange="frSetA11y('largeText',this.checked)"> Large text
+        </label>
+        <label class="frA11yLbl" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.68rem">
+          <input type="checkbox" id="frChkReducedMotion" ${a.reducedMotion?'checked':''} onchange="frSetA11y('reducedMotion',this.checked)"> Reduce motion
+        </label>
+      </div>
+    </div>`;
+  }
 
   /* ── Knowledge gate questions (steer into the lane!) ── */
   const QUIZ=[
@@ -132,6 +189,18 @@
   window.SCREENS.game_ficoracer=function(){
     setTimeout(showLevelSelect,30);
     return `<div id="frRoot" style="position:absolute;inset:0;background:#04060f;overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
+      <style>
+        /* Gap 4 — accessibility large-text mode: scales key HUD readouts. Additive
+           override gated by the ♿ toggle's frLargeText class; doesn't touch layout. */
+        #frRoot.frLargeText #frFico{font-size:1.7rem !important}
+        #frRoot.frLargeText #frBand{font-size:.72rem !important}
+        #frRoot.frLargeText #frLap{font-size:.95rem !important}
+        #frRoot.frLargeText #frPos{font-size:1.2rem !important}
+        #frRoot.frLargeText #frCash,#frRoot.frLargeText #frSpd{font-size:.78rem !important}
+        #frRoot.frLargeText #frQTxt{font-size:1.2rem !important}
+        #frRoot.frLargeText #frMsg{font-size:2.8rem !important}
+        #frRoot.frLargeText .frA11yLbl{font-size:.82rem !important}
+      </style>
       <div id="fr3dWrap" style="position:absolute;inset:0"></div>
       <div id="frUI" style="position:absolute;inset:0;pointer-events:none"></div>
     </div>`;
@@ -140,6 +209,7 @@
   /* ── Level select (garage-style, GDD track cards) ── */
   function showLevelSelect(){
     const ui=document.getElementById('frUI'); if(!ui) return;
+    teardownGaragePreview();   // leaving the garage screen (if we were on it) — free its WebGL contexts
     const best=(window.state&&state.gameLevels&&state.gameLevels['game_ficoracer'])||0;
     ui.style.pointerEvents='auto';
     ui.innerHTML=`
@@ -162,6 +232,7 @@
         </div>
         <div style="font-size:.62rem;color:rgba(255,255,255,.35)">🎮 Steer: ← → / A D / tilt-drag · Boost: SPACE or the ⚡ button · Steer through the ANSWER LANE at Knowledge Gates!</div>
       </div>`;
+    applyA11yVisuals();
   }
 
   /* ── Car select / garage (GDD §5 core-loop step 1 "Choose car and event" +
@@ -177,16 +248,22 @@
     ui.innerHTML=`
       <div style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,rgba(139,92,246,.22),transparent 55%),linear-gradient(180deg,#050a1e,#02040c);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;overflow:auto">
         <button onclick="frExit()" style="position:absolute;top:14px;left:14px;padding:8px 16px;border:1px solid rgba(56,189,248,.4);border-radius:10px;background:rgba(10,16,40,.6);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← HUB</button>
-        <button onclick="frMenu()" style="position:absolute;top:14px;right:14px;padding:8px 16px;border:1px solid rgba(251,191,36,.4);border-radius:10px;background:rgba(10,16,40,.6);color:#fbbf24;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← TRACKS</button>
+        <div style="position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:8px">
+          ${frA11yControlHTML()}
+          <button onclick="frMenu()" style="padding:8px 16px;border:1px solid rgba(251,191,36,.4);border-radius:10px;background:rgba(10,16,40,.6);color:#fbbf24;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← TRACKS</button>
+        </div>
         <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.3em;color:#8b5cf6">${L.icon} ${L.name} · GARAGE</div>
         <div style="font-family:'Anton',sans-serif;font-size:clamp(1.7rem,5vw,2.8rem);letter-spacing:.04em;background:linear-gradient(90deg,#7dd3fc,#8b5cf6,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent">🚗 CHOOSE YOUR RACER</div>
         <div style="font-size:.8rem;color:rgba(255,255,255,.55);margin-top:-8px">Every car handles differently — pick the one that fits how you drive.</div>
         <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;max-width:980px">
-          ${CARS.map(c=>{
+          ${CARS.map((c,ci)=>{
             const on=c.key===sel;
             return `<div onclick="frShowCarSelect(${li},'${c.key}')" style="width:210px;padding:18px 16px;border-radius:18px;border:1.5px solid ${on?'#fbbf24':'rgba(255,255,255,.14)'};background:linear-gradient(165deg,rgba(12,20,48,.95),rgba(4,8,24,.98));cursor:pointer;text-align:center;position:relative;transition:all .2s;box-shadow:${on?'0 0 26px rgba(251,191,36,.35)':'none'}" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='none'">
               ${on?`<div style="position:absolute;top:-10px;right:-8px;background:#fbbf24;color:#1a0d00;font-family:'Orbitron',sans-serif;font-size:.5rem;font-weight:900;letter-spacing:.06em;padding:4px 8px;border-radius:8px">✓ SELECTED</div>`:''}
-              <div style="font-size:2.6rem;margin-bottom:4px;filter:drop-shadow(0 0 10px ${c.color})">🏎️</div>
+              <div id="frCarPrev${ci}" style="width:100%;height:108px;margin-bottom:4px;border-radius:10px;overflow:hidden;position:relative;background:radial-gradient(ellipse at 50% 30%,rgba(255,255,255,.08),rgba(0,0,0,.28))">
+                <div class="frCarPrevFallback" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2.2rem;filter:drop-shadow(0 0 10px ${c.color})">🏎️</div>
+                <canvas style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas>
+              </div>
               <div style="font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:.08em;color:${c.color}">${c.name}</div>
               <div style="font-size:.66rem;line-height:1.4;color:rgba(255,255,255,.6);margin:6px 0 10px;min-height:32px">${c.tag}</div>
               ${['HANDLING','SPEED','BOOST'].map((lbl,i)=>{ const v=[c.stats.h,c.stats.s,c.stats.b][i];
@@ -198,10 +275,83 @@
         </div>
         <button onclick="frStart(${li},'${sel}')" style="margin-top:6px;padding:15px 34px;border:none;border-radius:14px;background:linear-gradient(135deg,#fbbf24,#d97706);color:#1a0d00;font-family:'Orbitron',sans-serif;font-size:.75rem;letter-spacing:.12em;font-weight:900;cursor:pointer;box-shadow:0 4px 24px rgba(251,191,36,.4)">🏁 START RACE</button>
       </div>`;
+    applyA11yVisuals();
+    initGaragePreview();
   }
   window.frShowCarSelect=function(li,key){ showCarSelect(li,key); };
 
+  /* ── Garage 3D car previews (Gap: cards showed a generic 🏎️ emoji even though the
+     real per-car FBX models already load moments later for the race). Reuses the
+     exact same ensure3D()/loadCarAssets() pipeline as the race itself — just renders
+     each cached model into its own small canvas, rotating under a spotlight on a
+     glass/grid floor, instead of building the full circuit. ── */
+  let _garagePrev=null;
+  function teardownGaragePreview(){
+    if(!_garagePrev) return;
+    cancelAnimationFrame(_garagePrev.raf);
+    _garagePrev.items.forEach(it=>{ try{ it.rndr.dispose(); if(it.rndr.forceContextLoss) it.rndr.forceContextLoss(); }catch(e){} });
+    _garagePrev=null;
+  }
+  function initGaragePreview(){
+    teardownGaragePreview();
+    const myGen=(initGaragePreview._gen=(initGaragePreview._gen||0)+1);
+    ensure3D().then(()=>loadCarAssets()).then(models=>{
+      if(myGen!==initGaragePreview._gen) return;   // user already navigated away/changed cars — bail, don't leak contexts
+      const items=[];
+      CARS.forEach((c,ci)=>{
+        const mount=document.getElementById('frCarPrev'+ci); if(!mount) return;
+        const canvas=mount.querySelector('canvas'); if(!canvas) return;
+        const w=mount.clientWidth||190, h=mount.clientHeight||108;
+        try{
+          const scene=new THREE.Scene();
+          let root;
+          const mdl=models&&models[ci];
+          if(mdl){ root=mdl.root.clone(true); root.traverse(m=>{ if(m.isMesh) m.material=m.material.clone(); }); }
+          else root=buildFallbackCar(parseInt(c.color.slice(1),16)).root;
+          root.rotation.y=Math.random()*Math.PI*2;
+          scene.add(root);
+          // frame the camera off THIS car's own bounding box — the 4 rally FBX models don't
+          // all normalize to quite the same pivot height, so a fixed cam position clipped some of them
+          const box=new THREE.Box3().setFromObject(root);
+          const bsize=box.getSize(new THREE.Vector3()), bctr=box.getCenter(new THREE.Vector3());
+          const dist=Math.max(bsize.x,bsize.z)*1.35+2.6;
+          const lookY=bctr.y+bsize.y*0.12;
+          const cam=new THREE.PerspectiveCamera(32, w/Math.max(1,h), .1, 40);
+          cam.position.set(bctr.x, bctr.y+bsize.y*0.62, bctr.z+dist);
+          cam.lookAt(bctr.x, lookY, bctr.z);
+          scene.add(new THREE.AmbientLight(0xffffff,.4));
+          // "spotlight" per the GDD (rotating car under a spotlight on a glass/grid floor)
+          const spot=new THREE.SpotLight(0xffffff,2.1,20,Math.PI/6,.45,1.1);
+          spot.position.set(bctr.x, bctr.y+bsize.y*2.1, bctr.z+dist*0.35);
+          spot.target.position.set(bctr.x, bctr.y+bsize.y*0.15, bctr.z);
+          scene.add(spot); scene.add(spot.target);
+          const grid=new THREE.GridHelper(6.5,13,0x38bdf8,0x1b2a4a);
+          grid.material.transparent=true; grid.material.opacity=.55;
+          scene.add(grid);
+          const glassFloor=new THREE.Mesh(new THREE.CircleGeometry(3.3,28), new THREE.MeshBasicMaterial({color:0x0b1530,transparent:true,opacity:.5}));
+          glassFloor.rotation.x=-Math.PI/2; glassFloor.position.y=-.01; scene.add(glassFloor);
+          const rndr=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+          rndr.setPixelRatio(Math.min(devicePixelRatio,1.5));
+          rndr.setSize(w,h,false);
+          items.push({rndr,scene,cam,root});
+          const fb=mount.querySelector('.frCarPrevFallback'); if(fb) fb.style.display='none';
+        }catch(e){ /* leave the 🏎️ fallback showing for this one card */ }
+      });
+      if(!items.length) return;
+      let last=performance.now();
+      function tick(now){
+        if(!_garagePrev) return;
+        _garagePrev.raf=requestAnimationFrame(tick);
+        const dt=Math.min(.05,(now-last)/1000); last=now;
+        items.forEach(it=>{ it.root.rotation.y+=dt*0.5; it.rndr.render(it.scene,it.cam); });
+      }
+      _garagePrev={raf:0, items};
+      tick(last);
+    }).catch(e=>{ console.warn('FICO garage preview load issue:', e); });
+  }
+
   window.frStart=function(li,carKey){
+    teardownGaragePreview();   // race is about to build the full 3D scene — free the garage's preview contexts first
     const remembered=(window.state&&state.fr_carKey)||'rally1';
     const key=carKey||remembered;
     let carIdx=CARS.findIndex(c=>c.key===key); if(carIdx<0) carIdx=0;
@@ -264,6 +414,81 @@
     [[-.95,.42,1.35],[.95,.42,1.35],[-.95,.42,-1.35],[.95,.42,-1.35]].forEach(p=>{ const w=new THREE.Mesh(wg,wm); w.rotation.z=Math.PI/2; w.position.set(p[0],p[1],p[2]); g.add(w); wheels.push(w); });
     const spoil=new THREE.Mesh(new THREE.BoxGeometry(1.8,.1,.5), new THREE.MeshToonMaterial({color:hex})); spoil.position.set(0,1.05,-1.9); g.add(spoil);
     return {root:g, wheels};
+  }
+
+  /* ── Visible car damage helpers (Gap: only smoke/HUD color signaled FICO damage
+     before — nothing changed on the car itself). buildDentGroup() pre-builds a handful
+     of dent/scratch decal planes (hidden until needed) sized off the player's own
+     bounding box, so it looks reasonable regardless of which of the 4 rally models is
+     in the seat. Reuses makeCanvasTex — the same helper the road/curb textures use. ── */
+  function buildDentGroup(holder){
+    const box=new THREE.Box3().setFromObject(holder);
+    const size=box.getSize(new THREE.Vector3());
+    const grp=new THREE.Group();
+    const dentTex=makeCanvasTex(64,64,(x,w,h)=>{
+      x.fillStyle='rgba(12,10,9,.62)';
+      x.beginPath(); x.ellipse(w*.5,h*.5,w*.32,h*.22,.5,0,Math.PI*2); x.fill();
+    });
+    const scratchTex=makeCanvasTex(64,64,(x,w,h)=>{
+      x.strokeStyle='rgba(8,7,6,.55)'; x.lineWidth=3; x.lineCap='round';
+      for(let i=0;i<3;i++){ x.beginPath(); x.moveTo(6+i*5,8); x.lineTo(w-8+i*4,h-10); x.stroke(); }
+    });
+    const mats=[new THREE.MeshBasicMaterial({map:dentTex,transparent:true,depthWrite:false}),
+                new THREE.MeshBasicMaterial({map:scratchTex,transparent:true,depthWrite:false})];
+    // [xFrac,yFrac,zFrac, rotX,rotY, matIdx] — spread across hood/roof/flanks/rear so
+    // SOME are visible from almost any chase-cam angle
+    const spots=[
+      [ 0,   .80, .55, -Math.PI/2, 0,          0],
+      [ 0,   .94,-.05, -Math.PI/2, 0,          1],
+      [-.46, .55, .12,  0,         Math.PI/2,  1],
+      [ .46, .55,-.18,  0,        -Math.PI/2,  0],
+      [ 0,   .62,-.86,  0,         0,          1],
+      [-.28, .50,-.52,  0,         Math.PI/2,  0],
+    ];
+    spots.forEach(sp=>{
+      const gw=Math.max(.3,size.x*.30), gh=Math.max(.22,size.y*.26);
+      const mesh=new THREE.Mesh(new THREE.PlaneGeometry(gw,gh), mats[sp[5]].clone());
+      mesh.position.set(sp[0]*size.x*.48, sp[1]*size.y, sp[2]*size.z*.48);
+      mesh.rotation.set(sp[3],sp[4],0);
+      mesh.visible=false; mesh.renderOrder=5;
+      grp.add(mesh);
+    });
+    holder.add(grp);
+    return grp;
+  }
+  function applyVertexDent(mesh, amt){
+    const geo=mesh.geometry; const orig=geo&&geo.userData&&geo.userData.origPos; if(!orig) return;
+    const pos=geo.attributes.position;
+    if(amt<=0){
+      if(geo.userData.dentApplied){ pos.array.set(orig); pos.needsUpdate=true; geo.computeVertexNormals(); geo.userData.dentApplied=false; }
+      return;
+    }
+    // deterministic per-vertex hash so this is idempotent (recomputed from the ORIGINAL
+    // positions every call, never compounding) if the player flaps between bands
+    for(let i=0;i<pos.count;i++){
+      const ox=orig[i*3], oy=orig[i*3+1], oz=orig[i*3+2];
+      const h=Math.sin(i*12.9898+i*0.007)*43758.5453; const r=h-Math.floor(h);
+      const off=(r-0.5)*2*amt;
+      pos.array[i*3]  =ox+off*0.6;
+      pos.array[i*3+1]=oy+off*0.4;
+      pos.array[i*3+2]=oz+off*0.6;
+    }
+    pos.needsUpdate=true;
+    geo.computeVertexNormals();
+    geo.userData.dentApplied=true;
+  }
+  function applyCarDamage(){
+    if(!G || !G.cars || !G.cars[0]) return;
+    const idx=Math.max(0,BANDS.indexOf(G.band));
+    const dv=DAMAGE_VIS[idx]||DAMAGE_VIS[0];
+    const soot=new THREE.Color(SOOT_HEX);
+    G.cars[0].traverse(m=>{
+      if(!m.isMesh || !m.userData.origColor) return;
+      m.material.color.copy(m.userData.origColor).multiplyScalar(dv.colorMul).lerp(soot, dv.soot);
+      if(m.material.emissive) m.material.emissive.setHex(EMBER_HEX).multiplyScalar(dv.ember||0);
+      if(!/wheel|tire|tyre/i.test(m.name)) applyVertexDent(m, dv.dent||0);
+    });
+    if(G.dentGroup) G.dentGroup.children.forEach((d,i)=>{ d.visible=i<dv.decals; });
   }
 
   /* ══════════════ RACE ══════════════ */
@@ -459,12 +684,20 @@
 
     /* cars — order[0] is the player's chosen model (GDD §11 garage pick), order[1..3] the AI rivals */
     const carRoots=[], wheelSets=[];
+    let playerDentGroup=null;
     for(let i=0;i<4;i++){
       const ci=order[i], cdef=CARS[ci];
       let mdl=models&&models[ci];
       let inst;
-      if(mdl){ inst={root:mdl.root.clone(true),wheels:[]}; inst.root.traverse(m=>{ if(m.isMesh){ m.material=m.material.clone(); if(/wheel|tire|tyre/i.test(m.name)) inst.wheels.push(m); } }); }
+      // player's own meshes (i===0) also get their OWN geometry clone (not just material) —
+      // needed so the damage vertex-dent below only ever touches this one car, never the
+      // AI cars or the cached FBX template that frRestart()/frStartNext() reuse.
+      if(mdl){ inst={root:mdl.root.clone(true),wheels:[]}; inst.root.traverse(m=>{ if(m.isMesh){ m.material=m.material.clone(); if(i===0) m.geometry=m.geometry.clone(); if(/wheel|tire|tyre/i.test(m.name)) inst.wheels.push(m); } }); }
       else inst=buildFallbackCar(parseInt(cdef.color.slice(1),16));
+      if(i===0) inst.root.traverse(m=>{ if(m.isMesh){
+        m.userData.origColor=m.material.color.clone();
+        m.geometry.userData.origPos=m.geometry.attributes.position.array.slice();
+      }});
       const holder=new THREE.Group(); holder.add(inst.root);
       // name tag for AI
       if(i>0){ const tag=new THREE.Sprite(new THREE.SpriteMaterial({map:makeCanvasTex(256,64,(x,w,h)=>{
@@ -473,6 +706,7 @@
         }),transparent:true}));
         tag.scale.set(3.1,.78,1); tag.position.y=2.45; holder.add(tag); holder.userData.tag=tag; }
       scene.add(holder); carRoots.push(holder); wheelSets.push(inst.wheels);
+      if(i===0) playerDentGroup=buildDentGroup(holder);   // built before place() moves the holder off-origin
     }
 
     /* pickups (delivered PickupAbles) */
@@ -564,13 +798,14 @@
             <div id="frFico" style="font-family:'Anton',sans-serif;font-size:1.25rem;color:#34d399;min-width:64px;text-align:right">850</div>
           </div>
           <div style="display:flex;justify-content:space-between;margin-top:2px">
-            <div id="frBand" style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:#34d399">NO DAMAGE</div>
+            <div id="frBand" style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:#34d399">${BANDS[0].icon} NO DAMAGE</div>
             <div style="display:flex;gap:12px">
               <div id="frCash" style="font-family:'Orbitron',sans-serif;font-size:.58rem;color:#fbbf24">💰 $0</div>
               <div id="frSpd" style="font-family:'Orbitron',sans-serif;font-size:.58rem;color:#7dd3fc">0 MPH</div>
             </div>
           </div>
         </div>
+        ${frA11yControlHTML()}
       </div>
       <div id="frQBox" style="position:absolute;top:96px;left:50%;transform:translateX(-50%);max-width:640px;width:92%;padding:10px 16px;border-radius:14px;border:1.5px solid #38bdf8;background:rgba(3,8,26,.88);text-align:center;display:none;pointer-events:none">
         <div style="font-family:'Orbitron',sans-serif;font-size:.44rem;letter-spacing:.2em;color:#7dd3fc;margin-bottom:4px">🎯 KNOWLEDGE GATE AHEAD — STEER INTO THE ANSWER LANE</div>
@@ -590,13 +825,14 @@
 
     /* state */
     G={ li,L,scene,cam,rndr,wrap,curve,P,T,NRM,SEG,trackLen,W,
-        cars:carRoots, wheels:wheelSets, pickups, gate, puffs,
+        cars:carRoots, wheels:wheelSets, pickups, gate, puffs, dentGroup:playerDentGroup,
         carIdx, carKey:CARS[carIdx].key,
         carStats:{topSpeedMul:CARS[carIdx].topSpeedMul, steerRateMul:CARS[carIdx].steerRateMul, boostMul:CARS[carIdx].boostMul},
         fico:850, cash:0, band:BANDS[0],
         lap:1, done:false, phase:'count', countT:3.4,
         s:0, d:0, v:0, steerVis:0, spin:0, boost:0, boosting:0, boostSfxOn:false, offroad:false,
         gatesRight:0, gatesWrong:0, paysOnTime:0, missed:0,
+        reducedMotion:!!a11yGet().reducedMotion,   // Gap 4 — dampens camera/particle intensity below, read live each frame
         ai:[1,2,3].map(i=>({ s:-(i*.008)-.006, d:(i-2)*3.2, v:0, spin:0, prog:0,
                              skill:L.aiSkill*(CARS[order[i]].ai?1:1), def:CARS[order[i]],
                              topSpeedMul:CARS[order[i]].topSpeedMul })),
@@ -604,6 +840,8 @@
         keys:{}, dragX:0, camPos:new THREE.Vector3(), camLook:new THREE.Vector3(),
         nextGateAt: L.gateEvery, quizBag:[...QUIZ].sort(()=>Math.random()-.5), quizIdx:0,
         msgT:0 };
+    applyCarDamage();   // sets the (currently NO DAMAGE) baseline — cheap, and keeps state consistent from frame 1
+    applyA11yVisuals();   // Gap 4 — re-apply large-text class + sync the HUD's own checkboxes on a fresh race screen
 
     /* place cars on grid */
     function place(root, s, d, yaw){
@@ -662,10 +900,13 @@
     if(b!==G.band){
       const prevBand=G.band;
       G.band=b;
-      const bd=document.getElementById('frBand'); if(bd){ bd.textContent=b.label; bd.style.color=b.col; }
+      // Gap 4 — band icon (◆▲■✦…) rides along with the label so the HUD never signals
+      // damage-state via color alone (colorblind-safe iconography, GDD §16).
+      const bd=document.getElementById('frBand'); if(bd){ bd.textContent=b.icon+' '+b.label; bd.style.color=b.col; }
       if(BANDS.indexOf(b)>BANDS.indexOf(prevBand)) playSfx('damage');   // TEMP AI-generated SFX placeholder — swap for Kabria's final audio when delivered — only cue on a DROP into a worse band, not on recovery
       if(b.st>=4) msg('🔥 '+b.label+'!', '#ef4444');
       else if(b.spd<1) msg('⚠ '+b.label+' — car slowed!', '#f87171');
+      applyCarDamage();   // Gap: darken/soot the paint, reveal dent/scratch decals, dent the mesh a touch
       if(b.spd===0 && !G.done) finishRace(false,'destroyed');
     }
     const f=document.getElementById('frFico'); if(f){ f.textContent=Math.round(G.fico); f.style.color=b.col; }
@@ -775,7 +1016,9 @@
     G.wheels[0].forEach(w=>{ w.rotation.x+=G.v*dt*.9; });
 
     /* damage FX by band */
-    if(G.band.st>=3 && Math.random()<(G.band.st>=4?.5:.22)) G.spawnPuff(G.cars[0].position, G.band.st>=4&&Math.random()<.5);
+    // Gap 4 — reduced motion dampens (doesn't remove) particle intensity: less visual chaos, damage still legible via the HUD/mesh cues
+    const puffChanceMul=G.reducedMotion?0.45:1;
+    if(G.band.st>=3 && Math.random()<(G.band.st>=4?.5:.22)*puffChanceMul) G.spawnPuff(G.cars[0].position, G.band.st>=4&&Math.random()<.5);
     for(let i=0;i<G.puffs.length;i++){ const p=G.puffs[i]; if(p.life<=0) continue;
       p.life-=dt; p.sp.position.y+=p.vy*dt;
       p.sp.material.opacity=Math.max(0,p.life/p.max)*.6; p.sp.scale.multiplyScalar(1+dt*.7);
@@ -850,14 +1093,17 @@
     if(G.msgT>0){ G.msgT-=dt; if(G.msgT<=0){ const m=document.getElementById('frMsg'); if(m) m.style.opacity=0; } }
 
     /* ── chase camera (exp-decay follow: no trailing gap at speed) ── */
+    // Gap 4 — reduced motion dampens the boost camera-bob + FOV punch (this game's closest
+    // things to "screen shake"); steering/spin visuals are untouched since they carry gameplay meaning.
+    const rmMul=G.reducedMotion?0.3:1;
     const camBack=8.8, camUp=4.6;
     const t0=G.tanAt(G.s,G._v1);
-    G._v2.set(G.cars[0].position.x - t0.x*camBack, camUp + (G.boosting?.35:0), G.cars[0].position.z - t0.z*camBack);
+    G._v2.set(G.cars[0].position.x - t0.x*camBack, camUp + (G.boosting?.35*rmMul:0), G.cars[0].position.z - t0.z*camBack);
     const ka=1-Math.exp(-9*dt);
     G.camPos.lerp(G._v2, ka); G.cam.position.copy(G.camPos);
     G._v2.set(G.cars[0].position.x + t0.x*3.5, 1.6, G.cars[0].position.z + t0.z*3.5);
     G.camLook.lerp(G._v2, 1-Math.exp(-12*dt)); G.cam.lookAt(G.camLook);
-    G.cam.fov=66+(G.boosting?9:0)+(G.v>20?3:0); G.cam.updateProjectionMatrix();
+    G.cam.fov=66+(G.boosting?9*rmMul:0)+(G.v>20?3*rmMul:0); G.cam.updateProjectionMatrix();
     // AI name tags: only near the camera (avoid clutter across the infield)
     for(let i=1;i<4;i++){ const tg=G.cars[i].userData.tag; if(tg) tg.visible=G.cars[i].position.distanceTo(G.cam.position)<55; }
 
@@ -952,7 +1198,7 @@
   window.frRestart=function(){ const li=G?G.li:0, ck=G?G.carKey:null; teardown(); const ui=document.getElementById('frUI'); if(ui) ui.innerHTML=''; frStart(li,ck); };
   window.frStartNext=function(){ const li=G?Math.min(G.li+1,LEVELS.length-1):0, ck=G?G.carKey:null; teardown(); frStart(li,ck); };
   window.frMenu=function(){ teardown(); showLevelSelect(); };
-  window.frExit=function(){ teardown();
+  window.frExit=function(){ teardown(); teardownGaragePreview();
     if(window.state){ state.viewingWorld=state._returnHub||'credtech'; }
     goTo('hub'); };
 })();

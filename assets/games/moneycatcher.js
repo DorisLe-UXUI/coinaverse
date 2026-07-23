@@ -34,6 +34,17 @@
    - Real 3D hero + billboarded item sprites, per-district procedural
      3D decor, lane bounds (minX=-4/maxX=4) — all unchanged from the
      prior 3D pass.
+   - Piggy-Bank hero (audit fix): the GDD's core fantasy is "control a
+     Piggy Bank catching money," but the in-game hero was a generic
+     human kid (cap/shirt/pants) — no piggy shape anywhere in the 3D
+     scene, only a 2D emoji in menus/HUD. buildFallbackHero() now
+     builds a procedural pink/gold piggy bank (rounded body, stubby
+     legs, ears, snout, curly tail, gold-rimmed coin slot on its back)
+     from the same primitives-only convention as before. Real AI
+     generation (Higgsfield generate_image/generate_3d) was tried
+     first and failed on "Out of credits" (free plan, 0 credits) —
+     same plan-gate other agents hit today — hence the procedural
+     build. Movement/input/catch logic is 100% unchanged.
    NOT built (all explicitly Phase 2/3 or excluded in the GDD's own
    §16 MVP-scope table, and this app has zero backend — confirmed no
    API server is deployed, everything is localStorage-only): real-time
@@ -580,19 +591,69 @@
       }, undefined, ()=>{ res(null); });
     });
   }
+  // procedural piggy-bank hero — replace with Kabria's final character art/model if she
+  // provides one. This is the fix for the audit finding that the GDD's core fantasy
+  // ("control a Piggy Bank catching money") wasn't delivered: the in-game hero was a
+  // generic human kid (cap/shirt/pants), with no piggy shape anywhere in the 3D scene —
+  // only a 2D emoji in menus/HUD. Real AI image/3D generation (Higgsfield MCP,
+  // generate_image/generate_3d) was attempted first and failed with "Out of credits in
+  // the selected workspace" (workspace is on the free plan, 0 credits) — same plan-gate
+  // hit by other agents in this project today — so this falls back to building the piggy
+  // procedurally, same as buildFallbackHero already did for the human character.
   function buildFallbackHero(){
     // three r128 has no CapsuleGeometry — rounded-cylinder limbs match FICO Racer's
-    // own procedural-fallback convention (Box/Cylinder/Sphere only).
+    // own procedural-fallback convention (Box/Cylinder/Sphere only). A squashed
+    // SphereGeometry belly doubles as the whole body+head, like a classic ceramic
+    // piggy bank, with a gold-rimmed coin slot on its back as the signature "bank"
+    // detail. legs[]/arms[] below are reused as the back-leg-pair/front-leg-pair so
+    // the existing walk-cycle code in update() (h.legs[0/1].rotation.x and
+    // h.arms[0/1].rotation.x, driven by the same movement/input logic as before)
+    // animates a quadruped trot with ZERO changes to any movement/control code.
     const g=new THREE.Group();
-    const skin=new THREE.MeshToonMaterial({color:0xffd1a3}), shirt=new THREE.MeshToonMaterial({color:0x14b8a6}), pants=new THREE.MeshToonMaterial({color:0x334155});
-    const head=new THREE.Mesh(new THREE.SphereGeometry(.32,12,10), skin); head.position.y=1.5; g.add(head);
-    const cap=new THREE.Mesh(new THREE.SphereGeometry(.33,12,8,0,Math.PI*2,0,Math.PI/2), new THREE.MeshToonMaterial({color:0x0d9488})); cap.position.y=1.58; g.add(cap);
-    const torso=new THREE.Mesh(new THREE.CylinderGeometry(.24,.3,.62,10), shirt); torso.position.y=1.03; g.add(torso);
-    const legL=new THREE.Mesh(new THREE.CylinderGeometry(.11,.13,.52,8), pants); legL.position.set(-.13,.4,0); g.add(legL);
-    const legR=legL.clone(); legR.position.x=.13; g.add(legR);
-    const armL=new THREE.Mesh(new THREE.CylinderGeometry(.08,.1,.44,8), skin); armL.position.set(-.4,1.05,0); armL.rotation.z=.25; g.add(armL);
-    const armR=armL.clone(); armR.position.x=.4; armR.rotation.z=-.25; g.add(armR);
-    return {root:g, mixer:null, actions:null, legs:[legL,legR], arms:[armL,armR], _fallback:true};
+    const pink=new THREE.MeshToonMaterial({color:0xffb0d8});  // bubblegum-pink body
+    const rose=new THREE.MeshToonMaterial({color:0xf472b6});  // rose-pink snout/ears/legs/tail (existing app accent — see NEG_ITEMS 'impulse' ring color)
+    const gold=new THREE.MeshToonMaterial({color:0xfbbf24});  // gold coin-slot rim (existing app gold accent — vault theme / HUD)
+    const dark=new THREE.MeshToonMaterial({color:0x3f2a22});  // dark coin-slot groove / eyes / nostrils
+
+    // belly — the whole body+head in one round shape, like a real piggy-bank toy
+    const belly=new THREE.Mesh(new THREE.SphereGeometry(.56,16,12), pink);
+    belly.scale.set(1,.9,1.18); belly.position.y=.95; g.add(belly);
+
+    // snout
+    const snout=new THREE.Mesh(new THREE.CylinderGeometry(.2,.23,.17,12), rose);
+    snout.rotation.x=Math.PI/2; snout.position.set(0,.86,.62); g.add(snout);
+    const nosGeo=new THREE.SphereGeometry(.025,6,6);
+    const nosL=new THREE.Mesh(nosGeo,dark); nosL.position.set(-.07,.86,.7); g.add(nosL);
+    const nosR=nosL.clone(); nosR.position.x=.07; g.add(nosR);
+
+    // friendly face
+    const eyeGeo=new THREE.SphereGeometry(.05,8,8);
+    const eyeL=new THREE.Mesh(eyeGeo,dark); eyeL.position.set(-.2,1.08,.5); g.add(eyeL);
+    const eyeR=eyeL.clone(); eyeR.position.x=.2; g.add(eyeR);
+
+    // ears
+    const earGeo=new THREE.SphereGeometry(.17,10,8);
+    const earL=new THREE.Mesh(earGeo, rose); earL.scale.set(1,1.25,.35); earL.position.set(-.3,1.38,.16); earL.rotation.set(-.2,0,.5); g.add(earL);
+    const earR=earL.clone(); earR.position.x=.3; earR.rotation.z=-.5; g.add(earR);
+
+    // curly tail
+    const tail=new THREE.Mesh(new THREE.TorusGeometry(.09,.028,8,10), rose);
+    tail.position.set(0,1.0,-.58); tail.rotation.y=.4; g.add(tail);
+
+    // gold-rimmed coin slot on the back — the signature "piggy BANK" detail from the GDD
+    const slotBase=new THREE.Mesh(new THREE.BoxGeometry(.26,.05,.09), gold);
+    slotBase.position.set(0,1.44,-.14); slotBase.rotation.x=-.15; g.add(slotBase);
+    const slotGroove=new THREE.Mesh(new THREE.BoxGeometry(.19,.035,.05), dark);
+    slotGroove.position.set(0,1.455,-.135); slotGroove.rotation.x=-.15; g.add(slotGroove);
+
+    // 4 stubby legs — back pair drives legs[], front pair drives arms[] (see comment above)
+    const legGeo=new THREE.CylinderGeometry(.115,.135,.42,8);
+    const legBL=new THREE.Mesh(legGeo, rose); legBL.position.set(-.28,.21,-.34); g.add(legBL);
+    const legBR=legBL.clone(); legBR.position.x=.28; g.add(legBR);
+    const legFL=new THREE.Mesh(legGeo, rose); legFL.position.set(-.28,.21,.34); g.add(legFL);
+    const legFR=legFL.clone(); legFR.position.x=.28; g.add(legFR);
+
+    return {root:g, mixer:null, actions:null, legs:[legBL,legBR], arms:[legFL,legFR], _fallback:true};
   }
 
   /* ══════════════ GAME ══════════════ */
@@ -696,7 +757,9 @@
       for(let side=-1;side<=1;side+=2) for(let i=-3;i<=3;i++) decorItem(new THREE.CylinderGeometry(.05,.05,.9,6), railM, side*edge, .45, i*1.4);
     }
 
-    /* hero — procedural Guardian character (see loadHeroAsset's comment above) */
+    /* hero — procedural piggy-bank Guardian character (see loadHeroAsset's comment
+       above for why the FBX path is unused, and buildFallbackHero's own comment for
+       why this is a piggy bank now instead of a generic human kid) */
     const heroInst=Object.assign(buildFallbackHero(),{isFallback:true});
     scene.add(heroInst.root);
 

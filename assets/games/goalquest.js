@@ -63,16 +63,16 @@
 
   // ── 10 power-ups — Appendix D full list, every one implemented ───
   const POWERUPS=[
-    {id:'coupon',   name:'Coupon Craze',       icon:'🏷️', effect:'costDown',    dur:20, val:0.30},
-    {id:'bonuspay', name:'Bonus Paycheck',     icon:'💵', effect:'income',      dur:0},
-    {id:'freeze',   name:'Freeze Bills',       icon:'🧊', effect:'billFreeze',  dur:30},
-    {id:'cashback', name:'Cashback Boost',     icon:'💳', effect:'cashback',    dur:22, val:0.20},
-    {id:'advisor',  name:'Financial Advisor',  icon:'🤖', effect:'advice',      dur:14},
-    {id:'frenzy',   name:'Side Hustle Frenzy', icon:'⚡', effect:'incomeDouble',dur:16},
-    {id:'auto',     name:'Auto Budget',        icon:'🧠', effect:'autoBudget',  dur:20},
-    {id:'timeext',  name:'Time Extension',     icon:'⏰', effect:'timeExt',     dur:0, val:15},
-    {id:'windfall', name:'Lucky Windfall',     icon:'🍀', effect:'luck',        dur:0},
-    {id:'savex2',   name:'Savings Multiplier', icon:'✨', effect:'savingsX2',   dur:12},
+    {id:'coupon',   name:'Coupon Craze',       icon:'🏷️', effect:'costDown',    dur:20, val:0.30, fx:'Bills cost 30% less'},
+    {id:'bonuspay', name:'Bonus Paycheck',     icon:'💵', effect:'income',      dur:0,             fx:'Instant income boost'},
+    {id:'freeze',   name:'Freeze Bills',       icon:'🧊', effect:'billFreeze',  dur:30,            fx:'No bills for 30s'},
+    {id:'cashback', name:'Cashback Boost',     icon:'💳', effect:'cashback',    dur:22, val:0.20,  fx:'Earn money back on spends'},
+    {id:'advisor',  name:'Financial Advisor',  icon:'🤖', effect:'advice',      dur:14,            fx:'Highlights the smart move'},
+    {id:'frenzy',   name:'Side Hustle Frenzy', icon:'⚡', effect:'incomeDouble',dur:16,            fx:'Double income from jobs'},
+    {id:'auto',     name:'Auto Budget',        icon:'🧠', effect:'autoBudget',  dur:20,            fx:'Auto-allocates for 20s'},
+    {id:'timeext',  name:'Time Extension',     icon:'⏰', effect:'timeExt',     dur:0, val:15,     fx:'+15s on the clock'},
+    {id:'windfall', name:'Lucky Windfall',     icon:'🍀', effect:'luck',        dur:0,             fx:'Random bonus cash'},
+    {id:'savex2',   name:'Savings Multiplier', icon:'✨', effect:'savingsX2',   dur:12,            fx:'Savings count double'},
   ];
 
   // ── 14 real-life events — Appendix D full list ────────────────────
@@ -93,6 +93,155 @@
     {id:'medical',       label:'Medical Expense',    icon:'🩺', type:'shock',       minD:2, severe:true},
     {id:'family_emerg',  label:'Family Emergency',   icon:'🚨', type:'shock',       minD:2, severe:true},
   ];
+
+  // short effect text per event archetype (GDD §9.3/§13 "Effect on the
+  // run" column) — shown on hover for the illustrated event badges below
+  const EVENT_TYPE_BLURB={
+    shock:       'Sudden cost — an Emergency Fund softens it',
+    temptation:  'Tempting want — tests delayed gratification',
+    seasonal:    'Recurring seasonal spend pressure',
+    bonus:       'Free reward income — catch it',
+    opportunity: 'Extra income if you catch it',
+    incomeShock: 'Temporary income dip',
+  };
+
+  /* ══════════════════════ HAND-AUTHORED MASCOT / BADGE ART ═══════════
+     hand-authored mascot/badge art — replace with Kabria's final character
+     art if she provides one. Direction per GDD §14.2 ("Friendly robots &
+     Coinaverse mascots as coaches") and §14.1 (goal card = hero element;
+     Power-Ups grid = "10 power-up tiles with icon + effect"). Built as
+     inline SVG so there's no image-hosting/loading pipeline; cached as
+     Image() objects for canvas re-use (see badgeImg). Paid AI image-gen
+     (Higgsfield MCP) was attempted first and returned "Out of credits in
+     the selected workspace" — this is the fallback, same pattern used for
+     Stock Surge's 13 CEO portraits earlier today. ════════════════════ */
+  const _badgeImgCache={};
+  function _uid(){ return 'g'+Math.random().toString(36).slice(2,9); }
+  function svgDataURI(svg){ return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg); }
+  function badgeImg(key,svgStr){
+    if(!_badgeImgCache[key]){ const im=new Image(); im.src=svgDataURI(svgStr); _badgeImgCache[key]=im; }
+    return _badgeImgCache[key];
+  }
+
+  // circular medallion frame — glyphInner is raw SVG markup (paths/shapes
+  // for power-ups, or an emoji <text> for events/goals); used everywhere
+  // a power-up/event/goal used to be "raw emoji in a plain rounded div"
+  function badgeMedallion(glyphInner,ring,base1,base2){
+    const gid=_uid();
+    return `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+      <defs><radialGradient id="${gid}" cx="35%" cy="28%" r="78%">
+        <stop offset="0%" stop-color="${base2}"/><stop offset="100%" stop-color="${base1}"/>
+      </radialGradient></defs>
+      <circle cx="32" cy="32" r="29.5" fill="url(#${gid})" stroke="${ring}" stroke-width="2.5"/>
+      <circle cx="32" cy="32" r="23.5" fill="none" stroke="${ring}" stroke-opacity=".3" stroke-width="1"/>
+      ${glyphInner}
+    </svg>`;
+  }
+  function emojiGlyph(e){ return `<text x="32" y="41" font-size="26" text-anchor="middle" font-family="'Segoe UI Emoji','Apple Color Emoji',sans-serif">${e}</text>`; }
+
+  // custom hand-drawn glyphs — one per power-up (GDD Appendix D full list),
+  // built from simple flat shapes (no font/emoji dependency)
+  const PU_GLYPH={
+    coupon:`<polygon points="17,22 36,22 48,32 36,42 17,42" fill="#fff" stroke="#0f172a" stroke-width="2" stroke-linejoin="round"/><circle cx="23" cy="32" r="3" fill="#0f172a"/>`,
+    bonuspay:`<rect x="14" y="23" width="36" height="20" rx="4" fill="#fff" stroke="#0f172a" stroke-width="2"/><circle cx="32" cy="33" r="7.5" fill="none" stroke="#0f172a" stroke-width="2"/><text x="32" y="37" font-size="10" font-weight="900" text-anchor="middle" fill="#0f172a" font-family="Arial,sans-serif">$</text>`,
+    freeze:`<g stroke="#e0f2fe" stroke-width="3" stroke-linecap="round"><line x1="32" y1="15" x2="32" y2="49"/><line x1="15" y1="32" x2="49" y2="32"/><line x1="20" y1="20" x2="44" y2="44"/><line x1="44" y1="20" x2="20" y2="44"/></g><g fill="#e0f2fe"><circle cx="32" cy="15" r="2.3"/><circle cx="32" cy="49" r="2.3"/><circle cx="15" cy="32" r="2.3"/><circle cx="49" cy="32" r="2.3"/><circle cx="20" cy="20" r="2.1"/><circle cx="44" cy="44" r="2.1"/><circle cx="44" cy="20" r="2.1"/><circle cx="20" cy="44" r="2.1"/></g>`,
+    cashback:`<rect x="14" y="22" width="34" height="21" rx="4" fill="#fff" stroke="#0f172a" stroke-width="2"/><rect x="14" y="27" width="34" height="4" fill="#0f172a"/><path d="M39 41 a9 9 0 1 1 3 -6.5" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/><polygon points="44,31 44,38 38,35" fill="#22c55e"/>`,
+    advisor:`<rect x="19" y="21" width="26" height="21" rx="7" fill="#c4b5fd" stroke="#0f172a" stroke-width="2"/><circle cx="26" cy="31" r="2.8" fill="#0f172a"/><circle cx="38" cy="31" r="2.8" fill="#0f172a"/><rect x="27" y="36" width="10" height="2.4" rx="1.2" fill="#0f172a"/><line x1="32" y1="21" x2="32" y2="15" stroke="#0f172a" stroke-width="2"/><circle cx="32" cy="13" r="2.8" fill="#fde68a" stroke="#0f172a" stroke-width="1.3"/>`,
+    frenzy:`<polygon points="35,14 20,35 29,35 24,50 45,27 34,27" fill="#fde047" stroke="#0f172a" stroke-width="2" stroke-linejoin="round"/>`,
+    auto:`<circle cx="32" cy="32" r="9" fill="none" stroke="#a78bfa" stroke-width="3"/><circle cx="32" cy="32" r="4" fill="#0f172a"/><g fill="#a78bfa"><rect x="29.5" y="13" width="5" height="7" rx="1.6"/><rect x="29.5" y="44" width="5" height="7" rx="1.6"/><rect x="13" y="29.5" width="7" height="5" rx="1.6"/><rect x="44" y="29.5" width="7" height="5" rx="1.6"/><rect x="18.3" y="18.3" width="5" height="7" rx="1.6" transform="rotate(45 20.8 21.8)"/><rect x="40.7" y="18.3" width="5" height="7" rx="1.6" transform="rotate(-45 43.2 21.8)"/><rect x="18.3" y="38.7" width="5" height="7" rx="1.6" transform="rotate(-45 20.8 42.2)"/><rect x="40.7" y="38.7" width="5" height="7" rx="1.6" transform="rotate(45 43.2 42.2)"/></g>`,
+    timeext:`<circle cx="29" cy="33" r="14" fill="#fff" stroke="#0f172a" stroke-width="2.5"/><line x1="29" y1="33" x2="29" y2="23" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round"/><line x1="29" y1="33" x2="36" y2="36" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round"/><g stroke="#22c55e" stroke-width="3" stroke-linecap="round"><line x1="47" y1="18" x2="47" y2="28"/><line x1="42" y1="23" x2="52" y2="23"/></g>`,
+    windfall:`<g fill="#4ade80" stroke="#0f172a" stroke-width="1.5"><circle cx="26" cy="26" r="8"/><circle cx="38" cy="26" r="8"/><circle cx="26" cy="38" r="8"/><circle cx="38" cy="38" r="8"/></g><line x1="32" y1="38" x2="32" y2="50" stroke="#166534" stroke-width="2.5" stroke-linecap="round"/>`,
+    savex2:`<path d="M32 13 L35.3 27 L49 30 L35.3 33 L32 47 L28.7 33 L15 30 L28.7 27 Z" fill="#fde047" stroke="#0f172a" stroke-width="1.5" stroke-linejoin="round"/><text x="32" y="59" font-size="9" font-weight="900" text-anchor="middle" fill="#fde047" font-family="Arial,sans-serif">×2</text>`,
+  };
+  function puBadgeSVG(p){ return badgeMedallion(PU_GLYPH[p.id]||emojiGlyph(p.icon),'#a78bfa','#1b1440','#4c3a8f'); }
+  function evBadgeSVG(ev){ const ring=ev.type==='shock'?'#f87171':'#f472b6'; return badgeMedallion(emojiGlyph(ev.icon),ring,'#1b1030','#3a1e42'); }
+  function goalBadgeSVG(g){ return badgeMedallion(emojiGlyph(g.icon),'#fbbf24','#1b1440','#4c3a8f'); }
+  function puBadgeImg(p){ return badgeImg('pu:'+p.id, puBadgeSVG(p)); }
+  function evBadgeImg(ev){ return badgeImg('ev:'+ev.id, evBadgeSVG(ev)); }
+  function rareBadgeImg(){ return badgeImg('rare', badgeMedallion(`<polygon points="32,14 44,32 32,50 20,32" fill="#fde047" stroke="#0f172a" stroke-width="2" stroke-linejoin="round"/><polygon points="32,20 39,32 32,44 25,32" fill="#fff7cc"/>`,'#fde047','#1b1440','#4c3a8f')); }
+
+  // illustrated power-up tile: icon art + name + effect text, styled as a
+  // rounded card (GDD §14.1 "Power-Ups grid — 10 power-up tiles with icon
+  // + effect") — replaces the old bare-emoji-in-a-div home strip
+  function puBadgeCard(p){
+    return `<div title="${p.name}" style="width:96px;padding:8px 6px;border-radius:14px;background:linear-gradient(160deg,rgba(167,139,250,.14),rgba(15,23,42,.5));border:1px solid rgba(167,139,250,.35);text-align:center">
+      <div style="width:46px;height:46px;margin:0 auto 4px">${puBadgeSVG(p)}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.05em;color:#e9d5ff;line-height:1.3">${p.name}</div>
+      <div style="font-size:.44rem;color:rgba(255,255,255,.55);line-height:1.25;margin-top:2px">${p.fx||''}</div>
+    </div>`;
+  }
+  // small illustrated event badge (icon art + label; effect text on hover)
+  // for the "BE READY FOR REAL-LIFE EVENTS" strip on the district briefing
+  function evBadgeChip(ev){
+    return `<div title="${ev.label} — ${EVENT_TYPE_BLURB[ev.type]||''}" style="width:60px;text-align:center">
+      <div style="width:34px;height:34px;margin:0 auto 3px">${evBadgeSVG(ev)}</div>
+      <div style="font-size:.36rem;color:rgba(255,255,255,.6);line-height:1.15">${ev.label}</div>
+    </div>`;
+  }
+
+  // ── friendly robot coach mascot (GDD §14.2 "Friendly robots & Coinaverse
+  //    mascots as coaches") — shown for late fees, bill warnings & the
+  //    Financial Advisor power-up. accent recolors visor/mouth/antenna to
+  //    match the moment's tone (amber=warning, violet=advisor default) ──
+  function mascotCoachSVG(accent){
+    accent=accent||'#a78bfa';
+    return `<svg viewBox="0 0 120 150" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">
+      <circle cx="60" cy="74" r="58" fill="#0b1226" stroke="${accent}" stroke-width="3"/>
+      <line x1="60" y1="26" x2="60" y2="14" stroke="#93c5fd" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="60" cy="11" r="4.5" fill="${accent}"/>
+      <rect x="34" y="26" width="52" height="40" rx="14" fill="#3b4d8b" stroke="#0f172a" stroke-width="3"/>
+      <rect x="42" y="38" width="36" height="16" rx="8" fill="#0f172a"/>
+      <circle cx="52" cy="46" r="4" fill="${accent}"/><circle cx="68" cy="46" r="4" fill="${accent}"/>
+      <rect x="52" y="58" width="16" height="3" rx="1.5" fill="${accent}"/>
+      <rect x="30" y="66" width="60" height="46" rx="16" fill="#2c3a70" stroke="#0f172a" stroke-width="3"/>
+      <circle cx="60" cy="88" r="9" fill="#0f172a"/><circle cx="60" cy="88" r="5" fill="${accent}"/>
+      <rect x="16" y="74" width="14" height="30" rx="7" fill="#3b4d8b" stroke="#0f172a" stroke-width="3"/>
+      <rect x="82" y="52" width="14" height="34" rx="7" fill="#3b4d8b" stroke="#0f172a" stroke-width="3" transform="rotate(-18 89 69)"/>
+      <g transform="translate(78,24)">
+        <path d="M0 4 h20 v6 c0 7 -4 11 -10 11 s-10 -4 -10 -11 Z" fill="#fbbf24" stroke="#0f172a" stroke-width="2"/>
+        <path d="M-6 6 c-6 0 -6 10 0 12" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <path d="M26 6 c6 0 6 10 0 12" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <rect x="7" y="21" width="6" height="6" fill="#fbbf24" stroke="#0f172a" stroke-width="1.5"/>
+        <rect x="1" y="27" width="18" height="4" rx="1.5" fill="#fbbf24" stroke="#0f172a" stroke-width="1.5"/>
+      </g>
+      <rect x="40" y="110" width="14" height="16" rx="5" fill="#232f5c"/>
+      <rect x="66" y="110" width="14" height="16" rx="5" fill="#232f5c"/>
+    </svg>`;
+  }
+  // illustrated boy avatar posed on the goal card (GDD §14.1 "Current goal
+  // card ... hero element of the hub") — planner fist-pump pose
+  function mascotAvatarSVG(){
+    return `<svg viewBox="0 0 120 150" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">
+      <circle cx="60" cy="76" r="58" fill="#0f1730" stroke="#fbbf24" stroke-width="3"/>
+      <path d="M36 44 q24 -26 48 0 q2 -14 -24 -16 q-26 2 -24 16 Z" fill="#241408" stroke="#0f172a" stroke-width="2"/>
+      <circle cx="60" cy="53" r="24" fill="#f2b78c" stroke="#0f172a" stroke-width="3"/>
+      <circle cx="51" cy="55" r="3.2" fill="#0f172a"/><circle cx="69" cy="55" r="3.2" fill="#0f172a"/>
+      <circle cx="45" cy="61" r="3.3" fill="#f6a56b" opacity=".55"/><circle cx="75" cy="61" r="3.3" fill="#f6a56b" opacity=".55"/>
+      <path d="M50 65 q10 8 20 0" fill="none" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M30 129 q4 -36 30 -38 q30 2 30 38 Z" fill="#1e3a8a" stroke="#0f172a" stroke-width="3"/>
+      <path d="M50 91 l10 10 l10 -10" fill="none" stroke="#fbbf24" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M86 97 q14 -6 16 -22" fill="none" stroke="#1e3a8a" stroke-width="12" stroke-linecap="round"/>
+      <circle cx="102" cy="73" r="8" fill="#f2b78c" stroke="#0f172a" stroke-width="2.5"/>
+      <path d="M34 97 q-10 6 -10 20" fill="none" stroke="#1e3a8a" stroke-width="12" stroke-linecap="round"/>
+      <circle cx="24" cy="117" r="7" fill="#f2b78c" stroke="#0f172a" stroke-width="2"/>
+    </svg>`;
+  }
+
+  // coach popup — the mascot + a speech bubble, replacing bare floatTxt for
+  // the 3 coaching moments named in the GDD tone rule ("Bots coach...")
+  function showCoach(msg,tone){
+    if(!G) return;
+    G.coachT=3.2;
+    const accent = tone==='warn' ? '#fbbf24' : tone==='alert' ? '#f87171' : '#a78bfa';
+    const el=document.getElementById('gqCoach'); if(!el) return;
+    el.innerHTML=`<div style="width:52px;height:60px;flex-shrink:0">${mascotCoachSVG(accent)}</div>
+      <div style="background:rgba(7,13,24,.92);border:1.5px solid ${accent};border-radius:12px;padding:8px 12px;font-size:.62rem;line-height:1.35;color:#fff;max-width:220px;box-shadow:0 0 22px ${accent}55">${msg}</div>`;
+    el.style.display='flex';
+    requestAnimationFrame(()=>{ el.style.opacity=1; el.style.transform='translateY(0)'; });
+  }
+  function hideCoach(){
+    const el=document.getElementById('gqCoach'); if(el){ el.style.opacity=0; el.style.transform='translateY(10px)'; }
+  }
 
   function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
   function fmtM(n){ n=Math.round(n); return (n<0?'-$':'$')+Math.abs(n).toLocaleString(); }
@@ -166,6 +315,7 @@
       </div>
       <canvas id="gqCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none"></canvas>
       <div id="gqEventBanner" style="position:absolute;top:96px;left:50%;transform:translate(-50%,-8px);z-index:6;display:none;padding:8px 18px;border-radius:12px;border:1.5px solid #fbbf24;background:rgba(7,13,24,.9);font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.1em;color:#fde68a;box-shadow:0 0 24px rgba(251,191,36,.35);white-space:nowrap;transition:opacity .25s,transform .25s;opacity:0;pointer-events:none"></div>
+      <div id="gqCoach" style="position:absolute;left:14px;bottom:96px;z-index:7;display:none;align-items:flex-end;gap:8px;max-width:300px;opacity:0;transform:translateY(10px);transition:opacity .3s,transform .3s;pointer-events:none"></div>
       <div id="gqHome" style="position:absolute;inset:0;z-index:9;display:none;overflow-y:auto"></div>
       <div id="gqBrief" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(7,13,24,.86);backdrop-filter:blur(5px);padding:18px;overflow-y:auto"></div>
       <div id="gqGate" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(7,13,24,.86);backdrop-filter:blur(5px);padding:22px"></div>
@@ -274,8 +424,8 @@
           </div>`;}).join('')}
       </div>
       <div style="max-width:640px;text-align:center;font-size:.55rem;letter-spacing:.05em;color:rgba(255,255,255,.4);margin-top:4px">💰 INCOME → 🧾 BILLS/EVENTS → 🖐️ DECIDE → 📊 IMPACT → 🎯 GOAL — sort every falling token into the right bucket before it lands!</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center;max-width:620px">
-        ${POWERUPS.map(p=>`<div title="${p.name}" style="width:34px;height:34px;border-radius:9px;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.25);display:flex;align-items:center;justify-content:center;font-size:1rem">${p.icon}</div>`).join('')}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:840px">
+        ${POWERUPS.map(p=>puBadgeCard(p)).join('')}
       </div>
     </div>`;
   }
@@ -295,7 +445,10 @@
     const evPool=EVENTS.filter(e=>e.minD<=DI);
     el.innerHTML=`<div style="max-width:560px;width:100%;text-align:center;padding:28px 26px;border:1.5px solid ${d.col};border-radius:22px;background:linear-gradient(160deg,rgba(30,41,59,.97),rgba(7,13,24,.97));box-shadow:0 0 60px ${d.colSoft};animation:gqGateIn .3s ease">
       <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.22em;color:${d.col}">${d.icon} ${d.name} · ${d.sub}</div>
-      <div style="font-size:3rem;margin:12px 0 4px">${g.icon}</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin:12px 0 4px">
+        <div style="width:60px;height:76px;flex-shrink:0" title="Your Planner">${mascotAvatarSVG()}</div>
+        <div style="width:76px;height:76px;flex-shrink:0" title="${g.label}">${goalBadgeSVG(g)}</div>
+      </div>
       <div style="font-family:'Anton',sans-serif;font-size:1.6rem;margin-bottom:2px">${g.label}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.9rem;color:#fbbf24;margin-bottom:14px">TARGET: $${g.cost.toLocaleString()}</div>
       <div style="display:flex;justify-content:center;gap:6px;flex-wrap:wrap;font-size:.62rem;color:rgba(255,255,255,.7);margin-bottom:14px">
@@ -307,7 +460,7 @@
       </div>
       <div style="text-align:left;background:rgba(255,255,255,.04);border-radius:12px;padding:10px 14px;margin-bottom:16px">
         <div style="font-family:'Orbitron',sans-serif;font-size:.44rem;letter-spacing:.14em;color:#f87171;margin-bottom:6px">⚠️ BE READY FOR REAL-LIFE EVENTS</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">${evPool.map(e=>`<span title="${e.label}" style="font-size:1rem">${e.icon}</span>`).join('')}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">${evPool.map(e=>evBadgeChip(e)).join('')}</div>
       </div>
       <button onclick="gqStartRound()" style="padding:14px 34px;margin:4px;border:none;border-radius:13px;background:linear-gradient(135deg,${d.col},#1d2b4d);color:#fff;font-family:'Orbitron',sans-serif;font-size:.78rem;letter-spacing:.12em;font-weight:900;cursor:pointer;box-shadow:0 0 30px ${d.colSoft}">▶ PLAY</button>
       <button onclick="gqBackHome()" style="padding:14px 22px;margin:4px;border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.7rem;letter-spacing:.1em;cursor:pointer">← DISTRICTS</button>
@@ -331,7 +484,7 @@
         billsSeen:0, billsMissed:0, eventsSeen:0, shocksSeen:0, impulseSeen:0, impulseAccepted:0,
         incomeCaught:0, toSavingsGoal:0, rareCollected:0, powerupsUsed:0,
         objectives, objResults:objectives.map(()=>false),
-        bannerT:0 };
+        bannerT:0, coachT:0 };
     // NOTE: input listeners are attached once in gqBoot() and persist for the whole
     // screen visit (the canvas element itself is never recreated by phase changes) —
     // _cleanup is carried over above so gqExit() can still remove them correctly.
@@ -383,6 +536,7 @@
     }
     if(d.inflationPerSec) G.inflation+=d.inflationPerSec*dt;
     if(G.bannerT>0){ G.bannerT-=dt; if(G.bannerT<=0){ const b=document.getElementById('gqEventBanner'); if(b){ b.style.opacity=0; b.style.transform='translate(-50%,-8px)'; } } }
+    if(G.coachT>0){ G.coachT-=dt; if(G.coachT<=0) hideCoach(); }
     Object.keys(G.fxT).forEach(k=>{ if(G.fxT[k]>0) G.fxT[k]-=dt; });
 
     // Auto Budget power-up: gently auto-resolves the lowest item into its ideal bucket
@@ -445,7 +599,14 @@
     }
     const pr=document.getElementById('gqPowerRow'); if(pr){
       let html=''; const label={coupon:'COUPON',cashback:'CASHBACK',billFreeze:'FREEZE',advisor:'ADVISOR',frenzy:'FRENZY',autoBudget:'AUTO',savingsX2:'SAVE x2'};
-      Object.keys(G.fxT).forEach(k=>{ if(G.fxT[k]>0 && label[k]) html+=`<div style="padding:3px 8px;border-radius:8px;background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.4);font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.08em;color:#c4b5fd">${label[k]} ${Math.ceil(G.fxT[k])}s</div>`; });
+      const fxToPu={coupon:'coupon',cashback:'cashback',billFreeze:'freeze',advisor:'advisor',frenzy:'frenzy',autoBudget:'auto',savingsX2:'savex2'};
+      Object.keys(G.fxT).forEach(k=>{ if(G.fxT[k]>0 && label[k]){
+        const pu=POWERUPS.find(p=>p.id===fxToPu[k]);
+        // cached badge Image (not regenerated per frame) — small icon art
+        // instead of no icon at all, reusing the same asset canvas tokens use
+        const ic=pu?`<img src="${puBadgeImg(pu).src}" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px;border-radius:3px">`:'';
+        html+=`<div style="padding:3px 8px;border-radius:8px;background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.4);font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.08em;color:#c4b5fd">${ic}${label[k]} ${Math.ceil(G.fxT[k])}s</div>`;
+      } });
       pr.innerHTML=html;
     }
   }
@@ -561,7 +722,7 @@
     } else { // SPENDING
       if(d.enabled.happiness){ G.happiness=Math.min(100,G.happiness+4); G.noSpendT=0; }
       if(G.fxT.cashback>0){ const cb=it.val*0.20; G.savings+=cb; G.goalProgress+=cb*0.5; }
-      if(G.overdueBills>0){ badFx(it.x,it.y,'Bills overdue — pay those first!',6); }
+      if(G.overdueBills>0){ badFx(it.x,it.y,'Bills overdue — pay those first!',6); showCoach('Overdue bills! Route income to 🧾 BILLS before treating yourself.','warn'); }
       else { neutralFx(it.x,it.y,'Nice treat (no goal progress)','#f9a8d4'); }
     }
   }
@@ -583,6 +744,7 @@
     const lateFee=Math.round(it.val*D().lateFeePct*G.missedBillsStreak);
     if(D().enabled.credit) G.credit=Math.max(300,G.credit-25);
     badFx(it.x,it.y,'LATE FEE! -'+fmtM(lateFee), 8+G.missedBillsStreak*3);
+    showCoach('Late fee! Route 🧾 bills to BILLS before they hit the floor.','warn');
   }
 
   function resolveEvent(it,bi){
@@ -636,7 +798,7 @@
         floatTxt(0.5,0.3,'💵 +'+fmtM(bonus)+' BONUS PAYCHECK','#fde68a'); } break;
       case 'billFreeze': G.fxT.billFreeze=pu.dur; floatTxt(0.5,0.3,'🧊 BILLS FROZEN 30s','#5eead4'); break;
       case 'cashback': G.fxT.cashback=pu.dur; floatTxt(0.5,0.3,'💳 CASHBACK BOOST!','#5eead4'); break;
-      case 'advice': G.fxT.advisor=pu.dur; floatTxt(0.5,0.3,'🤖 ADVISOR ONLINE','#a78bfa'); break;
+      case 'advice': G.fxT.advisor=pu.dur; floatTxt(0.5,0.3,'🤖 ADVISOR ONLINE','#a78bfa'); showCoach('Financial Advisor online! I will glow the smartest bucket for '+pu.dur+'s.'); break;
       case 'incomeDouble': G.fxT.frenzy=pu.dur; floatTxt(0.5,0.3,'⚡ SIDE HUSTLE FRENZY!','#fde68a'); break;
       case 'autoBudget': G.fxT.autoBudget=pu.dur; G.spawnAutoT=0.1; floatTxt(0.5,0.3,'🧠 AUTO BUDGET ON!','#a78bfa'); break;
       case 'timeExt': G.time+=pu.val; floatTxt(0.5,0.3,'⏰ +'+pu.val+'s TIME','#5eead4'); break;
@@ -729,7 +891,16 @@
         ctx.scale(pulse,pulse);
         ctx.shadowColor=col; ctx.shadowBlur=it.grab?26:(it.kind==='event'?20:14);
         const r=it.r;
-        ctx.font=(r*2)+'px serif'; ctx.fillText(it.e,0,-2);
+        // illustrated badge art for power-ups/rare/events (hand-authored —
+        // replace with Kabria's final character/badge art if she provides
+        // one); falls back to the raw emoji glyph until the tiny inline-SVG
+        // image decodes (near-instant) or for income/bill tokens (unchanged)
+        let img=null;
+        if(it.kind==='power') img=puBadgeImg(it.pu);
+        else if(it.kind==='rare') img=rareBadgeImg();
+        else if(it.kind==='event') img=evBadgeImg(it.ev);
+        if(img && img.complete && img.naturalWidth>0){ ctx.drawImage(img,-r,-r,r*2,r*2); }
+        else { ctx.font=(r*2)+'px serif'; ctx.fillText(it.e,0,-2); }
         ctx.shadowBlur=0;
         ctx.restore();
         const lab=it.kind==='income'||it.kind==='bill'?(it.t+' '+fmtM(it.val)):it.t;

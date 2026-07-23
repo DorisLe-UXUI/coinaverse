@@ -129,19 +129,59 @@
   // Selectable shops (each themes the order menu + base price) — GDD §8's
   // "Randomized Business Roster": expanded from 3 → 9, all data-driven off
   // this one table (adding a 10th needs no other code changes, per §15.1).
+  // Each shop now also carries `tint` (its own accent color) + `cat` (interior/
+  // prop archetype: food counter / tech shelves / boutique arch) — GDD §8.2
+  // wants "a distinct interior, props, and palette" per business; these two
+  // fields are what _bzBg()/drawShopProps() key off of to deliver that without
+  // needing 9 bespoke illustrated scenes (see render code near _bzBg).
   const SHOPS={
-    burger:    { e:'🍔', name:'BURGER BARN',       menu:['🍔','🍟','🥤','🌭','🥗'], base:55 },
-    coffee:    { e:'☕', name:'BEAN MACHINE',       menu:['☕','🥐','🧁','🍪','🥤'], base:50 },
-    pizza:     { e:'🍕', name:'PIZZA PALACE',       menu:['🍕','🥤','🧄','🍗','🥗'], base:60 },
-    bakery:    { e:'🧁', name:'SWEET BATCH BAKERY', menu:['🧁','🍰','🥐','🍪','☕'], base:48 },
-    taco:      { e:'🌮', name:'TACO FIESTA',        menu:['🌮','🌯','🥤','🌶️','🥑'], base:52 },
-    flower:    { e:'🌷', name:'BLOOM & PETAL',      menu:['🌷','🌹','🌻','🎁','🪴'], base:58 },
-    icecream:  { e:'🍦', name:'SCOOP DREAMS',       menu:['🍦','🍨','🧁','🍫','🥤'], base:46 },
-    bubbletea: { e:'🧋', name:'BUBBLE BAR',         menu:['🧋','🍡','🥤','🍪','🧊'], base:50 },
-    tech:      { e:'💻', name:'BYTE SHOP',          menu:['💻','📱','🎧','🔌','🖨️'], base:65 }
+    burger:    { e:'🍔', name:'BURGER BARN',       menu:['🍔','🍟','🥤','🌭','🥗'], base:55, tint:'#fb923c', cat:'food' },
+    coffee:    { e:'☕', name:'BEAN MACHINE',       menu:['☕','🥐','🧁','🍪','🥤'], base:50, tint:'#b08968', cat:'food' },
+    pizza:     { e:'🍕', name:'PIZZA PALACE',       menu:['🍕','🥤','🧄','🍗','🥗'], base:60, tint:'#ef4444', cat:'food' },
+    bakery:    { e:'🧁', name:'SWEET BATCH BAKERY', menu:['🧁','🍰','🥐','🍪','☕'], base:48, tint:'#f9a8d4', cat:'food' },
+    taco:      { e:'🌮', name:'TACO FIESTA',        menu:['🌮','🌯','🥤','🌶️','🥑'], base:52, tint:'#84cc16', cat:'food' },
+    flower:    { e:'🌷', name:'BLOOM & PETAL',      menu:['🌷','🌹','🌻','🎁','🪴'], base:58, tint:'#f472b6', cat:'boutique' },
+    icecream:  { e:'🍦', name:'SCOOP DREAMS',       menu:['🍦','🍨','🧁','🍫','🥤'], base:46, tint:'#5eead4', cat:'food' },
+    bubbletea: { e:'🧋', name:'BUBBLE BAR',         menu:['🧋','🍡','🥤','🍪','🧊'], base:50, tint:'#c4b5fd', cat:'food' },
+    tech:      { e:'💻', name:'BYTE SHOP',          menu:['💻','📱','🎧','🔌','🖨️'], base:65, tint:'#38bdf8', cat:'tech' }
   };
   // Customer face pool — varied so the queue feels alive
   const FACES=['🧑','👩','👨','👵','👴','🧒','👧','👦','🧔','👱','👩‍🦱','🧑‍🦰','👨‍🦳','🧓','👩‍🦳'];
+
+  // ── colour helper + PLAYER/CEO AVATAR (GDD §16.1 "the young-CEO avatar" —
+  // no player/CEO avatar existed anywhere in this game; only customer emoji
+  // and 3 generic employee-role emoji represented people). Hand-authored
+  // simple vector icon (AI portrait generation was unavailable on this
+  // account — "Requires basic plan or higher" — so this is the accepted
+  // fallback pattern): a friendly cartoon kid-CEO bust in a navy blazer +
+  // gold tie, matching the rebalanced navy/gold/teal/purple palette below.
+  function hx2rgba(hex,a){ const h=String(hex).replace('#',''); const r=parseInt(h.substring(0,2),16), g=parseInt(h.substring(2,4),16), b=parseInt(h.substring(4,6),16); return 'rgba('+r+','+g+','+b+','+a+')'; }
+  // same skin-tone ramp + default index as the host app's own avatar studio
+  // (coinaverse_v34.html SKIN_TONES / state.avatarSkinTone) — reusing it here
+  // means the CEO icon reflects the player's OWN chosen tone (GDD §16.1 wants
+  // the avatar "diverse, aspirational, age-appropriate") instead of one fixed
+  // skin color for every player.
+  const CEO_SKIN_TONES=['#ffe0bd','#f1c27d','#e0ac69','#c68642','#8d5524','#5a3825'];
+  function ceoSkin(){ const i=(window.state&&state.avatarSkinTone!=null)?state.avatarSkinTone:2; return CEO_SKIN_TONES[i]||CEO_SKIN_TONES[2]; }
+  function ceoAvatarSvg(){
+    const skin=ceoSkin();
+    return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">
+      <rect width="100" height="100" fill="#0a1128"/>
+      <path d="M4 100 Q50 58 96 100 Z" fill="#132242"/>
+      <path d="M50 58 L36 80 L50 73 L64 80 Z" fill="#fbbf24"/>
+      <path d="M29 63 L50 77 L21 93 L12 78 Z" fill="#f1f5f9"/>
+      <path d="M71 63 L50 77 L79 93 L88 78 Z" fill="#f1f5f9"/>
+      <rect x="41" y="49" width="18" height="18" rx="5" fill="${skin}"/>
+      <circle cx="50" cy="34" r="23" fill="${skin}"/>
+      <path d="M26 31 Q28 9 50 9 Q72 9 74 31 Q65 19 50 19 Q35 19 26 31Z" fill="#2b1b12"/>
+      <circle cx="41" cy="34" r="2.8" fill="#1a1030"/>
+      <circle cx="59" cy="34" r="2.8" fill="#1a1030"/>
+      <path d="M41 42 Q50 48 59 42" stroke="#8a4b32" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      <circle cx="31" cy="40" r="3.2" fill="#f7a8a8" opacity=".5"/>
+      <circle cx="69" cy="40" r="3.2" fill="#f7a8a8" opacity=".5"/>
+    </svg>`;
+  }
+  function ceoAvatarHtml(size,glow){ return `<div style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;flex:0 0 auto;border:2px solid #fbbf24;box-shadow:0 0 ${glow||10}px rgba(251,191,36,.55);background:#0a1128">${ceoAvatarSvg()}</div>`; }
 
   // ── EMPLOYEES (GDD §6.2) — hire from the TEAM panel, L2+. Each has an
   // energy pool: acts on a timer while energy is healthy, rests (skips
@@ -209,14 +249,17 @@
   window.SCREENS.game_bizop=function(){
     if(!G) reset();
     setTimeout(boBoot,30);
-    return `<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,#3d2560,#2d1b4e 55%,#1a1030);overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
+    return `<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,#16213f,#0a1330 55%,#050a18);overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
       <style>
         @keyframes boEventPop{0%{transform:translateX(-50%) scale(.7);opacity:0}60%{transform:translateX(-50%) scale(1.08)}100%{transform:translateX(-50%) scale(1);opacity:1}}
         @keyframes boHirePop{0%{transform:scale(.85);opacity:.4}100%{transform:scale(1);opacity:1}}
       </style>
-      <div style="position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:10px;padding:12px 16px;background:linear-gradient(180deg,rgba(26,16,48,.9),transparent)">
+      <div style="position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:10px;padding:12px 16px;background:linear-gradient(180deg,rgba(5,9,22,.9),transparent)">
         <button onclick="boExit()" style="padding:7px 14px;border:1px solid rgba(168,85,247,.45);border-radius:9px;background:rgba(168,85,247,.12);color:#c084fc;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer;white-space:nowrap">← LAUNCH LAB</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.2em;color:#c084fc;flex:1;text-align:center">💼 BIZ OP · <span id="boLvl">LV ${LV+1}/3</span></div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex:1;min-width:0">
+          ${ceoAvatarHtml(30,8)}
+          <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.2em;color:#c084fc;text-align:center;white-space:nowrap">BIZ OP · <span id="boLvl">LV ${LV+1}/3</span></div>
+        </div>
         <div id="boTime" style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fbbf24;min-width:42px;text-align:right">${L().round}s</div>
       </div>
 
@@ -254,24 +297,30 @@
       <div id="boHint" style="position:absolute;left:0;right:0;bottom:20px;text-align:center;z-index:5;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.1em;color:rgba(255,255,255,.42);pointer-events:none">TAP a customer to SERVE · keep STOCK up · serve fast for TIPS</div>
 
       <!-- Shop picker overlay -->
-      <div id="boPick" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(26,16,48,.92);backdrop-filter:blur(5px)"></div>
+      <div id="boPick" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(5,9,22,.92);backdrop-filter:blur(5px)"></div>
       <!-- Team / hiring overlay -->
-      <div id="boTeam" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(26,16,48,.92);backdrop-filter:blur(5px);padding:20px"></div>
+      <div id="boTeam" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(5,9,22,.92);backdrop-filter:blur(5px);padding:20px"></div>
       <!-- Knowledge gate overlay -->
-      <div id="boGate" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(26,16,48,.88);backdrop-filter:blur(5px);padding:22px"></div>
+      <div id="boGate" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(5,9,22,.88);backdrop-filter:blur(5px);padding:22px"></div>
       <!-- End overlay -->
-      <div id="boOver" style="position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:rgba(26,16,48,.86);backdrop-filter:blur(5px)"></div>
+      <div id="boOver" style="position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:rgba(5,9,22,.86);backdrop-filter:blur(5px)"></div>
     </div>`;
   };
 
-  function chip(label,id,c){ return `<div style="flex:1;max-width:100px;text-align:center;background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.2);border-radius:11px;padding:6px"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">${label}</div><div id="${id}" style="font-family:'Anton',sans-serif;font-size:1rem;color:${c}">—</div></div>`; }
+  function chip(label,id,c){ return `<div style="flex:1;max-width:100px;text-align:center;background:rgba(8,14,32,.55);border:1px solid rgba(148,163,184,.22);border-radius:11px;padding:6px"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">${label}</div><div id="${id}" style="font-family:'Anton',sans-serif;font-size:1rem;color:${c}">—</div></div>`; }
 
   function showPicker(){
     const p=document.getElementById('boPick'); if(!p) return; p.style.display='flex';
     const keys=Object.keys(SHOPS);
-    const card=(k)=>{ const s=SHOPS[k]; return `<button onclick="boPickShop('${k}')" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 12px;min-width:92px;border:2px solid rgba(168,85,247,.4);border-radius:16px;background:linear-gradient(160deg,rgba(61,37,96,.9),rgba(45,27,78,.9));color:#fff;cursor:pointer;transition:transform .12s,border-color .15s" onmouseover="this.style.transform='translateY(-5px)';this.style.borderColor='#c084fc'" onmouseout="this.style.transform='none';this.style.borderColor='rgba(168,85,247,.4)'"><div style="font-size:2.3rem">${s.e}</div><div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.05em;color:#c084fc">${s.name}</div></button>`; };
+    // per-shop tinted card (GDD §8.2 distinct palette per business) on a
+    // navy card base (GDD §16.1 — navy backdrop, accents stay accents)
+    const card=(k)=>{ const s=SHOPS[k]; const bd=hx2rgba(s.tint,.5); return `<button onclick="boPickShop('${k}')" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 12px;min-width:92px;border:2px solid ${bd};border-radius:16px;background:linear-gradient(160deg,rgba(10,16,36,.92),rgba(5,9,22,.92));color:#fff;cursor:pointer;transition:transform .12s,border-color .15s" onmouseover="this.style.transform='translateY(-5px)';this.style.borderColor='${s.tint}'" onmouseout="this.style.transform='none';this.style.borderColor='${bd}'"><div style="font-size:2.3rem">${s.e}</div><div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.05em;color:${s.tint}">${s.name}</div></button>`; };
+    // player/CEO avatar anchors the title screen (GDD §16.1 "the young-CEO
+    // avatar" / "character-forward") — previously no avatar appeared anywhere
+    const ceoName=(window.state&&state.playerName)||'YOUNG CEO';
     p.innerHTML=`<div style="max-width:560px;text-align:center;padding:26px 20px;max-height:92vh;overflow-y:auto">
-      <div style="font-size:2.2rem;margin-bottom:4px">💼</div>
+      <div style="display:flex;justify-content:center;margin-bottom:6px">${ceoAvatarHtml(72,16)}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:10px">${ceoName.toUpperCase()}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:#c084fc;margin-bottom:2px">CHOOSE YOUR BUSINESS</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.16em;color:rgba(255,255,255,.4);margin-bottom:10px">LV ${LV+1}/3 · ${L().theme}</div>
       <p style="color:rgba(255,255,255,.6);margin:0 0 16px;font-size:.82rem">Serve every customer before they lose patience. Hit <b style="color:#34d399">$${L().goal}</b> revenue in ${L().round}s!</p>
@@ -631,16 +680,26 @@
   function ease(t){ t=Math.max(0,Math.min(1,t)); return t*t*(3-2*t); }
   function starsString(rep){ const n=Math.max(0,Math.min(5,Math.round(rep/20))); return '★'.repeat(n)+'☆'.repeat(5-n); }
 
-  const _bzStars=Array.from({length:45},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.0+0.25,s:Math.random()*0.45+0.2,c:Math.random()<0.5?'#c4b5fd':'#f0abfc'}));
+  // stars now twinkle in gold/teal/purple — all three stay ACCENTS on the
+  // navy sky instead of the old lavender/fuchsia pair that made the whole
+  // field read as purple-family (GDD §16.1)
+  const _bzStars=Array.from({length:45},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.0+0.25,s:Math.random()*0.45+0.2,c:['#5eead4','#fde68a','#c084fc'][Math.floor(Math.random()*3)]}));
   const _bzMotes=Array.from({length:12},()=>({x:Math.random(),y0:Math.random(),spd:0.015+Math.random()*0.02,r:0.6+Math.random()*1.1,ph:Math.random()*6.28}));
+  // resolves the CURRENT shop's own tint/category (falls back to a neutral
+  // purple accent pre-pick, on the picker screen, when no shop is chosen yet)
+  function shopTheme(){ const s=G&&SHOPS[G.shopKey]; return s?{tint:s.tint||'#a855f7',cat:s.cat||'food'}:{tint:'#a855f7',cat:'food'}; }
   function _bzBg(ctx,W,H,counterY,now){
-    // deep purple/indigo gradient sky
+    const theme=shopTheme();
+    // deep NAVY gradient sky (GDD §16.1 — navy is the backdrop; gold/teal/
+    // purple are secondary accents layered on top, not the base fill)
     const bg=ctx.createLinearGradient(0,0,0,counterY);
-    bg.addColorStop(0,'#0d0618'); bg.addColorStop(0.5,'#120a22'); bg.addColorStop(1,'#1a0a2e');
+    bg.addColorStop(0,'#050a18'); bg.addColorStop(0.5,'#0a1128'); bg.addColorStop(1,'#0d1730');
     ctx.fillStyle=bg; ctx.fillRect(0,0,W,counterY);
-    // warm floor zone
+    // floor zone tinted with THIS shop's own accent colour (GDD §8.2 — this,
+    // plus the ledge rim + props below, is what makes each of the 9 shops
+    // read as a distinct interior instead of one shared backdrop)
     const flr=ctx.createLinearGradient(0,counterY-20,0,H);
-    flr.addColorStop(0,'rgba(168,85,247,.2)'); flr.addColorStop(1,'rgba(126,34,206,.06)');
+    flr.addColorStop(0,hx2rgba(theme.tint,.22)); flr.addColorStop(1,hx2rgba(theme.tint,.05));
     ctx.fillStyle=flr; ctx.fillRect(0,counterY-20,W,H-counterY+20);
     // twinkling stars in the "sky" area
     const t=now/1000;
@@ -656,19 +715,63 @@
       ctx.beginPath(); ctx.arc(m.x*W, y*counterY*0.95, m.r, 0, 6.28); ctx.fill();
     }
     ctx.globalAlpha=1;
-    // top glow arc
+    // top glow arc — single soft gold accent light (was purple; a base fill
+    // shouldn't also own the "hero" glow, so this now carries the gold accent)
     const tg=ctx.createRadialGradient(W/2,-20,0,W/2,-20,W*0.8);
-    tg.addColorStop(0,'rgba(192,132,252,.10)'); tg.addColorStop(1,'transparent');
+    tg.addColorStop(0,'rgba(251,191,36,.08)'); tg.addColorStop(1,'transparent');
     ctx.fillStyle=tg; ctx.fillRect(0,0,W,counterY);
     // pseudo-3D counter ledge (bevelled bar instead of a flat line — cheap
-    // depth cue standing in for a true isometric counter model)
+    // depth cue standing in for a true isometric counter model); its rim
+    // now carries THIS shop's tint so the counter itself signals identity
     const ledgeH=14;
     const ledgeGrad=ctx.createLinearGradient(0,counterY-4,0,counterY+ledgeH);
-    ledgeGrad.addColorStop(0,'rgba(216,180,254,.9)'); ledgeGrad.addColorStop(0.15,'rgba(168,85,247,.55)'); ledgeGrad.addColorStop(1,'rgba(88,28,135,.15)');
+    ledgeGrad.addColorStop(0,hx2rgba(theme.tint,.9)); ledgeGrad.addColorStop(0.15,hx2rgba(theme.tint,.5)); ledgeGrad.addColorStop(1,'rgba(5,10,24,.2)');
     ctx.fillStyle=ledgeGrad; ctx.fillRect(0,counterY-4,W,ledgeH);
-    ctx.shadowColor='#c084fc'; ctx.shadowBlur=14;
-    ctx.fillStyle='rgba(216,180,254,.85)'; ctx.fillRect(0,counterY-4,W,2.5);
+    ctx.shadowColor=theme.tint; ctx.shadowBlur=14;
+    ctx.fillStyle=hx2rgba(theme.tint,.85); ctx.fillRect(0,counterY-4,W,2.5);
     ctx.shadowBlur=0;
+    drawShopProps(ctx,W,H,counterY,theme);
+  }
+
+  // ── per-shop props (GDD §8.2 "a distinct interior, props, and palette" —
+  // previously all 9 businesses shared one identical gradient/star-field/
+  // ledge, differing only by the central emoji + name label). Three cheap
+  // silhouette archetypes by category (food counter / tech shelving /
+  // boutique arch), recoloured per shop's own tint, PLUS two faint props
+  // pulled straight from that shop's own `menu` array — so every shop's
+  // props are automatically unique with zero extra content to author.
+  function drawShopProps(ctx,W,H,counterY,theme){
+    const shop=G&&SHOPS[G.shopKey]; if(!shop) return;
+    const cx=W*0.5;
+    ctx.save();
+    ctx.fillStyle=hx2rgba(theme.tint,.16); ctx.strokeStyle=hx2rgba(theme.tint,.55); ctx.lineWidth=2;
+    if(theme.cat==='tech'){
+      // angular shelf/monitor panels flanking the stand — reads as an
+      // electronics counter rather than a food stand
+      [-1,1].forEach(side=>{
+        const x=cx+side*96-22;
+        roundRect(ctx,x,counterY-58,44,40,5); ctx.fill(); ctx.stroke();
+        ctx.fillStyle=hx2rgba(theme.tint,.3); ctx.fillRect(x+6,counterY-52,32,4); ctx.fillStyle=hx2rgba(theme.tint,.16);
+      });
+    } else if(theme.cat==='boutique'){
+      // soft rounded arch/canopy over the stand, with two petal accents
+      ctx.beginPath(); ctx.moveTo(cx-96,counterY-14); ctx.quadraticCurveTo(cx,counterY-100,cx+96,counterY-14); ctx.stroke();
+      [-1,1].forEach(side=>{ ctx.beginPath(); ctx.arc(cx+side*96,counterY-14,7,0,6.28); ctx.fill(); });
+    } else {
+      // scalloped awning over a food/drink stand
+      const aw=126, ax=cx-aw/2, ay=counterY-46;
+      ctx.beginPath(); ctx.moveTo(ax,ay+18);
+      for(let i=0;i<=6;i++){ const sx=ax+i*(aw/6); ctx.quadraticCurveTo(sx+aw/12,ay+(i%2?26:8),sx+aw/6,ay+18); }
+      ctx.lineTo(ax+aw,ay+18); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    // two faint background props straight from THIS shop's own menu (minus
+    // the emoji already used as its sign) — automatically shop-specific
+    const props=shop.menu.filter(m=>m!==shop.e).slice(0,2);
+    ctx.globalAlpha=0.16; ctx.font='40px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    if(props[0]) ctx.fillText(props[0], cx-150, counterY-40);
+    if(props[1]) ctx.fillText(props[1], cx+150, counterY-40);
+    ctx.globalAlpha=1;
+    ctx.restore();
   }
 
   function renderEmployees(ctx,W,H,counterY){
@@ -700,7 +803,7 @@
     _bzBg(ctx,W,H,counterY,now);
     let ox=0,oy=0; if(G.shake>0){ ox=(Math.random()-.5)*G.shake*20; oy=(Math.random()-.5)*G.shake*20; }
     ctx.save(); ctx.translate(ox,oy);
-    if(G.flash>0){ ctx.fillStyle='rgba(168,85,247,'+(G.flash*0.22)+')'; ctx.fillRect(0,0,W,H); }
+    if(G.flash>0){ ctx.fillStyle='rgba(251,191,36,'+(G.flash*0.22)+')'; ctx.fillRect(0,0,W,H); }
 
     // shop sign (your stand)
     const shop=SHOPS[G.shopKey];
@@ -861,7 +964,7 @@
           ? '<button onclick="boRestart()" style="'+GH+'">↺ REPLAY L3</button><button onclick="boExit()" style="'+P+'">← HUB</button>'
           : '<button onclick="boNextLevel()" style="'+P+'">LEVEL '+(lvl+1)+' ▶</button><button onclick="boRestart()" style="'+GH+'">↺ REPLAY</button><button onclick="boExit()" style="'+GH+'">← HUB</button>')
       : '<button onclick="boRestart()" style="'+P+'">↺ TRY AGAIN</button><button onclick="boExit()" style="'+GH+'">← HUB</button>';
-    o.innerHTML=`<div style="max-width:430px;text-align:center;padding:34px 28px;border:1px solid ${won?'#fbbf24':'#a855f7'};border-radius:22px;background:linear-gradient(160deg,rgba(45,27,78,.97),rgba(26,16,48,.97));box-shadow:0 0 ${won?'90px rgba(251,191,36,.55)':'60px rgba(168,85,247,.45)'};animation:${won?(isFinal?'boMasterPop .6s cubic-bezier(.2,1.4,.4,1)':'boWinPop .5s cubic-bezier(.2,1.4,.4,1)'):'boFadeIn .3s ease'}">
+    o.innerHTML=`<div style="max-width:430px;text-align:center;padding:34px 28px;border:1px solid ${won?'#fbbf24':'#a855f7'};border-radius:22px;background:linear-gradient(160deg,rgba(16,24,52,.97),rgba(5,9,22,.97));box-shadow:0 0 ${won?'90px rgba(251,191,36,.55)':'60px rgba(168,85,247,.45)'};animation:${won?(isFinal?'boMasterPop .6s cubic-bezier(.2,1.4,.4,1)':'boWinPop .5s cubic-bezier(.2,1.4,.4,1)'):'boFadeIn .3s ease'}">
       <style>
         @keyframes boWinPop{0%{transform:scale(.7) rotate(-3deg);opacity:0}60%{transform:scale(1.06) rotate(1deg);opacity:1}100%{transform:scale(1) rotate(0)}}
         @keyframes boMasterPop{0%{transform:scale(.6) rotate(-6deg);opacity:0}55%{transform:scale(1.1) rotate(2deg);opacity:1}75%{transform:scale(.97) rotate(-1deg)}100%{transform:scale(1) rotate(0)}}
@@ -891,7 +994,7 @@
     const f=G.facts[G.gateIdx]; G.gateIdx++;
     const o=document.getElementById('boGate'); if(!o){ G.phase='play'; G.gateT=GATE_EVERY; return; }
     o.style.display='flex';
-    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #a855f7;border-radius:22px;background:linear-gradient(160deg,rgba(61,37,96,.97),rgba(26,16,48,.97));box-shadow:0 0 50px rgba(168,85,247,.4);animation:boGateIn .35s ease">
+    o.innerHTML=`<div style="max-width:440px;text-align:center;padding:30px 26px;border:1px solid #a855f7;border-radius:22px;background:linear-gradient(160deg,rgba(16,24,52,.97),rgba(5,9,22,.97));box-shadow:0 0 50px rgba(168,85,247,.4);animation:boGateIn .35s ease">
       <style>@keyframes boGateIn{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}</style>
       <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.2em;color:#c084fc;margin-bottom:10px">⛩️ KNOWLEDGE GATE · BIZ TIP · LV ${LV+1}</div>
       <div style="font-size:2.4rem;margin-bottom:8px">${f[0]}</div>

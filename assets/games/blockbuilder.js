@@ -546,15 +546,149 @@
   }
 
   /* ══════════════════════════ RENDER ══════════════════════════ */
+  /* ── Per-level environment layers (GDD §07 "Level Comparison Matrix"): each
+     network now gets its own procedural scenery instead of a shared backdrop
+     re-tinted per level. Every shape below is a pure function of elapsed time
+     (t = now/1000) driven from module-level seed arrays — nothing here reads
+     or writes G, reset(), or update(), so none of it touches game state or
+     the tile/puzzle legibility fix done elsewhere in this file (CARD_H_MAX /
+     drawTile / renderLane's card sizing). All layers render inside _bbBg,
+     i.e. strictly BEHIND the lane bands, tiles and puzzle chips. ── */
   const _bbStars=Array.from({length:36},()=>({x:Math.random(),y:Math.random(),r:Math.random()*0.9+0.2,s:Math.random()*0.4+0.15}));
+  const _bbStarsCore=Array.from({length:70},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.1+0.2,s:Math.random()*0.4+0.15}));
+  function _drawStars(ctx,stars,W,H,t,col,bandFrac){
+    for(const st of stars){ const tw=0.3+0.4*Math.sin(t*st.s+st.x*6.28); ctx.globalAlpha=tw*0.5; ctx.fillStyle=col; ctx.beginPath(); ctx.arc(st.x*W,st.y*H*bandFrac,st.r,0,6.28); ctx.fill(); }
+    ctx.globalAlpha=1;
+  }
+
+  /* L1 CRYPTO CONSTRUCTION YARD — GDD: "colorful futuristic construction site
+     ... robots carry giant glowing blocks ... crypto cranes ... friendly AI
+     drones". Crane silhouettes + glowing crate shapes + drifting drone dots. */
+  // L1 has a single full-height lane, so masts/crates/drones are seeded across nearly the
+  // WHOLE canvas height (not just an upper strip) — otherwise the bottom of the yard reads bare.
+  const _bbCranes=[{x:.10,mh:.78,jl:.15,dir:1},{x:.47,mh:.58,jl:.12,dir:-1},{x:.84,mh:.72,jl:.14,dir:1}];
+  const _bbCrates=Array.from({length:7},()=>({x0:Math.random(),y:.08+Math.random()*.78,s:9+Math.random()*8,sp:(Math.random()<.5?-1:1)*(.01+Math.random()*.012),ph:Math.random()*6.28}));
+  const _bbDrones=Array.from({length:5},()=>({x0:Math.random(),y:.08+Math.random()*.76,sp:(Math.random()<.5?-1:1)*(.015+Math.random()*.02),ph:Math.random()*6.28}));
+  function _bbBgYard(ctx,W,H,t,cfg){
+    _drawStars(ctx,_bbStars,W,H,t,cfg.col,.42);
+    ctx.save();
+    for(const cr of _bbCranes){
+      const bx=cr.x*W, topY=H*.03, mastH=H*cr.mh, jibY=topY+mastH*.14, jl=W*cr.jl;
+      ctx.strokeStyle='rgba(148,180,209,.22)'; ctx.lineWidth=4; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(bx,topY); ctx.lineTo(bx,topY+mastH); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(bx-jl*.28*cr.dir,jibY); ctx.lineTo(bx+jl*cr.dir,jibY); ctx.stroke();
+      const blink=.5+.5*Math.sin(t*3+cr.x*9);
+      ctx.fillStyle='rgba(251,191,36,'+(.3+.5*blink).toFixed(2)+')'; ctx.beginPath(); ctx.arc(bx,topY-3,3,0,6.28); ctx.fill();
+      const hx=bx+jl*cr.dir*.88, hy=jibY+H*.08+Math.sin(t*.5+cr.x*6)*3;
+      ctx.strokeStyle='rgba(148,180,209,.18)'; ctx.lineWidth=1.3; ctx.beginPath(); ctx.moveTo(hx,jibY); ctx.lineTo(hx,hy); ctx.stroke();
+      ctx.save(); ctx.translate(hx,hy+9); ctx.rotate(Math.sin(t*.6+cr.x*5)*.08);
+      ctx.shadowColor=cfg.col; ctx.shadowBlur=11; ctx.fillStyle=hexA(cfg.col,.24); ctx.strokeStyle=hexA(cfg.col,.6); ctx.lineWidth=1.3;
+      rr(ctx,-8,-8,16,16,3); ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+      ctx.restore();
+    }
+    for(const cr of _bbCrates){
+      const x=(((cr.x0+t*cr.sp)%1)+1)%1*W, y=cr.y*H, wob=Math.sin(t*.8+cr.ph)*3;
+      ctx.save(); ctx.translate(x,y+wob); ctx.rotate(Math.sin(t*.4+cr.ph)*.12);
+      ctx.shadowColor=cfg.col; ctx.shadowBlur=9; ctx.fillStyle=hexA(cfg.col,.16); ctx.strokeStyle=hexA(cfg.col,.45); ctx.lineWidth=1.1;
+      rr(ctx,-cr.s/2,-cr.s/2,cr.s,cr.s,3); ctx.fill(); ctx.stroke(); ctx.restore();
+    }
+    ctx.restore();
+    for(const d of _bbDrones){
+      const x=(((d.x0+t*d.sp)%1)+1)%1*W, y=d.y*H+Math.sin(t*1.1+d.ph)*6, pulse=.5+.5*Math.sin(t*2.4+d.ph);
+      ctx.save(); ctx.globalAlpha=.5+.4*pulse; ctx.shadowColor='#fde68a'; ctx.shadowBlur=8;
+      ctx.fillStyle='#fde68a'; ctx.beginPath(); ctx.arc(x,y,2.2,0,6.28); ctx.fill();
+      ctx.shadowBlur=0; ctx.strokeStyle='rgba(253,230,138,.4)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(x,y,5+pulse*1.5,0,6.28); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /* L2 VALIDATOR CITY — GDD: "cyberpunk skyscrapers, flying cars, neon
+     bridges, massive holograms, validator towers, digital rain". Skyline
+     silhouette + flying-car light streaks + hologram panels + a neon bridge. */
+  // L2 typically runs 3 lanes filling the whole canvas — anchor the skyline near the BOTTOM
+  // (like a real distant skyline) with varied heights so towers reach up through every lane,
+  // and spread cars/holo panels across nearly the full height too (not just the top lane).
+  const _bbSkyline=Array.from({length:12},(_,i)=>({x:i/12,w:1/12,h:.22+Math.random()*.66,lit:Array.from({length:5},()=>Math.random()<.45)}));
+  const _bbFlyCars=Array.from({length:4},()=>({y:.06+Math.random()*.80,sp:.10+Math.random()*.09,x0:Math.random(),len:.09+Math.random()*.07,dir:Math.random()<.5?1:-1}));
+  const _bbHoloPanels=Array.from({length:4},()=>({x:.15+Math.random()*.7,y:.08+Math.random()*.76,w:38+Math.random()*26,h:24+Math.random()*16,ph:Math.random()*6.28}));
+  function _bbBgCity(ctx,W,H,t,cfg){
+    const baseY=H*.96;
+    ctx.save();
+    _bbSkyline.forEach((b,i)=>{
+      const bw=b.w*W+1, bx=b.x*W, bh=b.h*H, by=baseY-bh;
+      ctx.fillStyle='rgba(88,60,140,.20)'; ctx.fillRect(bx,by,bw,bh);
+      ctx.strokeStyle='rgba(168,85,247,.16)'; ctx.strokeRect(bx,by,bw,bh);
+      b.lit.forEach((on,wi)=>{ if(!on) return; const wtw=.5+.5*Math.sin(t*1.6+i*2+wi); ctx.fillStyle='rgba(216,180,254,'+(.25+.4*wtw).toFixed(2)+')'; ctx.fillRect(bx+bw*.18,by+bh*.15+wi*(bh*.16),bw*.16,bh*.08); });
+    });
+    const bridgeY=H*.30, bpulse=.5+.5*Math.sin(t*1.3);
+    ctx.strokeStyle='rgba(216,180,254,'+(.28+.3*bpulse).toFixed(2)+')'; ctx.lineWidth=1.6; ctx.shadowColor='#a855f7'; ctx.shadowBlur=6;
+    ctx.beginPath(); ctx.moveTo(W*.08,bridgeY); ctx.quadraticCurveTo(W*.5,bridgeY-H*.03,W*.92,bridgeY); ctx.stroke(); ctx.shadowBlur=0;
+    ctx.restore();
+
+    for(const fc of _bbFlyCars){
+      const prog=((fc.x0+t*fc.sp)%1+1)%1, x=(fc.dir>0?prog:1-prog)*W, y=fc.y*H;
+      const tailLen=fc.len*W*fc.dir*-1;
+      const grad=ctx.createLinearGradient(x,y,x+tailLen,y);
+      grad.addColorStop(0,'rgba(232,196,255,.85)'); grad.addColorStop(1,'rgba(232,196,255,0)');
+      ctx.save(); ctx.shadowColor='#e8c4ff'; ctx.shadowBlur=7; ctx.strokeStyle=grad; ctx.lineWidth=2; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+tailLen,y); ctx.stroke();
+      ctx.shadowBlur=0; ctx.fillStyle='#f5e6ff'; ctx.beginPath(); ctx.arc(x,y,2,0,6.28); ctx.fill();
+      ctx.restore();
+    }
+    for(const hp of _bbHoloPanels){
+      const x=hp.x*W, y=hp.y*H, drift=Math.sin(t*.6+hp.ph)*4;
+      ctx.save(); ctx.translate(x,y+drift); ctx.globalAlpha=.5+.2*Math.sin(t*1.4+hp.ph);
+      ctx.shadowColor='#c084fc'; ctx.shadowBlur=10; ctx.strokeStyle='rgba(192,132,252,.55)'; ctx.lineWidth=1.2;
+      ctx.strokeRect(-hp.w/2,-hp.h/2,hp.w,hp.h); ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(192,132,252,.08)'; ctx.fillRect(-hp.w/2,-hp.h/2,hp.w,hp.h);
+      for(let li=1;li<3;li++){ ctx.strokeStyle='rgba(192,132,252,.25)'; ctx.lineWidth=.6; ctx.beginPath(); ctx.moveTo(-hp.w/2,-hp.h/2+li*(hp.h/3)); ctx.lineTo(hp.w/2,-hp.h/2+li*(hp.h/3)); ctx.stroke(); }
+      ctx.restore();
+    }
+  }
+
+  /* L3 GENESIS CORE — GDD: "massive glowing blockchain rings, floating
+     cities, digital stars, neon galaxies, energy waterfalls". Dense
+     starfield + slow-rotating glowing rings + soft vertical energy streaks. */
+  // L3 typically runs 5 lanes filling the whole canvas — rings and waterfalls are seeded/sized
+  // across nearly the full height so "floating cities" read behind every lane, not just the top.
+  const _bbRings=[{x:.22,y:.14,r:26,sp:.18},{x:.62,y:.10,r:34,sp:-.14},{x:.88,y:.30,r:19,sp:.24},{x:.38,y:.42,r:22,sp:-.3},{x:.14,y:.62,r:16,sp:.22},{x:.70,y:.74,r:28,sp:-.17},{x:.46,y:.86,r:18,sp:.26}];
+  const _bbWaterfalls=[{x:.18,w:46},{x:.52,w:60},{x:.80,w:38}];
+  function _bbBgCore(ctx,W,H,t,cfg){
+    _drawStars(ctx,_bbStarsCore,W,H,t,cfg.col,.88);
+    ctx.save();
+    for(const wf of _bbWaterfalls){
+      const x=wf.x*W, pulse=.5+.5*Math.sin(t*.7+wf.x*8);
+      const g=ctx.createLinearGradient(x,0,x,H*.97);
+      g.addColorStop(0,hexA(cfg.col,(.16+.10*pulse)));
+      g.addColorStop(1,hexA(cfg.col,0));
+      ctx.fillStyle=g; ctx.fillRect(x-wf.w/2,0,wf.w,H*.97);
+    }
+    ctx.restore();
+    for(const rg of _bbRings){
+      const cx=rg.x*W, cy=rg.y*H, r=rg.r+Math.sin(t*.5+rg.x*6)*2;
+      ctx.save();
+      ctx.shadowColor=cfg.col; ctx.shadowBlur=14;
+      ctx.strokeStyle=hexA(cfg.col,.30); ctx.lineWidth=3; ctx.beginPath(); ctx.arc(cx,cy,r,0,6.283); ctx.stroke();
+      ctx.shadowBlur=0;
+      const ang=t*rg.sp;
+      ctx.strokeStyle=hexA(cfg.col,.75); ctx.lineWidth=3; ctx.lineCap='round';
+      ctx.beginPath(); ctx.arc(cx,cy,r,ang,ang+1.1); ctx.stroke();
+      ctx.strokeStyle=hexA(cfg.col,.16); ctx.lineWidth=1; ctx.beginPath(); ctx.arc(cx,cy,r*.62,0,6.283); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   function _bbBg(ctx,W,H,now){
     const cfg=L();
     const bg=ctx.createLinearGradient(0,0,0,H);
     bg.addColorStop(0,'#020c14'); bg.addColorStop(0.5,'#030e1c'); bg.addColorStop(1,'#050f1a');
     ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
     const t=now/1000;
-    for(const st of _bbStars){ const tw=0.3+0.4*Math.sin(t*st.s+st.x*6.28); ctx.globalAlpha=tw*0.5; ctx.fillStyle=cfg.col; ctx.beginPath(); ctx.arc(st.x*W,st.y*H*0.5,st.r,0,6.28); ctx.fill(); }
-    ctx.globalAlpha=1;
+
+    if(cfg.key==='yard') _bbBgYard(ctx,W,H,t,cfg);
+    else if(cfg.key==='city') _bbBgCity(ctx,W,H,t,cfg);
+    else _bbBgCore(ctx,W,H,t,cfg);
+
     const tg=ctx.createRadialGradient(W/2,0,0,W/2,0,W*0.7);
     tg.addColorStop(0,cfg.colDim); tg.addColorStop(1,'transparent');
     ctx.fillStyle=tg; ctx.fillRect(0,0,W,H);
@@ -567,7 +701,11 @@
     ctx.save(); ctx.translate(ox,oy);
 
     ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font="13px 'Orbitron',monospace";
-    for(const c of G.code){ ctx.globalAlpha=c.al; ctx.fillStyle=L().col; ctx.fillText(c.ch,c.x*W,c.y*H); }
+    // "digital rain" is explicit in the GDD only for L2 (Validator City) — keep it strong
+    // there, drop it for L1's construction yard (no rain motif), and dial it back for L3
+    // where the glowing rings + dense starfield carry the "digital" feel instead.
+    const codeMul=L().key==='yard'?0:(L().key==='city'?1.5:0.45);
+    if(codeMul>0) for(const c of G.code){ ctx.globalAlpha=c.al*codeMul; ctx.fillStyle=L().col; ctx.fillText(c.ch,c.x*W,c.y*H); }
     ctx.globalAlpha=1;
 
     if(G.flash>0){ const a=G.flash*0.26; ctx.fillStyle=hexA(G.flashColor,a); ctx.fillRect(0,0,W,H); }
@@ -619,7 +757,18 @@
     const shown=Math.min(lane.chainCount,4);
     for(let i=0;i<shown;i++){
       const cx=14+i*(cs+gap);
-      if(i>0){ ctx.save(); ctx.shadowColor=cfg.col; ctx.shadowBlur=8; ctx.strokeStyle=cfg.col+'99'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(cx-(cs+gap)+cs*0.5,cy); ctx.lineTo(cx-cs*0.5,cy); ctx.stroke(); ctx.restore(); }
+      if(i>0){
+        // laser-link: soft wide glow pass + crisp bright core, same shadow-glow
+        // technique draw3DCube uses below, so the connector reads as a glowing
+        // beam instead of a flat line.
+        const lx0=cx-(cs+gap)+cs*0.5, lx1=cx-cs*0.5;
+        ctx.save(); ctx.lineCap='round';
+        ctx.shadowColor=cfg.col; ctx.shadowBlur=12; ctx.strokeStyle=hexA(cfg.col,.35); ctx.lineWidth=5;
+        ctx.beginPath(); ctx.moveTo(lx0,cy); ctx.lineTo(lx1,cy); ctx.stroke();
+        ctx.shadowBlur=6; ctx.strokeStyle=hexA(cfg.col,.95); ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(lx0,cy); ctx.lineTo(lx1,cy); ctx.stroke();
+        ctx.restore();
+      }
       draw3DCube(ctx,cx,cy,cs, lane.corruptT>0 ? '#ef4444' : cfg.col, lane.corruptT>0);
     }
     if(lane.chainCount>4){ ctx.fillStyle='rgba(255,255,255,.7)'; ctx.font="10px 'Anton',sans-serif"; ctx.textAlign='left'; ctx.fillText('+'+(lane.chainCount-4), 14+4*(cs+gap), cy); }
