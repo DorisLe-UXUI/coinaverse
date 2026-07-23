@@ -266,6 +266,7 @@
 
       <!-- LEVEL SELECT OVERLAY -->
       <div id="ailLevelSel" style="position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 20%,rgba(0,255,255,.1),rgba(3,4,12,.55) 75%);gap:16px;padding:24px">
+        <button id="ailLevelSelBack" style="position:absolute;top:12px;left:12px;z-index:2;padding:5px 11px;border:1px solid rgba(0,255,255,.35);border-radius:7px;background:rgba(0,255,255,.08);color:${ACCENT};font-size:.52rem;letter-spacing:.12em;cursor:pointer;font-family:inherit;white-space:nowrap">← HUB</button>
         <div style="font-size:.38rem;letter-spacing:.25em;color:rgba(0,255,255,.5)">BITSTREAM VALLEY</div>
         <div style="font-size:1.3rem;font-weight:900;letter-spacing:.1em;color:${ACCENT};text-shadow:0 0 30px ${ACCENT};text-align:center;line-height:1.2">AI INNOVATION<br>LABS</div>
         <div style="width:48px;height:2px;background:linear-gradient(90deg,transparent,${ACCENT},transparent)"></div>
@@ -322,6 +323,9 @@
 
     const backBtn = document.getElementById('ailBack');
     if (backBtn) backBtn.addEventListener('click', window.bsv_aiinnovationlabsExit);
+
+    const levelSelBack = document.getElementById('ailLevelSelBack');
+    if (levelSelBack) levelSelBack.addEventListener('click', window.bsv_aiinnovationlabsExit);
 
     wrap.querySelectorAll('.ailLvBtn').forEach(btn => {
       btn.addEventListener('click', () => {

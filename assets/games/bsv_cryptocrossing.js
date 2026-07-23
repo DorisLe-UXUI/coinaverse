@@ -180,6 +180,7 @@
 
       <!-- LEVEL SELECT OVERLAY (shown first) -->
       <div id="ccLevelSel" style="position:absolute;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 0%,rgba(0,255,255,.1),rgba(3,4,12,.55) 70%);gap:18px;padding:24px">
+        <button id="ccLevelSelBack" style="position:absolute;top:12px;left:12px;z-index:2;padding:5px 11px;border:1px solid rgba(0,255,255,.35);border-radius:7px;background:rgba(0,255,255,.08);color:#00FFFF;font-size:.55rem;letter-spacing:.12em;cursor:pointer;font-family:inherit">← HUB</button>
         <div style="font-family:'Anton',sans-serif;font-size:1.5rem;letter-spacing:.08em;color:#00FFFF;text-shadow:0 0 30px #00FFFF">CRYPTO CROSSING</div>
         <div style="font-size:.55rem;letter-spacing:.15em;color:rgba(255,255,255,.5);text-align:center;max-width:280px;line-height:1.7">Sprint the digital highway — collect real crypto, dodge scams. Check every symbol before you grab it!</div>
         <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center">
@@ -203,6 +204,10 @@
     // Back button
     const backBtn = document.getElementById('ccBack');
     if (backBtn) backBtn.addEventListener('click', window.bsv_cryptocrossingExit);
+
+    // Level-select back button (topbar back is covered by #ccLevelSel while it's shown)
+    const levelSelBack = document.getElementById('ccLevelSelBack');
+    if (levelSelBack) levelSelBack.addEventListener('click', window.bsv_cryptocrossingExit);
 
     // Level select buttons
     wrap.querySelectorAll('.ccLvBtn').forEach(btn => {

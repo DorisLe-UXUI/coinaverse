@@ -178,6 +178,7 @@
     ov.innerHTML = `
       <div class="bsv_bb_lvbg"></div>
       <div class="bsv_bb_stars">${bsvBbStarsHTML(46)}</div>
+      <button onclick="bsv_blockchainblvdExit()" style="position:absolute;top:14px;left:14px;z-index:2;padding:6px 13px;border:1px solid rgba(0,255,255,.35);border-radius:8px;background:rgba(0,255,255,.08);color:${ACCENT};font-family:Inter,sans-serif;font-size:.7rem;letter-spacing:.06em;cursor:pointer">← HUB</button>
       <div style="position:relative;z-index:1;max-width:420px;width:90%;text-align:center;padding:24px">
         <div style="font-family:'Anton',sans-serif;font-size:1.6rem;letter-spacing:.04em;color:${ACCENT};text-shadow:0 0 20px rgba(0,255,255,.6);margin-bottom:6px">⛓ BLOCKCHAIN BLVD</div>
         <div style="font-size:.8rem;color:rgba(255,255,255,.55);margin-bottom:28px;letter-spacing:.06em">Validate. Order. Seal. Protect the chain.</div>

@@ -616,6 +616,7 @@
 
 <!-- LEVEL SELECT MODAL (shown first) -->
 <div id="bm-lvl-modal">
+  <button id="bm-lvl-modal-back" style="position:absolute;top:14px;left:14px;z-index:2;padding:6px 12px;border-radius:8px;border:1px solid rgba(0,255,255,.4);background:rgba(0,255,255,.08);color:${AC2};font-family:'Orbitron',sans-serif;font-size:.56rem;letter-spacing:.12em;cursor:pointer;white-space:nowrap">← HUB</button>
   <div id="bm-lvl-box">
     <h2>BITSTREAM MARKET</h2>
     <p>Buy low, sell high, grow your virtual economy wallet before time runs out.</p>
@@ -656,6 +657,9 @@
     document.getElementById('bm-lvl1-btn').addEventListener('click', () => startLevel(1));
     document.getElementById('bm-lvl2-btn').addEventListener('click', () => startLevel(2));
     document.getElementById('bm-lvl3-btn').addEventListener('click', () => startLevel(3));
+
+    const lvlModalBack = document.getElementById('bm-lvl-modal-back');
+    if (lvlModalBack) lvlModalBack.addEventListener('click', window.bsv_bitstreammarketExit);
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -1435,7 +1439,8 @@
         // Re-create level modal
         const newModal = document.createElement('div');
         newModal.id = 'bm-lvl-modal';
-        newModal.innerHTML = `<div id="bm-lvl-box">
+        newModal.innerHTML = `<button id="bm-lvl-modal-back2" style="position:absolute;top:14px;left:14px;z-index:2;padding:6px 12px;border-radius:8px;border:1px solid rgba(0,255,255,.4);background:rgba(0,255,255,.08);color:${AC2};font-family:'Orbitron',sans-serif;font-size:.56rem;letter-spacing:.12em;cursor:pointer;white-space:nowrap">← HUB</button>
+        <div id="bm-lvl-box">
           <h2>BITSTREAM MARKET</h2>
           <p>Buy low, sell high, grow your virtual economy wallet before time runs out.</p>
           <button class="bm-lvl-btn" id="bm-lvl1-btn2">
@@ -1455,6 +1460,7 @@
         document.getElementById('bm-lvl1-btn2').addEventListener('click', () => { newModal.remove(); startLevel(1); });
         document.getElementById('bm-lvl2-btn2').addEventListener('click', () => { newModal.remove(); startLevel(2); });
         document.getElementById('bm-lvl3-btn2').addEventListener('click', () => { newModal.remove(); startLevel(3); });
+        document.getElementById('bm-lvl-modal-back2').addEventListener('click', window.bsv_bitstreammarketExit);
       }
     });
     document.getElementById('bm-end-hub').addEventListener('click', window.bsv_bitstreammarketExit);

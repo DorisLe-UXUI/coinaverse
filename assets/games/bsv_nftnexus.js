@@ -457,6 +457,7 @@
     if (!el) return;
     el.style.display = 'flex';
     el.innerHTML = `
+      <button id="nn-levelsel-back" style="position:absolute;top:12px;left:14px;z-index:2;padding:6px 13px;border:1px solid rgba(0,255,255,.35);border-radius:8px;background:rgba(0,255,255,.08);color:#00FFFF;font-family:Orbitron,sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;flex-shrink:0">← HUB</button>
       <div style="max-width:360px;width:90%;text-align:center">
         <div style="font-family:'Anton',sans-serif;font-size:1.3rem;letter-spacing:.1em;color:#00FFFF;text-shadow:0 0 20px #00FFFF;margin-bottom:6px">NFT NEXUS</div>
         <div style="font-size:.75rem;color:rgba(255,255,255,.55);margin-bottom:28px;line-height:1.5">Drag NFTs to their rightful owners.<br>Reject the fakes. Trust the blockchain.</div>
@@ -478,6 +479,7 @@
     document.getElementById('nn-lvl1').onclick = () => startLevel(1);
     document.getElementById('nn-lvl2').onclick = () => startLevel(2);
     document.getElementById('nn-lvl3').onclick = () => startLevel(3);
+    document.getElementById('nn-levelsel-back').onclick = window.bsv_nftnexusExit;
   }
 
   // ── Start level ────────────────────────────────────────────────
