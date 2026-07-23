@@ -5919,7 +5919,7 @@ video::-webkit-media-controls-play-button {
     goTo('vault_game');
   };
   window.vaultRestart = function(){ vaultInit(); goTo('vault_game'); };
-  window.vaultExit = function(){ _vault=null; state.viewingWorld='guardian'; goTo('world_detail'); };
+  window.vaultExit = function(){ _vault=null; state.viewingWorld='guardian'; goTo('hub'); };
 
   const VAULT_CSS = `
     .vlt-wrap{position:absolute;inset:0;color:#eafaf7;font-family:'Hanken Grotesk',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden;background:radial-gradient(120% 80% at 50% 120%,rgba(20,184,166,.18),transparent 55%),radial-gradient(140% 120% at 50% -10%,#0c3b4a 0%,#072433 42%,#04141d 70%,#020a11 100%)}
@@ -6016,7 +6016,7 @@ video::-webkit-media-controls-play-button {
 
   // ───────── SaveScape intro (Guardian AI) flag ─────────
   let _introSeen = {};
-  window.dismissIntro = function(){ _introSeen.guardian = true; goTo('world_detail'); };
+  window.dismissIntro = function(){ _introSeen.guardian = true; goTo('hub'); };
 
   // ───────── SCREEN: EMERGENCY VAULT · SaveScape game #2 ─────────
   // Teaches: keep an emergency fund, never raid it for wants, replenish after use.
@@ -6173,7 +6173,7 @@ video::-webkit-media-controls-play-button {
   window.emgExit = function(){
     _emg=null; state.viewingWorld='guardian';
     try{ if(_emg===null && _introSeen) _introSeen.guardian = true; }catch(err){}
-    goTo('world_detail');
+    goTo('hub');
   };
 
   // ───────── SCREEN: AGE + PARENTAL (onboarding safety step) ─────────
@@ -6491,7 +6491,7 @@ video::-webkit-media-controls-play-button {
          if(typeof window.refreshHUD==='function') window.refreshHUD(); }catch(_){}
     goTo('security_game');
   }
-  window.secExit = function(){ secClear(); _sec=null; state.viewingWorld='guardian'; goTo('world_detail'); };
+  window.secExit = function(){ secClear(); _sec=null; state.viewingWorld='guardian'; goTo('hub'); };
 
   // ───────── GAME: SATELLITE (Savings Automation) ─────────
   let _sat=null;
@@ -7719,7 +7719,7 @@ video::-webkit-media-controls-play-button {
           <div class="h2huniv">${h.univ}</div>
           <p class="h2hdesc">${h.desc}</p>
           <div class="h2hverbs">${verbs}</div>
-          <button class="h2henter" onclick="goTo('world_detail')">ENTER ${w.name} →</button>
+          <button class="h2henter" onclick="document.querySelector('.h2gsec')?.scrollIntoView({behavior:'smooth',block:'start'})">ENTER ${w.name} →</button>
         </div>
         <div class="h2hright">
           <div class="h2hmap" style="background-image:url('${w.mapImg||''}')"></div>
@@ -10569,7 +10569,7 @@ SCREENS.game_goalquest = function(){
   </div>`;
 };
 
-window.gqExit = function(){ _goalquest = null; state.viewingWorld='strategist'; goTo('world_detail'); };
+window.gqExit = function(){ _goalquest = null; state.viewingWorld='strategist'; goTo('hub'); };
 window.gqNextRound = function(){
   if(!_goalquest) return;
   if(_goalquest.round >= _goalquest.maxRounds){
@@ -10638,7 +10638,7 @@ SCREENS.game_stocksurge = function(){
   </div>`;
 };
 
-window.ssExit = function(){ _stocksurge = null; state.viewingWorld='investor'; goTo('world_detail'); };
+window.ssExit = function(){ _stocksurge = null; state.viewingWorld='investor'; goTo('hub'); };
 window.ssPick = function(i){ if(_stocksurge&&_stocksurge.picks.length<_stocksurge.maxRounds) _stocksurge.picks.push(Math.random()<.6?15:-8); goTo('game_stocksurge'); };
 window.ssRoundDone = function(){
   if(!_stocksurge) return;
@@ -10720,7 +10720,7 @@ SCREENS.game_bizop = function(){
   </div>`;
 };
 
-window.boExit = function(){ _bizop = null; state.viewingWorld='builder'; goTo('world_detail'); };
+window.boExit = function(){ _bizop = null; state.viewingWorld='builder'; goTo('hub'); };
 window.boSelectBiz = function(i){ if(_bizop) { _bizop.bizType = i; _bizop.phase = 'play'; goTo('game_bizop'); } };
 window.boPerformAction = function(act){
   if(!_bizop) return;
@@ -10765,7 +10765,7 @@ SCREENS.game_blockbuilder = function(){
   </div>`;
 };
 
-window.bbExit = function(){ _blockbuilder = null; state.viewingWorld='risktaker'; goTo('world_detail'); };
+window.bbExit = function(){ _blockbuilder = null; state.viewingWorld='risktaker'; goTo('hub'); };
 window.bbAction = function(){ if(_blockbuilder){ _blockbuilder.chains++; _blockbuilder.score += 100; goTo('game_blockbuilder'); } };
 window.bbNextLevel = function(){ if(_blockbuilder && _blockbuilder.level < _blockbuilder.maxLevels) { _blockbuilder.level++; _blockbuilder.chains = 0; goTo('game_blockbuilder'); } else if(_blockbuilder) { _blockbuilder.phase='done'; goTo('game_blockbuilder'); } };
 
@@ -10815,7 +10815,7 @@ SCREENS.game_moneycatcher = function(){
   </div>`;
 };
 
-window.mcExit = function(){ _moneycatcher = null; state.viewingWorld='guardian'; goTo('world_detail'); };
+window.mcExit = function(){ _moneycatcher = null; state.viewingWorld='guardian'; goTo('hub'); };
 window.mcCatch = function(){ if(_moneycatcher){ _moneycatcher.caught++; _moneycatcher.combo++; _moneycatcher.score += 10*_moneycatcher.combo; goTo('game_moneycatcher'); } };
 window.mcDodge = function(){ if(_moneycatcher){ _moneycatcher.missed++; _moneycatcher.combo = 0; goTo('game_moneycatcher'); } };
 window.mcFinish = function(){ if(_moneycatcher){ _moneycatcher.phase='vault'; goTo('game_moneycatcher'); } };
@@ -10866,7 +10866,7 @@ SCREENS.game_debtsurv = function(){
   </div>`;
 };
 
-window.dsExit = function(){ _debtsurv = null; state.viewingWorld='rebuilder'; goTo('world_detail'); };
+window.dsExit = function(){ _debtsurv = null; state.viewingWorld='rebuilder'; goTo('hub'); };
 window.dsFight = function(){ if(_debtsurv){ _debtsurv.kills++; _debtsurv.enemies = Math.max(0, _debtsurv.enemies - 1); _debtsurv.health = Math.max(0, _debtsurv.health - 10); _debtsurv.score += 50; if(_debtsurv.enemies <= 0) _debtsurv.arena++; goTo('game_debtsurv'); } };
 window.dsDefend = function(){ if(_debtsurv){ _debtsurv.health = Math.min(100, _debtsurv.health + 15); _debtsurv.enemies++; goTo('game_debtsurv'); } };
 window.dsFinish = function(){ if(_debtsurv){ _debtsurv.phase='victory'; goTo('game_debtsurv'); } };
@@ -10927,7 +10927,7 @@ SCREENS.game_ficoracer = function(){
   </div>`;
 };
 
-window.frExit = function(){ _ficoracer = null; state.viewingWorld='credtech'; goTo('world_detail'); };
+window.frExit = function(){ _ficoracer = null; state.viewingWorld='credtech'; goTo('hub'); };
 window.frAccelerate = function(){ if(_ficoracer){ _ficoracer.lapTime += 10; _ficoracer.position = Math.max(1, _ficoracer.position - (Math.random()<.4?1:0)); goTo('game_ficoracer'); } };
 window.frBoost = function(){ if(_ficoracer){ _ficoracer.lapTime += 25; _ficoracer.fico += 50; _ficoracer.position = Math.max(1, _ficoracer.position - 2); goTo('game_ficoracer'); } };
 window.frFinish = function(){ if(_ficoracer){ _ficoracer.finished = true; goTo('game_ficoracer'); } };
@@ -11102,59 +11102,59 @@ window.playDistrictGame = function(token, i) {
 
   </script>
   <!-- Real playable games (canvas) — loaded after main script, override the stub SCREENS.game_* -->
-  <script src="assets/games/lessonspecs.js?v=58"></script>
-  <script src="assets/games/lessondeck.js?v=58"></script>
-  <script src="assets/games/moneycatcher.js?v=58"></script>
-  <script src="assets/games/goalquest.js?v=58"></script>
-  <script src="assets/games/stocksurge.js?v=58"></script>
-  <script src="assets/games/bizop.js?v=58"></script>
-  <script src="assets/games/blockbuilder.js?v=58"></script>
-  <script src="assets/games/debtsurv.js?v=58"></script>
-  <script src="assets/games/ficoracer.js?v=58"></script>
-  <script src="assets/games/creditcore.js?v=58"></script>
-  <script src="assets/games/scoretower.js?v=58"></script>
-  <script src="assets/games/borrowingbay.js?v=58"></script>
-  <script src="assets/games/trustexchange.js?v=58"></script>
-  <script src="assets/games/repaymentrunway.js?v=58"></script>
-  <script src="assets/games/creditlimitlab.js?v=58"></script>
-  <script src="assets/games/reportobservatory.js?v=58"></script>
-  <script src="assets/games/inv_academy.js?v=58"></script>
-  <script src="assets/games/inv_assetrealm.js?v=58"></script>
-  <script src="assets/games/inv_dividend.js?v=58"></script>
-  <script src="assets/games/inv_portfolio.js?v=58"></script>
-  <script src="assets/games/inv_research.js?v=58"></script>
-  <script src="assets/games/inv_riskcontrol.js?v=58"></script>
-  <script src="assets/games/inv_stockarena.js?v=58"></script>
-  <script src="assets/games/bud_billgrid.js?v=58"></script>
-  <script src="assets/games/bud_cashflow.js?v=58"></script>
-  <script src="assets/games/bud_efflab.js?v=58"></script>
-  <script src="assets/games/bud_goaltower.js?v=58"></script>
-  <script src="assets/games/bud_needswants.js?v=58"></script>
-  <script src="assets/games/bud_plaza.js?v=58"></script>
-  <script src="assets/games/bud_vault.js?v=58"></script>
-  <script src="assets/games/bsv_aiinnovationlabs.js?v=58"></script>
-  <script src="assets/games/bsv_bitstreammarket.js?v=58"></script>
-  <script src="assets/games/bsv_blockchainblvd.js?v=58"></script>
-  <script src="assets/games/bsv_cryptocrossing.js?v=58"></script>
-  <script src="assets/games/bsv_futuretrendscmd.js?v=58"></script>
-  <script src="assets/games/bsv_nftnexus.js?v=58"></script>
-  <script src="assets/games/bsv_volatilityvortex.js?v=58"></script>
-  <script src="assets/games/ll_branding_district.js?v=58"></script>
-  <script src="assets/games/ll_idea_incubator.js?v=58"></script>
-  <script src="assets/games/ll_investor_pitch.js?v=58"></script>
-  <script src="assets/games/ll_marketing_metropolis.js?v=58"></script>
-  <script src="assets/games/ll_product_dev_lab.js?v=58"></script>
-  <script src="assets/games/ll_scaling_center.js?v=58"></script>
-  <script src="assets/games/ll_startup_street.js?v=58"></script>
-  <script src="assets/games/ddt_discovery.js?v=58"></script>
-  <script src="assets/games/ddt_gym.js?v=58"></script>
-  <script src="assets/games/ddt_habits.js?v=58"></script>
-  <script src="assets/games/ddt_lab.js?v=58"></script>
-  <script src="assets/games/ddt_plaza.js?v=58"></script>
-  <script src="assets/games/ddt_rebuild.js?v=58"></script>
-  <script src="assets/games/ddt_resilience.js?v=58"></script>
-  <script src="assets/games/arccfg.js?v=58"></script>
-  <script src="assets/games/arcade.js?v=58"></script>
-  <script src="assets/games/capstones.js?v=58"></script>
+  <script src="assets/games/lessonspecs.js?v=59"></script>
+  <script src="assets/games/lessondeck.js?v=59"></script>
+  <script src="assets/games/moneycatcher.js?v=59"></script>
+  <script src="assets/games/goalquest.js?v=59"></script>
+  <script src="assets/games/stocksurge.js?v=59"></script>
+  <script src="assets/games/bizop.js?v=59"></script>
+  <script src="assets/games/blockbuilder.js?v=59"></script>
+  <script src="assets/games/debtsurv.js?v=59"></script>
+  <script src="assets/games/ficoracer.js?v=59"></script>
+  <script src="assets/games/creditcore.js?v=59"></script>
+  <script src="assets/games/scoretower.js?v=59"></script>
+  <script src="assets/games/borrowingbay.js?v=59"></script>
+  <script src="assets/games/trustexchange.js?v=59"></script>
+  <script src="assets/games/repaymentrunway.js?v=59"></script>
+  <script src="assets/games/creditlimitlab.js?v=59"></script>
+  <script src="assets/games/reportobservatory.js?v=59"></script>
+  <script src="assets/games/inv_academy.js?v=59"></script>
+  <script src="assets/games/inv_assetrealm.js?v=59"></script>
+  <script src="assets/games/inv_dividend.js?v=59"></script>
+  <script src="assets/games/inv_portfolio.js?v=59"></script>
+  <script src="assets/games/inv_research.js?v=59"></script>
+  <script src="assets/games/inv_riskcontrol.js?v=59"></script>
+  <script src="assets/games/inv_stockarena.js?v=59"></script>
+  <script src="assets/games/bud_billgrid.js?v=59"></script>
+  <script src="assets/games/bud_cashflow.js?v=59"></script>
+  <script src="assets/games/bud_efflab.js?v=59"></script>
+  <script src="assets/games/bud_goaltower.js?v=59"></script>
+  <script src="assets/games/bud_needswants.js?v=59"></script>
+  <script src="assets/games/bud_plaza.js?v=59"></script>
+  <script src="assets/games/bud_vault.js?v=59"></script>
+  <script src="assets/games/bsv_aiinnovationlabs.js?v=59"></script>
+  <script src="assets/games/bsv_bitstreammarket.js?v=59"></script>
+  <script src="assets/games/bsv_blockchainblvd.js?v=59"></script>
+  <script src="assets/games/bsv_cryptocrossing.js?v=59"></script>
+  <script src="assets/games/bsv_futuretrendscmd.js?v=59"></script>
+  <script src="assets/games/bsv_nftnexus.js?v=59"></script>
+  <script src="assets/games/bsv_volatilityvortex.js?v=59"></script>
+  <script src="assets/games/ll_branding_district.js?v=59"></script>
+  <script src="assets/games/ll_idea_incubator.js?v=59"></script>
+  <script src="assets/games/ll_investor_pitch.js?v=59"></script>
+  <script src="assets/games/ll_marketing_metropolis.js?v=59"></script>
+  <script src="assets/games/ll_product_dev_lab.js?v=59"></script>
+  <script src="assets/games/ll_scaling_center.js?v=59"></script>
+  <script src="assets/games/ll_startup_street.js?v=59"></script>
+  <script src="assets/games/ddt_discovery.js?v=59"></script>
+  <script src="assets/games/ddt_gym.js?v=59"></script>
+  <script src="assets/games/ddt_habits.js?v=59"></script>
+  <script src="assets/games/ddt_lab.js?v=59"></script>
+  <script src="assets/games/ddt_plaza.js?v=59"></script>
+  <script src="assets/games/ddt_rebuild.js?v=59"></script>
+  <script src="assets/games/ddt_resilience.js?v=59"></script>
+  <script src="assets/games/arccfg.js?v=59"></script>
+  <script src="assets/games/arcade.js?v=59"></script>
+  <script src="assets/games/capstones.js?v=59"></script>
 </body>
 </html>
