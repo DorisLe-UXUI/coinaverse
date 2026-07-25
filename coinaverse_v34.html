@@ -6529,7 +6529,7 @@ video::-webkit-media-controls-play-button {
       .sat-stats{display:flex;gap:10px;margin-left:auto}
       .sat-stat{font-family:'Orbitron',sans-serif;font-size:.62rem;padding:5px 12px;border:1px solid rgba(20,184,166,.3);border-radius:8px;background:rgba(20,184,166,.06);color:#5eead4}
       .sat-field{flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column}
-      .sat-stars{position:absolute;inset:0;background-image:radial-gradient(1px 1px at 15% 25%,rgba(255,255,255,.5),transparent),radial-gradient(1px 1px at 70% 60%,rgba(255,255,255,.4),transparent),radial-gradient(1.5px 1.5px at 40% 80%,rgba(190,240,255,.5),transparent),radial-gradient(1px 1px at 85% 15%,rgba(255,255,255,.5),transparent),radial-gradient(1px 1px at 55% 45%,rgba(255,255,255,.35),transparent)}
+      .sat-stars{position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(1px 1px at 15% 25%,rgba(255,255,255,.5),transparent),radial-gradient(1px 1px at 70% 60%,rgba(255,255,255,.4),transparent),radial-gradient(1.5px 1.5px at 40% 80%,rgba(190,240,255,.5),transparent),radial-gradient(1px 1px at 85% 15%,rgba(255,255,255,.5),transparent),radial-gradient(1px 1px at 55% 45%,rgba(255,255,255,.35),transparent)}
       .sat-center{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:16px;padding:20px;text-align:center}
       .sat-planet{width:90px;height:90px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#1ee0cc,#0d9488 50%,#065f5b);box-shadow:0 0 40px rgba(20,184,166,.5),inset 0 0 20px rgba(0,0,0,.3);position:relative;margin:0 auto}
       .sat-ring{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:140px;height:40px;border:2px solid rgba(20,184,166,.3);border-radius:50%;animation:satSpin 4s linear infinite}
@@ -6638,18 +6638,35 @@ video::-webkit-media-controls-play-button {
 
   // ───────── GAME: COMPOUND (Compound Interest Constellation) ─────────
   let _comp=null;
-  window.compInit=function(){_comp={stars:1,coins:100,rate:8,years:0,maxYears:10,interval:null,running:false,history:[100]};};
+  window.compInit=function(){_comp={stars:1,coins:100,rate:8,years:0,maxYears:10,interval:null,running:false,starting:false,history:[100]};};
   SCREENS.compound_game=function(){
     if(!_comp) compInit();
     const c=_comp;
     const W=Math.max(300,Math.min(600,window.innerWidth-40));
-    if(!c.running){
+    // c.starting guards the 200ms window before `running` flips true — without it, a
+    // fast double-tap on START SIMULATION / PLAY AGAIN (very common with kids on
+    // touchscreens; the button stays in the DOM+clickable during that window since
+    // only #compCoins/#compStars/#compYear/#compCanvas get live-patched, not a full
+    // re-render) calls compInit()+goTo() twice, each scheduling its own setInterval.
+    // Both then run concurrently, and only the LATTER's id survives in _comp.interval
+    // — the earlier one becomes uncancellable and keeps firing every 1200ms forever,
+    // including after compExit() nulls `_comp`, where `clearInterval(_comp.interval)`
+    // then threw "Cannot read properties of null (reading 'interval')" on every tick,
+    // permanently, for the rest of the session (found via real regression testing).
+    // Fix: the `starting` flag makes scheduling idempotent, an identity check
+    // (`_comp!==c`) makes a stale timer/interval a no-op once superseded, and each
+    // interval clears itself via its own local `iv` instead of trusting `_comp.interval`
+    // (which can no longer be read off a null/replaced `_comp`).
+    if(!c.running && !c.starting){
+      c.starting = true;
       setTimeout(()=>{
-        if(!_comp) return;
+        if(!_comp||_comp!==c) return;
+        _comp.starting=false;
         _comp.running=true;
-        _comp.interval=setInterval(()=>{
-          if(!_comp||_comp.years>=_comp.maxYears){clearInterval(_comp.interval);_comp.running=false;goTo('compound_game');return;}
-          if(window.state&&state.currentScreen&&state.currentScreen!=='compound_game'){clearInterval(_comp.interval);_comp.running=false;return;}
+        let iv;
+        iv=setInterval(()=>{
+          if(!_comp||_comp!==c||_comp.years>=_comp.maxYears){clearInterval(iv);if(_comp===c){_comp.running=false;goTo('compound_game');}return;}
+          if(window.state&&state.currentScreen&&state.currentScreen!=='compound_game'){clearInterval(iv);if(_comp===c)_comp.running=false;return;}
           _comp.years++;
           _comp.coins=Math.round(_comp.coins*(1+_comp.rate/100));
           _comp.stars=Math.min(100,Math.round(_comp.stars*(1+_comp.rate/200)));
@@ -6686,6 +6703,7 @@ video::-webkit-media-controls-play-button {
             });
           }
         },1200);
+        _comp.interval=iv;
       },200);
     }
     const won=c.years>=c.maxYears;
@@ -11123,10 +11141,15 @@ window.playDistrictGame = function(token, i) {
     rebuilder: function(){ dsInit(); goTo('game_debtsurv'); },
     rebuilder_1: function(){ goTo('game_ddt_plaza'); },
     ddt_plaza: function(){ goTo('game_ddt_plaza'); },
-    // These 4 districts each have their own real, themed game — without this override
+    // These 5 districts each have their own real, themed game — without this override
     // they fell back to a generic, unrelated arcade mini-game (e.g. Resilience Hall,
     // about staying calm under pressure, opened a plain good-debt/bad-debt sorter).
     rebuilder_2: function(){ goTo('game_ddt_lab'); },
+    // rebuilder_3 ("Rebuilding Station") was missed by the fix above: it still fell
+    // through to the generic arcade "stack" mini-game (hub name "REBOUND CITY")
+    // instead of opening the real, dedicated ddt_rebuild.js game — same bug, same
+    // district name, just never wired up.
+    rebuilder_3: function(){ goTo('game_ddt_rebuild'); },
     rebuilder_4: function(){ goTo('game_ddt_habits'); },
     rebuilder_5: function(){ goTo('game_ddt_gym'); },
     rebuilder_6: function(){ goTo('game_ddt_resilience'); },
@@ -11140,59 +11163,59 @@ window.playDistrictGame = function(token, i) {
 
   </script>
   <!-- Real playable games (canvas) — loaded after main script, override the stub SCREENS.game_* -->
-  <script src="assets/games/lessonspecs.js?v=64"></script>
-  <script src="assets/games/lessondeck.js?v=64"></script>
-  <script src="assets/games/moneycatcher.js?v=64"></script>
-  <script src="assets/games/goalquest.js?v=64"></script>
-  <script src="assets/games/stocksurge.js?v=64"></script>
-  <script src="assets/games/bizop.js?v=64"></script>
-  <script src="assets/games/blockbuilder.js?v=64"></script>
-  <script src="assets/games/debtsurv.js?v=64"></script>
-  <script src="assets/games/ficoracer.js?v=64"></script>
-  <script src="assets/games/creditcore.js?v=64"></script>
-  <script src="assets/games/scoretower.js?v=64"></script>
-  <script src="assets/games/borrowingbay.js?v=64"></script>
-  <script src="assets/games/trustexchange.js?v=64"></script>
-  <script src="assets/games/repaymentrunway.js?v=64"></script>
-  <script src="assets/games/creditlimitlab.js?v=64"></script>
-  <script src="assets/games/reportobservatory.js?v=64"></script>
-  <script src="assets/games/inv_academy.js?v=64"></script>
-  <script src="assets/games/inv_assetrealm.js?v=64"></script>
-  <script src="assets/games/inv_dividend.js?v=64"></script>
-  <script src="assets/games/inv_portfolio.js?v=64"></script>
-  <script src="assets/games/inv_research.js?v=64"></script>
-  <script src="assets/games/inv_riskcontrol.js?v=64"></script>
-  <script src="assets/games/inv_stockarena.js?v=64"></script>
-  <script src="assets/games/bud_billgrid.js?v=64"></script>
-  <script src="assets/games/bud_cashflow.js?v=64"></script>
-  <script src="assets/games/bud_efflab.js?v=64"></script>
-  <script src="assets/games/bud_goaltower.js?v=64"></script>
-  <script src="assets/games/bud_needswants.js?v=64"></script>
-  <script src="assets/games/bud_plaza.js?v=64"></script>
-  <script src="assets/games/bud_vault.js?v=64"></script>
-  <script src="assets/games/bsv_aiinnovationlabs.js?v=64"></script>
-  <script src="assets/games/bsv_bitstreammarket.js?v=64"></script>
-  <script src="assets/games/bsv_blockchainblvd.js?v=64"></script>
-  <script src="assets/games/bsv_cryptocrossing.js?v=64"></script>
-  <script src="assets/games/bsv_futuretrendscmd.js?v=64"></script>
-  <script src="assets/games/bsv_nftnexus.js?v=64"></script>
-  <script src="assets/games/bsv_volatilityvortex.js?v=64"></script>
-  <script src="assets/games/ll_branding_district.js?v=64"></script>
-  <script src="assets/games/ll_idea_incubator.js?v=64"></script>
-  <script src="assets/games/ll_investor_pitch.js?v=64"></script>
-  <script src="assets/games/ll_marketing_metropolis.js?v=64"></script>
-  <script src="assets/games/ll_product_dev_lab.js?v=64"></script>
-  <script src="assets/games/ll_scaling_center.js?v=64"></script>
-  <script src="assets/games/ll_startup_street.js?v=64"></script>
-  <script src="assets/games/ddt_discovery.js?v=64"></script>
-  <script src="assets/games/ddt_gym.js?v=64"></script>
-  <script src="assets/games/ddt_habits.js?v=64"></script>
-  <script src="assets/games/ddt_lab.js?v=64"></script>
-  <script src="assets/games/ddt_plaza.js?v=64"></script>
-  <script src="assets/games/ddt_rebuild.js?v=64"></script>
-  <script src="assets/games/ddt_resilience.js?v=64"></script>
-  <script src="assets/games/arccfg.js?v=64"></script>
-  <script src="assets/games/arcade.js?v=64"></script>
-  <script src="assets/games/capstones.js?v=64"></script>
+  <script src="assets/games/lessonspecs.js?v=68"></script>
+  <script src="assets/games/lessondeck.js?v=68"></script>
+  <script src="assets/games/moneycatcher.js?v=68"></script>
+  <script src="assets/games/goalquest.js?v=68"></script>
+  <script src="assets/games/stocksurge.js?v=68"></script>
+  <script src="assets/games/bizop.js?v=68"></script>
+  <script src="assets/games/blockbuilder.js?v=68"></script>
+  <script src="assets/games/debtsurv.js?v=68"></script>
+  <script src="assets/games/ficoracer.js?v=68"></script>
+  <script src="assets/games/creditcore.js?v=68"></script>
+  <script src="assets/games/scoretower.js?v=68"></script>
+  <script src="assets/games/borrowingbay.js?v=68"></script>
+  <script src="assets/games/trustexchange.js?v=68"></script>
+  <script src="assets/games/repaymentrunway.js?v=68"></script>
+  <script src="assets/games/creditlimitlab.js?v=68"></script>
+  <script src="assets/games/reportobservatory.js?v=68"></script>
+  <script src="assets/games/inv_academy.js?v=68"></script>
+  <script src="assets/games/inv_assetrealm.js?v=68"></script>
+  <script src="assets/games/inv_dividend.js?v=68"></script>
+  <script src="assets/games/inv_portfolio.js?v=68"></script>
+  <script src="assets/games/inv_research.js?v=68"></script>
+  <script src="assets/games/inv_riskcontrol.js?v=68"></script>
+  <script src="assets/games/inv_stockarena.js?v=68"></script>
+  <script src="assets/games/bud_billgrid.js?v=68"></script>
+  <script src="assets/games/bud_cashflow.js?v=68"></script>
+  <script src="assets/games/bud_efflab.js?v=68"></script>
+  <script src="assets/games/bud_goaltower.js?v=68"></script>
+  <script src="assets/games/bud_needswants.js?v=68"></script>
+  <script src="assets/games/bud_plaza.js?v=68"></script>
+  <script src="assets/games/bud_vault.js?v=68"></script>
+  <script src="assets/games/bsv_aiinnovationlabs.js?v=68"></script>
+  <script src="assets/games/bsv_bitstreammarket.js?v=68"></script>
+  <script src="assets/games/bsv_blockchainblvd.js?v=68"></script>
+  <script src="assets/games/bsv_cryptocrossing.js?v=68"></script>
+  <script src="assets/games/bsv_futuretrendscmd.js?v=68"></script>
+  <script src="assets/games/bsv_nftnexus.js?v=68"></script>
+  <script src="assets/games/bsv_volatilityvortex.js?v=68"></script>
+  <script src="assets/games/ll_branding_district.js?v=68"></script>
+  <script src="assets/games/ll_idea_incubator.js?v=68"></script>
+  <script src="assets/games/ll_investor_pitch.js?v=68"></script>
+  <script src="assets/games/ll_marketing_metropolis.js?v=68"></script>
+  <script src="assets/games/ll_product_dev_lab.js?v=68"></script>
+  <script src="assets/games/ll_scaling_center.js?v=68"></script>
+  <script src="assets/games/ll_startup_street.js?v=68"></script>
+  <script src="assets/games/ddt_discovery.js?v=68"></script>
+  <script src="assets/games/ddt_gym.js?v=68"></script>
+  <script src="assets/games/ddt_habits.js?v=68"></script>
+  <script src="assets/games/ddt_lab.js?v=68"></script>
+  <script src="assets/games/ddt_plaza.js?v=68"></script>
+  <script src="assets/games/ddt_rebuild.js?v=68"></script>
+  <script src="assets/games/ddt_resilience.js?v=68"></script>
+  <script src="assets/games/arccfg.js?v=68"></script>
+  <script src="assets/games/arcade.js?v=68"></script>
+  <script src="assets/games/capstones.js?v=68"></script>
 </body>
 </html>

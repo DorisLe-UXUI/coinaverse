@@ -596,6 +596,21 @@
   window.dsStartLv=function(i){
     reset(i);
     const el=document.getElementById('dsSelect'); if(el){el.style.display='none';el.innerHTML='';}
+    // Defensive: dsRestart/dsChangeLv both clear the end-of-match overlay before
+    // starting fresh — this entry point (the level-select buttons themselves)
+    // skipped that, so any call into dsStartLv while dsOver was still showing
+    // (e.g. a future direct level-select re-entry, or QA/automation jumping
+    // straight to a level) left last match's frozen report permanently covering
+    // all subsequent live gameplay underneath it.
+    const ov=document.getElementById('dsOver'); if(ov){ov.style.display='none';ov.innerHTML='';}
+    // Same defensive clear for the Knowledge Gate quiz overlay — it shares dsOver's
+    // z-index and full-screen coverage, so a stale, still-open #dsGate (left behind
+    // if a level is (re-)started while a previous match's gate was never answered)
+    // paints on top of the new live match and swallows every click, same failure
+    // mode as the dsOver gap above. Also cancel any pending gate-close timer so it
+    // can't reach into this fresh match's DOM later.
+    clearTimeout(gateTimer); gateTimer=null;
+    const gt=document.getElementById('dsGate'); if(gt){gt.style.display='none';gt.innerHTML='';}
     const lbl=document.getElementById('dsLvLabel'); if(lbl) lbl.textContent=LEVELS[i].label;
     const an=document.getElementById('dsArenaName'); if(an) an.textContent=LEVELS[i].arenaName;
     spawnItems();
@@ -2102,6 +2117,8 @@
     const lvl=G?G.lvlIdx:0;
     reset(lvl);
     const o=document.getElementById('dsOver'); if(o){o.style.display='none';o.innerHTML='';}
+    clearTimeout(gateTimer); gateTimer=null;
+    const gt=document.getElementById('dsGate'); if(gt){gt.style.display='none';gt.innerHTML='';}
     G.phase='play'; G.last=performance.now();
     const lbl=document.getElementById('dsLvLabel'); if(lbl) lbl.textContent=LEVELS[lvl].label;
     const an=document.getElementById('dsArenaName'); if(an) an.textContent=LEVELS[lvl].arenaName;
@@ -2110,6 +2127,8 @@
   };
   window.dsChangeLv=function(){
     const o=document.getElementById('dsOver'); if(o){o.style.display='none';o.innerHTML='';}
+    clearTimeout(gateTimer); gateTimer=null;
+    const gt=document.getElementById('dsGate'); if(gt){gt.style.display='none';gt.innerHTML='';}
     reset(0);
     showSelect();
   };

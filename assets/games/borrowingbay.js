@@ -1756,14 +1756,14 @@
   };
 
   /* ── QA debug hook ─────────────────────────────────────────── */
-  window._bbDbg = function(){
+  window._borrowingbayDbg = function(){
     return gs ? {
       level: curLevel, phase: gs.phase, income: MONTHLY_INCOME, fixed: FIXED_EXPENSES,
       budgetStart: BUDGET_START, sessionSecs: SESSION_SECS, cardSecs: CARD_SECS,
       loanIds: LOANS.map(l => l.id), cardIndex: gs.cardIndex, results: gs.results.slice(),
     } : null;
   };
-  window._bbForceWin = function(){
+  window._borrowingbayForceWin = function(){
     if (!gs) return;
     gs.results = LOANS.map(() => 'correct');
     gs.cardIndex = LOANS.length;

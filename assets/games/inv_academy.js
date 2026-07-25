@@ -345,7 +345,6 @@
           text-transform: uppercase;
         }
       </style>
-      <div id="inv_acad_ui" style="position:absolute;inset:0;display:flex;flex-direction:column;"></div>
       <!-- HOW TO PLAY overlay (shown once before Level 1, reopened via ❓ during questions) -->
       <div id="inv_help" style="display:none;position:absolute;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(3,4,12,.9);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box;"></div>
     </div>`;

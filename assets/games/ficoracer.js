@@ -306,7 +306,7 @@
           const scene=new THREE.Scene();
           let root;
           const mdl=models&&models[ci];
-          if(mdl){ root=mdl.root.clone(true); root.traverse(m=>{ if(m.isMesh) m.material=m.material.clone(); }); }
+          if(mdl){ root=mdl.root.clone(true); root.traverse(m=>{ if(m.isMesh) m.material=Array.isArray(m.material)?m.material.map(mm=>mm.clone()):m.material.clone(); }); }
           else root=buildFallbackCar(parseInt(c.color.slice(1),16)).root;
           root.rotation.y=Math.random()*Math.PI*2;
           scene.add(root);
@@ -369,6 +369,99 @@
       .catch(e=>{ console.warn('FICO 3D load issue:', e); startRace(li, null, carIdx); });
   };
 
+  /* ── Off-brand decal camouflage ──
+     The delivered Toon-Racing rally models have leftover sponsor/joke text
+     (TIVOIL, "pong", "TR RACING") embossed as raised 3D geometry on their
+     *_Livery meshes, not baked into the atlas texture. Those meshes share
+     atlas UV space with unrelated parts (wheels, body shell, roof scoop) —
+     recoloring the shared PNG swatch bleeds into whatever else samples it
+     (confirmed: wheels turned solid red doing this the pixel-edit way), and
+     some decals even share their swatch with an already-camouflaged one
+     that needs the opposite tone (dark-on-glass vs light-on-body-paint).
+     So instead of touching the PNG, the exact offending faces are found by
+     their own position within the mesh (clustered once per mesh, since the
+     geometry is static) and given a dedicated flat-color material, leaving
+     every other triangle on the original shared atlas material untouched. */
+  function triCentroidsLocal(geo){
+    const idx=geo.index, pos=geo.attributes.position;
+    const nTris = idx ? idx.count/3 : pos.count/3;
+    const out = new Float32Array(nTris*3);
+    for(let t=0;t<nTris;t++){
+      let i0,i1,i2;
+      if(idx){ i0=idx.getX(t*3); i1=idx.getX(t*3+1); i2=idx.getX(t*3+2); }
+      else { i0=t*3; i1=t*3+1; i2=t*3+2; }
+      out[t*3]  =(pos.getX(i0)+pos.getX(i1)+pos.getX(i2))/3;
+      out[t*3+1]=(pos.getY(i0)+pos.getY(i1)+pos.getY(i2))/3;
+      out[t*3+2]=(pos.getZ(i0)+pos.getZ(i1)+pos.getZ(i2))/3;
+    }
+    return out;
+  }
+  function inBox(cx,cy,cz,b){ return cx>=b.x[0]&&cx<=b.x[1]&&cy>=b.y[0]&&cy<=b.y[1]&&cz>=b.z[0]&&cz<=b.z[1]; }
+  // per car key: {meshName: [{boxes:[{x:[min,max],y:[min,max],z:[min,max]}, ...], color:0xRRGGBB}, ...]}
+  // boxes are in the MESH'S OWN local (pre-normalize) vertex space, found via a
+  // one-off position-clustering pass — see the rally-decal investigation memory.
+  const OFFBRAND_DECAL_BOXES = {
+    rally2: {
+      Rally_Car_2A_Livery: [{ color:0xeb2314, boxes:[             // vivid red — matches the door/hood paint
+        {x:[-1.22,-1.13], y:[0.84,1.06], z:[-0.88,-0.37]},        // "pong" (left door)
+        {x:[ 1.13, 1.22], y:[0.84,1.06], z:[-0.88,-0.37]},        // "pong" (right door)
+        {x:[-0.21, 0.21], y:[1.24,1.28], z:[ 1.13, 1.31]},        // "pong" (hood)
+        {x:[-1.15,-1.10], y:[0.67,0.96], z:[ 0.49, 0.72]},        // oil-drop icon (left door)
+        {x:[ 1.10, 1.15], y:[0.67,0.96], z:[ 0.49, 0.72]},        // oil-drop icon (right door)
+      ]}],
+      Rally_Car_2A_Spoiler_Livery:     [{ color:0xeb2314, boxes:[{x:[-0.13,0.11], y:[1.87,1.93], z:[-2.04,-1.70]}] }],
+      Rally_Car_2A_Front_Skirt_Livery: [{ color:0xeb2314, boxes:[{x:[-0.09,0.10], y:[0.27,0.30], z:[ 2.16, 2.41]}] }],
+      // Rally_Car_2A_Livery's TIVOIL text appears TWICE (109 faces each, same identical shape) —
+      // (x:[-0.32,0.32] y:[1.72,1.82] z:[0.09,0.27]) and (x:[-0.34,0.34] y:[1.57,1.73] z:[-1.78,-1.65]).
+      // Both are deliberately left off this list — that region was already fixed once (dark,
+      // camouflaged against the rear glass/roofline) and is not part of this pass. The 2nd copy
+      // was previously mislabeled "oil-drop icon (front fender)" and wrongly painted red — verified
+      // via full 3D-position clustering of all 766 faces on this mesh: only 2 icon copies actually
+      // exist (both on the doors, 28 faces each), never a 3rd "front fender" copy.
+    },
+    rally4: {
+      Rally_Car_4A_Livery: [
+        { color:0xff8c0a, boxes:[                                  // orange — matches the lower-door paint
+          {x:[-104.1,-101.4], y:[62.5,77.2],   z:[-42.3,  0.7]},   // "TR RACING" (left door)
+          {x:[ 101.4, 104.1], y:[62.5,77.2],   z:[-43.2, -0.2]},   // "TR RACING" (right door)
+        ]},
+        { color:0xffd814, boxes:[                                  // gold-yellow — matches the roof/hood paint
+          {x:[ -19.6,  22.3], y:[155.6,166.5], z:[-175.4,-164.0]}, // "TR RACING" (rear window banner)
+          {x:[  45.2,  57.7], y:[177.6,181.8], z:[ -15.2,  34.0]}, // "TIVOIL" (roofline banner)
+          {x:[ -85.8, -73.1], y:[105.7,115.9], z:[ 175.8, 215.4]}, // chevron logo mark
+          {x:[ -35.5,  -6.0], y:[126.6,129.6], z:[ 128.2, 144.3]}, // small text badge
+          {x:[ -48.8, -40.5], y:[126.2,128.3], z:[ 127.4, 141.4]}, // small text badge (cont.)
+        ]},
+      ],
+      // Rally_Car_4A_Livery's 2 national-flag decals (x≈±96..101, y≈99.5..112.7, z≈106..115.3) are
+      // deliberately left off this list — generic rally-livery flair, not off-brand sponsor content.
+    },
+  };
+  function recolorOffBrandDecals(obj, carKey, tex){
+    const table = OFFBRAND_DECAL_BOXES[carKey]; if(!table) return;
+    Object.keys(table).forEach(meshName=>{
+      const groups = table[meshName];
+      let target=null; obj.traverse(m=>{ if(m.isMesh && m.name===meshName) target=m; });
+      if(!target) return;
+      const geo = target.geometry;
+      const nTris = geo.index ? geo.index.count/3 : geo.attributes.position.count/3;
+      const cents = triCentroidsLocal(geo);
+      const matIdx = new Int16Array(nTris);
+      for(let t=0;t<nTris;t++){
+        const cx=cents[t*3], cy=cents[t*3+1], cz=cents[t*3+2];
+        for(let g=0; g<groups.length; g++){
+          if(groups[g].boxes.some(b=>inBox(cx,cy,cz,b))){ matIdx[t]=g+1; break; }
+        }
+      }
+      geo.clearGroups();
+      let i=0;
+      while(i<nTris){ const mi=matIdx[i]; let j=i; while(j<nTris && matIdx[j]===mi) j++; geo.addGroup(i*3,(j-i)*3,mi); i=j; }
+      target.material = [new THREE.MeshToonMaterial({map:tex})].concat(
+        groups.map(g=>new THREE.MeshToonMaterial({color:g.color}))
+      );
+    });
+  }
+
   /* ── FBX car loading (with procedural fallback) ── */
   let _carCache=null;
   function loadCarAssets(bar){
@@ -397,6 +490,7 @@
           m.castShadow=false; m.receiveShadow=false;
           if(/wheel|tire|tyre/i.test(m.name)) wheels.push(m);
         }});
+        recolorOffBrandDecals(obj, c.key, tex);
         done++; if(bar) bar(.45+.55*done/CARS.length);
         res({root:obj, wheels});
       }, undefined, ()=>{ done++; if(bar) bar(.45+.55*done/CARS.length); res(null); });
@@ -484,8 +578,14 @@
     const soot=new THREE.Color(SOOT_HEX);
     G.cars[0].traverse(m=>{
       if(!m.isMesh || !m.userData.origColor) return;
-      m.material.color.copy(m.userData.origColor).multiplyScalar(dv.colorMul).lerp(soot, dv.soot);
-      if(m.material.emissive) m.material.emissive.setHex(EMBER_HEX).multiplyScalar(dv.ember||0);
+      // off-brand-decal meshes carry a material ARRAY (shared atlas + dedicated flat-color
+      // overrides, see recolorOffBrandDecals) — tint every slot, not just a single material
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      const origs = Array.isArray(m.userData.origColor) ? m.userData.origColor : [m.userData.origColor];
+      mats.forEach((mm,mi)=>{
+        mm.color.copy(origs[mi]).multiplyScalar(dv.colorMul).lerp(soot, dv.soot);
+        if(mm.emissive) mm.emissive.setHex(EMBER_HEX).multiplyScalar(dv.ember||0);
+      });
       if(!/wheel|tire|tyre/i.test(m.name)) applyVertexDent(m, dv.dent||0);
     });
     if(G.dentGroup) G.dentGroup.children.forEach((d,i)=>{ d.visible=i<dv.decals; });
@@ -692,10 +792,10 @@
       // player's own meshes (i===0) also get their OWN geometry clone (not just material) —
       // needed so the damage vertex-dent below only ever touches this one car, never the
       // AI cars or the cached FBX template that frRestart()/frStartNext() reuse.
-      if(mdl){ inst={root:mdl.root.clone(true),wheels:[]}; inst.root.traverse(m=>{ if(m.isMesh){ m.material=m.material.clone(); if(i===0) m.geometry=m.geometry.clone(); if(/wheel|tire|tyre/i.test(m.name)) inst.wheels.push(m); } }); }
+      if(mdl){ inst={root:mdl.root.clone(true),wheels:[]}; inst.root.traverse(m=>{ if(m.isMesh){ m.material=Array.isArray(m.material)?m.material.map(mm=>mm.clone()):m.material.clone(); if(i===0) m.geometry=m.geometry.clone(); if(/wheel|tire|tyre/i.test(m.name)) inst.wheels.push(m); } }); }
       else inst=buildFallbackCar(parseInt(cdef.color.slice(1),16));
       if(i===0) inst.root.traverse(m=>{ if(m.isMesh){
-        m.userData.origColor=m.material.color.clone();
+        m.userData.origColor=Array.isArray(m.material)?m.material.map(mm=>mm.color.clone()):m.material.color.clone();
         m.geometry.userData.origPos=m.geometry.attributes.position.array.slice();
       }});
       const holder=new THREE.Group(); holder.add(inst.root);

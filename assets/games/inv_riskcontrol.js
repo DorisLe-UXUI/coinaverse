@@ -12,6 +12,7 @@
   const WARN   = '#FFB300';
   const GOLD   = '#FFD700';
   const BG     = '#03040c';
+  const STREAK_MILESTONES = [3, 5, 10, 15, 20]; // consecutive optimal defenses that trigger a celebration
 
   /* ── threat catalogue ──────────────────────────────────────── */
   const THREATS = [
@@ -922,6 +923,13 @@
     requestAnimationFrame(() => {
       fb.style.animation = 'rcc-flash 1.1s ease-out forwards';
     });
+  }
+
+  // Celebrates a milestone streak of consecutive optimal (best-action) defenses —
+  // reuses the same feedback chip as a normal defend/optimal toast so it needs
+  // no extra DOM, just a louder gold message at streak milestones.
+  function showStreakCelebration(streak) {
+    showFeedback('🔥 ' + streak + 'x STREAK!', GOLD);
   }
 
   function pulseButton(actionId, success) {

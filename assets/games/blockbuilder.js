@@ -1039,10 +1039,10 @@
   };
 
   /* ── DEBUG HOOKS (read-only introspection + force-win, parity w/ prior build) ── */
-  window._bbDbg=function(){
+  window._blockbuilderDbg=function(){
     return G ? { LV, phase:G.phase, score:G.score, blocksMined:G.blocksMined, blocksGoal:G.blocksGoal,
                   integrity:G.integrity, lanes:G.lanes.map(l=>({fill:l.filled,chain:l.chainCount,consensus:l.consensus,corrupt:l.corruptT})),
                   gateIdx:G.gateIdx, isFinal:LV>=2 } : { LV, phase:'no-G' };
   };
-  window._bbForceWin=function(){ if(!G) return false; G.blocksMined=G.blocksGoal; G.integrity=100; end(true); return true; };
+  window._blockbuilderForceWin=function(){ if(!G) return false; G.blocksMined=G.blocksGoal; G.integrity=100; end(true); return true; };
 })();

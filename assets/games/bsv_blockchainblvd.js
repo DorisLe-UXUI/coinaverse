@@ -1216,7 +1216,7 @@
   };
 
   /* ── DEBUG HOOK (dev/QA only) ───────────────────────────────── */
-  window._bbDbg = () => G ? {
+  window._blockchainblvdDbg = () => G ? {
     level: G.level, phase: G.phase, score: G.score,
     chainCount: G.chains.length,
     blocksPerChain: G.chains.map(c => c.blocks.length),
@@ -1226,7 +1226,7 @@
     hackerInterval: G.hackerInterval, hackerFloor: G.hackerFloor,
     starThresholds: starThresholds(),
   } : null;
-  window._bbForceWin = () => {
+  window._blockchainblvdForceWin = () => {
     if (!G) return 'no active game — call bsv_startLevel(1|2|3) first';
     G.chains.forEach(ch => ch.blocks.forEach(b => { b.state = 'sealed'; }));
     checkWin();

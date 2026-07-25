@@ -128,7 +128,7 @@
 
   <!-- TOP BAR -->
   <div style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:8px;padding:10px 12px 8px;background:linear-gradient(180deg,rgba(3,4,12,.98) 70%,transparent);border-bottom:1px solid ${ACC}44">
-    <button id="mmBack" style="background:transparent;border:1px solid ${ACC}55;color:${ACC2};font-size:.85rem;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:Inter,sans-serif">←</button>
+    <button id="mmBack" style="background:transparent;border:1px solid ${ACC}55;color:${ACC2};font-size:.6rem;letter-spacing:.06em;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:Inter,sans-serif;white-space:nowrap;flex-shrink:0">← HUB</button>
     <div style="font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.18em;color:${ACC2};flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">MARKETING METROPOLIS</div>
     <div style="display:flex;align-items:center;gap:12px">
       <div style="text-align:right">
