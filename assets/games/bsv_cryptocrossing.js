@@ -857,16 +857,28 @@
   function drawPlayer(ctx, W, H, ts) {
     const px = G.laneX;
     const baseY = playerYBase(H);
-    const jumpOff = G.jumping ? Math.sin(G.jumpT * Math.PI) * H * 0.22 : 0;
+    // jumpNorm is the 0..1 arc progress (same shape used at lines ~389/415 for
+    // hit-testing) — kept separate from jumpOff (below), which is already
+    // scaled to PIXELS (H*0.22). Reusing jumpOff directly in the shadow math
+    // used to make the ellipse's x-radius (20 - jumpOff*0.12) go NEGATIVE at
+    // the top of any jump on tall-enough canvases (jumpOff > ~167px), which
+    // throws an uncaught "IndexSizeError"/negative-radius exception out of
+    // ctx.ellipse() and — since this render() call sits before the loop's own
+    // requestAnimationFrame(...) reschedule — silently froze the whole game
+    // (HUD/timer included) on the very first jump. Deriving the shrink from
+    // the normalized 0..1 progress instead keeps it resolution-independent
+    // and impossible to push negative.
+    const jumpNorm = G.jumping ? Math.sin(G.jumpT * Math.PI) : 0;
+    const jumpOff = jumpNorm * H * 0.22;
     const py = baseY - jumpOff;
 
     // Shadow on ground
     ctx.save();
-    const shadowA = lerp(0.45, 0.08, jumpOff / (H * 0.22 + 0.001));
+    const shadowA = lerp(0.45, 0.08, jumpNorm);
     ctx.globalAlpha = shadowA;
     ctx.fillStyle = '#00FFFF';
     ctx.beginPath();
-    ctx.ellipse(px, baseY + 10, 20 - jumpOff * 0.12, 5, 0, 0, Math.PI * 2);
+    ctx.ellipse(px, baseY + 10, Math.max(4, 20 - jumpNorm * 13), 5, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 

@@ -1063,6 +1063,24 @@
       ctx.closePath();
     }
 
+    /* ── Width-aware font fit (Bug fix — drawTitle()'s font sizes were pure
+       H-relative (e.g. H*0.06), which is safe on wide/landscape canvases but
+       overflows badly on tall/narrow PORTRAIT mobile viewports (H can be 2x+
+       W there): a 430×932 canvas measured "REPAYMENT RUNWAY" at 601px wide
+       against a 430px-wide canvas, and each card's "LEVEL N" at 206px wide
+       against a 116px-wide card — text bled off both edges and cards
+       overlapped each other. This sets the desired size, measures the actual
+       string, and scales DOWN only if it would exceed maxWidth — wide/
+       landscape layouts where it already fit are untouched. ── */
+    function fitFontPx(text, weight, desiredPx, maxWidth, minPx) {
+      ctx.font = `${weight} ${desiredPx}px sans-serif`;
+      const w = ctx.measureText(text).width;
+      let px = desiredPx;
+      if (w > maxWidth) px = Math.max(minPx, desiredPx * (maxWidth / w));
+      ctx.font = `${weight} ${px}px sans-serif`;
+      return px;
+    }
+
     /* ── Title screen — level select (3 cards) ────────────────────────────── */
     let titleCards = []; // [{n, x, y, w, h, locked}]
 
@@ -1073,17 +1091,18 @@
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
 
-      const titleFz = Math.max(24, H * 0.06);
-      ctx.font      = `900 ${titleFz}px sans-serif`;
+      const titleTxt = 'REPAYMENT RUNWAY';
+      fitFontPx(titleTxt, 900, Math.max(24, H * 0.06), W * 0.94, 16);
       ctx.fillStyle = COLORS.hudAccent;
       ctx.shadowColor = COLORS.hudAccent;
       ctx.shadowBlur  = 20;
-      ctx.fillText('REPAYMENT RUNWAY', W / 2, H * 0.18);
+      ctx.fillText(titleTxt, W / 2, H * 0.18);
 
       ctx.shadowBlur = 0;
-      ctx.font       = `${Math.max(12, H * 0.026)}px sans-serif`;
+      const subTxt = 'Jump over walls & pits  ·  Duck under drones  ·  Collect payment coins';
+      fitFontPx(subTxt, 'normal', Math.max(12, H * 0.026), W * 0.94, 9);
       ctx.fillStyle  = COLORS.hud;
-      ctx.fillText('Jump over walls & pits  ·  Duck under drones  ·  Collect payment coins', W / 2, H * 0.28);
+      ctx.fillText(subTxt, W / 2, H * 0.28);
 
       // ── Level cards ── (cvAwardGame persists progress on window.state, not cvState)
       const st = window.state || {};
@@ -1094,6 +1113,7 @@
       const totalW = cardW * 3 + gap * 2;
       const startX = (W - totalW) / 2;
       const cardY  = H * 0.36;
+      const cardMaxW = cardW * 0.86;   // inner padding so text never touches the card border
 
       titleCards = [];
       for (let i = 0; i < 3; i++) {
@@ -1114,36 +1134,40 @@
         ctx.stroke();
 
         const midX = cx + cardW / 2;
+        const lvlTxt = `LEVEL ${n}`;
         ctx.fillStyle = locked ? 'rgba(148,163,184,0.5)' : COLORS.hudAccent;
-        ctx.font = `bold ${Math.max(13, cardH * 0.16)}px sans-serif`;
-        ctx.fillText(`LEVEL ${n}`, midX, cardY + cardH * 0.24);
+        fitFontPx(lvlTxt, 'bold', Math.max(13, cardH * 0.16), cardMaxW, 9);
+        ctx.fillText(lvlTxt, midX, cardY + cardH * 0.24);
 
         ctx.fillStyle = locked ? 'rgba(148,163,184,0.4)' : COLORS.hud;
-        ctx.font = `${Math.max(10, cardH * 0.1)}px sans-serif`;
+        fitFontPx(L.name, 'normal', Math.max(10, cardH * 0.1), cardMaxW, 8);
         ctx.fillText(L.name, midX, cardY + cardH * 0.42);
 
         if (locked) {
           ctx.font = `${Math.max(20, cardH * 0.22)}px sans-serif`;
           ctx.fillText('🔒', midX, cardY + cardH * 0.66);
-          ctx.font = `${Math.max(9, cardH * 0.08)}px sans-serif`;
+          const clearTxt = `Clear Lv ${n - 1} first`;
           ctx.fillStyle = 'rgba(148,163,184,0.45)';
-          ctx.fillText(`Clear Lv ${n - 1} first`, midX, cardY + cardH * 0.85);
+          fitFontPx(clearTxt, 'normal', Math.max(9, cardH * 0.08), cardMaxW, 7);
+          ctx.fillText(clearTxt, midX, cardY + cardH * 0.85);
         } else {
-          ctx.font = `${Math.max(9, cardH * 0.085)}px sans-serif`;
+          const speedTxt = `Speed ${L.speedStart.toFixed(1)}→${L.speedEnd.toFixed(1)}`;
           ctx.fillStyle = 'rgba(226,232,240,0.6)';
-          ctx.fillText(`Speed ${L.speedStart.toFixed(1)}→${L.speedEnd.toFixed(1)}`, midX, cardY + cardH * 0.66);
+          fitFontPx(speedTxt, 'normal', Math.max(9, cardH * 0.085), cardMaxW, 7);
+          ctx.fillText(speedTxt, midX, cardY + cardH * 0.66);
           // gameStars is one best-ever scalar (not per-level) — only show it on the
           // highest level actually cleared so far, everything else stays neutral
           if (bestLevel === n) {
             const bestStars = (st.gameStars && st.gameStars.game_repaymentrunway) || 0;
             const starLine = '★'.repeat(bestStars) + '☆'.repeat(3 - bestStars);
             ctx.fillStyle = COLORS.star;
-            ctx.font = `${Math.max(11, cardH * 0.13)}px sans-serif`;
+            fitFontPx(starLine, 'normal', Math.max(11, cardH * 0.13), cardMaxW, 9);
             ctx.fillText(starLine, midX, cardY + cardH * 0.85);
           } else if (n === 1) {
             ctx.fillStyle = 'rgba(226,232,240,0.35)';
-            ctx.font = `${Math.max(9, cardH * 0.08)}px sans-serif`;
-            ctx.fillText('Start here', midX, cardY + cardH * 0.85);
+            const startTxt = 'Start here';
+            fitFontPx(startTxt, 'normal', Math.max(9, cardH * 0.08), cardMaxW, 7);
+            ctx.fillText(startTxt, midX, cardY + cardH * 0.85);
           }
         }
         ctx.restore();
@@ -1151,9 +1175,10 @@
 
       const pulse = 0.8 + Math.sin(Date.now() / 400) * 0.2;
       ctx.globalAlpha = pulse;
-      ctx.font        = `bold ${Math.max(13, H * 0.03)}px sans-serif`;
+      const promptTxt = 'TAP A LEVEL — or PRESS SPACE for Level ' + curLevel;
+      fitFontPx(promptTxt, 'bold', Math.max(13, H * 0.03), W * 0.94, 10);
       ctx.fillStyle   = COLORS.hudAccent;
-      ctx.fillText('TAP A LEVEL — or PRESS SPACE for Level ' + curLevel, W / 2, H * 0.78);
+      ctx.fillText(promptTxt, W / 2, H * 0.78);
       ctx.globalAlpha = 1;
 
       ctx.restore();
@@ -1208,8 +1233,34 @@
 
       const fz = Math.max(14, H * 0.032);
       const pw = Math.min(W * 0.84, 520);
-      const ph = Math.min(H * 0.82, fz * 17);
       const px = (W - pw) / 2;
+
+      const bullets = [
+        'Run automatically — jump over walls & pits, duck under bill-collector drones.',
+        'SPACE / tap to jump, ↓ or swipe down to duck. Time it right to avoid getting stunned.',
+        'Collect green payment coins and gold stars to raise your score and your FICO bar.',
+        'Chain collects in a row to build a streak multiplier — the longer the streak, the more each pickup is worth.',
+        'All 3 levels use the same controls, just faster and busier — reach the target score for stars.',
+      ];
+
+      const bulletLineH = fz * 0.95;
+      const bodyMaxW = pw * 0.84;
+      // Bug fix — ph used to be a FIXED budget (fz*17) sized for how many lines the
+      // bullets take at a wide/landscape pw. On a narrow/portrait canvas bodyMaxW is
+      // much smaller, so the same bullets wrap into MORE lines than that budget
+      // assumed; the close/START button (pinned to the fixed panel bottom) then
+      // landed ON TOP of the still-unfinished bullet text. Measure the real wrapped
+      // line count first and grow the panel to fit it — Math.max keeps this a no-op
+      // (identical ph, fz*17) on the wide viewports where the fixed budget already fit.
+      ctx.font = `${fz * 0.78}px sans-serif`;
+      let bulletLines = 0;
+      bullets.forEach(b => { bulletLines += countWrapLines(ctx, b, bodyMaxW); });
+      const headerH  = fz * 2.75;
+      const bulletsH = bulletLines * bulletLineH + bullets.length * (bulletLineH * 0.55);
+      const btnH     = fz * 2.0;
+      const footerH  = btnH + fz * 1.8;
+      const contentH = headerH + bulletsH + footerH;
+      const ph = Math.min(H * 0.94, Math.max(fz * 17, contentH));
       const py = (H - ph) / 2;
 
       ctx.fillStyle = 'rgba(15,15,40,0.96)';
@@ -1231,17 +1282,7 @@
       ctx.fillStyle = COLORS.hud;
       ctx.fillText('REPAYMENT RUNWAY', W / 2, py + fz * 1.85);
 
-      const bullets = [
-        'Run automatically — jump over walls & pits, duck under bill-collector drones.',
-        'SPACE / tap to jump, ↓ or swipe down to duck. Time it right to avoid getting stunned.',
-        'Collect green payment coins and gold stars to raise your score and your FICO bar.',
-        'Chain collects in a row to build a streak multiplier — the longer the streak, the more each pickup is worth.',
-        'All 3 levels use the same controls, just faster and busier — reach the target score for stars.',
-      ];
-
       let by = py + fz * 2.75;
-      const bulletLineH = fz * 0.95;
-      const bodyMaxW = pw * 0.84;
       ctx.font = `${fz * 0.78}px sans-serif`;
       for (const b of bullets) {
         ctx.fillStyle = COLORS.hudAccent;
@@ -1252,10 +1293,11 @@
         by += bulletLineH * 0.55;
       }
 
-      /* close button */
-      const btnW = pw * 0.6, btnH = fz * 2.0;
+      /* close button — Math.max is a safety net: even if contentH were somehow
+         still underestimated, the button can never land above the last bullet line. */
+      const btnW = pw * 0.6;
       const bx = px + (pw - btnW) / 2;
-      const bBtnY = py + ph - btnH - fz * 0.9;
+      const bBtnY = Math.max(py + ph - btnH - fz * 0.9, by + bulletLineH * 0.25);
       ctx.fillStyle   = COLORS.ficoBar;
       ctx.shadowColor = COLORS.ficoBar;
       ctx.shadowBlur  = 12;
@@ -1271,6 +1313,26 @@
       helpBtnClose = { x: bx, y: bBtnY, w: btnW, h: btnH };
 
       ctx.restore();
+    }
+
+    // Measures how many lines text() would wrap into at the CURRENT ctx.font —
+    // same greedy line-break rule as wrapTextLeft()/wrapText() below, no drawing.
+    // Used by drawHelp() to size the panel around the bullets' real wrapped height.
+    function countWrapLines(ctx, text, maxW) {
+      const words = text.split(' ');
+      let line = '';
+      let lines = 0;
+      for (const word of words) {
+        const test = line ? line + ' ' + word : word;
+        if (ctx.measureText(test).width > maxW && line) {
+          lines++;
+          line = word;
+        } else {
+          line = test;
+        }
+      }
+      if (line) lines++;
+      return lines;
     }
 
     // Same word-wrap as wrapText() but left-aligned (bullets read better than centered)
@@ -1349,12 +1411,16 @@
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'top';
 
-      /* title */
-      ctx.font      = `bold ${fz * 1.3}px sans-serif`;
-      ctx.fillStyle = COLORS.hudAccent;
+      /* title — Bug fix: this used a pure H-relative font size (fz*1.3) with no
+         regard for how wide the actual headline string is; on a narrow/portrait
+         canvas "MISSION ACCOMPLISHED · LV 1" measured wider than the whole canvas
+         and bled off both edges. fitFontPx shrinks it only if it would overflow
+         the panel (pw*0.9), so wide/landscape layouts render identically to before. */
       const headline = stars >= 1
         ? (curLevel >= 3 ? '👑 MISSION ACCOMPLISHED!' : `MISSION ACCOMPLISHED · LV ${curLevel}`)
         : 'NICE TRY! Power up and try again';
+      fitFontPx(headline, 'bold', fz * 1.3, pw * 0.9, fz * 0.7);
+      ctx.fillStyle = COLORS.hudAccent;
       ctx.fillText(headline, W / 2, py + fz * 0.6);
 
       /* stars */
@@ -1385,18 +1451,27 @@
         ctx.fillText(val, W / 2 + pw * 0.12, sY + i * sGap);
       });
 
-      /* lesson card */
+      /* lesson card — Bug fix: the card background was a fixed fz*3.2 tall, sized
+         for however many lines lesson.body took at a wide/landscape pw. All 4
+         LESSONS bodies are long enough (72-77 chars) that a narrow/portrait pw*0.8
+         wrap width pushes them to 3-4 lines, taller than that fixed box (measured
+         up to ~150px of content in a ~98px box) — the card's rounded-rect frame
+         ended well above the bottom of its own text. Size it from the real
+         measured line count instead; Math.max keeps wide layouts unchanged. */
       const lY  = sY + stats.length * sGap + fz * 0.8;
+      ctx.font = `${fz * 0.75}px sans-serif`;   // matches the body font set below, for measuring
+      const lessonBodyLines = countWrapLines(ctx, lesson.body, pw * 0.8);
+      const lessonCardH = Math.max(fz * 3.2, fz * 1.35 + lessonBodyLines * (fz * 0.9) + fz * 0.5);
       ctx.fillStyle = 'rgba(99,102,241,0.18)';
-      roundRect(ctx, px + pw * 0.06, lY, pw * 0.88, fz * 3.2, 10);
+      roundRect(ctx, px + pw * 0.06, lY, pw * 0.88, lessonCardH, 10);
       ctx.fill();
       ctx.strokeStyle = '#6366f1';
       ctx.lineWidth   = 1;
-      roundRect(ctx, px + pw * 0.06, lY, pw * 0.88, fz * 3.2, 10);
+      roundRect(ctx, px + pw * 0.06, lY, pw * 0.88, lessonCardH, 10);
       ctx.stroke();
 
-      ctx.font      = `bold ${fz * 0.85}px sans-serif`;
       ctx.fillStyle = '#818cf8';
+      fitFontPx(lesson.headline, 'bold', fz * 0.85, pw * 0.78, fz * 0.5);
       ctx.fillText(lesson.headline, W / 2, lY + fz * 0.35);
 
       ctx.font      = `${fz * 0.75}px sans-serif`;
@@ -1421,9 +1496,10 @@
         ctx.fill();
         ctx.shadowBlur  = 0;
         ctx.fillStyle   = '#052e16';
-        ctx.font        = `bold ${fz * 0.9}px sans-serif`;
         ctx.textBaseline = 'middle';
-        ctx.fillText(`LEVEL ${curLevel + 1} ▶ ${LEVELS[curLevel].name}`, nx + nw / 2, btnY + btnH / 2);
+        const nextTxt = `LEVEL ${curLevel + 1} ▶ ${LEVELS[curLevel].name}`;
+        fitFontPx(nextTxt, 'bold', fz * 0.9, nw * 0.88, fz * 0.5);
+        ctx.fillText(nextTxt, nx + nw / 2, btnY + btnH / 2);
         endBtnNext = { x: nx, y: btnY, w: nw, h: btnH };
       }
 
@@ -1438,9 +1514,10 @@
       ctx.fill();
       ctx.shadowBlur  = 0;
       ctx.fillStyle   = '#1c1917';
-      ctx.font        = `bold ${fz * 0.85}px sans-serif`;
       ctx.textBaseline = 'middle';
-      ctx.fillText(showNext ? 'REPLAY LV ' + curLevel : 'PLAY AGAIN', p1x + btnW / 2, rowY + btnH / 2);
+      const replayTxt = showNext ? 'REPLAY LV ' + curLevel : 'PLAY AGAIN';
+      fitFontPx(replayTxt, 'bold', fz * 0.85, btnW * 0.88, fz * 0.5);
+      ctx.fillText(replayTxt, p1x + btnW / 2, rowY + btnH / 2);
       endBtnPlay = { x: p1x, y: rowY, w: btnW, h: btnH };
 
       // HUB
@@ -1449,6 +1526,7 @@
       roundRect(ctx, p2x, rowY, btnW, btnH, 8);
       ctx.fill();
       ctx.fillStyle   = COLORS.hud;
+      ctx.font        = `bold ${fz * 0.85}px sans-serif`;   // reset — don't inherit REPLAY's possibly-shrunk font
       ctx.fillText('HUB', p2x + btnW / 2, rowY + btnH / 2);
       endBtnHub = { x: p2x, y: rowY, w: btnW, h: btnH };
 

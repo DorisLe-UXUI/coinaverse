@@ -309,7 +309,7 @@
     const prog = clamp(1 - G.time/G.cfg.time, 0, 1);
     const spawnRate = G.cfg.spawnStart + prog * (G.cfg.spawnEnd - G.cfg.spawnStart);
     G.spawnAcc += dt * spawnRate;
-    while(G.spawnAcc >= 1){ G.spawnAcc -= 1; spawnItem(prog, H); }
+    while(G.spawnAcc >= 1){ G.spawnAcc -= 1; spawnItem(prog, W, H); }
 
     // Move items
     const baseSpeed = (0.14 + prog * 0.14) * H; // fraction of screen per second
@@ -317,8 +317,10 @@
       const it = G.items[i];
       it.y += dt * (baseSpeed * it.speedMult) / H;
 
-      // Sine drift for bad items
-      if(!it.good){ it.drift = (it.drift||0) + dt * it.driftFreq; it.x = clamp(it.baseX + Math.sin(it.drift) * it.driftAmp, 0.04, 0.96); }
+      // Sine drift for bad items — clamped to the SAME edge margin the item spawned
+      // with (not a flat 0.04/0.96) so drifting never carries a wide label into the
+      // canvas edge either; see spawnItem()'s edgeMargin for why a flat fraction isn't safe.
+      if(!it.good){ it.drift = (it.drift||0) + dt * it.driftFreq; it.x = clamp(it.baseX + Math.sin(it.drift) * it.driftAmp, it.edgeMargin, 1 - it.edgeMargin); }
 
       // Basket collision (near floor)
       const bxn = G.basketX;
@@ -371,12 +373,24 @@
   }
 
   /* ─── SPAWN ───────────────────────────────────────────────── */
-  function spawnItem(prog, H){
+  function spawnItem(prog, W, H){
     const isGood = Math.random() < 0.52; // slightly more good than bad
     const levelPool = POOLS[G.level - 1] || POOLS[0];
     const pool = isGood ? levelPool.good : levelPool.bad;
     const def = pool[Math.floor(Math.random() * pool.length)];
-    const x = rnd(0.07, 0.93);
+    // Bug fix: the horizontal spawn margin used to be a flat 7% of canvas WIDTH
+    // (rnd(0.07,0.93)), but the item's label — drawn centered under the icon, up
+    // to Math.max(sz*3.2,92) px wide, see render()'s shrink-to-fit a few lines
+    // down — is a FIXED PIXEL width regardless of canvas size. On a narrow/mobile
+    // canvas (the common case for this app) 7% is only ~30px, well under the
+    // ~58px half-label-width the largest icons need, so labels spawning near
+    // either edge (e.g. "Impulse Buy") got clipped by the canvas boundary.
+    // Derive the margin from real pixels so it scales correctly at any width;
+    // clamped so wide/desktop canvases keep behaving exactly as before (their
+    // pixel margin was already generous there) and it never inverts the range.
+    const worstLabelHalfPx = Math.max(36 * 3.2, 92) / 2 + 4; // mirrors render()'s max item size (sz≈36), +4px buffer
+    const edgeMargin = clamp(worstLabelHalfPx / (W || 400), 0.07, 0.45);
+    const x = rnd(edgeMargin, 1 - edgeMargin);
     // Spawn just below the reserved HUD chrome (top bar + meter + combo badge) so
     // the icon badge starts fully inside the visible play area instead of off-canvas
     // above it / hidden behind the overlay — see UI_TOP_PX above.
@@ -386,6 +400,7 @@
       def:       def,
       x:         x,
       baseX:     x,
+      edgeMargin: edgeMargin, // reused below so drifting bad items respect the same safe zone
       y:         topSafe + rnd(0, 0.03),
       speedMult: rnd(0.8, 1.3 + prog * 0.5),
       driftFreq: rnd(2.5, 4.5),
