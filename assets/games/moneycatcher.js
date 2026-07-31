@@ -602,42 +602,52 @@
   // procedurally, same as buildFallbackHero already did for the human character.
   function buildFallbackHero(){
     // three r128 has no CapsuleGeometry — rounded-cylinder limbs match FICO Racer's
-    // own procedural-fallback convention (Box/Cylinder/Sphere only). A squashed
-    // SphereGeometry belly doubles as the whole body+head, like a classic ceramic
-    // piggy bank, with a gold-rimmed coin slot on its back as the signature "bank"
-    // detail. legs[]/arms[] below are reused as the back-leg-pair/front-leg-pair so
-    // the existing walk-cycle code in update() (h.legs[0/1].rotation.x and
+    // own procedural-fallback convention (Box/Cylinder/Sphere only). Redesigned per
+    // Kabria's reference mockup (white/silver robot-astronaut piggy with a glowing
+    // cyan visor) — matches the app's cosmic sci-fi branding better than a plain
+    // ceramic-pink piggy. Real AI image/3D generation (Higgsfield MCP) was checked
+    // again first — still 0 credits/free plan, same wall hit earlier today — so
+    // this stays procedural, upgraded from flat MeshToonMaterial to
+    // MeshStandardMaterial (responds properly to the scene's existing ambient+
+    // directional lights, no env map needed) plus an emissive glowing visor.
+    // legs[]/arms[] below are reused as the back-leg-pair/front-leg-pair so the
+    // existing walk-cycle code in update() (h.legs[0/1].rotation.x and
     // h.arms[0/1].rotation.x, driven by the same movement/input logic as before)
     // animates a quadruped trot with ZERO changes to any movement/control code.
     const g=new THREE.Group();
-    const pink=new THREE.MeshToonMaterial({color:0xffb0d8});  // bubblegum-pink body
-    const rose=new THREE.MeshToonMaterial({color:0xf472b6});  // rose-pink snout/ears/legs/tail (existing app accent — see NEG_ITEMS 'impulse' ring color)
-    const gold=new THREE.MeshToonMaterial({color:0xfbbf24});  // gold coin-slot rim (existing app gold accent — vault theme / HUD)
-    const dark=new THREE.MeshToonMaterial({color:0x3f2a22});  // dark coin-slot groove / eyes / nostrils
+    const body=new THREE.MeshStandardMaterial({color:0xf1f5f9,roughness:.35,metalness:.08});  // pearlescent white/silver body
+    const trim=new THREE.MeshStandardMaterial({color:0xcbd5e1,roughness:.4,metalness:.06});   // cool silver snout/ears/legs/tail
+    const gold=new THREE.MeshStandardMaterial({color:0xfbbf24,roughness:.25,metalness:.7});   // shiny gold coin-slot rim (existing app gold accent — vault theme / HUD)
+    const dark=new THREE.MeshStandardMaterial({color:0x1e293b,roughness:.5,metalness:.1});    // dark coin-slot groove / foot caps
+    const visorRim=new THREE.MeshStandardMaterial({color:0x0c2a4a,emissive:0x38bdf8,emissiveIntensity:1.1,roughness:.3,metalness:.3}); // glowing visor frame
+    const visorGlow=new THREE.MeshStandardMaterial({color:0x7dd3fc,emissive:0x7dd3fc,emissiveIntensity:2.1,roughness:.2,metalness:0}); // bright glowing "eyes"
 
     // belly — the whole body+head in one round shape, like a real piggy-bank toy
-    const belly=new THREE.Mesh(new THREE.SphereGeometry(.56,16,12), pink);
+    const belly=new THREE.Mesh(new THREE.SphereGeometry(.56,16,12), body);
     belly.scale.set(1,.9,1.18); belly.position.y=.95; g.add(belly);
 
     // snout
-    const snout=new THREE.Mesh(new THREE.CylinderGeometry(.2,.23,.17,12), rose);
+    const snout=new THREE.Mesh(new THREE.CylinderGeometry(.2,.23,.17,12), trim);
     snout.rotation.x=Math.PI/2; snout.position.set(0,.86,.62); g.add(snout);
     const nosGeo=new THREE.SphereGeometry(.025,6,6);
     const nosL=new THREE.Mesh(nosGeo,dark); nosL.position.set(-.07,.86,.7); g.add(nosL);
     const nosR=nosL.clone(); nosR.position.x=.07; g.add(nosR);
 
-    // friendly face
-    const eyeGeo=new THREE.SphereGeometry(.05,8,8);
-    const eyeL=new THREE.Mesh(eyeGeo,dark); eyeL.position.set(-.2,1.08,.5); g.add(eyeL);
+    // glowing visor "face" — an oval ring frame with two bright glowing eye-lenses
+    // inside, reads as a friendly robot-astronaut helmet visor instead of plain dots
+    const visorFrame=new THREE.Mesh(new THREE.TorusGeometry(.16,.032,10,20), visorRim);
+    visorFrame.scale.set(1.75,1,1); visorFrame.position.set(0,1.07,.545); g.add(visorFrame);
+    const eyeGeo=new THREE.SphereGeometry(.065,10,10);
+    const eyeL=new THREE.Mesh(eyeGeo,visorGlow); eyeL.position.set(-.2,1.07,.54); g.add(eyeL);
     const eyeR=eyeL.clone(); eyeR.position.x=.2; g.add(eyeR);
 
     // ears
     const earGeo=new THREE.SphereGeometry(.17,10,8);
-    const earL=new THREE.Mesh(earGeo, rose); earL.scale.set(1,1.25,.35); earL.position.set(-.3,1.38,.16); earL.rotation.set(-.2,0,.5); g.add(earL);
+    const earL=new THREE.Mesh(earGeo, trim); earL.scale.set(1,1.25,.35); earL.position.set(-.3,1.38,.16); earL.rotation.set(-.2,0,.5); g.add(earL);
     const earR=earL.clone(); earR.position.x=.3; earR.rotation.z=-.5; g.add(earR);
 
     // curly tail
-    const tail=new THREE.Mesh(new THREE.TorusGeometry(.09,.028,8,10), rose);
+    const tail=new THREE.Mesh(new THREE.TorusGeometry(.09,.028,8,10), trim);
     tail.position.set(0,1.0,-.58); tail.rotation.y=.4; g.add(tail);
 
     // gold-rimmed coin slot on the back — the signature "piggy BANK" detail from the GDD
@@ -646,12 +656,22 @@
     const slotGroove=new THREE.Mesh(new THREE.BoxGeometry(.19,.035,.05), dark);
     slotGroove.position.set(0,1.455,-.135); slotGroove.rotation.x=-.15; g.add(slotGroove);
 
-    // 4 stubby legs — back pair drives legs[], front pair drives arms[] (see comment above)
+    // 4 stubby legs w/ small dark foot caps — back pair drives legs[], front pair
+    // drives arms[] (see comment above). Foot caps are children of their leg mesh
+    // so they swing together with the walk-cycle rotation instead of staying fixed.
     const legGeo=new THREE.CylinderGeometry(.115,.135,.42,8);
-    const legBL=new THREE.Mesh(legGeo, rose); legBL.position.set(-.28,.21,-.34); g.add(legBL);
-    const legBR=legBL.clone(); legBR.position.x=.28; g.add(legBR);
-    const legFL=new THREE.Mesh(legGeo, rose); legFL.position.set(-.28,.21,.34); g.add(legFL);
-    const legFR=legFL.clone(); legFR.position.x=.28; g.add(legFR);
+    const footGeo=new THREE.CylinderGeometry(.125,.125,.05,8);
+    function leg(x,z){
+      const l=new THREE.Mesh(legGeo, trim); l.position.set(x,.21,z); g.add(l);
+      const foot=new THREE.Mesh(footGeo, dark); foot.position.set(0,-.235,0); l.add(foot);
+      return l;
+    }
+    const legBL=leg(-.28,-.34), legBR=leg(.28,-.34), legFL=leg(-.28,.34), legFR=leg(.28,.34);
+
+    // soft cyan glow light near the visor — cheap (single hero instance on screen),
+    // sells the "glowing character" premium feel matching the reference mockup
+    const glowLight=new THREE.PointLight(0x7dd3fc,.8,2.2);
+    glowLight.position.set(0,1.07,.7); g.add(glowLight);
 
     return {root:g, mixer:null, actions:null, legs:[legBL,legBR], arms:[legFL,legFR], _fallback:true};
   }
