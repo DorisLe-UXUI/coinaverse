@@ -302,7 +302,7 @@
   window.SCREENS[SCREEN_ID] = function () {
     G = freshState();
     setTimeout(initGame, 40);
-    return `<div id="bpRoot" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, ${TEAL} 14%, #1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
+    return `<div id="bpRoot" style="position:absolute;inset:0;display:flex;flex-direction:column;background:radial-gradient(130% 95% at 50% -8%,color-mix(in srgb, ${TEAL} 14%, #1a1240),#130d32 44%,#0A0429 100%);overflow:hidden;font-family:'Inter',sans-serif;color:#fff">
       <style>
         #bpRoot * { box-sizing: border-box; }
         #bpRoot::after { content:''; position:absolute; inset:0; z-index:1; pointer-events:none;
@@ -528,7 +528,7 @@
       <!-- ambient store windows (decorative) -->
       <div id="bpDeco" style="position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:0"></div>
       <!-- top bar -->
-      <div id="bpTopBar" style="position:relative;z-index:10;display:flex;align-items:center;gap:10px;padding:12px 16px 10px;background:linear-gradient(180deg,rgba(3,4,12,0.9),transparent)">
+      <div id="bpTopBar" style="position:relative;z-index:10;flex-shrink:0;display:flex;align-items:center;gap:10px;padding:12px 16px 10px;background:linear-gradient(180deg,rgba(3,4,12,0.9),transparent)">
         <button id="bpBack" style="padding:7px 13px;border:1px solid rgba(26,42,74,0.8);border-radius:9px;background:rgba(26,42,74,0.35);color:rgba(255,255,255,0.7);font-family:'Orbitron',sans-serif;font-size:0.58rem;letter-spacing:0.1em;cursor:pointer;transition:all 0.15s">← EXIT</button>
         <div style="flex:1;text-align:center">
           <div style="font-family:'Anton',sans-serif;font-size:0.9rem;letter-spacing:0.05em;color:${TEAL};text-shadow:0 0 14px ${TEAL}aa">SMART SPENDING PLAZA</div>
@@ -546,12 +546,12 @@
         </div>
       </div>
       <!-- combo bar -->
-      <div id="bpComboRow" style="position:relative;z-index:10;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;min-height:24px">
+      <div id="bpComboRow" style="position:relative;z-index:10;flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;min-height:24px">
         <div id="bpComboEl" style="font-family:'Orbitron',sans-serif;font-size:0.55rem;letter-spacing:0.15em;color:rgba(255,255,255,0.35)">COMBO ×0</div>
         <div id="bpStreakEl" style="font-size:0.75rem"></div>
       </div>
       <!-- main game area -->
-      <div id="bpMain" style="position:relative;z-index:5;padding:0 14px 14px;flex:1;overflow-y:auto;overflow-x:hidden"></div>
+      <div id="bpMain" style="position:relative;z-index:5;padding:0 14px 14px;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden"></div>
       <!-- float layer -->
       <div id="bpFloatLayer" style="position:absolute;inset:0;pointer-events:none;z-index:25"></div>
     </div>`;

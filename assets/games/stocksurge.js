@@ -257,10 +257,17 @@
   .ss-hud-val { font-size:.95rem;font-weight:900;color:#fff;font-family:'Anton',sans-serif;line-height:1.2; }
   .ss-feature-row { display:flex;gap:6px;padding:0 12px 8px;flex-shrink:0; }
   .ss-feature-btn { flex:1;padding:6px 4px;border-radius:9px;border:1px solid rgba(168,85,247,.3);background:rgba(168,85,247,.08);color:var(--ss-violet-lt);font-family:'Orbitron',sans-serif;font-size:.46rem;letter-spacing:.05em;cursor:pointer;white-space:nowrap;position:relative; }
-  .ss-stocks { flex:1;overflow-y:auto;padding:0 10px 8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;align-content:center;justify-content:center; }
+  /* max-width caps columns on wide desktop viewports so 13-stock levels wrap into more,
+     shorter rows instead of 1-2 rows floating in a mostly-empty flex:1 area — no effect on
+     mobile widths (390px), which are already far under the cap. */
+  .ss-stocks { flex:1;overflow-y:auto;padding:0 10px 8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;align-content:center;justify-content:center;max-width:860px;margin:0 auto;width:100%;box-sizing:border-box; }
   .ss-stocks::-webkit-scrollbar { width:3px; }
   .ss-stocks::-webkit-scrollbar-thumb { background:rgba(99,102,241,.35);border-radius:3px; }
-  .ss-card { border-radius:13px;border:1.5px solid rgba(99,102,241,.22);background:rgba(10,8,32,.7);padding:10px;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .1s;-webkit-tap-highlight-color:transparent;position:relative;overflow:hidden; }
+  /* overflow left visible (not hidden) on purpose: a hidden/clipped overflow makes a grid
+     item's automatic min-height resolve to 0, which lets CSS Grid shrink 'auto' row tracks
+     to fit the container instead of the card's real content height — on mobile (2-col trading
+     floor, 13-stock levels needing 7 rows) that silently clipped the price/sparkline/mood rows. */
+  .ss-card { border-radius:13px;border:1.5px solid rgba(99,102,241,.22);background:rgba(10,8,32,.7);padding:10px;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .1s;-webkit-tap-highlight-color:transparent;position:relative; }
   .ss-card.selected { border-color:var(--ss-gold);box-shadow:0 0 18px rgba(251,191,36,.45);transform:scale(1.03); }
   .ss-card.surge-glow { animation:ssGlowPulse .6s ease-in-out infinite alternate; }
   @keyframes ssGlowPulse { 0%{box-shadow:0 0 12px rgba(251,191,36,.4)} 100%{box-shadow:0 0 28px rgba(251,191,36,.9),0 0 50px rgba(168,85,247,.4)} }
@@ -283,7 +290,7 @@
   .ss-actions { display:flex;gap:6px;padding:8px 10px;flex-shrink:0;background:rgba(5,4,15,.8);border-top:1px solid rgba(99,102,241,.15); }
   .ss-qty-row { display:flex;align-items:center;gap:6px;padding:0 10px 6px;flex-shrink:0; }
   .ss-qty-label { font-size:.5rem;letter-spacing:.1em;color:rgba(255,255,255,.5);font-family:'Orbitron',sans-serif; }
-  .ss-qty-btn { width:28px;height:28px;border-radius:7px;border:1px solid rgba(56,189,248,.3);background:rgba(56,189,248,.1);color:var(--ss-blue-lt);font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;font-weight:700;flex-shrink:0; }
+  .ss-qty-btn { width:40px;height:40px;border-radius:9px;border:1px solid rgba(56,189,248,.3);background:rgba(56,189,248,.1);color:var(--ss-blue-lt);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;font-weight:700;flex-shrink:0; }
   .ss-qty-val { font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fff;min-width:22px;text-align:center; }
   .ss-cost-info { font-size:.45rem;color:rgba(255,255,255,.45);font-family:'Orbitron',sans-serif;flex:1;text-align:right; }
   .ss-action-btn { flex:1;padding:12px 4px;border-radius:12px;border:none;font-family:'Orbitron',sans-serif;font-size:.58rem;font-weight:900;letter-spacing:.06em;cursor:pointer;transition:transform .08s;-webkit-tap-highlight-color:transparent;position:relative; }
@@ -1108,6 +1115,14 @@
     });
 
     container.innerHTML = html;
+    // Mobile/narrow layouts wrap this grid to few columns, so long stock lists (13-ticker
+    // levels) need more rows than the container is tall — it becomes scrollable. But
+    // align-content:center (nice for short lists, GDD's desired look) centers OVERFLOWING
+    // content too, which pushes the first row above scrollTop:0 with no way to scroll
+    // "negative" to reach it — the top row becomes permanently unreachable/invisible.
+    // Switch to top-alignment only when content actually overflows, so short lists keep
+    // the centered look and long lists stay fully reachable via scroll.
+    container.style.alignContent = (container.scrollHeight > container.clientHeight + 1) ? 'start' : 'center';
     updateCostInfo();
   }
 
@@ -1389,7 +1404,7 @@
           '<div style="font-size:1.4rem">' + d.icon + '</div>' +
           '<div style="flex:1"><div style="font-family:\'Orbitron\',sans-serif;font-size:.6rem;color:#fff;font-weight:900">' + d.name + ' x' + n + '</div>' +
           '<div style="font-size:.5rem;color:rgba(255,255,255,.55);margin-top:2px">' + d.desc + '</div></div>' +
-          '<button ' + (n <= 0 ? 'disabled' : '') + ' onclick="ssUseBoost(\'' + d.key + '\')" style="padding:8px 12px;border:none;border-radius:9px;background:' + (n > 0 ? 'linear-gradient(135deg,#a855f7,#7c3aed)' : 'rgba(255,255,255,.08)') + ';color:' + (n > 0 ? '#fff' : 'rgba(255,255,255,.3)') + ';font-family:\'Orbitron\',sans-serif;font-size:.5rem;font-weight:900;cursor:' + (n > 0 ? 'pointer' : 'default') + '">USE</button>' +
+          '<button ' + (n <= 0 ? 'disabled' : '') + ' onclick="ssUseBoost(\'' + d.key + '\')" style="padding:15px 16px;min-height:40px;border:none;border-radius:9px;background:' + (n > 0 ? 'linear-gradient(135deg,#a855f7,#7c3aed)' : 'rgba(255,255,255,.08)') + ';color:' + (n > 0 ? '#fff' : 'rgba(255,255,255,.3)') + ';font-family:\'Orbitron\',sans-serif;font-size:.5rem;font-weight:900;cursor:' + (n > 0 ? 'pointer' : 'default') + '">USE</button>' +
         '</div>';
       }).join('') +
       '<button onclick="ssBoostsClose()" style="margin-top:6px;padding:11px 24px;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(255,255,255,.06);color:#fff;font-family:\'Orbitron\',sans-serif;font-size:.6rem;letter-spacing:.1em;cursor:pointer">CLOSE</button>' +

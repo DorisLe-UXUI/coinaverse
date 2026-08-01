@@ -239,6 +239,14 @@
     function resize() {
       cv.width = cv.clientWidth * devicePixelRatio;
       cv.height = cv.clientHeight * devicePixelRatio;
+      // Every draw call in this file works in CSS-pixel coordinates (W = cv.clientWidth,
+      // H = cv.clientHeight — see loop() below), but the buffer above was sized in DEVICE
+      // pixels. Without rescaling the context to match, on any devicePixelRatio>1 screen
+      // (virtually all real phones) the whole scene only ever painted into the top-left
+      // 1/dpr fraction of the canvas, then got displayed squeezed into a corner. setTransform
+      // (not scale) is used because resize() can re-run on window 'resize' — scale() would
+      // compound with whatever transform was already set instead of replacing it.
+      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
     }
     resize();
 

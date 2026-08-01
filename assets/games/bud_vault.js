@@ -512,13 +512,11 @@
     const layer=document.getElementById('bvEmgLayer');
     if(!layer) return;
 
-    // position: stack cards from left with offset
-    const idx=G.emergencies.filter(e=>!e.resolved).indexOf(emg);
     const card=document.createElement('div');
     card.id=`bvEmg_${emg.id}`;
     card.style.cssText=`
       position:absolute;pointer-events:all;
-      top:${10+idx*8}px;left:${12+idx*6}px;right:${12+idx*6}px;
+      left:12px;right:12px;
       background:rgba(15,10,30,.92);border:1px solid rgba(239,68,68,.5);
       border-radius:16px;padding:14px 16px;
       box-shadow:0 0 24px rgba(239,68,68,.3),inset 0 1px 0 rgba(255,255,255,.05);
@@ -534,6 +532,24 @@
     const deferBtn=card.querySelector('[data-defer]');
     if(payBtn) payBtn.onclick=()=>payEmergency(emg);
     if(deferBtn) deferBtn.onclick=()=>deferEmergency(emg);
+
+    // BUGFIX: Level 2-3 allow up to 3-4 simultaneous emergencies, but each card is
+    // ~100-140px tall while cards used to be staggered by only 6-8px — later cards
+    // almost fully covered earlier ones, hiding their PAY/DEFER buttons underneath
+    // with no way to click them. Stack by each card's real rendered height instead.
+    reflowEmgCards();
+  }
+
+  // Positions every still-active emergency card in a non-overlapping vertical stack,
+  // based on actual rendered heights. Called after adding or removing a card so the
+  // remaining cards always have fully clickable PAY/DEFER buttons.
+  function reflowEmgCards(){
+    const gap=8;
+    let y=10;
+    G.emergencies.filter(e=>!e.resolved && e.el).forEach(e=>{
+      e.el.style.top=y+'px';
+      y+=e.el.offsetHeight+gap;
+    });
   }
 
   function emgCardHTML(emg){
@@ -607,6 +623,8 @@
       setTimeout(()=>{ if(emg.el&&emg.el.parentNode)emg.el.parentNode.removeChild(emg.el); },280);
     }
     G.emergencies=G.emergencies.filter(e=>e.id!==emg.id);
+    // shift any remaining stacked cards up to fill the gap this one leaves
+    reflowEmgCards();
   }
 
   /* ─── PARTICLES & FLOATS ────────────────────────────────────── */

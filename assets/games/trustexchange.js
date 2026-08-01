@@ -164,11 +164,8 @@
           'background-size:220% 100%;background-position:120% 0;animation:trxShine 2.2s ease-in-out .3s 1;pointer-events:none;border-radius:20px}',
       '</style>',
       '<div id="trx-root" class="trx-wrap" style="',
-        'position:relative;z-index:0;width:100%;max-width:480px;margin:0 auto;',
-        'min-height:100dvh;',
-        'display:flex;flex-direction:column;align-items:center;',
-        'font-family:\'Nunito\',sans-serif;overflow:hidden;user-select:none;',
-        'padding-bottom:env(safe-area-inset-bottom,0px);',
+        'position:absolute;inset:0;z-index:0;overflow:hidden;',
+        'font-family:\'Nunito\',sans-serif;user-select:none;',
       '">',
 
         /* ambient cosmic backdrop canvas — drifting starfield + soft glow-pool
@@ -180,6 +177,20 @@
            z-index descendant can end up painted behind an outer container's
            opaque background instead, invisible even though it draws correctly. */
         '<canvas id="trx-stars" style="position:absolute;inset:0;z-index:-1;pointer-events:none;width:100%;height:100%"></canvas>',
+
+        /* Bug fix: content used to live directly in trx-root, which was itself
+           capped at max-width:480px — on a wide/desktop viewport that left a
+           huge blank gap of plain body background on both sides instead of
+           this game's own nebula/starfield backdrop (every sibling CredTech
+           game fills the full viewport with its own atmosphere behind a
+           centered card/canvas, e.g. creditcore.js's ccRoot). trx-root above
+           is now the full-bleed backdrop layer; this inner column keeps the
+           original 480px mobile-card width/centering for the actual UI. */
+        '<div id="trx-content" style="',
+          'position:relative;z-index:1;width:100%;max-width:480px;margin:0 auto;',
+          'display:flex;flex-direction:column;align-items:center;',
+          'padding-bottom:env(safe-area-inset-bottom,0px);',
+        '">',
 
         /* header */
         '<div style="width:100%;display:flex;align-items:center;justify-content:space-between;',
@@ -268,7 +279,11 @@
           'font-size:12px;color:rgba(255,255,255,.8);line-height:1.5;text-align:center;">',
         '</div>',
 
-        /* flash overlay */
+        '</div>',  /* #trx-content */
+
+        /* flash overlay — full-bleed (direct trx-root child again), same as
+           #trx-end/#trx-help below, so a wrong-answer flash and the end/help
+           modals cover the whole viewport, not just the 480px content column */
         '<div id="trx-flash" style="',
           'position:absolute;inset:0;pointer-events:none;opacity:0;',
           'transition:opacity .15s;border-radius:0;">',

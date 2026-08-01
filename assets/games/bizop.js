@@ -253,6 +253,12 @@
       <style>
         @keyframes boEventPop{0%{transform:translateX(-50%) scale(.7);opacity:0}60%{transform:translateX(-50%) scale(1.08)}100%{transform:translateX(-50%) scale(1);opacity:1}}
         @keyframes boHirePop{0%{transform:scale(.85);opacity:.4}100%{transform:scale(1);opacity:1}}
+        /* Shop-picker column: 560px matches mobile/tablet fine, but on a real desktop
+           browser window (#app has no phone-frame cap, so this is the full viewport)
+           a 560px island reads as mostly empty screen either side. Widen the column
+           past that one breakpoint only — mobile/tablet layout is untouched. */
+        .boPickWrap{max-width:560px}
+        @media (min-width:900px){ .boPickWrap{max-width:820px} }
       </style>
       <div style="position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:10px;padding:12px 16px;background:linear-gradient(180deg,rgba(5,9,22,.9),transparent)">
         <button onclick="boExit()" style="padding:7px 14px;border:1px solid rgba(168,85,247,.45);border-radius:9px;background:rgba(168,85,247,.12);color:#c084fc;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer;white-space:nowrap">← LAUNCH LAB</button>
@@ -263,8 +269,14 @@
         <div id="boTime" style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:#fbbf24;min-width:42px;text-align:right">${L().round}s</div>
       </div>
 
-      <!-- Revenue + goal bar -->
-      <div style="position:absolute;top:50px;left:16px;right:16px;z-index:6">
+      <!-- Revenue + goal bar. max-width+margin:auto (not just left/right:16px) so this
+           doesn't stretch into one giant edge-to-edge sliver on wide desktop viewports —
+           #app is position:fixed;inset:0 with no phone-frame wrapper, so this screen's
+           absolute-positioned children see the FULL browser width, not a mobile-safe one.
+           Capped+centered here to match the rest of the screen's overlays (picker/team/
+           gate/end cards all already sit in a ~440-560px centered column); on mobile
+           (<672px) the cap never engages so behavior is pixel-identical to before. -->
+      <div style="position:absolute;top:50px;left:16px;right:16px;max-width:640px;margin:0 auto;z-index:6">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:4px">
           <span style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55)">REVENUE</span>
           <span id="boRevTxt" style="font-family:'Anton',sans-serif;font-size:1.55rem;line-height:1;color:#34d399">$0</span>
@@ -277,8 +289,8 @@
       <div style="position:absolute;top:118px;left:16px;right:16px;z-index:6;display:flex;gap:8px;justify-content:center">
         ${chip('STOCK','boStock','#fbbf24')}${chip('HAPPY','boHappyN','#34d399')}${chip('REP','boRepN','#fbbf24')}${chip('COMBO','boCombo','#c084fc')}
       </div>
-      <!-- Happiness bar -->
-      <div style="position:absolute;top:172px;left:16px;right:16px;z-index:6">
+      <!-- Happiness bar — same edge-to-edge-on-desktop fix as the revenue bar above -->
+      <div style="position:absolute;top:172px;left:16px;right:16px;max-width:640px;margin:0 auto;z-index:6">
         <div style="height:7px;border-radius:5px;background:rgba(255,255,255,.1);overflow:hidden;border:1px solid rgba(239,68,68,.25)"><div id="boHappyBar" style="height:100%;width:100%;background:linear-gradient(90deg,#f472b6,#34d399);transition:width .25s"></div></div>
       </div>
 
@@ -318,7 +330,7 @@
     // player/CEO avatar anchors the title screen (GDD §16.1 "the young-CEO
     // avatar" / "character-forward") — previously no avatar appeared anywhere
     const ceoName=(window.state&&state.playerName)||'YOUNG CEO';
-    p.innerHTML=`<div style="max-width:560px;text-align:center;padding:26px 20px;max-height:92vh;overflow-y:auto">
+    p.innerHTML=`<div class="boPickWrap" style="text-align:center;padding:26px 20px;max-height:92vh;overflow-y:auto">
       <div style="display:flex;justify-content:center;margin-bottom:6px">${ceoAvatarHtml(72,16)}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:10px">${ceoName.toUpperCase()}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:#c084fc;margin-bottom:2px">CHOOSE YOUR BUSINESS</div>

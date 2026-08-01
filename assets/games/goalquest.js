@@ -314,7 +314,7 @@
         <div id="gqPowerRow" style="display:flex;gap:6px;padding:8px 18px 0;flex-wrap:wrap"></div>
       </div>
       <canvas id="gqCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none"></canvas>
-      <div id="gqEventBanner" style="position:absolute;top:96px;left:50%;transform:translate(-50%,-8px);z-index:6;display:none;padding:8px 18px;border-radius:12px;border:1.5px solid #fbbf24;background:rgba(7,13,24,.9);font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.1em;color:#fde68a;box-shadow:0 0 24px rgba(251,191,36,.35);white-space:nowrap;transition:opacity .25s,transform .25s;opacity:0;pointer-events:none"></div>
+      <div id="gqEventBanner" style="position:absolute;top:96px;left:50%;transform:translate(-50%,-8px);z-index:6;display:none;padding:8px 18px;border-radius:12px;border:1.5px solid #fbbf24;background:rgba(7,13,24,.9);font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.1em;color:#fde68a;box-shadow:0 0 24px rgba(251,191,36,.35);white-space:normal;text-align:center;max-width:min(520px,calc(100vw - 32px));transition:opacity .25s,transform .25s;opacity:0;pointer-events:none"></div>
       <div id="gqCoach" style="position:absolute;left:14px;bottom:96px;z-index:7;display:none;align-items:flex-end;gap:8px;max-width:300px;opacity:0;transform:translateY(10px);transition:opacity .3s,transform .3s;pointer-events:none"></div>
       <div id="gqHome" style="position:absolute;inset:0;z-index:9;display:none;overflow-y:auto"></div>
       <div id="gqBrief" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(7,13,24,.86);backdrop-filter:blur(5px);padding:18px;overflow-y:auto"></div>
@@ -862,7 +862,12 @@
         ctx.strokeStyle=hexA(col,i===idealBi?0.95:0.65); ctx.lineWidth=i===idealBi?3:2;
         ctx.beginPath(); ctx.moveTo(x0+4,floorY); ctx.lineTo(x0+binW-4,floorY); ctx.stroke();
         ctx.shadowBlur=0;
-        const bw=binW*0.82, bh=48, bx=cx-bw/2, by=H-bh-8;
+        // on narrow (phone) canvases, the fixed bottom-left audio-toggle button
+        // (38px + 14px margin, in coinaverse_v34.html's global chrome) sits directly
+        // over bucket 0's centered icon/label since column 0's center falls inside
+        // the toggle's footprint — lift the whole bucket bar clear of it there
+        const bottomSafe = W<600 ? 50 : 0;
+        const bw=binW*0.82, bh=48, bx=cx-bw/2, by=H-bh-8-bottomSafe;
         roundRect(ctx,bx,by,bw,bh,13);
         const bg2=ctx.createLinearGradient(0,by,0,by+bh);
         bg2.addColorStop(0,hexA(col,i===idealBi?0.34:0.2)); bg2.addColorStop(1,hexA(col,0.08));
@@ -906,10 +911,15 @@
         const lab=it.kind==='income'||it.kind==='bill'?(it.t+' '+fmtM(it.val)):it.t;
         ctx.font="700 10px 'Inter',sans-serif";
         const tw=ctx.measureText(lab).width+14;
-        roundRect(ctx,x-tw/2,y+r-2,tw,16,8);
+        // clamp the label pill's draw position (not the token's own x, which stays
+        // untouched for drag/fall physics) so long event/bill labels never clip off
+        // the left/right edge on narrow mobile canvases — tokens can spawn as close
+        // as 10% from either edge, which is well inside a wide label's half-width
+        const labX=Math.max(tw/2+2,Math.min(W-tw/2-2,x));
+        roundRect(ctx,labX-tw/2,y+r-2,tw,16,8);
         ctx.fillStyle='rgba(15,23,42,.84)'; ctx.fill();
         ctx.strokeStyle=hexA(col,0.5); ctx.lineWidth=1; ctx.stroke();
-        ctx.fillStyle=col; ctx.fillText(lab,x,y+r+6);
+        ctx.fillStyle=col; ctx.fillText(lab,labX,y+r+6);
       }
     }
 

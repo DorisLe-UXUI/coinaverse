@@ -594,15 +594,23 @@
 
     // show scenario card if lvl2 or lvl3
     const scEl = document.getElementById('nw_scenario');
+    const hintNeed = document.getElementById('nw_hint_need');
+    const hintWant = document.getElementById('nw_hint_want');
     if (scEl) {
       if (hasScenario && item.scenario) {
         scEl.style.display = 'block';
         document.getElementById('nw_scenario_text').textContent = item.scenario;
-        // push item area down
+        // push item area down — the swipe-hint tint zones must track the same
+        // top so they don't wash color over the scenario card above the card
+        // (they used to stay pinned at 148px, overlapping the scenario text).
         area.style.top = '240px';
+        if (hintNeed) hintNeed.style.top = '240px';
+        if (hintWant) hintWant.style.top = '240px';
       } else {
         scEl.style.display = 'none';
         area.style.top = '148px';
+        if (hintNeed) hintNeed.style.top = '148px';
+        if (hintWant) hintWant.style.top = '148px';
       }
     }
 

@@ -235,7 +235,11 @@
       </div>
 
       <!-- CANVAS (buildings + city) -->
-      <canvas id="rbCanvas" style="position:absolute;top:112px;left:0;right:0;bottom:170px;width:100%;display:block;touch-action:none"></canvas>
+      <!-- canvas is a replaced element: top+bottom alone won't stretch its height
+           (it falls back to intrinsic 300x150-ratio sizing), so an explicit
+           height is required or the board collapses to a sliver — see
+           sizeCanvas() below for the matching JS-side fix. -->
+      <canvas id="rbCanvas" style="position:absolute;top:112px;left:0;right:0;bottom:170px;width:100%;height:calc(100% - 282px);display:block;touch-action:none"></canvas>
 
       <!-- ACTION TRAY -->
       <div id="rbTray" style="position:absolute;bottom:0;left:0;right:0;z-index:30;height:170px;background:rgba(10,6,24,.96);border-top:1px solid rgba(75,45,143,.4);padding:10px 10px 14px;overflow:hidden">
@@ -438,8 +442,15 @@
   function sizeCanvas(){
     const cv = G && G.canvas;
     if(!cv) return;
-    cv.width  = cv.clientWidth  * (window.devicePixelRatio||1);
-    cv.height = cv.clientHeight * (window.devicePixelRatio||1);
+    // Measure both dimensions BEFORE writing either attribute — canvas.width/
+    // height are also the element's intrinsic size, so writing one and then
+    // reading clientHeight/clientWidth for the other can pick up a value
+    // already skewed by the first write (bit us when CSS height wasn't
+    // explicit; kept here as cheap insurance regardless of CSS).
+    const cw = cv.clientWidth, ch = cv.clientHeight;
+    const dpr = window.devicePixelRatio||1;
+    cv.width  = cw * dpr;
+    cv.height = ch * dpr;
     layoutBuildings();
   }
 

@@ -155,6 +155,24 @@
   @keyframes sc_shake_root { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
   /* Cyber-Premium Gaming HUD scanline — same recipe as arcade.js .arc-wrap::after */
   #sc_root::after { content:''; position:absolute; inset:0; z-index:25; pointer-events:none; background:linear-gradient(rgba(124,58,237,0) 50%,rgba(124,58,237,.025) 50%); background-size:100% 4px; }
+  /* ── narrow-viewport (mobile) fixes ──────────────────────────────
+     On phone-width screens the level badge (centered), status bar
+     (left-pinned) and disruption panel (right-pinned) are all fixed
+     top:60px with no width coordination, so at ~390px they collide.
+     Shrink the two side panels and cap the badge width so all three
+     fit side-by-side without touching the desktop layout. The long
+     static instructions line in the bottom bar is hidden on mobile
+     too — it wrapped to 2 lines and overflowed the fixed 60px bar;
+     the hint text + upgrade button (the actionable parts) stay put. */
+  @media (max-width: 480px) {
+    #sc_statusbar { min-width:0 !important; max-width:29vw !important; box-sizing:border-box; padding:5px 8px !important; }
+    #sc_statusbar > div:first-child { font-size:8px !important; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #sc_statusbar span { font-size:8px !important; }
+    #sc_disruption { max-width:29vw !important; box-sizing:border-box; padding:5px 8px !important; }
+    #sc_disruption div { font-size:9px !important; }
+    #sc_lvlbadge { max-width:32vw !important; box-sizing:border-box; padding:3px 8px !important; font-size:8.5px !important; letter-spacing:1px !important; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #sc_bottom > div:first-child { display:none !important; }
+  }
 </style>
 <div id="sc_root" style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%, ${ACC}26, #0d0824 44%, ${BG} 100%);overflow:hidden;font-family:Inter,sans-serif;color:#fff;user-select:none;">
   <!-- AMBIENT FX: twinkling starfield + drifting nebula glow, always running
@@ -165,8 +183,8 @@
   <!-- TOP BAR -->
   <div id="sc_topbar" style="position:absolute;top:0;left:0;right:0;height:52px;background:${BG2};border-bottom:1px solid ${ACC}40;display:flex;align-items:center;padding:0 12px;gap:12px;z-index:30;">
     <button id="sc_back" style="background:${ACC}25;border:1px solid ${ACC}60;color:${ACC2};padding:6px 14px;border-radius:8px;cursor:pointer;font-size:14px;font-family:Inter,sans-serif;">← HUB</button>
-    <div style="flex:1;text-align:center;">
-      <span style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;letter-spacing:2px;color:${ACC2};">SCALING CENTER</span>
+    <div style="flex:1;min-width:0;text-align:center;overflow:hidden;">
+      <span style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;letter-spacing:2px;color:${ACC2};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;max-width:100%;vertical-align:middle;">SCALING CENTER</span>
     </div>
     <button id="sc_help_btn" title="How to play" style="background:${ACC}25;border:1px solid ${ACC}60;color:${ACC2};padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-family:Inter,sans-serif;">❓</button>
     <div style="display:flex;gap:16px;align-items:center;">
@@ -942,8 +960,11 @@
     /* particles */
     drawParticles(ctx);
 
-    /* resource type legend bottom right */
-    drawLegend(ctx, W, H);
+    /* resource type legend bottom right — its fixed 160px box eats too much
+       of a narrow mobile canvas and can sit right on top of a node (e.g.
+       Level 3's bottom-right SHIPPING node), so skip it on narrow canvases;
+       it's reference info already covered in the how-to-play overlay. */
+    if (W >= 460) drawLegend(ctx, W, H);
   }
 
   function drawGrid (ctx, W, H) {

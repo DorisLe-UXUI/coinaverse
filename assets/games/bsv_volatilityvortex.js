@@ -595,6 +595,20 @@
     const canvas = document.getElementById(`vv_chart_${id}`);
     if (!canvas || !G) return;
     const ctx = canvas.getContext('2d');
+    // This canvas used to keep a fixed 200x22 drawing buffer (from its HTML
+    // width/height attrs) while CSS stretched it to the card's full width —
+    // fine on a narrow phone, but visibly blurry/pixelated once the card (and
+    // this chart) filled a wide desktop panel. Resync the buffer to the real
+    // rendered size (device-pixel accurate) on every redraw so it stays crisp
+    // at any viewport width.
+    const dpr = window.devicePixelRatio || 1;
+    const cw = Math.max(1, canvas.clientWidth);
+    const ch = Math.max(1, canvas.clientHeight);
+    const targetW = Math.round(cw * dpr), targetH = Math.round(ch * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+    }
     const w = canvas.width, h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 

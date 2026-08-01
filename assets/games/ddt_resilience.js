@@ -1508,10 +1508,31 @@
     setTimeout(() => { stage.style.animation = ''; }, 320);
   }
 
+  /* Feedback (floating bonus text + particle burst) used to center on
+     #rh_root (top:50%/left:50%). That mid-screen point is only ever empty on
+     a spacious desktop layout — on a 390px-wide phone the situation card +
+     3 option buttons routinely extend past the vertical midpoint, so the
+     "center of the screen" landed on top of an answer button (confirmed: at
+     390x844 the root's 50% line sits at y=422, squarely inside option C's
+     401-446 box) and obscured its text. Anchor to the situation card's
+     center instead — it's always near the top of the stage with headroom,
+     regardless of how many options follow below on a short viewport. */
+  function feedbackAnchor(root) {
+    const stage = document.getElementById('rh_stage');
+    const card  = stage && stage.firstElementChild;
+    const r     = (card || root).getBoundingClientRect();
+    const rootR = root.getBoundingClientRect();
+    return {
+      cx: r.left + r.width / 2 - rootR.left,
+      cy: r.top + r.height / 2 - rootR.top,
+    };
+  }
+
   /* small radial particle burst — used on correct (gold) and wrong (crimson) choices */
   function spawnParticles(color, count) {
     const root = document.getElementById('rh_root');
     if (!root) return;
+    const anchor = feedbackAnchor(root);
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
       const dist  = 55 + Math.random() * 55;
@@ -1520,7 +1541,7 @@
       const size = 4 + Math.random() * 4;
       const el = document.createElement('div');
       el.style.cssText = `
-        position:absolute;top:50%;left:50%;width:${size}px;height:${size}px;
+        position:absolute;left:${anchor.cx}px;top:${anchor.cy}px;width:${size}px;height:${size}px;
         border-radius:50%;background:${color};box-shadow:0 0 6px ${color};
         pointer-events:none;z-index:90;
         --dx:${dx}px;--dy:${dy}px;
@@ -1534,10 +1555,11 @@
   function showFloatingBonus(text, color, scale) {
     const root = document.getElementById('rh_root');
     if (!root) return;
+    const anchor = feedbackAnchor(root);
     const sz = 1.1 * (scale || 1);   // combo depth bumps font size so a long streak reads as a bigger deal
     const el = document.createElement('div');
     el.style.cssText = `
-      position:absolute;top:50%;left:50%;
+      position:absolute;left:${anchor.cx}px;top:${anchor.cy}px;
       transform:translate(-50%,-50%);
       font-family:Orbitron,sans-serif;font-size:${sz}rem;font-weight:700;
       color:${color};text-shadow:0 0 ${Math.round(12*(scale||1))}px ${color}88;

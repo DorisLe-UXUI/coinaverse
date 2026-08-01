@@ -143,11 +143,11 @@
       <div class="divd-stars">${divdStarsHTML(42)}</div>
 
       <!-- ── TOP BAR ── -->
-      <div id="divd-topbar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent)">
-        <button id="divd-exit-btn" style="padding:6px 13px;border:1px solid ${ACCENT_DIM};border-radius:8px;background:rgba(0,200,83,.1);color:${ACCENT};font-family:Orbitron,sans-serif;font-size:.58rem;letter-spacing:.14em;cursor:pointer;white-space:nowrap;flex-shrink:0">← INVEST</button>
-        <div style="font-family:Orbitron,sans-serif;font-size:.72rem;letter-spacing:.2em;color:${ACCENT};flex:1;text-align:center">🌿 DIVIDEND DISTRICT</div>
-        <button id="divd-help-btn" title="How to play" style="padding:6px 10px;border:1px solid ${ACCENT_DIM};border-radius:8px;background:rgba(0,200,83,.1);color:${ACCENT};cursor:pointer;flex-shrink:0;font-size:.78rem">❓</button>
-        <div style="display:flex;gap:10px;align-items:center;flex-shrink:0">
+      <div id="divd-topbar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:6px;padding:8px 8px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent)">
+        <button id="divd-exit-btn" style="padding:6px 8px;border:1px solid ${ACCENT_DIM};border-radius:8px;background:rgba(0,200,83,.1);color:${ACCENT};font-family:Orbitron,sans-serif;font-size:.58rem;letter-spacing:.14em;cursor:pointer;white-space:nowrap;flex-shrink:0">← INVEST</button>
+        <div style="font-family:Orbitron,sans-serif;font-size:.66rem;letter-spacing:.1em;color:${ACCENT};flex:1;text-align:center">🌿 DIVIDEND DISTRICT</div>
+        <button id="divd-help-btn" title="How to play" style="padding:6px 7px;border:1px solid ${ACCENT_DIM};border-radius:8px;background:rgba(0,200,83,.1);color:${ACCENT};cursor:pointer;flex-shrink:0;font-size:.78rem">❓</button>
+        <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
           <div style="display:flex;flex-direction:column;align-items:center">
             <span style="font-family:Orbitron,sans-serif;font-size:.55rem;color:rgba(255,255,255,.45);letter-spacing:.1em">INCOME/MO</span>
             <span id="divd-income" style="font-family:Orbitron,sans-serif;font-size:.85rem;color:${ACCENT};font-variant-numeric:tabular-nums">$0</span>

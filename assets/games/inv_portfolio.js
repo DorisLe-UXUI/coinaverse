@@ -184,7 +184,7 @@
       <div id="phqSliders" style="position:absolute;top:134px;left:0;right:0;bottom:0;overflow-y:auto;padding:8px 16px 100px;display:flex;flex-direction:column;gap:10px"></div>
 
       <!-- Bottom total + health -->
-      <div style="position:absolute;bottom:0;left:0;right:0;z-index:9;background:linear-gradient(0deg,rgba(3,4,12,.98) 80%,transparent);padding:10px 16px 16px">
+      <div style="position:absolute;bottom:0;left:0;right:0;z-index:9;background:linear-gradient(0deg,rgba(3,4,12,.98) 80%,transparent);padding:10px 16px 16px 60px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
           <div style="font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.12em;color:rgba(255,255,255,.5)">TOTAL ALLOCATED: <span id="phqTotal" style="color:#fff">100%</span></div>
           <div id="phqHealthChip" style="font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.12em;padding:5px 12px;border-radius:20px;border:1px solid ${ACCENT};background:${ACCENT}22;color:${ACCENT}">PORTFOLIO HEALTHY</div>

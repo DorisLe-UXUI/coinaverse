@@ -207,7 +207,7 @@
     const cfg=L();
     return `<div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 16px;background:linear-gradient(180deg,rgba(2,14,26,.9),transparent)">
         <button onclick="bbExit()" style="pointer-events:auto;padding:6px 13px;border:1px solid ${cfg.col}66;border-radius:9px;background:rgba(56,189,248,.1);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.56rem;letter-spacing:.1em;cursor:pointer">← BITSTREAM</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.14em;color:${cfg.col};flex:1;text-align:center">${cfg.icon} ${cfg.name} · LV ${LV+1}/3</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:clamp(.44rem,2vw,.62rem);letter-spacing:.14em;color:${cfg.col};flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center">${cfg.icon} ${cfg.name} · LV ${LV+1}/3</div>
         <button onclick="bbMenu()" style="pointer-events:auto;padding:6px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.5rem;cursor:pointer">☰</button>
         <div id="bbTime" style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:${cfg.col};min-width:40px;text-align:right">${cfg.round}s</div>
       </div>

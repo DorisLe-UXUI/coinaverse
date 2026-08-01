@@ -399,7 +399,7 @@
   /* ── action buttons ── */
   #sa-actions {
     position:relative;z-index:6;display:flex;gap:7px;
-    padding:7px 10px 10px;flex-shrink:0;
+    padding:7px 10px 10px 60px;flex-shrink:0;
     background:rgba(0,4,2,.85);border-top:1px solid rgba(0,200,83,.1);
   }
   .sa-abtn {

@@ -120,25 +120,25 @@
   <canvas id="rcc-bg-canvas" style="position:absolute;inset:0;pointer-events:none;opacity:0.18;"></canvas>
 
   <!-- top bar -->
-  <div id="rcc-topbar" style="position:absolute;top:0;left:0;right:0;height:52px;background:rgba(0,0,0,0.7);border-bottom:1px solid ${AC}22;display:flex;align-items:center;padding:0 14px;gap:14px;z-index:50;">
-    <button id="rcc-back" style="background:none;border:1px solid ${AC}44;color:${AC};font-size:18px;width:36px;height:36px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">←</button>
-    <div style="font-family:Orbitron,monospace;font-size:13px;font-weight:700;color:${AC};letter-spacing:1px;flex:1;">RISK CONTROL CENTER</div>
-    <div style="display:flex;align-items:center;gap:18px;">
+  <div id="rcc-topbar" style="position:absolute;top:0;left:0;right:0;height:52px;background:rgba(0,0,0,0.7);border-bottom:1px solid ${AC}22;display:flex;align-items:center;padding:0 8px;gap:6px;z-index:50;">
+    <button id="rcc-back" style="background:none;border:1px solid ${AC}44;color:${AC};font-size:18px;width:32px;height:32px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">←</button>
+    <div style="font-family:Orbitron,monospace;font-size:12px;font-weight:700;color:${AC};letter-spacing:0;flex:1;min-width:0;">RISK CONTROL CENTER</div>
+    <div style="display:flex;align-items:center;gap:9px;flex-shrink:0;">
       <div style="text-align:center;">
-        <div style="font-size:9px;color:#aaa;letter-spacing:1px;">PORTFOLIO</div>
-        <div id="rcc-health-val" style="font-family:Orbitron,monospace;font-size:15px;color:${AC};font-weight:700;">100%</div>
+        <div style="font-size:8px;color:#aaa;letter-spacing:.5px;">PORTFOLIO</div>
+        <div id="rcc-health-val" style="font-family:Orbitron,monospace;font-size:13px;color:${AC};font-weight:700;">100%</div>
       </div>
       <div style="text-align:center;">
-        <div style="font-size:9px;color:#aaa;letter-spacing:1px;">GROWTH</div>
-        <div id="rcc-growth-val" style="font-family:Orbitron,monospace;font-size:15px;color:${GOLD};font-weight:700;">+0%</div>
+        <div style="font-size:8px;color:#aaa;letter-spacing:.5px;">GROWTH</div>
+        <div id="rcc-growth-val" style="font-family:Orbitron,monospace;font-size:13px;color:${GOLD};font-weight:700;">+0%</div>
       </div>
       <div style="text-align:center;">
-        <div style="font-size:9px;color:#aaa;letter-spacing:1px;">SCORE</div>
-        <div id="rcc-score-val" style="font-family:Orbitron,monospace;font-size:15px;color:#fff;font-weight:700;">0</div>
+        <div style="font-size:8px;color:#aaa;letter-spacing:.5px;">SCORE</div>
+        <div id="rcc-score-val" style="font-family:Orbitron,monospace;font-size:13px;color:#fff;font-weight:700;">0</div>
       </div>
       <div id="rcc-timer-wrap" style="text-align:center;">
-        <div style="font-size:9px;color:#aaa;letter-spacing:1px;">TIME</div>
-        <div id="rcc-timer-val" style="font-family:Orbitron,monospace;font-size:15px;color:#fff;font-weight:700;">--</div>
+        <div style="font-size:8px;color:#aaa;letter-spacing:.5px;">TIME</div>
+        <div id="rcc-timer-val" style="font-family:Orbitron,monospace;font-size:13px;color:#fff;font-weight:700;">--</div>
       </div>
     </div>
   </div>

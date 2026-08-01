@@ -301,7 +301,11 @@
   "></div>
 
   <!-- CANVAS for connection lines -->
-  <canvas id="ddt_lines" style="position:absolute;top:110px;left:0;right:0;bottom:0;pointer-events:none;z-index:15"></canvas>
+  <!-- canvas is a replaced element: left/right/top/bottom alone won't stretch
+       it (falls back to the intrinsic 300x150 box), which left this stuck at
+       300x150 in the top-left corner instead of covering the arena — explicit
+       width/height required. -->
+  <canvas id="ddt_lines" style="position:absolute;top:110px;left:0;right:0;bottom:0;width:100%;height:calc(100% - 110px);pointer-events:none;z-index:15"></canvas>
 
   <!-- FEEDBACK POPUP -->
   <div id="ddt_feedback" style="
@@ -1399,8 +1403,12 @@
     const fromR = fromEl.getBoundingClientRect();
     const toR   = toEl.getBoundingClientRect();
 
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
+    // read both dimensions before writing either — writing canvas.width first
+    // would otherwise skew a subsequent offsetHeight read (same class of bug
+    // as the CSS fix above; kept as cheap insurance).
+    const cw = canvas.offsetWidth, ch = canvas.offsetHeight;
+    canvas.width = cw;
+    canvas.height = ch;
 
     const ctx = canvas.getContext('2d');
     const x1 = (fromR.left + fromR.right) / 2;

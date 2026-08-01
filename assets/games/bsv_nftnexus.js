@@ -418,9 +418,14 @@
       <!-- Canvas for ambient particles -->
       <canvas id="nn-canvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1"></canvas>
       <!-- NFT card area -->
-      <div id="nn-card-area" style="position:absolute;top:120px;left:0;right:0;bottom:200px;z-index:10;display:flex;align-items:center;justify-content:center"></div>
+      <div id="nn-card-area" style="position:absolute;top:120px;left:0;right:0;bottom:225px;z-index:10;display:flex;align-items:center;justify-content:center"></div>
       <!-- Drop zones -->
-      <div id="nn-zones" style="position:absolute;left:0;right:0;bottom:0;height:190px;z-index:12;padding:0 10px;display:flex;flex-direction:column;gap:6px;padding-bottom:8px"></div>
+      <!-- height was 190px, sized for a single row of owner wallet buttons. Level 3
+           (5 owners, each min-width:80px) wraps to 2 rows on a ~390px phone, and the
+           reject bin below them then rendered ~12px past the bottom of an 844px-tall
+           viewport — bumped by 25px (with card-area's bottom offset kept in sync) so
+           the 2-row case fits with the same visual gap Levels 1-2 always had. -->
+      <div id="nn-zones" style="position:absolute;left:0;right:0;bottom:0;height:215px;z-index:12;padding:0 10px;display:flex;flex-direction:column;gap:6px;padding-bottom:8px"></div>
       <!-- Floating text layer -->
       <canvas id="nn-float-canvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:25"></canvas>
       <!-- Overlay -->

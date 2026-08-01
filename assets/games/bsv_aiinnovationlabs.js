@@ -536,9 +536,16 @@
     const rows = Math.ceil(G.cfg.maxOnScreen / cols);
     const col = G.cardIdSeq % cols;
     const row = Math.floor(G.cardIdSeq / cols) % rows;
-    const cardW = Math.floor((streamW - 30) / cols);
+    // Cards are capped at maxCardW so wide desktop viewports don't stretch each
+    // card into an oversized, mostly-empty box — the grid is then centered in
+    // the leftover width instead of spanning edge-to-edge. On mobile widths the
+    // cap never engages (streamW is already narrow), so layout is unchanged there.
+    const maxCardW = 320;
+    const cardW = Math.min(maxCardW, Math.floor((streamW - 30) / cols));
     const cardH = Math.min(120, Math.floor((streamH - 20) / rows) - 8);
-    const x = 10 + col * (cardW + 10);
+    const gridW = cols * cardW + (cols - 1) * 10;
+    const xOffset = Math.max(10, Math.floor((streamW - gridW) / 2));
+    const x = xOffset + col * (cardW + 10);
     const y = 8 + row * (cardH + 8);
 
     // Create card DOM

@@ -134,10 +134,10 @@
           <div id="bbg_bill_list"></div>
         </div>
         <!-- CALENDAR AREA -->
-        <div id="bbg_cal_wrap" style="flex:1;overflow:auto;padding:6px 6px 8px 6px">
-          <div id="bbg_month_label" style="font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.2em;color:${ACCENT_GL};text-align:center;margin-bottom:6px">${MONTH_NAME}</div>
-          <div id="bbg_cal_header" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:2px"></div>
-          <div id="bbg_calendar" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px"></div>
+        <div id="bbg_cal_wrap" style="flex:1;overflow:auto;padding:6px 6px 8px 6px;display:flex;flex-direction:column">
+          <div id="bbg_month_label" style="flex-shrink:0;font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.2em;color:${ACCENT_GL};text-align:center;margin-bottom:6px">${MONTH_NAME}</div>
+          <div id="bbg_cal_header" style="flex-shrink:0;display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:2px"></div>
+          <div id="bbg_calendar" style="flex:1 1 auto;min-height:0;display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(5,1fr);gap:3px"></div>
         </div>
       </div>
 

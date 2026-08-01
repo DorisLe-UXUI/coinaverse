@@ -268,7 +268,7 @@
       <span style="font-size:1.1rem;flex-shrink:0">${tile.icon}</span>
       <div style="flex:1;min-width:0">
         <div style="font-family:'Inter',sans-serif;font-size:.62rem;font-weight:700;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${tile.label}</div>
-        <div style="font-family:'Orbitron',monospace;font-size:.6rem;color:${tile.type==='income'?GRN:RED};font-weight:900">${tile.type==='income'?'+':'-'}$${tile.amt}</div>
+        <div style="font-family:'Orbitron',monospace;font-size:.6rem;color:${tile.type==='income'?GRN:RED};font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${tile.type==='income'?'+':'-'}$${tile.amt}</div>
       </div>
     `;
     return el;
@@ -370,6 +370,11 @@
       const idx = colTiles.length - 1;
       tile.x = colX;
       tile.y = startY + idx * (TILE_H + 8);
+      // Narrow screens: the two drawn columns (see drawColumn/colW below) sit closer together
+      // than TILE_W=130 apart, so a placed tile must shrink to the column's own width or it
+      // visually collides with a tile placed in the neighboring column (label/amount clipped).
+      const fitColW = Math.min(W*0.22, 200);
+      if(fitColW < TILE_W){ tile.el.style.width = Math.max(64, fitColW - 6) + 'px'; }
       positionTile(tile);
 
       // Visual: glow

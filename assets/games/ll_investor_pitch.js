@@ -371,7 +371,7 @@
   <!-- TOP BAR -->
   <div id="ipaTopBar" style="position:absolute;top:0;left:0;right:0;height:52px;background:rgba(3,4,12,.9);border-bottom:1px solid ${AC}44;display:flex;align-items:center;padding:0 12px;gap:10px;z-index:50;backdrop-filter:blur(8px);">
     <button id="ipaBackBtn" onclick="window.ll_investor_pitchExit && window.ll_investor_pitchExit()" style="background:none;border:1px solid ${AC}66;color:${AC2};font-family:Orbitron,monospace;font-size:10px;padding:5px 10px;border-radius:6px;cursor:pointer;letter-spacing:.08em;white-space:nowrap;flex-shrink:0;">← HUB</button>
-    <div style="font-family:Orbitron,monospace;font-size:11px;font-weight:700;color:${AC2};letter-spacing:1.5px;flex:1;text-align:center;text-shadow:0 0 14px ${AC}99;">INVESTOR PITCH ARENA</div>
+    <div style="font-family:Orbitron,monospace;font-size:11px;font-weight:700;color:${AC2};letter-spacing:1.5px;flex:1;min-width:0;text-align:center;text-shadow:0 0 14px ${AC}99;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">INVESTOR PITCH ARENA</div>
     <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
       <div style="text-align:right;">
         <div style="font-size:7px;color:#888;letter-spacing:1px;font-family:Orbitron,monospace;">CONFIDENCE</div>

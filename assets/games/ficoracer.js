@@ -213,7 +213,7 @@
     const best=(window.state&&state.gameLevels&&state.gameLevels['game_ficoracer'])||0;
     ui.style.pointerEvents='auto';
     ui.innerHTML=`
-      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,rgba(56,189,248,.25),transparent 55%),linear-gradient(180deg,#050a1e,#02040c);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px">
+      <div style="position:absolute;inset:0;overflow:auto;background:radial-gradient(ellipse at 50% -10%,rgba(56,189,248,.25),transparent 55%),linear-gradient(180deg,#050a1e,#02040c);display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:18px;padding:64px 20px 24px">
         <button onclick="frExit()" style="position:absolute;top:14px;left:14px;padding:8px 16px;border:1px solid rgba(56,189,248,.4);border-radius:10px;background:rgba(10,16,40,.6);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← HUB</button>
         <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.3em;color:#38bdf8">CREDTECH GALAXY PRESENTS</div>
         <div style="font-family:'Anton',sans-serif;font-size:clamp(2rem,6vw,3.4rem);letter-spacing:.04em;background:linear-gradient(90deg,#7dd3fc,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent">🏁 FICO RACER</div>
@@ -246,7 +246,7 @@
     const L=LEVELS[li];
     ui.style.pointerEvents='auto';
     ui.innerHTML=`
-      <div style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,rgba(139,92,246,.22),transparent 55%),linear-gradient(180deg,#050a1e,#02040c);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;overflow:auto">
+      <div style="position:absolute;inset:0;background:radial-gradient(130% 95% at 50% -8%,rgba(139,92,246,.22),transparent 55%),linear-gradient(180deg,#050a1e,#02040c);display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:14px;padding:64px 20px 24px;overflow:auto">
         <button onclick="frExit()" style="position:absolute;top:14px;left:14px;padding:8px 16px;border:1px solid rgba(56,189,248,.4);border-radius:10px;background:rgba(10,16,40,.6);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer">← HUB</button>
         <div style="position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:8px">
           ${frA11yControlHTML()}
@@ -288,6 +288,7 @@
   let _garagePrev=null;
   function teardownGaragePreview(){
     if(!_garagePrev) return;
+    if(_garagePrev.onResize) window.removeEventListener('resize', _garagePrev.onResize);
     cancelAnimationFrame(_garagePrev.raf);
     _garagePrev.items.forEach(it=>{ try{ it.rndr.dispose(); if(it.rndr.forceContextLoss) it.rndr.forceContextLoss(); }catch(e){} });
     _garagePrev=null;
@@ -333,11 +334,23 @@
           const rndr=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
           rndr.setPixelRatio(Math.min(devicePixelRatio,1.5));
           rndr.setSize(w,h,false);
-          items.push({rndr,scene,cam,root});
+          items.push({rndr,scene,cam,root,mount});
           const fb=mount.querySelector('.frCarPrevFallback'); if(fb) fb.style.display='none';
         }catch(e){ /* leave the 🏎️ fallback showing for this one card */ }
       });
       if(!items.length) return;
+      // Gap: these small preview canvases had no resize handling at all (unlike the
+      // full race scene's onResize below) — a viewport resize/rotation while the garage
+      // screen is open left each card's WebGL drawing-buffer at its stale creation size,
+      // stretching/squishing the render against the CSS box's new size.
+      const onResize=()=>{
+        items.forEach(it=>{
+          const w=it.mount.clientWidth||190, h=it.mount.clientHeight||108;
+          it.cam.aspect=w/Math.max(1,h); it.cam.updateProjectionMatrix();
+          it.rndr.setSize(w,h,false);
+        });
+      };
+      window.addEventListener('resize', onResize);
       let last=performance.now();
       function tick(now){
         if(!_garagePrev) return;
@@ -345,7 +358,7 @@
         const dt=Math.min(.05,(now-last)/1000); last=now;
         items.forEach(it=>{ it.root.rotation.y+=dt*0.5; it.rndr.render(it.scene,it.cam); });
       }
-      _garagePrev={raf:0, items};
+      _garagePrev={raf:0, items, onResize};
       tick(last);
     }).catch(e=>{ console.warn('FICO garage preview load issue:', e); });
   }
@@ -921,7 +934,7 @@
         <button id="frRBtn" style="pointer-events:auto;width:62px;height:62px;border-radius:16px;border:1px solid rgba(255,255,255,.25);background:rgba(10,16,40,.6);color:#fff;font-size:1.4rem;cursor:pointer">▶</button>
       </div>
       <div id="frCount" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Anton',sans-serif;font-size:7rem;color:#fbbf24;text-shadow:0 8px 40px rgba(0,0,0,.7);pointer-events:none">3</div>
-      <div id="frOver" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(2,4,12,.78);backdrop-filter:blur(6px);pointer-events:auto"></div>`;
+      <div id="frOver" style="position:absolute;inset:0;display:none;overflow:auto;align-items:center;justify-content:safe center;padding:24px 0;background:rgba(2,4,12,.78);backdrop-filter:blur(6px);pointer-events:auto"></div>`;
 
     /* state */
     G={ li,L,scene,cam,rndr,wrap,curve,P,T,NRM,SEG,trackLen,W,

@@ -420,9 +420,9 @@
       background:none;border:1px solid rgba(0,255,255,0.4);color:${ACCENT};
       font-size:18px;padding:4px 10px;border-radius:6px;cursor:pointer;
       font-family:Inter,sans-serif;">←</button>
-    <div style="flex:1;">
-      <div style="font-family:Orbitron,monospace;font-size:11px;color:${ACCENT};letter-spacing:2px;opacity:.7;">BITSTREAM VALLEY</div>
-      <div style="font-family:Orbitron,monospace;font-size:14px;color:#fff;letter-spacing:1px;">FUTURE TRENDS CMD</div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-family:Orbitron,monospace;font-size:11px;color:${ACCENT};letter-spacing:2px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">BITSTREAM VALLEY</div>
+      <div style="font-family:Orbitron,monospace;font-size:14px;color:#fff;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">FUTURE TRENDS CMD</div>
     </div>
     <div style="text-align:center;">
       <div style="font-size:9px;color:rgba(255,255,255,.5);letter-spacing:1px;">SCORE</div>
@@ -441,23 +441,23 @@
   <!-- status bar -->
   <div id="ftcmd_statusbar" style="
     display:flex;align-items:center;justify-content:space-between;
-    padding:7px 16px;background:rgba(0,0,0,.4);border-bottom:1px solid rgba(0,255,255,0.1);
-    flex-shrink:0;">
-    <div style="display:flex;align-items:center;gap:6px;">
-      <span style="font-size:10px;color:rgba(255,255,255,.5);">CORRECT:</span>
-      <div id="ftcmd_correct_dots" style="display:flex;gap:4px;"></div>
+    padding:7px 10px;background:rgba(0,0,0,.4);border-bottom:1px solid rgba(0,255,255,0.1);
+    flex-shrink:0;overflow-x:auto;">
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;white-space:nowrap;">
+      <span style="font-size:10px;color:rgba(255,255,255,.5);white-space:nowrap;">CORRECT:</span>
+      <div id="ftcmd_correct_dots" style="display:flex;gap:4px;flex-shrink:0;"></div>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;">
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
       <span id="ftcmd_streak_badge" style="
-        font-size:10px;padding:2px 8px;border-radius:12px;
+        font-size:10px;padding:2px 8px;border-radius:12px;white-space:nowrap;flex-shrink:0;
         background:rgba(0,255,255,0.1);border:1px solid rgba(0,255,255,0.3);
         color:${ACCENT};font-family:Orbitron,monospace;display:none;">
         🔥 STREAK x<span id="ftcmd_streak_num">0</span>
       </span>
-      <span style="font-size:10px;color:rgba(255,255,255,.5);">MISSES:</span>
-      <div id="ftcmd_wrong_dots" style="display:flex;gap:4px;"></div>
+      <span style="font-size:10px;color:rgba(255,255,255,.5);white-space:nowrap;">MISSES:</span>
+      <div id="ftcmd_wrong_dots" style="display:flex;gap:4px;flex-shrink:0;"></div>
     </div>
-    <div style="font-size:10px;color:rgba(255,255,255,.5);" id="ftcmd_level_label">LEVEL 1</div>
+    <div style="font-size:10px;color:rgba(255,255,255,.5);white-space:nowrap;flex-shrink:0;" id="ftcmd_level_label">LEVEL 1</div>
   </div>
 
   <!-- main area -->

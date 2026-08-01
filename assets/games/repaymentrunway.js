@@ -1040,12 +1040,22 @@
       ctx.fill();
       ctx.globalAlpha = hintsOpacity;
       ctx.fillStyle   = COLORS.hud;
-      ctx.font        = `${fz}px sans-serif`;
       ctx.textAlign   = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText('SPACE / Tap — Jump', W / 2, by + fz * 0.5);
-      ctx.fillText('↓ / Swipe Down — Duck', W / 2, by + fz * 2);
-      ctx.fillText('Hold SPACE for higher arc', W / 2, by + fz * 3.4);
+      // Bug fix: these 3 lines used a pure H-relative font size (fz) with no
+      // regard for the box's W-relative width (bw) — on a narrow/portrait mobile
+      // canvas (H large relative to W) fz scales up while bw scales down, so all
+      // 3 lines measured wider than the dark hint box and spilled text directly
+      // over the background art. Same fitFontPx guard used everywhere else in
+      // this file (drawTitle/drawHelp/drawEnd); no-op on wide/landscape canvases
+      // where it already fit.
+      const hintMaxW = bw * 0.88;
+      const hintLines = ['SPACE / Tap — Jump', '↓ / Swipe Down — Duck', 'Hold SPACE for higher arc'];
+      const hintYs = [by + fz * 0.5, by + fz * 2, by + fz * 3.4];
+      hintLines.forEach((line, i) => {
+        fitFontPx(line, 'normal', fz, hintMaxW, 8);
+        ctx.fillText(line, W / 2, hintYs[i]);
+      });
       ctx.restore();
     }
 

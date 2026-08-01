@@ -165,7 +165,7 @@
       <!-- LEVEL BADGE -->
       <div id="arLevelBadge" style="position:absolute;top:132px;left:0;right:0;z-index:10;text-align:center;font-family:Orbitron,sans-serif;font-size:.55rem;letter-spacing:.2em;color:#555"></div>
       <!-- ASSET CARD ZONE -->
-      <div id="arCardZone" style="position:absolute;top:150px;left:0;right:0;bottom:46%;z-index:10;display:flex;align-items:center;justify-content:center"></div>
+      <div id="arCardZone" style="position:absolute;top:150px;left:0;right:0;bottom:46%;z-index:10;display:flex;align-items:flex-start;justify-content:center;padding-top:6px;overflow:hidden"></div>
       <!-- BIN ROW -->
       <div id="arBins" style="position:absolute;bottom:calc(45% + 8px);left:14px;right:14px;z-index:11;display:flex;gap:10px;height:52px">
         <div id="arBinBuy" style="flex:1;border:2px solid ${ACCENT};border-radius:14px;background:${ACCENT}14;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:background .15s">
@@ -506,28 +506,28 @@
         background:linear-gradient(145deg,${CARD_BG},#0a1520);
         border:1.5px solid ${ACCENT}33;
         border-radius:18px;
-        padding:20px 24px;
+        padding:14px 20px;
         max-width:320px;
         width:90%;
+        max-height:calc(55vh - 218px);
+        overflow-y:auto;
         box-shadow:0 0 40px rgba(0,200,83,.08),0 8px 32px rgba(0,0,0,.6);
         cursor:grab;
         touch-action:none;
         transition:transform .1s;
       ">
         <div style="position:absolute;top:10px;right:12px;font-size:.55rem;font-family:Orbitron,sans-serif;letter-spacing:.12em;padding:3px 8px;border-radius:20px;background:${ACCENT}18;color:${ACCENT}88;border:1px solid ${ACCENT}22">${asset.cat}</div>
-        <div style="font-size:3.2rem;text-align:center;margin-bottom:10px;line-height:1">${asset.emoji}</div>
+        <div style="font-size:2.8rem;text-align:center;margin-bottom:6px;line-height:1">${asset.emoji}</div>
         <div style="font-family:Orbitron,sans-serif;font-size:.85rem;letter-spacing:.05em;text-align:center;margin-bottom:4px;color:#eee">${asset.name}</div>
-        <div style="font-size:.65rem;color:#667;text-align:center;line-height:1.5">${G.level === 1 ? asset.hint : G.level === 2 ? '🤔 Evaluate carefully — consider long-term factors.' : '🔥 Look past the pitch — what is REALLY driving this return?'}</div>
+        <div style="font-size:.65rem;color:#667;text-align:center;line-height:1.4">${G.level === 1 ? asset.hint : G.level === 2 ? '🤔 Evaluate carefully — consider long-term factors.' : '🔥 Look past the pitch — what is REALLY driving this return?'}</div>
         ${valHTML}
         ${factorHTML}
-        <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
-          <div style="flex:1;background:${ACCENT}14;border:1px solid ${ACCENT}33;border-radius:10px;padding:8px;text-align:center;cursor:pointer;transition:background .15s" onclick="document.getElementById('arBinBuy').click()">
-            <div style="font-size:.55rem;font-family:Orbitron,sans-serif;color:${ACCENT};letter-spacing:.1em">BUY</div>
-            <div style="font-size:.5rem;color:#666">K key</div>
+        <div style="margin-top:8px;display:flex;gap:8px;justify-content:center">
+          <div style="flex:1;background:${ACCENT}14;border:1px solid ${ACCENT}33;border-radius:10px;padding:5px;text-align:center;cursor:pointer;transition:background .15s" onclick="document.getElementById('arBinBuy').click()">
+            <div style="font-size:.55rem;font-family:Orbitron,sans-serif;color:${ACCENT};letter-spacing:.1em">BUY <span style="color:#666;font-family:Inter,sans-serif;letter-spacing:0">(K)</span></div>
           </div>
-          <div style="flex:1;background:${RED}14;border:1px solid ${RED}33;border-radius:10px;padding:8px;text-align:center;cursor:pointer;transition:background .15s" onclick="document.getElementById('arBinAvoid').click()">
-            <div style="font-size:.55rem;font-family:Orbitron,sans-serif;color:${RED};letter-spacing:.1em">AVOID</div>
-            <div style="font-size:.5rem;color:#666">J key</div>
+          <div style="flex:1;background:${RED}14;border:1px solid ${RED}33;border-radius:10px;padding:5px;text-align:center;cursor:pointer;transition:background .15s" onclick="document.getElementById('arBinAvoid').click()">
+            <div style="font-size:.55rem;font-family:Orbitron,sans-serif;color:${RED};letter-spacing:.1em">AVOID <span style="color:#666;font-family:Inter,sans-serif;letter-spacing:0">(J)</span></div>
           </div>
         </div>
       </div>`;
@@ -919,12 +919,12 @@
     const zone = document.getElementById('arCardZone');
     if (zone) {
       zone.innerHTML = `
-        <div style="max-width:320px;width:90%;text-align:center;padding:24px;background:linear-gradient(145deg,${CARD_BG},#0a1520);border:1.5px solid ${ACCENT}44;border-radius:18px">
-          <div style="font-size:2rem;margin-bottom:10px">🏙️</div>
+        <div style="max-width:320px;width:90%;text-align:center;padding:18px;max-height:calc(55vh - 218px);overflow-y:auto;background:linear-gradient(145deg,${CARD_BG},#0a1520);border:1.5px solid ${ACCENT}44;border-radius:18px;box-sizing:border-box">
+          <div style="font-size:1.8rem;margin-bottom:8px">🏙️</div>
           <div style="font-family:Orbitron,sans-serif;font-size:.75rem;color:${ACCENT};letter-spacing:.15em;margin-bottom:6px">LEVEL 1 CLEARED!</div>
           <div style="font-size:.7rem;color:#888;margin-bottom:4px">Accuracy: <span style="color:${ACCENT}">${G.total > 0 ? Math.round((G.correct / G.total) * 100) : 0}%</span></div>
-          <div style="font-size:.7rem;color:#888;margin-bottom:14px">Wealth Meter: <span style="color:${GOLD}">$${Math.round(G.wealth)}</span></div>
-          <div style="font-size:.65rem;color:#555;margin-bottom:18px;line-height:1.6">${FACTS[0]}</div>
+          <div style="font-size:.7rem;color:#888;margin-bottom:10px">Wealth Meter: <span style="color:${GOLD}">$${Math.round(G.wealth)}</span></div>
+          <div style="font-size:.65rem;color:#555;margin-bottom:12px;line-height:1.5">${FACTS[0]}</div>
           <button id="arNextLevel" style="padding:10px 28px;border:none;border-radius:10px;background:${ACCENT};color:#000;font-family:Orbitron,sans-serif;font-size:.65rem;letter-spacing:.1em;cursor:pointer">LEVEL 2 →</button>
         </div>`;
       const btn = document.getElementById('arNextLevel');
@@ -961,12 +961,12 @@
     const zone = document.getElementById('arCardZone');
     if (zone) {
       zone.innerHTML = `
-        <div style="max-width:320px;width:90%;text-align:center;padding:24px;background:linear-gradient(145deg,${CARD_BG},#0a1520);border:1.5px solid ${EXPERT}44;border-radius:18px">
-          <div style="font-size:2rem;margin-bottom:10px">🏙️</div>
+        <div style="max-width:320px;width:90%;text-align:center;padding:18px;max-height:calc(55vh - 218px);overflow-y:auto;background:linear-gradient(145deg,${CARD_BG},#0a1520);border:1.5px solid ${EXPERT}44;border-radius:18px;box-sizing:border-box">
+          <div style="font-size:1.8rem;margin-bottom:8px">🏙️</div>
           <div style="font-family:Orbitron,sans-serif;font-size:.75rem;color:${EXPERT};letter-spacing:.15em;margin-bottom:6px">LEVEL 2 CLEARED!</div>
           <div style="font-size:.7rem;color:#888;margin-bottom:4px">Accuracy: <span style="color:${ACCENT}">${G.total > 0 ? Math.round((G.correct / G.total) * 100) : 0}%</span></div>
-          <div style="font-size:.7rem;color:#888;margin-bottom:14px">Wealth Meter: <span style="color:${GOLD}">$${Math.round(G.wealth)}</span></div>
-          <div style="font-size:.65rem;color:#555;margin-bottom:18px;line-height:1.6">${FACTS[1]}</div>
+          <div style="font-size:.7rem;color:#888;margin-bottom:10px">Wealth Meter: <span style="color:${GOLD}">$${Math.round(G.wealth)}</span></div>
+          <div style="font-size:.65rem;color:#555;margin-bottom:12px;line-height:1.5">${FACTS[1]}</div>
           <button id="arNextLevel" style="padding:10px 28px;border:none;border-radius:10px;background:${EXPERT};color:#000;font-family:Orbitron,sans-serif;font-size:.65rem;letter-spacing:.1em;cursor:pointer">LEVEL 3 →</button>
         </div>`;
       const btn = document.getElementById('arNextLevel');

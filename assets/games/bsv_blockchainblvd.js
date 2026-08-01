@@ -392,8 +392,23 @@
     const chainCount = G.chains.length;
 
     G.chains.forEach((ch, ci) => {
-      const leftPct = chainCount === 1 ? '50%' : (ci === 0 ? '25%' : '75%');
-      const panelW  = chainCount === 1 ? Math.min(420, W * 0.92) : Math.min(200, W * 0.44);
+      // Evenly spread N chains across the width. The old (ci===0?'25%':'75%')
+      // ternary only had two slots, so Level 3's 3rd chain (ci=2) collapsed onto
+      // the same 75% slot as chain B (ci=1) and rendered fully overlapped/
+      // unreachable. This generalizes to any chainCount while keeping the
+      // existing 25%/75% positions for the 2-chain case unchanged.
+      const leftPct = chainCount === 1 ? '50%' :
+                      chainCount === 2 ? (ci === 0 ? '25%' : '75%') :
+                      `${(100 * (ci + 1)) / (chainCount + 1)}%`;
+      // chainCount===2 keeps its original cap (panels sit at 25%/75%, spacing = 50% of W,
+      // so up to 200px never collides). chainCount>=3 packs 3 panels into 25%/50%/75%
+      // (spacing = 25% of W) — at narrow widths the old shared 200px/44% cap made adjacent
+      // panels wider than the gap between their centers, so Level 3 chains visually
+      // overlapped/interleaved on phones even though they were no longer at the same spot.
+      // Capping by W/(chainCount+1) keeps an 8px gap between panels at any width.
+      const panelW  = chainCount === 1 ? Math.min(420, W * 0.92) :
+                      chainCount === 2 ? Math.min(200, W * 0.44) :
+                      Math.min(200, W / (chainCount + 1) - 8);
 
       html += `<div id="bsv_chain_${ci}" style="
         position:absolute;
