@@ -3098,11 +3098,7 @@ h1, h2, h3, .anton { font-family: 'Anton', 'Orbitron', sans-serif; letter-spacin
 }
 .v14-splash > * { position: relative; z-index: 2; }
 .v14-splash-logo {
-  font-family: 'Anton', sans-serif;
-  font-size: clamp(3rem, 8vw, 6rem); letter-spacing: 0.2em;
-  background: linear-gradient(135deg, var(--cyan), var(--purple-glow), var(--gold));
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent;
+  width: clamp(280px, 46vw, 560px); height: auto; object-fit: contain;
   filter: drop-shadow(0 0 40px rgba(0, 229, 255, 0.5));
   margin-bottom: 14px;
   animation: splashFade 1.2s ease-out;
@@ -3116,6 +3112,14 @@ h1, h2, h3, .anton { font-family: 'Anton', 'Orbitron', sans-serif; letter-spacin
 .v14-splash-bar-fill { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--gold)); border-radius: 999px; box-shadow: 0 0 12px var(--cyan); animation: splashLoad 2.2s ease-out forwards; }
 @keyframes splashLoad { from { width: 0%; } to { width: 100%; } }
 .v14-splash-pct { margin-top: 14px; font-family: 'Orbitron', sans-serif; font-size: 0.7rem; letter-spacing: 0.2em; color: var(--text-mute); }
+.v14-splash-social { position: fixed !important; left: 50%; bottom: 34px; transform: translateX(-50%); display: flex; gap: 14px; z-index: 30; }
+.v14-splash-social a {
+  width: 46px; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.16);
+  backdrop-filter: blur(6px); cursor: pointer; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.v14-splash-social a svg { width: 22px; height: 22px; display: block; }
+.v14-splash-social a:hover { transform: translateY(-3px); border-color: rgba(251,191,36,0.55); box-shadow: 0 8px 22px rgba(251,191,36,0.22); }
 
 /* ════════════════════════════════════════════════════════
    SIGNIN
@@ -4009,6 +4013,11 @@ video::-webkit-media-controls-play-button {
 .has-vid{ position:relative; min-height:100vh; }
 /* identity must stay a viewport-locked scroll container so the hero grid + confirm are always reachable (laptop + mobile) */
 .v14-identity.has-vid{ position:absolute; inset:0; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+/* splash must stay viewport-locked too — its own base rule sets position:absolute+inset:0,
+   but the generic .has-vid rule above (same specificity, later in source) was silently
+   winning and collapsing it to a 0-width flow box; only mattered once real absolutely-
+   positioned content (the store/social icon row) was added as a direct child. */
+.v14-splash.has-vid{ position:absolute; inset:0; min-height:0; }
 .v14-screen{ -webkit-overflow-scrolling:touch; }
 /* product detail modal */
 .prod-card{width:min(840px,96vw);padding:0;overflow:hidden}
@@ -4046,7 +4055,7 @@ video::-webkit-media-controls-play-button {
     viewingWorld: null, inventory: [], completedMissions: 0,
     friends: [], party: [], dailyClaimed: [true,true,true,false,false,false,false],
     vault: 0, security: 88, emergency: 60, vaultAura: false, smartSaver: false,
-    ageBand: null, parentEmail: '', parentConsent: false, securityChamp: false,
+    parentEmail: '', parentConsent: false, securityChamp: false,
     restrictions: {timeLimit:true,approvePurchases:true,safeMultiplayer:true,moderatedComms:true},
   };
 
@@ -4368,12 +4377,27 @@ video::-webkit-media-controls-play-button {
     return `
       <div class="v14-splash has-vid">
         ${vbg('splash','assets/bg/cosmic_main.jpeg')}
-        <div class="v14-splash-logo">COINAVERSE</div>
+        <img class="v14-splash-logo" src="assets/ui/logo_coinaverse.png" alt="COINAVERSE">
         <div class="v14-splash-tagline">EXPLORE · LEARN · EARN · GROW</div>
         <div class="v14-splash-bar"><div class="v14-splash-bar-fill"></div></div>
         <div class="v14-splash-pct">LOADING UNIVERSE...</div>
+        <div class="v14-splash-social">
+          <a onclick="splashSocial('App Store')" title="App Store">
+            <svg viewBox="0 0 24 24"><path fill="#fff" d="M16.5 12.2c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.15-2.8.85-3.5.85-.7 0-1.8-.83-3-.8-1.5.02-2.9.87-3.7 2.22-1.6 2.75-.4 6.85 1.1 9.1.75 1.1 1.6 2.3 2.8 2.26 1.1-.04 1.55-.72 2.9-.72 1.35 0 1.75.72 2.9.7 1.2-.02 2-1.1 2.7-2.2.6-.9.9-1.4 1.3-2.4-3.2-1.2-3.1-3.6-3.1-3.63z"/><path fill="#fff" d="M13.9 5.1c.6-.7 1-1.7.9-2.7-.9.04-1.9.6-2.5 1.3-.55.6-1 1.6-.9 2.6.95.07 1.9-.5 2.5-1.2z"/></svg>
+          </a>
+          <a onclick="splashSocial('Google Play')" title="Google Play">
+            <svg viewBox="0 0 24 24"><defs><linearGradient id="gpg" x1="4" y1="4" x2="18" y2="20"><stop offset="0" stop-color="#00E5FF"/><stop offset=".5" stop-color="#4CAF50"/><stop offset="1" stop-color="#FFC107"/></linearGradient></defs><path fill="url(#gpg)" d="M5 3.9c-.4.2-.7.7-.7 1.3v13.6c0 .6.3 1.1.7 1.3l10.6-8.1L5 3.9z"/></svg>
+          </a>
+          <a onclick="splashSocial('YouTube')" title="YouTube">
+            <svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="5" fill="#FF0000"/><path fill="#fff" d="M10 8.5l6 3.5-6 3.5z"/></svg>
+          </a>
+          <a onclick="splashSocial('Facebook')" title="Facebook">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path fill="#fff" d="M15.5 12.5h-2.2V20h-3v-7.5H9V10h1.3V8.7c0-1.9 1-3 3.2-3h2v2.5h-1.3c-.9 0-1 .3-1 1V10h2.4l-.3 2.5z"/></svg>
+          </a>
+        </div>
       </div>`;
   };
+  window.splashSocial = function(platform){ cvToast('🔗 '+platform+' — coming soon!'); };
 
   // ───────── SCREEN: SIGNIN ─────────
   SCREENS.signin = function() {
@@ -6135,15 +6159,15 @@ video::-webkit-media-controls-play-button {
             ${Array.from({length:EMG_EVENTS.length},(_, k)=>`<div style="width:10px;height:10px;border-radius:50%;background:${k<e.round?fundColor:k===e.round?'rgba(255,255,255,.8)':'rgba(255,255,255,.15)'}"></div>`).join('')}
           </div>
         </div>
-        <div style="display:flex;flex-direction:column;justify-content:center;padding:24px 18px;overflow-y:auto">
-          <div id="emg-card" style="background:${isCrisis?'rgba(239,68,68,.06)':'rgba(20,184,166,.06)'};border:1px solid ${isCrisis?'rgba(239,68,68,.3)':'rgba(20,184,166,.25)'};border-radius:16px;padding:20px;margin-bottom:16px">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 18px;overflow-y:auto">
+          <div id="emg-card" style="width:100%;max-width:560px;box-sizing:border-box;background:${isCrisis?'rgba(239,68,68,.06)':'rgba(20,184,166,.06)'};border:1px solid ${isCrisis?'rgba(239,68,68,.3)':'rgba(20,184,166,.25)'};border-radius:16px;padding:20px;margin-bottom:16px">
             <div style="display:inline-block;padding:4px 12px;border-radius:999px;background:${isCrisis?'rgba(239,68,68,.15)':'rgba(245,158,11,.15)'};font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.16em;color:${isCrisis?'#f87171':'#fbbf24'};margin-bottom:12px">${isCrisis?'🚨 CRISIS EVENT':'⚠️ LIFE EVENT'}</div>
             <p style="font-size:1rem;line-height:1.65;margin:0;font-weight:600">${ev.q}</p>
           </div>
-          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+          <div style="width:100%;max-width:560px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
             ${ev.choices.map((c,i)=>`<button class="emg-choice" onclick="window._emgPickAnim(${i})">${c.t}</button>`).join('')}
           </div>
-          ${e.fb?`<div style="padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);font-size:.84rem;color:rgba(255,255,255,.65);line-height:1.5">${e.fb}</div>`:''}
+          ${e.fb?`<div style="width:100%;max-width:560px;box-sizing:border-box;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);font-size:.84rem;color:rgba(255,255,255,.65);line-height:1.5">${e.fb}</div>`:''}
         </div>
       </div>
     </div>`;
@@ -6197,18 +6221,16 @@ video::-webkit-media-controls-play-button {
   };
 
   // ───────── SCREEN: AGE + PARENTAL (onboarding safety step) ─────────
-  const AGE_BANDS = [
-    ['u9','Under 9',''],
-    ['9_11','9 – 11',''],
-    ['12_14','12 – 14',''] ];
+  const SAFETY_PILLARS = [
+    ['🛡️','Kid-Safe by Design','Built with your child’s safety in mind.'],
+    ['🔒','Private & Secure','We protect your child’s info and progress.'],
+    ['💬','Moderated Experience','Safe multiplayer and filtered chat.'],
+    ['📖','Learning-First','Designed to build real financial skills.'] ];
 
   SCREENS.age_parental = function(){
-    const band = state.ageBand;
     const consent = state.parentConsent;
-    const bands = AGE_BANDS.map(b=>`
-      <button class="ap-band${band===b[0]?' on':''}" onclick="agePick('${b[0]}')">
-        <b>${b[1]}</b><i>${b[2]}</i>
-      </button>`).join('');
+    const pillars = SAFETY_PILLARS.map(p=>`
+      <div class="ap-safe-row"><span class="ap-safe-ic">${p[0]}</span><div><b>${p[1]}</b><i>${p[2]}</i></div></div>`).join('');
     return `
       <div class="ap-screen">
         <video class="ap-vid" autoplay loop muted playsinline><source src="assets/bgvid/splash.mp4" type="video/mp4"><source src="https://github.com/DorisLe-UXUI/coinaverse-assets/releases/download/v1.0/splash.mp4" type="video/mp4"></video>
@@ -6216,12 +6238,11 @@ video::-webkit-media-controls-play-button {
         <div class="ap-card">
           <div class="ap-eyebrow">ACCOUNT SETUP · STEP 2 OF 3</div>
           <div class="ap-dots"><i class="on"></i><i class="on"></i><i></i></div>
-          <h1 class="ap-h1">👨‍👩‍👧 Safety &amp; Permissions</h1>
-          <p class="ap-sub">Coinaverse is built for kids — so a grown-up sets things up first. <b style="color:#5eead4">Trust is a feature here.</b></p>
+          <h1 class="ap-h1">🛡️ Safety &amp; Privacy</h1>
+          <p class="ap-sub">Coinaverse is built for kids — so grown-ups set things up first. <b style="color:#5eead4">Trust is our foundation.</b></p>
 
           <div class="ap-block">
-            <div class="ap-label">How old is the player?</div>
-            <div class="ap-bands">${bands}</div>
+            <div class="ap-safe-rows">${pillars}</div>
           </div>
 
           <div class="ap-block">
@@ -6257,14 +6278,6 @@ video::-webkit-media-controls-play-button {
         .ap-sub{color:#b8ddd8;font-size:.82rem;line-height:1.55;margin:0 0 14px}
         .ap-block{margin-bottom:12px}
         .ap-label{font-family:Orbitron,sans-serif;font-size:.58rem;letter-spacing:.16em;color:#8fd9cd;margin-bottom:8px}
-        .ap-bands{display:flex;flex-direction:column;gap:7px}
-        .ap-band{position:relative;text-align:left;padding:10px 44px 10px 14px;border:1px solid rgba(94,234,212,.2);border-radius:13px;background:rgba(20,184,166,.04);color:#eafbf7;cursor:pointer;transition:.18s}
-        .ap-band:after{content:'';position:absolute;right:14px;top:50%;transform:translateY(-50%);width:18px;height:18px;border-radius:50%;border:2px solid rgba(94,234,212,.35);transition:.2s}
-        .ap-band:hover{border-color:rgba(94,234,212,.5);background:rgba(20,184,166,.1);transform:translateX(2px)}
-        .ap-band.on{border-color:#14b8a6;background:linear-gradient(135deg,rgba(20,184,166,.24),rgba(13,148,136,.07));box-shadow:0 0 20px rgba(20,184,166,.3)}
-        .ap-band.on:after{border-color:#5eead4;background:radial-gradient(circle,#5eead4 42%,transparent 48%);box-shadow:0 0 10px rgba(94,234,212,.6)}
-        .ap-band b{display:block;font-size:.9rem;margin-bottom:1px}
-        .ap-band i{font-style:normal;font-size:.72rem;color:#9dd4ca}
         .ap-input{width:100%;padding:10px 14px;border:1px solid rgba(94,234,212,.22);border-radius:12px;background:rgba(2,10,16,.65);color:#fff;font-size:.88rem;margin-bottom:8px;box-sizing:border-box;transition:.2s}
         .ap-input:focus{outline:none;border-color:#14b8a6;box-shadow:0 0 0 3px rgba(20,184,166,.16)}
         .ap-consent{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 14px;border:1px solid rgba(94,234,212,.2);border-radius:12px;background:rgba(20,184,166,.04);color:#d8f2ec;font-size:.8rem;cursor:pointer;transition:.18s}
@@ -6278,24 +6291,26 @@ video::-webkit-media-controls-play-button {
         .ap-go:after{content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(105deg,transparent,rgba(255,255,255,.5),transparent);transform:skewX(-18deg);animation:apSheen 3.6s ease-in-out infinite}
         .ap-link{display:block;width:100%;margin-top:10px;background:none;border:none;color:#7dccc4;font-size:.76rem;cursor:pointer;transition:.16s}
         .ap-link:hover{color:#5eead4}
+        .ap-safe-rows{display:flex;flex-direction:column;gap:7px}
+        .ap-safe-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid rgba(94,234,212,.2);border-radius:13px;background:rgba(20,184,166,.04)}
+        .ap-safe-ic{font-size:1.15rem;flex:0 0 auto}
+        .ap-safe-row b{display:block;font-size:.86rem;color:#eafbf7;margin-bottom:1px}
+        .ap-safe-row i{font-style:normal;font-size:.72rem;color:#9dd4ca}
         @keyframes apNeb{0%{transform:translate3d(0,0,0) scale(1)}100%{transform:translate3d(0,-3%,0) scale(1.08)}}
         @keyframes apIn{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}
         @keyframes apSheen{0%{left:-60%}55%,100%{left:140%}}
       </style>`;
   };
-  window.agePick = function(b){ state.ageBand=b; goTo('age_parental'); };
   window.ageConsent = function(){ const e=document.getElementById('apEmail'); if(e) state.parentEmail=e.value; state.parentConsent=!state.parentConsent; goTo('age_parental'); };
   window.ageContinue = function(dest){
     const e=document.getElementById('apEmail'); if(e) state.parentEmail=e.value;
-    if(!state.ageBand) state.ageBand='9_11';
     if(window.cvSave) cvSave();
     goTo(dest==='parent' ? 'parent_dashboard' : 'greet');
   };
 
-  // ───────── SCREEN: PARENT DASHBOARD ("Trust is a feature") ─────────
+  // ───────── SCREEN: PARENT DASHBOARD ("Trust is our foundation") ─────────
   SCREENS.parent_dashboard = function(){
     const r = state.restrictions || (state.restrictions={timeLimit:true,approvePurchases:true,safeMultiplayer:true,moderatedComms:true});
-    const ageLabel = {u9:'Under 9','9_11':'9–11','12_14':'12–14'}[state.ageBand] || 'Not set';
     const badges = [];
     if(state.smartSaver) badges.push('🏅 Smart Saver');
     if(state.vaultAura) badges.push('✦ Vault Aura');
@@ -6320,8 +6335,8 @@ video::-webkit-media-controls-play-button {
         </div>
         <div class="pd-wrap">
           <div class="pd-hero">
-            <div class="pd-hero-l"><b>${state.playerName||'Hero'}</b><i>Age band: ${ageLabel} · Guardian: ${state.parentEmail||'—'}</i></div>
-            <div class="pd-trust">TRUST IS A FEATURE</div>
+            <div class="pd-hero-l"><b>${state.playerName||'Hero'}</b><i>Guardian: ${state.parentEmail||'—'}</i></div>
+            <div class="pd-trust">TRUST IS OUR FOUNDATION</div>
           </div>
 
           <div class="pd-grid">
@@ -7556,6 +7571,75 @@ video::-webkit-media-controls-play-button {
     if(shown>=rows.length){ const nb=document.getElementById('distNextBtn'); if(nb)nb.style.display='none'; const pb=document.getElementById('distPlayBtn'); if(pb)pb.style.display='block'; }
   };
   window.closeDistrict = function(){ const o=document.getElementById('distOv'); if(o){ const v=o.querySelector('video'); if(v) v.pause(); o.remove(); } if(window.duckBgmForVideo) duckBgmForVideo(false); };
+
+  // ── Hub command-center hero (Kabria's "sci-fi control room" spec — Coinaverse
+  // App Changes.docx: "the avatar they created should appear in the middle",
+  // themed tracker/stats panels either side, nav icons up top) ──
+  const HUB_HUD = {
+    strategist:{navMid:'💰',navMidLbl:'BUDGET',   trackerTitle:'SPENDING TRACKER', statsTitle:'GOAL PROGRESS'},
+    builder:   {navMid:'📐',navMidLbl:'PROJECTS', trackerTitle:'PROJECT BOARD',    statsTitle:'INNOVATION STATS'},
+    investor:  {navMid:'📈',navMidLbl:'MARKETS',  trackerTitle:'MARKET WATCH',     statsTitle:'PORTFOLIO OVERVIEW'},
+    guardian:  {navMid:'🐷',navMidLbl:'SAVINGS',  trackerTitle:'SAVINGS TRACKER',  statsTitle:'GOAL PROGRESS'},
+    risktaker: {navMid:'₿', navMidLbl:'MARKETS',  trackerTitle:'MARKET WATCH',     statsTitle:'PORTFOLIO OVERVIEW'},
+    rebuilder: {navMid:'📉',navMidLbl:'DEBT',     trackerTitle:'DEBT OVERVIEW',    statsTitle:'PAYOFF TRACKER'},
+    credtech:  {navMid:'⭐',navMidLbl:'SCORE',    trackerTitle:'CREDIT SCORE',     statsTitle:'BUILDING MISSIONS'},
+  };
+  function hubMeterVal(token){
+    const hm = state.hubMeters || {};
+    if(token==='strategist') return typeof hm.budgetron==='number'?hm.budgetron:(state.budgetMeter??50);
+    if(token==='builder'){ const p=hm.launchlab||{}; const ks=Object.keys(p); return ks.length?Math.round(ks.reduce((s,k)=>s+p[k],0)/7):0; }
+    if(token==='investor') return hm.inv_wealth||0;
+    if(token==='guardian') return Math.min(99, Math.round(((state.vault||0)/2)+((state.emergency||0)/2)));
+    if(token==='risktaker') return Math.min(99, state.security||45);
+    if(token==='rebuilder') return hm.ddt_recovery||0;
+    if(token==='credtech') return hm.credtech_trust||0;
+    return 0;
+  }
+  function hubCommandCenter(token, w, h, hc){
+    const hd = HUB_HUD[token] || HUB_HUD.credtech;
+    const mv = hubMeterVal(token);
+    const verbs3 = (h.verbs||[]).slice(0,3);
+    const navBtn = (ic,lbl,fn) => `<button class="hcc-navbtn" onclick="${fn}"><span>${ic}</span>${lbl}</button>`;
+    return `
+      <div class="hcc">
+        <div class="hcc-nav">
+          ${navBtn('📚','LEARN', "document.querySelector('.h2gsec')?.scrollIntoView({behavior:'smooth',block:'start'})")}
+          ${navBtn(hd.navMid, hd.navMidLbl, "document.querySelector('.h2lower')?.scrollIntoView({behavior:'smooth',block:'start'})")}
+          ${navBtn('🛠️','TOOLS', "goTo('store')")}
+          <div class="hcc-medal">${w.icon||'●'}</div>
+          ${navBtn('🏆','LEADERBOARD', "goTo('leaderboard')")}
+          ${navBtn('👥','COMMUNITY', "goTo('party')")}
+          ${navBtn('🎁','REWARDS', "goTo('reward_center')")}
+        </div>
+        <div class="hcc-body">
+          <div class="hcc-panel hcc-left">
+            <div class="hcc-ph">${hd.trackerTitle}</div>
+            <div class="hcc-big"><b>${mv}%</b><span>${w.progressLabel||'Progress'}</span></div>
+            <div class="hcc-bar"><div style="width:${mv}%"></div></div>
+            <div class="hcc-tip">💡 ${(h.benefits&&h.benefits[0])||''}</div>
+          </div>
+          <div class="hcc-center">
+            <div class="hcc-title">${w.name}</div>
+            <div class="hcc-tagline">${h.tag}</div>
+            <div class="hcc-cards">
+              ${verbs3.map((v,i)=>`<div class="hcc-card"><b>${v}</b><i>${(h.daily&&h.daily[i])||''}</i></div>`).join('')}
+            </div>
+          </div>
+          <div class="hcc-panel hcc-right">
+            <div class="hcc-ph">${hd.statsTitle}</div>
+            ${(h.weekly||[]).slice(0,3).map(q=>`<div class="hcc-srow"><b>${q[0]}</b><i>${q[1]}</i></div>`).join('')}
+          </div>
+        </div>
+        <div class="hcc-floor">
+          <div class="hcc-ring"></div>
+          ${w.hero?`<img class="hcc-char" src="${w.hero}" alt="">`:''}
+        </div>
+        <div class="hcc-bottom">
+          <div class="hcc-welcome"><b>WELCOME TO ${w.name}</b><i>${h.desc}</i></div>
+          <button class="hcc-enter" onclick="document.querySelector('.h2gsec')?.scrollIntoView({behavior:'smooth',block:'start'})">ENTER ${w.name} →</button>
+        </div>
+      </div>`;
+  }
 
   SCREENS.hub = function(){
     const token = state.viewingWorld || state.archetype || 'credtech';
@@ -11163,59 +11247,59 @@ window.playDistrictGame = function(token, i) {
 
   </script>
   <!-- Real playable games (canvas) — loaded after main script, override the stub SCREENS.game_* -->
-  <script src="assets/games/lessonspecs.js?v=75"></script>
-  <script src="assets/games/lessondeck.js?v=75"></script>
-  <script src="assets/games/moneycatcher.js?v=75"></script>
-  <script src="assets/games/goalquest.js?v=75"></script>
-  <script src="assets/games/stocksurge.js?v=75"></script>
-  <script src="assets/games/bizop.js?v=75"></script>
-  <script src="assets/games/blockbuilder.js?v=75"></script>
-  <script src="assets/games/debtsurv.js?v=75"></script>
-  <script src="assets/games/ficoracer.js?v=75"></script>
-  <script src="assets/games/creditcore.js?v=75"></script>
-  <script src="assets/games/scoretower.js?v=75"></script>
-  <script src="assets/games/borrowingbay.js?v=75"></script>
-  <script src="assets/games/trustexchange.js?v=75"></script>
-  <script src="assets/games/repaymentrunway.js?v=75"></script>
-  <script src="assets/games/creditlimitlab.js?v=75"></script>
-  <script src="assets/games/reportobservatory.js?v=75"></script>
-  <script src="assets/games/inv_academy.js?v=75"></script>
-  <script src="assets/games/inv_assetrealm.js?v=75"></script>
-  <script src="assets/games/inv_dividend.js?v=75"></script>
-  <script src="assets/games/inv_portfolio.js?v=75"></script>
-  <script src="assets/games/inv_research.js?v=75"></script>
-  <script src="assets/games/inv_riskcontrol.js?v=75"></script>
-  <script src="assets/games/inv_stockarena.js?v=75"></script>
-  <script src="assets/games/bud_billgrid.js?v=75"></script>
-  <script src="assets/games/bud_cashflow.js?v=75"></script>
-  <script src="assets/games/bud_efflab.js?v=75"></script>
-  <script src="assets/games/bud_goaltower.js?v=75"></script>
-  <script src="assets/games/bud_needswants.js?v=75"></script>
-  <script src="assets/games/bud_plaza.js?v=75"></script>
-  <script src="assets/games/bud_vault.js?v=75"></script>
-  <script src="assets/games/bsv_aiinnovationlabs.js?v=75"></script>
-  <script src="assets/games/bsv_bitstreammarket.js?v=75"></script>
-  <script src="assets/games/bsv_blockchainblvd.js?v=75"></script>
-  <script src="assets/games/bsv_cryptocrossing.js?v=75"></script>
-  <script src="assets/games/bsv_futuretrendscmd.js?v=75"></script>
-  <script src="assets/games/bsv_nftnexus.js?v=75"></script>
-  <script src="assets/games/bsv_volatilityvortex.js?v=75"></script>
-  <script src="assets/games/ll_branding_district.js?v=75"></script>
-  <script src="assets/games/ll_idea_incubator.js?v=75"></script>
-  <script src="assets/games/ll_investor_pitch.js?v=75"></script>
-  <script src="assets/games/ll_marketing_metropolis.js?v=75"></script>
-  <script src="assets/games/ll_product_dev_lab.js?v=75"></script>
-  <script src="assets/games/ll_scaling_center.js?v=75"></script>
-  <script src="assets/games/ll_startup_street.js?v=75"></script>
-  <script src="assets/games/ddt_discovery.js?v=75"></script>
-  <script src="assets/games/ddt_gym.js?v=75"></script>
-  <script src="assets/games/ddt_habits.js?v=75"></script>
-  <script src="assets/games/ddt_lab.js?v=75"></script>
-  <script src="assets/games/ddt_plaza.js?v=75"></script>
-  <script src="assets/games/ddt_rebuild.js?v=75"></script>
-  <script src="assets/games/ddt_resilience.js?v=75"></script>
-  <script src="assets/games/arccfg.js?v=75"></script>
-  <script src="assets/games/arcade.js?v=75"></script>
-  <script src="assets/games/capstones.js?v=75"></script>
+  <script src="assets/games/lessonspecs.js?v=76"></script>
+  <script src="assets/games/lessondeck.js?v=76"></script>
+  <script src="assets/games/moneycatcher.js?v=76"></script>
+  <script src="assets/games/goalquest.js?v=78"></script>
+  <script src="assets/games/stocksurge.js?v=77"></script>
+  <script src="assets/games/bizop.js?v=76"></script>
+  <script src="assets/games/blockbuilder.js?v=76"></script>
+  <script src="assets/games/debtsurv.js?v=76"></script>
+  <script src="assets/games/ficoracer.js?v=76"></script>
+  <script src="assets/games/creditcore.js?v=76"></script>
+  <script src="assets/games/scoretower.js?v=76"></script>
+  <script src="assets/games/borrowingbay.js?v=76"></script>
+  <script src="assets/games/trustexchange.js?v=76"></script>
+  <script src="assets/games/repaymentrunway.js?v=76"></script>
+  <script src="assets/games/creditlimitlab.js?v=76"></script>
+  <script src="assets/games/reportobservatory.js?v=76"></script>
+  <script src="assets/games/inv_academy.js?v=76"></script>
+  <script src="assets/games/inv_assetrealm.js?v=76"></script>
+  <script src="assets/games/inv_dividend.js?v=76"></script>
+  <script src="assets/games/inv_portfolio.js?v=76"></script>
+  <script src="assets/games/inv_research.js?v=76"></script>
+  <script src="assets/games/inv_riskcontrol.js?v=76"></script>
+  <script src="assets/games/inv_stockarena.js?v=76"></script>
+  <script src="assets/games/bud_billgrid.js?v=76"></script>
+  <script src="assets/games/bud_cashflow.js?v=76"></script>
+  <script src="assets/games/bud_efflab.js?v=76"></script>
+  <script src="assets/games/bud_goaltower.js?v=76"></script>
+  <script src="assets/games/bud_needswants.js?v=76"></script>
+  <script src="assets/games/bud_plaza.js?v=76"></script>
+  <script src="assets/games/bud_vault.js?v=76"></script>
+  <script src="assets/games/bsv_aiinnovationlabs.js?v=76"></script>
+  <script src="assets/games/bsv_bitstreammarket.js?v=76"></script>
+  <script src="assets/games/bsv_blockchainblvd.js?v=76"></script>
+  <script src="assets/games/bsv_cryptocrossing.js?v=76"></script>
+  <script src="assets/games/bsv_futuretrendscmd.js?v=76"></script>
+  <script src="assets/games/bsv_nftnexus.js?v=76"></script>
+  <script src="assets/games/bsv_volatilityvortex.js?v=76"></script>
+  <script src="assets/games/ll_branding_district.js?v=76"></script>
+  <script src="assets/games/ll_idea_incubator.js?v=76"></script>
+  <script src="assets/games/ll_investor_pitch.js?v=76"></script>
+  <script src="assets/games/ll_marketing_metropolis.js?v=76"></script>
+  <script src="assets/games/ll_product_dev_lab.js?v=76"></script>
+  <script src="assets/games/ll_scaling_center.js?v=76"></script>
+  <script src="assets/games/ll_startup_street.js?v=76"></script>
+  <script src="assets/games/ddt_discovery.js?v=76"></script>
+  <script src="assets/games/ddt_gym.js?v=76"></script>
+  <script src="assets/games/ddt_habits.js?v=76"></script>
+  <script src="assets/games/ddt_lab.js?v=76"></script>
+  <script src="assets/games/ddt_plaza.js?v=76"></script>
+  <script src="assets/games/ddt_rebuild.js?v=76"></script>
+  <script src="assets/games/ddt_resilience.js?v=76"></script>
+  <script src="assets/games/arccfg.js?v=76"></script>
+  <script src="assets/games/arcade.js?v=76"></script>
+  <script src="assets/games/capstones.js?v=76"></script>
 </body>
 </html>
