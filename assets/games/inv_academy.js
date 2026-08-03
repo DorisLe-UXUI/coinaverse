@@ -470,7 +470,7 @@
   function showIntro(root) {
     root.innerHTML = `
       <div style="padding:20px 16px 0;display:flex;align-items:center;gap:12px;">
-        <button onclick="window.inv_academyExit()" style="background:rgba(0,200,83,.1);border:1px solid rgba(0,200,83,.3);color:#00C853;border-radius:8px;padding:8px 14px;font-size:18px;cursor:pointer;line-height:1;">←</button>
+        <button onclick="window.inv_academyExit()" aria-label="Back to hub" style="background:rgba(0,200,83,.1);border:1px solid rgba(0,200,83,.3);color:#00C853;border-radius:8px;padding:8px 14px;font-size:18px;cursor:pointer;line-height:1;">←</button>
         <div style="font-family:'Orbitron',monospace;font-size:16px;font-weight:700;color:#00C853;letter-spacing:1px;">INVESTOR ACADEMY</div>
       </div>
       <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 20px;gap:20px;animation:inv_slide_in .5s;">
@@ -567,14 +567,14 @@
 
     root.innerHTML = `
       <div style="padding:16px 16px 0;display:flex;align-items:center;gap:10px;flex-shrink:0;">
-        <button onclick="window.inv_academyExit()" style="background:rgba(0,200,83,.1);border:1px solid rgba(0,200,83,.3);color:#00C853;border-radius:8px;padding:8px 12px;font-size:16px;cursor:pointer;line-height:1;flex-shrink:0;">←</button>
+        <button onclick="window.inv_academyExit()" aria-label="Back to hub" style="background:rgba(0,200,83,.1);border:1px solid rgba(0,200,83,.3);color:#00C853;border-radius:8px;padding:8px 12px;font-size:16px;cursor:pointer;line-height:1;flex-shrink:0;">←</button>
         <div style="flex:1;min-width:0;">
           <div style="font-family:'Orbitron',monospace;font-size:11px;color:${accentColor};letter-spacing:1px;margin-bottom:4px;">${lvlLabel.toUpperCase()}</div>
           <div class="inv_progress_bar_outer">
             <div class="inv_progress_bar_inner" id="inv_prog_bar" style="width:${progress*100}%;"></div>
           </div>
         </div>
-        <button onclick="invShowHelp()" title="How to play" style="background:rgba(0,200,83,.1);border:1px solid rgba(0,200,83,.3);color:#00C853;border-radius:8px;padding:8px 10px;font-size:14px;cursor:pointer;flex-shrink:0;">❓</button>
+        <button onclick="invShowHelp()" title="How to play" aria-label="How to play" style="background:rgba(0,200,83,.1);border:1px solid rgba(0,200,83,.3);color:#00C853;border-radius:8px;padding:8px 10px;font-size:14px;cursor:pointer;flex-shrink:0;">❓</button>
         <div class="inv_timer_ring_wrap" id="inv_timer_wrap">
           <svg class="inv_timer_svg" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg">
             <circle cx="27" cy="27" r="23" fill="none" stroke="rgba(0,200,83,.15)" stroke-width="4"/>
@@ -852,7 +852,7 @@
 
     root.innerHTML = `
       <div style="padding:20px 16px 0;display:flex;align-items:center;gap:12px;flex-shrink:0;">
-        <button onclick="window.inv_academyExit()" style="background:rgba(0,200,83,.1);border:1px solid rgba(0,200,83,.3);color:#00C853;border-radius:8px;padding:8px 12px;font-size:16px;cursor:pointer;">←</button>
+        <button onclick="window.inv_academyExit()" aria-label="Back to hub" style="background:rgba(0,200,83,.1);border:1px solid rgba(0,200,83,.3);color:#00C853;border-radius:8px;padding:8px 12px;font-size:16px;cursor:pointer;">←</button>
         <div style="font-family:'Orbitron',monospace;font-size:14px;font-weight:700;color:#00C853;">CERTIFICATION CHALLENGE</div>
       </div>
       <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:16px;animation:inv_slide_in .4s;overflow-y:auto;">

@@ -56,6 +56,11 @@
 (function(){
   const TOKEN='guardian';
   let G=null, raf=null;
+  // module-level (not per-run) icon texture cache — item/power-up art is
+  // 250KB-1.5MB per PNG; these used to be re-fetched+re-decoded on every
+  // mcStart() (replay/next-district/fresh level), same class of miss as the
+  // hero/car FBX caches (_heroCache) already fix elsewhere in this file.
+  let _iconTexLoader=null, _iconTexCache={};
 
   window.mcInit=function(){ if(G) teardown(); G=null; mcMetaHydrate(); };
 
@@ -419,7 +424,7 @@
   function empireModalHTML(){
     const vt=window.state?(state.mc_vaultTotal||0):0, vi=vaultInfo(vt);
     return `<div style="width:100%;max-width:640px;max-height:88vh;overflow-y:auto;background:linear-gradient(165deg,rgba(8,30,26,.98),rgba(2,10,9,.99));border:1px solid rgba(251,191,36,.3);border-radius:20px;padding:20px;position:relative">
-      <button onclick="mcCloseEmpire()" style="position:absolute;top:12px;right:12px;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:#fff;cursor:pointer;font-size:1rem">✕</button>
+      <button onclick="mcCloseEmpire()" aria-label="Close Savings Empire" style="position:absolute;top:12px;right:12px;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:#fff;cursor:pointer;font-size:1rem">✕</button>
       <div style="font-family:'Anton',sans-serif;font-size:1.25rem;color:#fbbf24;text-align:center;margin-bottom:2px">🏦 SAVINGS EMPIRE</div>
       <div style="font-size:.58rem;color:rgba(255,255,255,.45);text-align:center;margin-bottom:14px">Everything you've ever saved, in one place.</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:16px">${tabBtn('vault','VAULT')}${tabBtn('piggy','PIGGY')}${tabBtn('collection','COLLECTION')}${tabBtn('empire','LANDMARKS')}${tabBtn('missions','MISSIONS')}</div>
@@ -792,7 +797,7 @@
       <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(2,12,18,.9),transparent);pointer-events:none">
         <button onclick="mcExit()" style="pointer-events:auto;padding:6px 12px;border:1px solid rgba(20,184,166,.4);border-radius:8px;background:rgba(20,184,166,.1);color:#5eead4;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.1em;cursor:pointer">← HUB</button>
         <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.16em;color:#2dd4bf;flex:1;text-align:center">${stage0.icon} ${L.name.toUpperCase()}</div>
-        <button onclick="mcShowHelp()" style="pointer-events:auto;width:36px;height:36px;border-radius:50%;border:1px solid rgba(20,184,166,.4);background:rgba(20,184,166,.12);color:#5eead4;font-size:.9rem;cursor:pointer">❓</button>
+        <button onclick="mcShowHelp()" aria-label="How to play" style="pointer-events:auto;width:36px;height:36px;border-radius:50%;border:1px solid rgba(20,184,166,.4);background:rgba(20,184,166,.12);color:#5eead4;font-size:.9rem;cursor:pointer">❓</button>
         <div id="mcTime" style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:#fbbf24;min-width:42px;text-align:right">${L.dur}s</div>
       </div>
       <div style="position:absolute;top:56px;left:0;right:0;z-index:5;padding:0 12px;display:flex;gap:6px;pointer-events:none">
@@ -820,17 +825,16 @@
       <div id="mcPuRow" style="position:absolute;top:122px;left:0;right:0;z-index:5;display:flex;justify-content:center;gap:8px;padding:4px 12px;min-height:22px;pointer-events:none"></div>
       <div id="mcMsg" style="position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);font-family:'Anton',sans-serif;font-size:1.7rem;color:#fbbf24;text-shadow:0 4px 24px rgba(0,0,0,.6);opacity:0;transition:opacity .2s;pointer-events:none;text-align:center;z-index:6"></div>
       <div style="position:absolute;left:14px;bottom:18px;display:flex;gap:10px;pointer-events:none;z-index:5">
-        <button id="mcLBtn" style="pointer-events:auto;width:58px;height:58px;border-radius:16px;border:1px solid rgba(255,255,255,.25);background:rgba(10,30,26,.6);color:#fff;font-size:1.3rem;cursor:pointer">◀</button>
-        <button id="mcRBtn" style="pointer-events:auto;width:58px;height:58px;border-radius:16px;border:1px solid rgba(255,255,255,.25);background:rgba(10,30,26,.6);color:#fff;font-size:1.3rem;cursor:pointer">▶</button>
+        <button id="mcLBtn" aria-label="Move left" style="pointer-events:auto;width:58px;height:58px;border-radius:16px;border:1px solid rgba(255,255,255,.25);background:rgba(10,30,26,.6);color:#fff;font-size:1.3rem;cursor:pointer">◀</button>
+        <button id="mcRBtn" aria-label="Move right" style="pointer-events:auto;width:58px;height:58px;border-radius:16px;border:1px solid rgba(255,255,255,.25);background:rgba(10,30,26,.6);color:#fff;font-size:1.3rem;cursor:pointer">▶</button>
       </div>
       <div id="mcGate" style="position:absolute;inset:0;z-index:9;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(2,10,16,.88);backdrop-filter:blur(6px);padding:24px;gap:18px;pointer-events:auto"></div>
       <div id="mcHow" style="position:absolute;inset:0;z-index:9;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(2,10,16,.88);backdrop-filter:blur(6px);padding:24px;gap:16px;pointer-events:auto"></div>
       <div id="mcOver" style="position:absolute;inset:0;z-index:10;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(2,10,16,.85);backdrop-filter:blur(5px);gap:14px;padding:24px;pointer-events:auto"></div>`;
 
-    /* icon texture cache */
-    const texL=new THREE.TextureLoader();
-    const iconTexCache={};
-    function iconTex(file){ if(!iconTexCache[file]) iconTexCache[file]=texL.load('assets/games3d/'+file); return iconTexCache[file]; }
+    /* icon texture cache — module-level so repeat plays reuse already-loaded textures */
+    if(!_iconTexLoader) _iconTexLoader=new THREE.TextureLoader();
+    function iconTex(file){ if(!_iconTexCache[file]) _iconTexCache[file]=_iconTexLoader.load('assets/games3d/'+file); return _iconTexCache[file]; }
 
     /* state */
     G={ li, L, scene, cam, rndr, wrap, hero:heroInst, decor, LANE_MIN, LANE_MAX,
@@ -1299,7 +1303,7 @@
       </div>
       </div>`;
   }
-  function stat(label,val,color){ return `<div><div style="font-family:'Orbitron',sans-serif;font-size:.36rem;color:rgba(255,255,255,.4);letter-spacing:.08em;margin-bottom:4px">${label}</div><div style="font-family:'Anton',sans-serif;font-size:.95rem;color:${color}">${val}</div></div>`; }
+  function stat(label,val,color){ return `<div><div style="font-family:'Orbitron',sans-serif;font-size:.36rem;color:rgba(255,255,255,.72);letter-spacing:.08em;margin-bottom:4px">${label}</div><div style="font-family:'Anton',sans-serif;font-size:.95rem;color:${color}">${val}</div></div>`; }
 
   /* ══════════════ teardown / controls ══════════════ */
   function teardown(){

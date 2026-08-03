@@ -1085,6 +1085,9 @@
         if (correctOpt && b.querySelector('div')?.textContent === correctOpt.label) {
           b.style.borderColor = GREEN;
           b.style.background = `linear-gradient(135deg,rgba(34,197,94,.2),rgba(13,8,24,.9))`;
+          // Colorblind-safe backup: the correct answer must not be marked by color alone
+          const lblEl = b.querySelector('div');
+          if (lblEl) lblEl.textContent = '✓ ' + correctOpt.label;
         }
       });
     }

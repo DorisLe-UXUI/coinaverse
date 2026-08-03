@@ -121,7 +121,7 @@
 
   <!-- top bar -->
   <div id="rcc-topbar" style="position:absolute;top:0;left:0;right:0;height:52px;background:rgba(0,0,0,0.7);border-bottom:1px solid ${AC}22;display:flex;align-items:center;padding:0 8px;gap:6px;z-index:50;">
-    <button id="rcc-back" style="background:none;border:1px solid ${AC}44;color:${AC};font-size:18px;width:32px;height:32px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">←</button>
+    <button id="rcc-back" aria-label="Back to hub" style="background:none;border:1px solid ${AC}44;color:${AC};font-size:18px;width:32px;height:32px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">←</button>
     <div style="font-family:Orbitron,monospace;font-size:12px;font-weight:700;color:${AC};letter-spacing:0;flex:1;min-width:0;">RISK CONTROL CENTER</div>
     <div style="display:flex;align-items:center;gap:9px;flex-shrink:0;">
       <div style="text-align:center;">

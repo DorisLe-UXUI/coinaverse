@@ -132,7 +132,7 @@
   <div id="ssTopBar" style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:8px;padding:10px 14px 8px;background:linear-gradient(180deg,rgba(3,4,12,.97) 70%,transparent);border-bottom:1px solid ${ACCENT}33">
     <button id="ssBack" style="padding:6px 13px;border:1px solid ${ACCENT}66;border-radius:8px;background:${ACCENT}18;color:${ACCENT_L};font-family:Orbitron,sans-serif;font-size:.52rem;letter-spacing:.12em;cursor:pointer;white-space:nowrap;transition:background .2s">← HUB</button>
     <div style="font-family:Orbitron,sans-serif;font-size:.62rem;letter-spacing:.18em;color:${ACCENT_L};flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">🏙️ STARTUP STREET</div>
-    <button id="ssHelpBtn" title="How to play" style="padding:6px 10px;border:1px solid ${ACCENT}66;border-radius:8px;background:${ACCENT}18;color:${ACCENT_L};cursor:pointer;flex-shrink:0;font-size:.72rem">❓</button>
+    <button id="ssHelpBtn" title="How to play" aria-label="How to play" style="padding:6px 10px;border:1px solid ${ACCENT}66;border-radius:8px;background:${ACCENT}18;color:${ACCENT_L};cursor:pointer;flex-shrink:0;font-size:.72rem">❓</button>
     <div id="ssScore" style="font-family:Orbitron,sans-serif;font-size:.72rem;color:${GOLD};min-width:68px;text-align:right">$0</div>
     <div id="ssTimer" style="font-family:Orbitron,sans-serif;font-size:.72rem;color:${ACCENT_L};min-width:38px;text-align:right">18s</div>
   </div>

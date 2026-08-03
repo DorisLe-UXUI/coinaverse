@@ -246,7 +246,7 @@
   <div id="iiTopBar" style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(180deg,rgba(3,4,12,.97) 70%,transparent)">
     <button id="iiBack" style="padding:6px 13px;border:1px solid ${ACC}55;border-radius:8px;background:${ACC}18;color:${ACC2};font-family:Orbitron,sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;flex-shrink:0">← HUB</button>
     <div style="font-family:Orbitron,sans-serif;font-size:.65rem;letter-spacing:.2em;color:${ACC2};flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">IDEA INCUBATOR</div>
-    <button onclick="window.iiShowHelp()" title="How to play" style="padding:6px 10px;border:1px solid ${ACC}55;border-radius:8px;background:${ACC}18;color:${ACC2};cursor:pointer;flex-shrink:0;font-size:.75rem">❓</button>
+    <button onclick="window.iiShowHelp()" title="How to play" aria-label="How to play" style="padding:6px 10px;border:1px solid ${ACC}55;border-radius:8px;background:${ACC}18;color:${ACC2};cursor:pointer;flex-shrink:0;font-size:.75rem">❓</button>
     <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
       <div style="text-align:right">
         <div style="font-family:Orbitron,sans-serif;font-size:.5rem;letter-spacing:.1em;color:rgba(255,255,255,.4)">SCORE</div>

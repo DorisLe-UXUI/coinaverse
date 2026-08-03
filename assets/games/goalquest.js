@@ -322,7 +322,9 @@
       <div id="gqOver" style="position:absolute;inset:0;z-index:8;display:none;align-items:center;justify-content:center;background:rgba(7,13,24,.84);backdrop-filter:blur(4px);overflow-y:auto;padding:18px 0"></div>
     </div>`;
   };
-  function hud(label,id,c){ return `<div style="flex:1;max-width:150px;text-align:center;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.18);border-radius:10px;padding:6px"><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.45)">${label}</div><div id="${id}" style="font-family:'Anton',sans-serif;font-size:1.1rem;color:${c}">0</div></div>`; }
+  // label alpha bumped .45→.6 (a11y contrast fix — .45 measured ~4.1:1 on this HUD
+  // chip's dark background, below the 4.5:1 body-text minimum; .6 measures ~6:1+)
+  function hud(label,id,c){ return `<div style="flex:1;max-width:150px;text-align:center;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.18);border-radius:10px;padding:6px"><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.6)">${label}</div><div id="${id}" style="font-family:'Anton',sans-serif;font-size:1.1rem;color:${c}">0</div></div>`; }
 
   // ═══════════════════════════════ BOOT / INPUT ═════════════════════
   function gqBoot(){
@@ -417,19 +419,20 @@
           return `<div onclick="${locked?'':'gqPickDistrict('+i+')'}" style="width:240px;padding:18px 16px;border-radius:18px;border:1.5px solid ${locked?'rgba(255,255,255,.12)':d.col+'70'};background:linear-gradient(165deg,rgba(20,26,48,.95),rgba(6,10,22,.98));cursor:${locked?'default':'pointer'};text-align:center;position:relative;transition:transform .2s,border-color .2s" ${locked?'':`onmouseover="this.style.borderColor='${d.col}';this.style.transform='translateY(-4px)'" onmouseout="this.style.borderColor='${d.col}70';this.style.transform='none'"`}>
             <div style="font-size:2.3rem;margin-bottom:6px;filter:${locked?'grayscale(1) opacity(.4)':'none'}">${d.icon}</div>
             <div style="font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:.08em;color:${locked?'rgba(255,255,255,.35)':d.col}">${d.name}</div>
-            <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.4);margin:5px 0 8px">${d.sub}</div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.12em;color:rgba(255,255,255,.6);margin:5px 0 8px">${d.sub}</div>
             <div style="font-size:.7rem;line-height:1.5;color:rgba(255,255,255,${locked?'.3':'.65'})">${d.blurb}</div>
             <div style="margin-top:10px;font-family:'Orbitron',sans-serif;font-size:.46rem;letter-spacing:.1em;color:#fbbf24">GOAL $${d.goals[0].cost}-$${d.goals[d.goals.length-1].cost}</div>
             ${locked?`<div style="position:absolute;top:10px;right:12px;font-size:1rem">🔒</div><div style="margin-top:8px;font-size:.52rem;color:rgba(255,255,255,.4)">Fund ${DISTRICTS[i-1].name} to unlock</div>`:''}
           </div>`;}).join('')}
       </div>
-      <div style="max-width:640px;text-align:center;font-size:.55rem;letter-spacing:.05em;color:rgba(255,255,255,.4);margin-top:4px">💰 INCOME → 🧾 BILLS/EVENTS → 🖐️ DECIDE → 📊 IMPACT → 🎯 GOAL — sort every falling token into the right bucket before it lands!</div>
+      <div style="max-width:640px;text-align:center;font-size:.55rem;letter-spacing:.05em;color:rgba(255,255,255,.6);margin-top:4px">💰 INCOME → 🧾 BILLS/EVENTS → 🖐️ DECIDE → 📊 IMPACT → 🎯 GOAL — sort every falling token into the right bucket before it lands!</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:840px">
         ${POWERUPS.map(p=>puBadgeCard(p)).join('')}
       </div>
     </div>`;
   }
-  function pill(label,val){ return `<div style="padding:8px 14px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);text-align:center;min-width:84px"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">${label}</div><div style="font-family:'Anton',sans-serif;font-size:1rem;color:#fbbf24">${val}</div></div>`; }
+  // label alpha bumped .45→.6 (a11y contrast fix, same measured issue as hud() above)
+  function pill(label,val){ return `<div style="padding:8px 14px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);text-align:center;min-width:84px"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.6)">${label}</div><div style="font-family:'Anton',sans-serif;font-size:1rem;color:#fbbf24">${val}</div></div>`; }
 
   window.gqPickDistrict=function(i){
     if(i>0 && unlockedTo()<i) return;
@@ -880,7 +883,17 @@
         ctx.shadowColor=col; ctx.shadowBlur=6;
         ctx.fillStyle=col; ctx.font="700 8.5px 'Orbitron',sans-serif"; ctx.fillText(BUCKETS[i],cx,by+bh/2+11);
         ctx.shadowBlur=0;
-        ctx.fillStyle='rgba(255,255,255,.4)'; ctx.font="8px 'Orbitron',sans-serif";
+        // a11y contrast fix: this is the only on-screen documentation of the 1-5
+        // keyboard shortcut, and plain rgba(255,255,255,.4) measured (via pixel
+        // sampling) as low as ~1.5-2.6:1 against the brighter bucket hues (amber
+        // BILLS, green EMERGENCY) — a solid dark outline behind opaque white text
+        // guarantees a high-contrast edge regardless of the bucket's own color
+        // (a shadowBlur halo alone measured only ~2-3.5:1, not enough — a hard
+        // stroked outline is the reliable fix here)
+        ctx.font="8px 'Orbitron',sans-serif"; ctx.lineJoin='round';
+        ctx.lineWidth=2.5; ctx.strokeStyle='rgba(0,0,0,.9)';
+        ctx.strokeText((i+1)+' KEY',cx,by+bh-6);
+        ctx.fillStyle='#fff';
         ctx.fillText((i+1)+' KEY',cx,by+bh-6);
       }
 
@@ -999,11 +1012,11 @@
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:12px">
         ${[['GOAL',fmtM(G.goalProgress)+' / '+fmtM(G.goalCost)],['ACCURACY',acc+'%'],['BEST STREAK','x'+G.bestCombo],
            ['SAVINGS RATE',savingsRate+'%'],['BILLS PAID',(G.billsSeen-G.billsMissed)+'/'+G.billsSeen],['RATING','★'.repeat(stars)+'☆'.repeat(3-stars)]]
-          .map(r=>`<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.18);border-radius:11px;padding:8px 6px"><div style="font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.1em;color:rgba(255,255,255,.45);margin-bottom:3px">${r[0]}</div><div style="font-family:'Anton',sans-serif;font-size:.95rem;color:#fff">${r[1]}</div></div>`).join('')}
+          .map(r=>`<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.18);border-radius:11px;padding:8px 6px"><div style="font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-bottom:3px">${r[0]}</div><div style="font-family:'Anton',sans-serif;font-size:.95rem;color:#fff">${r[1]}</div></div>`).join('')}
       </div>
       <div style="text-align:left;background:rgba(255,255,255,.04);border-radius:12px;padding:9px 13px;margin-bottom:12px">
         <div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.12em;color:#a78bfa;margin-bottom:5px">⭐ BONUS OBJECTIVES · ${objMet}/${G.objectives.length}</div>
-        ${G.objectives.map((o,i)=>`<div style="font-size:.66rem;color:${objResults[i]?'#86efac':'rgba(255,255,255,.4)'};padding:1px 0">${objResults[i]?'✔':'✕'} ${o.label}</div>`).join('')}
+        ${G.objectives.map((o,i)=>`<div style="font-size:.66rem;color:${objResults[i]?'#86efac':'rgba(255,255,255,.6)'};padding:1px 0">${objResults[i]?'✔':'✕'} ${o.label}</div>`).join('')}
       </div>
       <p style="color:rgba(255,255,255,.6);margin:0 0 16px;font-size:.72rem">+${earned} 🪙 earned</p>
       ${btns}

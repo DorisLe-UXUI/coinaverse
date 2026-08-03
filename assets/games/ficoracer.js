@@ -9,12 +9,17 @@
      350 Immobile (no steering) → 300 Destroyed (game over).
    - Track pickups (respawn 20s, like FicoScorePickup.cs): blue/green
      credit cards, on-time-payment checkmark, coins, red X traps.
-   - Knowledge Gates are holographic arches: steer into lane A/B/C.
+   - Knowledge Gates are holographic arches: steer into lane A/B/C/D.
      The car never stops (GDD §10).
    - Post-race: placement, FICO delta, cash, lesson, cvAwardGame.
    ════════════════════════════════════════════════════════════════ */
 (function(){
-  let G=null, raf=null;
+  let G=null, raf=null, _garageLi=0, _garageSel=null;
+  // module-level (not per-race) pickup-icon + sky texture cache — these PNGs
+  // run 250KB-1.4MB each and were being re-fetched+re-decoded on every
+  // startRace() (restart/next-track), unlike the already-cached _carCache
+  // FBX models elsewhere in this file.
+  let _pkTexLoader=null, _pkTexCache={}, _skyTexCache=null;
 
   window.frInit=function(){ if(G) teardown(); G=null; };
 
@@ -48,6 +53,35 @@
     { key:'rally4', name:'Prime Parker',     color:'#60a5fa', tag:'Balanced all-rounder — expert racing line.',
       stats:{h:9,s:7,b:7}, ai:{early:.97,late:.99},   topSpeedMul:1.00, steerRateMul:1.08, boostMul:1.02 },
   ];
+
+  /* ── Garage upgrade tree (GDD §11) — Engine/Tires/Boost/Armor, 5 levels each, paid
+     with state.coins (the persistent account currency cvAwardGame grants, ~400-900/race
+     for this flagship game — NOT G.cash, the separate in-race pickup currency). Applies
+     as small multiplicative nudges on top of whichever car is selected — same "small
+     bounded nudges" philosophy as CARS' own per-car multipliers above, just account-wide
+     progression instead of a car trait. armor's `per` is negative because it REDUCES the
+     FICO-loss multiplier rather than boosting a speed/handling stat. ── */
+  const UPG_DEFS=[
+    { key:'engine', label:'ENGINE', icon:'🔧', desc:'Top speed',        per:.035 },
+    { key:'tires',  label:'TIRES',  icon:'🛞', desc:'Handling',         per:.05  },
+    { key:'boost',  label:'BOOST',  icon:'⚡', desc:'Boost power',      per:.06  },
+    { key:'armor',  label:'ARMOR',  icon:'🛡️', desc:'Crash FICO loss',  per:-.06 },
+  ];
+  const UPG_COST=[0,150,300,500,750,1100];   // index = target level 1-5; cost to buy INTO that level
+  function upgGet(){ return Object.assign({engine:0,tires:0,boost:0,armor:0}, (window.state&&state.fr_upgrades)||{}); }
+  function upgLevel(key){ return upgGet()[key]||0; }
+  function upgMul(key){ const d=UPG_DEFS.find(u=>u.key===key); return 1+upgLevel(key)*(d?d.per:0); }
+  window.frUpgBuy=function(key){
+    if(!window.state) return;
+    const lv=upgLevel(key);
+    if(lv>=5) return;
+    const cost=UPG_COST[lv+1];
+    if((state.coins||0)<cost) return;
+    state.coins-=cost;
+    state.fr_upgrades=Object.assign(upgGet(),{[key]:lv+1});
+    if(window.cvSave) cvSave();
+    if(document.getElementById('frUpgPanel')) showCarSelect(_garageLi,_garageSel);
+  };
 
   /* ── Car state bands (CarStateManager.cs) ── */
   // exact CarStateManager.cs thresholds: >800 NoDamage · >700 Dents · >600 Scratches ·
@@ -123,18 +157,18 @@
 
   /* ── Knowledge gate questions (steer into the lane!) ── */
   const QUIZ=[
-    {q:'Payment history is what % of your FICO score?',opts:['35%','15%','10%'],ans:0,fact:'Payment history = 35% of FICO — the biggest factor!',fico:+30,cash:10},
-    {q:'Best utilization to protect your score?',opts:['Below 30%','Below 70%','Below 90%'],ans:0,fact:'Keep utilization under 30% for a healthy score.',fico:+25,cash:8},
-    {q:'2nd biggest FICO factor?',opts:['Utilization 30%','Credit age 15%','New credit 10%'],ans:0,fact:'Utilization is #2 at 30% — keep balances low!',fico:+25,cash:8},
-    {q:'Highest possible FICO score?',opts:['850','900','1000'],ans:0,fact:'Perfect FICO is 850 — legendary status!',fico:+20,cash:5},
-    {q:'An Emergency Fund helps you…',opts:['Avoid new debt','Raise your limit','Close accounts'],ans:0,fact:'Emergency funds cover setbacks without debt!',fico:+28,cash:12},
-    {q:'Buy-Now-Pay-Later products…',opts:['Can hide real costs','Always help credit','Are free money'],ans:0,fact:'BNPL adds up — only buy what you can repay now.',fico:+20,cash:5},
-    {q:'A missed payment stays on your report…',opts:['7 years','6 months','2 weeks'],ans:0,fact:'Missed payments stay 7 years — pay on time!',fico:+22,cash:7},
-    {q:'Identity stolen — first move?',opts:['Freeze credit','Ignore it','Post about it'],ans:0,fact:'Fraud freeze + report immediately = best defense!',fico:+30,cash:15},
-    {q:'Why diversify investments?',opts:['Spread the risk','Higher fees','Avoid taxes'],ans:0,fact:'Diversification spreads risk across assets.',fico:+25,cash:10},
-    {q:'Paying only the minimum balance…',opts:['Costs more interest','Clears debt fast','Boosts score fast'],ans:0,fact:'Minimum payments = debt lingers and interest piles up.',fico:+20,cash:5},
-    {q:'Debt Snowball means…',opts:['Smallest debts first','Biggest debts first','Pay nothing'],ans:0,fact:'Snowball = quick wins keep you motivated!',fico:+22,cash:8},
-    {q:'A 750 FICO score is…',opts:['Very good','Poor','Average'],ans:0,fact:'750-799 is Very Good — strong choices!',fico:+20,cash:5},
+    {q:'Payment history is what % of your FICO score?',opts:['35%','15%','10%','50%'],ans:0,fact:'Payment history = 35% of FICO — the biggest factor!',fico:+30,cash:10},
+    {q:'Best utilization to protect your score?',opts:['Below 30%','Below 70%','Below 90%','Above 50%'],ans:0,fact:'Keep utilization under 30% for a healthy score.',fico:+25,cash:8},
+    {q:'2nd biggest FICO factor?',opts:['Utilization 30%','Credit age 15%','New credit 10%','Credit mix 10%'],ans:0,fact:'Utilization is #2 at 30% — keep balances low!',fico:+25,cash:8},
+    {q:'Highest possible FICO score?',opts:['850','900','1000','750'],ans:0,fact:'Perfect FICO is 850 — legendary status!',fico:+20,cash:5},
+    {q:'An Emergency Fund helps you…',opts:['Avoid new debt','Raise your limit','Close accounts','Increase your income'],ans:0,fact:'Emergency funds cover setbacks without debt!',fico:+28,cash:12},
+    {q:'Buy-Now-Pay-Later products…',opts:['Can hide real costs','Always help credit','Are free money','Require no repayment'],ans:0,fact:'BNPL adds up — only buy what you can repay now.',fico:+20,cash:5},
+    {q:'A missed payment stays on your report…',opts:['7 years','6 months','2 weeks','1 year'],ans:0,fact:'Missed payments stay 7 years — pay on time!',fico:+22,cash:7},
+    {q:'Identity stolen — first move?',opts:['Freeze credit','Ignore it','Post about it','Change your email password'],ans:0,fact:'Fraud freeze + report immediately = best defense!',fico:+30,cash:15},
+    {q:'Why diversify investments?',opts:['Spread the risk','Higher fees','Avoid taxes','Guarantee profits'],ans:0,fact:'Diversification spreads risk across assets.',fico:+25,cash:10},
+    {q:'Paying only the minimum balance…',opts:['Costs more interest','Clears debt fast','Boosts score fast','Has no real effect'],ans:0,fact:'Minimum payments = debt lingers and interest piles up.',fico:+20,cash:5},
+    {q:'Debt Snowball means…',opts:['Smallest debts first','Biggest debts first','Pay nothing','Highest interest first'],ans:0,fact:'Snowball = quick wins keep you motivated!',fico:+22,cash:8},
+    {q:'A 750 FICO score is…',opts:['Very good','Poor','Average','Excellent'],ans:0,fact:'750-799 is Very Good — strong choices!',fico:+20,cash:5},
   ];
 
   /* ── TEMP AI-generated SFX placeholder — swap for Kabria's final audio when delivered ──
@@ -243,6 +277,7 @@
     const ui=document.getElementById('frUI'); if(!ui) return;
     const remembered=(window.state&&state.fr_carKey)||'rally1';
     const sel=selKey||remembered;
+    _garageLi=li; _garageSel=sel;
     const L=LEVELS[li];
     ui.style.pointerEvents='auto';
     ui.innerHTML=`
@@ -272,6 +307,27 @@
                   <div style="flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden"><div style="width:${v*10}%;height:100%;background:${c.color}"></div></div>
                 </div>`; }).join('')}
             </div>`;}).join('')}
+        </div>
+        <div id="frUpgPanel" style="width:100%;max-width:980px;margin-top:4px;padding:16px 18px;border-radius:18px;border:1.5px solid rgba(139,92,246,.3);background:linear-gradient(165deg,rgba(16,14,42,.85),rgba(4,6,20,.9))">
+          <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+            <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.16em;color:#8b5cf6">🔩 GARAGE UPGRADES</div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:.62rem;letter-spacing:.06em;color:#fbbf24;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:3px 10px">🪙 ${(window.state&&state.coins)||0}</div>
+          </div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+            ${UPG_DEFS.map(u=>{
+              const lv=upgLevel(u.key), maxed=lv>=5, cost=maxed?0:UPG_COST[lv+1], afford=!maxed&&((window.state&&state.coins)||0)>=cost;
+              return `<div style="width:190px;padding:14px;border-radius:14px;border:1.5px solid rgba(255,255,255,.14);background:linear-gradient(165deg,rgba(12,20,48,.9),rgba(4,8,24,.95));text-align:center">
+                <div style="font-size:1.3rem;line-height:1">${u.icon}</div>
+                <div style="font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.1em;color:#7dd3fc;margin:6px 0 2px">${u.label}</div>
+                <div style="font-size:.6rem;color:rgba(255,255,255,.5);margin-bottom:8px">${u.desc} · Lv ${lv}/5</div>
+                <div style="display:flex;gap:3px;justify-content:center;margin-bottom:10px">
+                  ${[0,1,2,3,4].map(i=>`<div style="width:18px;height:6px;border-radius:3px;background:${i<lv?'#8b5cf6':'rgba(255,255,255,.12)'}"></div>`).join('')}
+                </div>
+                ${maxed
+                  ?`<div style="font-family:'Orbitron',sans-serif;font-size:.55rem;color:#34d399;letter-spacing:.08em;padding:8px 0">★ MAXED OUT</div>`
+                  :`<button onclick="frUpgBuy('${u.key}')" ${afford?'':'disabled'} style="width:100%;padding:8px;border:none;border-radius:9px;background:${afford?'linear-gradient(135deg,#38bdf8,#0284c7)':'rgba(255,255,255,.08)'};color:${afford?'#02121f':'rgba(255,255,255,.35)'};font-family:'Orbitron',sans-serif;font-size:.55rem;font-weight:900;letter-spacing:.06em;cursor:${afford?'pointer':'not-allowed'}">⬆ UPGRADE · ${cost} 🪙</button>`}
+              </div>`;}).join('')}
+          </div>
         </div>
         <button onclick="frStart(${li},'${sel}')" style="margin-top:6px;padding:15px 34px;border:none;border-radius:14px;background:linear-gradient(135deg,#fbbf24,#d97706);color:#1a0d00;font-family:'Orbitron',sans-serif;font-size:.75rem;letter-spacing:.12em;font-weight:900;cursor:pointer;box-shadow:0 4px 24px rgba(251,191,36,.4)">🏁 START RACE</button>
       </div>`;
@@ -644,9 +700,14 @@
       for(let i=0;i<1400;i++){ const r=500+Math.random()*300, a=Math.random()*TAU, b=(Math.random()-.5)*Math.PI; sp.push(r*Math.cos(a)*Math.cos(b), r*Math.sin(b)*.6+80, r*Math.sin(a)*Math.cos(b)); }
       sg.setAttribute('position', new THREE.Float32BufferAttribute(sp,3));
       scene.add(new THREE.Points(sg, new THREE.PointsMaterial({color:0xbfd7ff,size:1.6,sizeAttenuation:true})));
+    } else if(_skyTexCache){
+      // already loaded by a previous race — reuse it instead of re-fetching/re-decoding a 1.4MB PNG
+      if(L.env==='canyon'){ scene.background=new THREE.Color(0xffa46b); scene.backgroundBlurriness=0; }
+      scene.background=_skyTexCache;
     } else {
       new THREE.TextureLoader().load('assets/games3d/sky_day.png', t=>{
         t.mapping=THREE.EquirectangularReflectionMapping;
+        _skyTexCache=t;
         if(L.env==='canyon'){ scene.background=new THREE.Color(0xffa46b); scene.backgroundBlurriness=0; }
         scene.background=t;
       }, undefined, ()=>{ scene.background=new THREE.Color(L.fog); });
@@ -823,16 +884,23 @@
     }
 
     /* pickups (delivered PickupAbles) */
-    const texL=new THREE.TextureLoader();
+    if(!_pkTexLoader) _pkTexLoader=new THREE.TextureLoader();
+    // sizes bumped ~55% + paired with a colored glow (below) — at the original
+    // scale these read as tiny dots lost against the track's dense sponsor
+    // signage; this is what "pickups don't show up" reports were actually seeing.
     const PK_DEFS=[
-      {k:'blue',  img:'pk_CreditCardBlue.png',  w:1.9,h:1.25, fico:+25, cash:0,  msg:'+25 FICO · Smart credit!',       good:true,  weight:.22},
-      {k:'green', img:'pk_CreditCardGreen.png', w:1.9,h:1.25, fico:+15, cash:5,  msg:'+15 FICO · Healthy account!',    good:true,  weight:.16},
-      {k:'check', img:'pk_GreenCheckmark.png',  w:1.5,h:1.5,  fico:+18, cash:0,  msg:'ON-TIME PAYMENT! +18 FICO',      good:true,  weight:.18, boost:.25},
-      {k:'coin',  img:'pk_Coin.png',            w:1.3,h:1.3,  fico:0,   cash:12, msg:'+$12',                            good:true,  weight:.24},
-      {k:'red',   img:'pk_CreditCardRed.png',   w:1.9,h:1.25, fico:-40, cash:0,  msg:'MAXED OUT! −40 FICO',            good:false, weight:0},
-      {k:'x',     img:'pk_X.png',               w:1.5,h:1.5,  fico:-30, cash:-5, msg:'MISSED PAYMENT! −30 FICO',       good:false, weight:0},
+      {k:'blue',  img:'pk_CreditCardBlue.png',  w:2.9,h:1.9,  fico:+25, cash:0,  msg:'+25 FICO · Smart credit!',       good:true,  weight:.22},
+      {k:'green', img:'pk_CreditCardGreen.png', w:2.9,h:1.9,  fico:+15, cash:5,  msg:'+15 FICO · Healthy account!',    good:true,  weight:.16},
+      {k:'check', img:'pk_GreenCheckmark.png',  w:2.3,h:2.3,  fico:+18, cash:0,  msg:'ON-TIME PAYMENT! +18 FICO',      good:true,  weight:.18, boost:.25},
+      {k:'coin',  img:'pk_Coin.png',            w:2.0,h:2.0,  fico:0,   cash:12, msg:'+$12',                            good:true,  weight:.24},
+      {k:'puddle',img:'pk_GoldenPuddleIcon.png',w:3.1,h:3.1,  fico:0,   cash:20, msg:'🌟 GOLDEN PUDDLE! Strategic bonus', good:true,  weight:.06, boost:.4},
+      {k:'red',   img:'pk_CreditCardRed.png',   w:2.9,h:1.9,  fico:-40, cash:0,  msg:'MAXED OUT! −40 FICO',            good:false, weight:0},
+      {k:'x',     img:'pk_X.png',               w:2.3,h:2.3,  fico:-30, cash:-5, msg:'MISSED PAYMENT! −30 FICO',       good:false, weight:0},
     ];
-    const pkTex={}; PK_DEFS.forEach(d=>pkTex[d.k]=texL.load('assets/games3d/'+d.img));
+    const pkTex={}; PK_DEFS.forEach(d=>{ if(!_pkTexCache[d.img]) _pkTexCache[d.img]=_pkTexLoader.load('assets/games3d/'+d.img); pkTex[d.k]=_pkTexCache[d.img]; });
+    const pkGlowTex=makeCanvasTex(128,128,(x,w,h)=>{ const g=x.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);
+      g.addColorStop(0,'rgba(255,255,255,.95)'); g.addColorStop(.45,'rgba(255,255,255,.4)'); g.addColorStop(1,'rgba(255,255,255,0)');
+      x.fillStyle=g; x.fillRect(0,0,w,h); });
     const pickups=[];
     const goodDefs=PK_DEFS.filter(d=>d.good), badDefs=PK_DEFS.filter(d=>!d.good);
     for(let i=0;i<L.pickups;i++){
@@ -848,7 +916,14 @@
       posAt(s%1,_v1); tanAt(s%1,_v2); _v3.set(-_v2.z,0,_v2.x);
       sp.position.set(_v1.x+_v3.x*d, 1.15, _v1.z+_v3.z*d);
       scene.add(sp);
-      pickups.push({def,s:s%1,d,node:sp,active:true,respawnAt:0});
+      // additive glow behind the icon — cuts through the track's dense sponsor
+      // signage so pickups actually catch the eye instead of reading as tiny dots
+      const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:pkGlowTex,transparent:true,depthWrite:false,
+        blending:THREE.AdditiveBlending,color:def.good?0x8cffb0:0xff6b6b,opacity:.8}));
+      glow.scale.set(Math.max(def.w,def.h)*2.4,Math.max(def.w,def.h)*2.4,1);
+      glow.position.copy(sp.position);
+      scene.add(glow);
+      pickups.push({def,s:s%1,d,node:sp,glow,active:true,respawnAt:0});
     }
 
     /* knowledge gate arch (reused across gates) */
@@ -857,8 +932,8 @@
     const archM=new THREE.MeshBasicMaterial({color:0x7dd3fc,transparent:true,opacity:.9});
     [[-1],[1]].forEach(([sd])=>{ const po=new THREE.Mesh(new THREE.BoxGeometry(.6,8,.6),archM); po.position.set(sd*(W+.9),4,0); gate.node.add(po); });
     const topBar=new THREE.Mesh(new THREE.BoxGeometry((W+1)*2,1.1,.6),archM); topBar.position.y=8.2; gate.node.add(topBar);
-    const laneW=(W*2-1)/3;
-    for(let i=0;i<3;i++){
+    const laneW=(W*2-1)/4;
+    for(let i=0;i<4;i++){
       const lane=new THREE.Group();
       const panel=new THREE.Mesh(new THREE.PlaneGeometry(laneW-.6,3.4), laneMatOn.clone());
       panel.position.y=2.2; lane.add(panel);
@@ -940,7 +1015,7 @@
     G={ li,L,scene,cam,rndr,wrap,curve,P,T,NRM,SEG,trackLen,W,
         cars:carRoots, wheels:wheelSets, pickups, gate, puffs, dentGroup:playerDentGroup,
         carIdx, carKey:CARS[carIdx].key,
-        carStats:{topSpeedMul:CARS[carIdx].topSpeedMul, steerRateMul:CARS[carIdx].steerRateMul, boostMul:CARS[carIdx].boostMul},
+        carStats:{topSpeedMul:CARS[carIdx].topSpeedMul*upgMul('engine'), steerRateMul:CARS[carIdx].steerRateMul*upgMul('tires'), boostMul:CARS[carIdx].boostMul*upgMul('boost')},
         fico:850, cash:0, band:BANDS[0],
         lap:1, done:false, phase:'count', countT:3.4,
         s:0, d:0, v:0, steerVis:0, spin:0, boost:0, boosting:0, boostSfxOn:false, offroad:false,
@@ -995,11 +1070,13 @@
            pos:document.getElementById('frPos'), lap:document.getElementById('frLap') };
     G._ft=0; G._fn=0; G._deg=0;
     window._frDbg=function(){ if(!G) return null;
-      const out={s:G.s,d:G.d,v:G.v,cam:G.cam.position.toArray().map(n=>+n.toFixed(1))};
+      const out={s:G.s,d:G.d,v:G.v,cam:G.cam.position.toArray().map(n=>+n.toFixed(1)),carStats:G.carStats,upgrades:upgGet()};
       out.cars=G.cars.map(c=>{ const b=new THREE.Box3().setFromObject(c), sz=b.getSize(new THREE.Vector3());
         return {pos:c.position.toArray().map(n=>+n.toFixed(1)), size:[+sz.x.toFixed(2),+sz.y.toFixed(2),+sz.z.toFixed(2)], dist:+c.position.distanceTo(G.cam.position).toFixed(1)}; });
       return out; };
-    window._frSet=function(o){ if(!G||!o) return; if(typeof o.fico==='number') setFico(o.fico-G.fico); if(typeof o.s==='number') G.s=o.s; if(typeof o.lapDone==='number') G.prog=o.lapDone+G.s; };
+    window._frSet=function(o){ if(!G||!o) return; if(typeof o.fico==='number') setFico(o.fico-G.fico); if(typeof o.s==='number') G.s=o.s; if(typeof o.lapDone==='number') G.prog=o.lapDone+G.s; if(o.phase) G.phase=o.phase; };
+    window._frArm=function(){ if(G) armGate(); };
+    window._frResolve=function(){ if(G) resolveGate(); };
     cancelAnimationFrame(raf); G.last=performance.now(); raf=requestAnimationFrame(loop);
   }
 
@@ -1030,7 +1107,7 @@
   function armGate(){
     const g=G.gate;
     const q0=G.quizBag[G.quizIdx%G.quizBag.length]; G.quizIdx++;
-    const order=[0,1,2].sort(()=>Math.random()-.5);
+    const order=[0,1,2,3].sort(()=>Math.random()-.5);
     g.q={...q0, opts:order.map(i=>q0.opts[i]), ans:order.indexOf(q0.ans)};
     g.s=((G.s+140/G.trackLen)%1+1)%1;
     G.posAt(g.s,G._v1); G.tanAt(g.s,G._v2);
@@ -1052,8 +1129,8 @@
   }
   function resolveGate(){
     const g=G.gate;
-    const laneW=(G.W*2-1)/3;
-    const li=Math.max(0,Math.min(2,Math.floor((G.d+G.W-.5)/laneW)));
+    const laneW=(G.W*2-1)/4;
+    const li=Math.max(0,Math.min(3,Math.floor((G.d+G.W-.5)/laneW)));
     const ok=li===g.q.ans;
     if(ok){ G.gatesRight++; setFico(g.q.fico); G.cash+=g.q.cash; G.boost=Math.min(1,G.boost+.5);
       msg('✅ '+g.q.fact,'#34d399'); }
@@ -1172,14 +1249,15 @@
 
     /* ── pickups ── */
     if(racing) G.pickups.forEach(pk=>{
-      if(!pk.active){ if(now>=pk.respawnAt){ pk.active=true; pk.node.visible=true; } return; }
+      if(!pk.active){ if(now>=pk.respawnAt){ pk.active=true; pk.node.visible=true; if(pk.glow) pk.glow.visible=true; } return; }
       const ds=Math.abs(((pk.s-G.s+1.5)%1)-.5)*G.trackLen;
       if(ds>150) return;                                   // far away — skip bob + hit test
-      pk.node.position.y=1.15+Math.sin(now/300+pk.d)*0.18;
+      pk.node.position.y=1.15+Math.sin(now/300+pk.d)*0.32;
+      if(pk.glow) pk.glow.position.y=pk.node.position.y;
       if(ds<2.6 && Math.abs(pk.d-G.d)<1.7){
-        pk.active=false; pk.node.visible=false; pk.respawnAt=now+20000;   // FicoScorePickup.respawnTime=20
+        pk.active=false; pk.node.visible=false; if(pk.glow) pk.glow.visible=false; pk.respawnAt=now+20000;   // FicoScorePickup.respawnTime=20
         const d=pk.def;
-        if(d.fico) setFico(d.fico);
+        if(d.fico) setFico(d.fico<0?d.fico*upgMul('armor'):d.fico);
         if(d.cash){ G.cash+=d.cash; const ce=document.getElementById('frCash'); if(ce) ce.textContent='💰 $'+G.cash; }
         if(d.boost) G.boost=Math.min(1,G.boost+d.boost);
         if(d.k==='check') G.paysOnTime++;
@@ -1299,7 +1377,8 @@
     stopSfx('engine');   // TEMP AI-generated SFX placeholder — swap for Kabria's final audio when delivered — don't let the hum loop leak past an exit-mid-race
     if(G._cleanup) G._cleanup();
     try{
-      if(G.scene.background&&G.scene.background.dispose) G.scene.background.dispose();
+      // don't dispose the shared/cached sky texture — it's reused across races (perf fix above)
+      if(G.scene.background&&G.scene.background.dispose&&G.scene.background!==_skyTexCache) G.scene.background.dispose();
       G.scene.traverse(o=>{ if(o.geometry) o.geometry.dispose();
         if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m.map&&m.map.userData&&m.map.userData.perRace) m.map.dispose(); m.dispose(); }); } });
       G.rndr.dispose();

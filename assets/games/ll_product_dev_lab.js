@@ -1093,7 +1093,7 @@
               for <span style="color:${GREEN}">+${G.feedback.bonusSat} bonus SAT</span>
             </div>
           </div>
-          <div style="margin-left:auto;cursor:pointer;color:#445;font-size:.8rem;padding:4px" onclick="pdlDismissFeedback()">✕</div>
+          <div style="margin-left:auto;cursor:pointer;color:#445;font-size:.8rem;padding:4px" onclick="pdlDismissFeedback()" role="button" tabindex="0" aria-label="Dismiss feedback">✕</div>
         </div>
       `;
       container.appendChild(card);

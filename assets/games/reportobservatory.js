@@ -188,7 +188,7 @@
       <div style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;padding:12px 14px;gap:10px;background:linear-gradient(180deg,rgba(13,9,32,.98) 70%,transparent);flex-shrink:0">
         <button onclick="roExit()" style="padding:7px 13px;border:1px solid rgba(139,92,246,.4);border-radius:9px;background:rgba(139,92,246,.12);color:#a78bfa;font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.14em;cursor:pointer;white-space:nowrap;flex-shrink:0">← HUB</button>
         <div id="roTitle" style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:#a78bfa;flex:1;text-align:center;text-shadow:0 0 16px rgba(139,92,246,.6)">REPORT OBSERVATORY · LV 1/3</div>
-        <button onclick="roShowHelp()" title="How to play" style="padding:7px 10px;border:1px solid rgba(139,92,246,.4);border-radius:9px;background:rgba(139,92,246,.12);color:#a78bfa;cursor:pointer;font-size:.75rem;flex-shrink:0">❓</button>
+        <button onclick="roShowHelp()" title="How to play" aria-label="How to play" style="padding:7px 10px;border:1px solid rgba(139,92,246,.4);border-radius:9px;background:rgba(139,92,246,.12);color:#a78bfa;cursor:pointer;font-size:.75rem;flex-shrink:0">❓</button>
         <div style="display:flex;gap:10px;align-items:center;flex-shrink:0">
           <div id="roScore" style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:#fbbf24;font-variant-numeric:tabular-nums;text-shadow:0 0 10px rgba(251,191,36,.4);min-width:52px;text-align:right">0</div>
           <div id="roTimer" style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:#e2e8f0;font-variant-numeric:tabular-nums;min-width:36px;text-align:right">90s</div>

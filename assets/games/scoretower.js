@@ -182,7 +182,7 @@
       <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:10px;padding:11px 16px;background:linear-gradient(180deg,rgba(3,4,12,.92),transparent)">
         <button onclick="scoretowerExit()" style="padding:7px 13px;border:1px solid rgba(251,191,36,.35);border-radius:9px;background:rgba(251,191,36,.08);color:#fde68a;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.12em;cursor:pointer">← CREDTECH</button>
         <div id="stTitle" style="font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.2em;color:#fbbf24;flex:1;text-align:center">🏦 SCORE TOWER · LV 1/3</div>
-        <button onclick="stShowHelp()" title="How to play" style="padding:7px 10px;border:1px solid rgba(251,191,36,.35);border-radius:9px;background:rgba(251,191,36,.08);color:#fde68a;cursor:pointer;font-size:.8rem">❓</button>
+        <button onclick="stShowHelp()" title="How to play" aria-label="How to play" style="padding:7px 10px;border:1px solid rgba(251,191,36,.35);border-radius:9px;background:rgba(251,191,36,.08);color:#fde68a;cursor:pointer;font-size:.8rem">❓</button>
         <div id="stTime" style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:#38bdf8;min-width:44px;text-align:right">${LEVELS[0].round}s</div>
       </div>
 

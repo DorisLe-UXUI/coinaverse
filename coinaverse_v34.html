@@ -70,6 +70,16 @@
 /* ─── Reset + base ─── */
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; overflow: hidden; }
+/* Respect OS-level "reduce motion" — shorten/disable decorative CSS animations & transitions site-wide.
+   Autoplaying background videos are separately paused in applyAV() (see script). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 body {
   font-family: 'Inter', system-ui, sans-serif;
   background: var(--bg-deep);
@@ -1843,6 +1853,7 @@ h1, h2, h3, .anton { font-family: 'Anton', 'Orbitron', sans-serif; letter-spacin
   border: 1px solid var(--glass-border);
   display: flex; align-items: center; justify-content: center;
   font-size: 1rem;
+  color: var(--text-bright);
   cursor: pointer;
   backdrop-filter: blur(10px);
   transition: all 0.2s;
@@ -2542,9 +2553,9 @@ h1, h2, h3, .anton { font-family: 'Anton', 'Orbitron', sans-serif; letter-spacin
   background:linear-gradient(180deg,#fff,var(--av-sel));-webkit-background-clip:text;background-clip:text;color:transparent}
 .av-topbar .wd-player-pill{margin-left:auto}
 
-.av-grid{display:grid;grid-template-columns:300px 1fr 300px;gap:22px;
+.av-grid{display:grid;grid-template-columns:300px 1fr 300px;grid-template-rows:1fr;gap:22px;
   padding:22px 26px 26px;height:calc(100% - 64px);align-items:stretch}
-.av-col{display:flex;flex-direction:column;gap:16px}
+.av-col{display:flex;flex-direction:column;gap:16px;min-height:0;overflow-y:auto}
 .av-panel{background:rgba(12,7,40,.62);border:1px solid rgba(140,120,255,.18);border-radius:16px;
   padding:16px 16px 18px;backdrop-filter:blur(12px)}
 .av-ph{font-family:'Orbitron';font-weight:700;font-size:.66rem;letter-spacing:.16em;color:var(--av-sel);
@@ -3104,6 +3115,10 @@ h1, h2, h3, .anton { font-family: 'Anton', 'Orbitron', sans-serif; letter-spacin
 .v14-splash > * { position: relative; z-index: 2; }
 .v14-splash-logo {
   width: clamp(280px, 46vw, 560px); height: auto; object-fit: contain;
+  /* soft dark radial backing (shows through the PNG's transparent pixels) so the
+     logo separates cleanly from the busy nebula/portal art behind it, instead of
+     the two competing for attention in the same spot */
+  background: radial-gradient(ellipse 65% 75% at center, rgba(5,4,20,.55) 0%, rgba(5,4,20,.22) 55%, transparent 78%);
   filter: drop-shadow(0 0 40px rgba(0, 229, 255, 0.5));
   margin-bottom: 14px;
   animation: splashFade 1.2s ease-out;
@@ -3163,7 +3178,7 @@ h1, h2, h3, .anton { font-family: 'Anton', 'Orbitron', sans-serif; letter-spacin
 .v14-signin-divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--text-mute); font-family: 'Orbitron', sans-serif; font-size: 0.66rem; letter-spacing: 0.2em; }
 .v14-signin-divider::before, .v14-signin-divider::after { content: ''; flex: 1; height: 1px; background: var(--glass-border); }
 .v14-signin-input { width: 100%; padding: 13px 16px; margin-bottom: 10px; background: rgba(139, 92, 246, 0.15); border: 1px solid var(--glass-border); border-radius: 12px; color: var(--text-bright); font-family: 'Inter', sans-serif; font-size: 0.95rem; }
-.v14-signin-input:focus { outline: none; border-color: var(--cyan); }
+.v14-signin-input:focus { outline: 2px solid var(--cyan); outline-offset: 2px; border-color: var(--cyan); }
 .v14-signin-cta { width: 100%; padding: 14px; background: linear-gradient(135deg, var(--cyan), var(--purple)); border: none; border-radius: 12px; color: var(--text-bright); font-family: 'Orbitron', sans-serif; font-size: 0.84rem; letter-spacing: 0.18em; font-weight: 800; cursor: pointer; margin-bottom: 14px; box-shadow: 0 10px 24px rgba(0, 229, 255, 0.4); transition: all 0.2s; }
 .v14-signin-cta:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(0, 229, 255, 0.6); }
 .v14-signin-guest { display: block; width: 100%; text-align: center; background: none; border: none; color: var(--text-mute); font-family: 'Orbitron', sans-serif; font-size: 0.7rem; letter-spacing: 0.2em; cursor: pointer; }
@@ -3759,7 +3774,7 @@ video::-webkit-media-controls-play-button {
    narrows enough that they can no longer sit side-by-side) */
 @media (max-width: 768px) {
   .home-topbar { padding: 12px 16px; gap: 10px; }
-  .home-brand img { height: 30px !important; }
+  .home-brand-text { font-size: 1.15rem; letter-spacing: 0.12em; }
   .home-hud { min-width: 0; flex-shrink: 1; gap: 6px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
   .home-hud::-webkit-scrollbar { display: none; }
   .home-pill { flex-shrink: 0; padding: 6px 10px 6px 6px; }
@@ -4353,6 +4368,11 @@ video::-webkit-media-controls-play-button {
       const wv = document.getElementById('welcomeVid');
       if (wv) { wv.muted = !AUDIO.on; wv.volume = 1; if (wv.paused) wv.play().catch(()=>{}); }
     }
+    // Accessibility: prefers-reduced-motion — freeze all background/decorative video on the current
+    // screen instead of looping forever with no way to pause/skip it.
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      document.querySelectorAll('#app video').forEach(v => { try { v.pause(); } catch(e){} });
+    }
   }
 
   function avToggle() {
@@ -4370,6 +4390,36 @@ video::-webkit-media-controls-play-button {
   // ROUTING
   window.SCREENS = {};
   try{ window.HUBX = HUBX; }catch(e){}
+  // ───────── ACCESSIBILITY ENHANCER (runs after every screen render) ─────────
+  // A lot of interactive "cards"/tiles in this app are <div onclick=...> rather than real
+  // <button>s, which makes them invisible to keyboard/switch users. Rather than hand-edit every
+  // one of the ~90 occurrences across screens, give any non-native clickable element inside #app
+  // proper button semantics + keyboard support here. Elements that are already natively operable
+  // (button, a[href], input, select, textarea) are left untouched. Also backfills a baseline
+  // alt="" on any image missing one, so screen readers don't announce raw filenames — the small
+  // number of images that convey unique info get a real, descriptive alt in their own template.
+  function enhanceA11yKeyboard() {
+    const app = document.getElementById('app');
+    if (!app) return;
+    app.querySelectorAll('[onclick]').forEach(el => {
+      const tag = el.tagName;
+      const nativelyOperable = (tag==='BUTTON' || tag==='INPUT' || tag==='SELECT' || tag==='TEXTAREA' || (tag==='A' && el.hasAttribute('href')));
+      if (nativelyOperable) return;
+      if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+      if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
+      if (!el.__a11yKeyBound) {
+        el.__a11yKeyBound = true;
+        el.addEventListener('keydown', function(e){
+          if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+            e.preventDefault();
+            this.click();
+          }
+        });
+      }
+    });
+    app.querySelectorAll('img:not([alt])').forEach(img => img.setAttribute('alt', ''));
+  }
+
   window.goTo = function(screenId, opts) {
     const app = document.getElementById('app');
     if (typeof SCREENS[screenId] !== 'function') {
@@ -4384,11 +4434,15 @@ video::-webkit-media-controls-play-button {
     app.innerHTML = SCREENS[screenId](opts);
     state.currentScreen = screenId;
     window.scrollTo(0, 0);
+    enhanceA11yKeyboard();
     // persistent audio toggle button
     if (!document.getElementById('avToggle')) {
       const b = document.createElement('div');
       b.id = 'avToggle'; b.className = 'av-toggle'; b.textContent = '🔊';
       b.setAttribute('onclick', 'avToggle()');
+      b.setAttribute('role', 'button'); b.setAttribute('tabindex', '0');
+      b.setAttribute('aria-label', 'Toggle sound');
+      b.addEventListener('keydown', function(e){ if (e.key==='Enter'||e.key===' '){ e.preventDefault(); this.click(); } });
       document.body.appendChild(b);
     }
     applyAV(screenId);
@@ -4407,16 +4461,16 @@ video::-webkit-media-controls-play-button {
         <div class="v14-splash-bar"><div class="v14-splash-bar-fill"></div></div>
         <div class="v14-splash-pct">LOADING UNIVERSE...</div>
         <div class="v14-splash-social">
-          <a onclick="splashSocial('App Store')" title="App Store">
+          <a onclick="splashSocial('App Store')" title="App Store" aria-label="App Store">
             <svg viewBox="0 0 24 24"><path fill="#fff" d="M16.5 12.2c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.15-2.8.85-3.5.85-.7 0-1.8-.83-3-.8-1.5.02-2.9.87-3.7 2.22-1.6 2.75-.4 6.85 1.1 9.1.75 1.1 1.6 2.3 2.8 2.26 1.1-.04 1.55-.72 2.9-.72 1.35 0 1.75.72 2.9.7 1.2-.02 2-1.1 2.7-2.2.6-.9.9-1.4 1.3-2.4-3.2-1.2-3.1-3.6-3.1-3.63z"/><path fill="#fff" d="M13.9 5.1c.6-.7 1-1.7.9-2.7-.9.04-1.9.6-2.5 1.3-.55.6-1 1.6-.9 2.6.95.07 1.9-.5 2.5-1.2z"/></svg>
           </a>
-          <a onclick="splashSocial('Google Play')" title="Google Play">
+          <a onclick="splashSocial('Google Play')" title="Google Play" aria-label="Google Play">
             <svg viewBox="0 0 24 24"><defs><linearGradient id="gpg" x1="4" y1="4" x2="18" y2="20"><stop offset="0" stop-color="#00E5FF"/><stop offset=".5" stop-color="#4CAF50"/><stop offset="1" stop-color="#FFC107"/></linearGradient></defs><path fill="url(#gpg)" d="M5 3.9c-.4.2-.7.7-.7 1.3v13.6c0 .6.3 1.1.7 1.3l10.6-8.1L5 3.9z"/></svg>
           </a>
-          <a onclick="splashSocial('YouTube')" title="YouTube">
+          <a onclick="splashSocial('YouTube')" title="YouTube" aria-label="YouTube">
             <svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="5" fill="#FF0000"/><path fill="#fff" d="M10 8.5l6 3.5-6 3.5z"/></svg>
           </a>
-          <a onclick="splashSocial('Facebook')" title="Facebook">
+          <a onclick="splashSocial('Facebook')" title="Facebook" aria-label="Facebook">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path fill="#fff" d="M15.5 12.5h-2.2V20h-3v-7.5H9V10h1.3V8.7c0-1.9 1-3 3.2-3h2v2.5h-1.3c-.9 0-1 .3-1 1V10h2.4l-.3 2.5z"/></svg>
           </a>
         </div>
@@ -4479,6 +4533,14 @@ video::-webkit-media-controls-play-button {
   SCREENS.identity = function() {
     const archIds = ['strategist','builder','investor','guardian','risktaker','rebuilder'];
     const AC={strategist:'#3B82F6',builder:'#A855F7',investor:'#10B981',guardian:'#14B8A6',risktaker:'#EF4444',rebuilder:'#F59E0B'};
+    // lighten a hex color toward white — used for small label text so it still clears 4.5:1 contrast
+    // on the card's tinted backdrop while keeping the archetype's border/glow at full saturation.
+    const lighten = (hex, amt) => {
+      const n = parseInt(hex.replace('#',''), 16);
+      let r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+      r = Math.round(r+(255-r)*amt); g = Math.round(g+(255-g)*amt); b = Math.round(b+(255-b)*amt);
+      return `rgb(${r},${g},${b})`;
+    };
     const cards = archIds.map(id => {
       const w = WORLDS[id];
       const c=AC[id];
@@ -4495,7 +4557,7 @@ video::-webkit-media-controls-play-button {
             <h3 class="v14-id-name" style="color:#fff">${w.archetype.replace('THE ','')}</h3>
             <div class="v14-id-zone">${w.zone}</div>
             <p class="v14-id-tagline">${w.tagline.split('·')[0].trim()}</p>
-            <span class="v14-id-power" style="color:${c}">⚡ ${w.power.split('·')[0].trim()}</span>
+            <span class="v14-id-power" style="color:${lighten(c,.35)}">⚡ ${w.power.split('·')[0].trim()}</span>
           </div>
         </div>`;
     }).join('');
@@ -4580,8 +4642,7 @@ video::-webkit-media-controls-play-button {
         <!-- TOP HUD -->
         <header class="home-topbar">
           <div class="home-brand">
-            <img src="assets/ui/logo_coinaverse.png" style="height:38px;width:auto;object-fit:contain;filter:drop-shadow(0 0 8px rgba(251,191,36,.45))" alt="COINAVERSE" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-            <div class="home-brand-text" style="display:none">COINAVERSE</div>
+            <div class="home-brand-text">COINAVERSE</div>
           </div>
           <div class="home-hud">
             <div class="home-pill coins"><img src="assets/ui/coin_3d.png"><span class="n">${state.coins}</span><span class="l">COINS</span></div>
@@ -4590,9 +4651,9 @@ video::-webkit-media-controls-play-button {
             <div class="home-pill cred"><img src="assets/ui/gem_cred.png" style="width:17px;height:17px;object-fit:contain;margin-right:5px;vertical-align:middle"><span class="n">${state.cred}</span><span class="l">CRED · ${state.credPct}%</span></div>
           </div>
           <div class="home-actions">
-            <div class="home-icon-btn" onclick="openProfile()">👤</div>
-            <div class="home-icon-btn" onclick="openInbox()">✉️</div>
-            <div class="home-icon-btn" onclick="openSettings()">⚙️</div>
+            <div class="home-icon-btn" onclick="openProfile()" aria-label="Profile">👤</div>
+            <div class="home-icon-btn" onclick="openInbox()" aria-label="Inbox">✉️</div>
+            <div class="home-icon-btn" onclick="openSettings()" aria-label="Settings">⚙️</div>
           </div>
         </header>
 
@@ -4715,18 +4776,18 @@ video::-webkit-media-controls-play-button {
       .pf2-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:20px 0 0}
       .pf2-stat{border-radius:16px;padding:14px 10px;text-align:center;background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.09);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
       .pf2-stat-n{font-family:'Anton',sans-serif;font-size:1.8rem;line-height:1}
-      .pf2-stat-l{font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.14em;color:rgba(255,255,255,.4);margin-top:4px}
+      .pf2-stat-l{font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.14em;color:rgba(255,255,255,.6);margin-top:4px}
       /* PARTY */
       .pf2-section{margin-top:24px}
       .pf2-sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
       .pf2-sh-title{font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.2em;color:#fff}
-      .pf2-sh-sub{font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.12em;color:rgba(255,255,255,.3)}
+      .pf2-sh-sub{font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.12em;color:rgba(255,255,255,.6)}
       .pf2-party-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
       .pf2-slot{border-radius:18px;overflow:hidden;border:1.5px solid var(--fc,rgba(255,255,255,.08));background:rgba(255,255,255,.03);aspect-ratio:3/4;position:relative;cursor:pointer;box-shadow:0 0 20px color-mix(in srgb,var(--fc,transparent) 22%,transparent)}
       .pf2-slot.empty{border:2px dashed rgba(255,255,255,.12);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;transition:.2s}
       .pf2-slot.empty:hover{border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.05)}
-      .pf2-slot-plus{width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:rgba(255,255,255,.3)}
-      .pf2-slot-empty-lbl{font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.16em;color:rgba(255,255,255,.2)}
+      .pf2-slot-plus{width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:rgba(255,255,255,.6)}
+      .pf2-slot-empty-lbl{font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.16em;color:rgba(255,255,255,.6)}
       .pf2-slot-invite{padding:8px 20px;border-radius:999px;background:linear-gradient(135deg,#a855f7,#7c3aed);border:none;color:#fff;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;margin-top:4px}
       .pf2-filled{position:relative;width:100%;height:100%}
       .pf2-filled-img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
@@ -4746,7 +4807,7 @@ video::-webkit-media-controls-play-button {
       .pf2-finfo{flex:1;min-width:0}
       .pf2-fname{font-size:.88rem;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .pf2-farch{font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.12em;color:var(--fc,#14b8a6);margin-bottom:2px}
-      .pf2-fstatus{font-size:.75rem;color:rgba(255,255,255,.4)}
+      .pf2-fstatus{font-size:.75rem;color:rgba(255,255,255,.6)}
       .pf2-invite-btn{padding:7px 16px;border-radius:999px;font-family:'Orbitron',sans-serif;font-size:.56rem;letter-spacing:.1em;cursor:pointer;border:none;white-space:nowrap;flex-shrink:0}
       .pf2-invite-btn.online{background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff}
       .pf2-invite-btn.offline{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.3);cursor:default}
@@ -4867,7 +4928,7 @@ video::-webkit-media-controls-play-button {
       .lb2-title{font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.22em;color:#fbbf24;flex:1;text-align:center}
       .lb2-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
       .lb2-tabs::-webkit-scrollbar{display:none}
-      .lb2-tab{flex-shrink:0;padding:8px 18px;border-radius:999px;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.14em;cursor:pointer;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.45);transition:.18s}
+      .lb2-tab{flex-shrink:0;padding:8px 18px;border-radius:999px;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.14em;cursor:pointer;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.65);transition:.18s}
       .lb2-tab.active{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.4);color:#fbbf24;box-shadow:0 0 16px rgba(251,191,36,.15)}
       .lb2-podium{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:8px;align-items:end;padding:0 0 8px}
       .lb2-pod{border-radius:16px;padding:16px 10px 14px;display:flex;flex-direction:column;align-items:center;gap:8px;border:1px solid;position:relative;overflow:hidden}
@@ -4880,25 +4941,25 @@ video::-webkit-media-controls-play-button {
       .lb2-pod-ring{width:80px;height:80px;border-radius:50%;border:2px solid var(--pc,#fbbf24);display:flex;align-items:center;justify-content:center;position:relative}
       .lb2-pod-rank{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);font-family:'Anton',sans-serif;font-size:.9rem;background:var(--pc,#fbbf24);color:#000;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center}
       .lb2-pod-name{font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.1em;color:#fff;text-align:center}
-      .lb2-pod-arch{font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.12em;color:rgba(255,255,255,.4);text-align:center}
+      .lb2-pod-arch{font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.12em;color:rgba(255,255,255,.6);text-align:center}
       .lb2-pod-score{font-family:'Anton',sans-serif;font-size:1.3rem;color:var(--pc,#fbbf24);text-align:center;line-height:1}
-      .lb2-pod-xp{font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.14em;color:rgba(255,255,255,.3)}
+      .lb2-pod-xp{font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.14em;color:rgba(255,255,255,.6)}
       .lb2-list{display:flex;flex-direction:column;gap:6px}
       .lb2-row{display:grid;grid-template-columns:36px 48px 1fr auto;align-items:center;gap:10px;padding:11px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:13px;transition:.18s}
       .lb2-row.you{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.3);box-shadow:0 0 18px rgba(251,191,36,.1),inset 0 1px 0 rgba(255,255,255,.06)}
       .lb2-row:hover{background:rgba(255,255,255,.07)}
-      .lb2-rank{font-family:'Anton',sans-serif;font-size:1.1rem;color:rgba(255,255,255,.3);text-align:center}
+      .lb2-rank{font-family:'Anton',sans-serif;font-size:1.1rem;color:rgba(255,255,255,.6);text-align:center}
       .lb2-row.you .lb2-rank{color:#fbbf24}
       .lb2-av{width:48px;height:48px;border-radius:12px;object-fit:cover;border:1.5px solid rgba(255,255,255,.1)}
       .lb2-row.you .lb2-av{border-color:rgba(251,191,36,.4)}
       .lb2-name{font-size:.88rem;font-weight:600;color:#fff;margin-bottom:2px}
       .lb2-row.you .lb2-name{color:#fbbf24}
-      .lb2-arch{font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.12em;color:rgba(255,255,255,.35)}
+      .lb2-arch{font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.12em;color:rgba(255,255,255,.6)}
       .lb2-score{font-family:'Anton',sans-serif;font-size:1.1rem;color:#fff;text-align:right}
       .lb2-row.you .lb2-score{color:#fbbf24}
-      .lb2-xp{font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.1em;color:rgba(255,255,255,.3);text-align:right}
+      .lb2-xp{font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.1em;color:rgba(255,255,255,.6);text-align:right}
       .lb2-chg{font-size:.7rem;text-align:right}
-      .lb2-chg.up{color:#22c55e}.lb2-chg.dn{color:#ef4444}.lb2-chg.eq{color:rgba(255,255,255,.25)}
+      .lb2-chg.up{color:#22c55e}.lb2-chg.dn{color:#ef4444}.lb2-chg.eq{color:rgba(255,255,255,.55)}
     `;
 
     const medals=['🥇','🥈','🥉'];
@@ -4941,7 +5002,7 @@ video::-webkit-media-controls-play-button {
       <div class="lb2-topbar">
         <button class="lb2-back" onclick="goTo('home')">← HOME</button>
         <div class="lb2-title">🏆 GLOBAL RANKINGS</div>
-        <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;color:rgba(255,255,255,.3)">SEASON 1</div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;color:rgba(255,255,255,.6)">SEASON 1</div>
       </div>
       <div style="position:relative;z-index:1;padding:16px;max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:16px">
         <div class="lb2-tabs">
@@ -4977,9 +5038,9 @@ video::-webkit-media-controls-play-button {
     const _cine=state.cinemaSeen||0;
     const _stars3=Object.values(state.gameStars||{}).filter(v=>v>=3).length;
     const CHALLENGES=[
-      {id:'quest',ic:'🎯',name:'Quest Hunter',desc:'Complete 5 daily missions',prog:Math.min(_mDone,5),goal:5,reward:'200 🪙',col:'#e50914',coins:200},
+      {id:'quest',ic:'🎯',name:'Quest Hunter',desc:'Complete 5 daily missions',prog:Math.min(_mDone,5),goal:5,reward:'200 🪙',col:'#f87171',coins:200},
       {id:'world',ic:'🌍',name:'World Explorer',desc:'Visit all 7 hubs',prog:Math.min(_hubs,7),goal:7,reward:'500 🪙',col:'#38bdf8',coins:500},
-      {id:'games',ic:'🏆',name:'Game Master',desc:'Complete 10 games',prog:Math.min(_gDone,10),goal:10,reward:'300 🪙',col:'#a855f7',coins:300},
+      {id:'games',ic:'🏆',name:'Game Master',desc:'Complete 10 games',prog:Math.min(_gDone,10),goal:10,reward:'300 🪙',col:'#c084fc',coins:300},
       {id:'cinema',ic:'💡',name:'Knowledge Seeker',desc:'Watch 3 cinema lessons',prog:Math.min(_cine,3),goal:3,reward:'150 🪙',col:'#10b981',coins:150},
       {id:'mastery',ic:'⭐',name:'Mastery Path',desc:'Earn 3★ in 3 games',prog:Math.min(_stars3,3),goal:3,reward:'400 🪙',col:'#f59e0b',coins:400},
     ];
@@ -5032,15 +5093,15 @@ video::-webkit-media-controls-play-button {
       .rc2-section-head{display:flex;align-items:center;gap:10px;margin:24px 0 12px}
       .rc2-section-icon{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0}
       .rc2-section-title{font-family:'Orbitron',sans-serif;font-size:.68rem;letter-spacing:.2em;color:#fff}
-      .rc2-section-sub{font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.14em;color:rgba(255,255,255,.3);margin-left:auto}
+      .rc2-section-sub{font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.14em;color:rgba(255,255,255,.6);margin-left:auto}
       .rc2-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
       .rc2-day{border-radius:14px;padding:10px 4px 10px;text-align:center;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.03);display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;transition:.2s}
       .rc2-day.done{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.06);opacity:.6}
       .rc2-day.active{background:rgba(255,255,255,.07);box-shadow:0 0 0 2px var(--dc,#00d4ff),0 0 20px var(--dg,rgba(0,212,255,.4));border-color:transparent}
       .rc2-day-ic{font-size:1.3rem;line-height:1}
       .rc2-day-tier{font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:var(--dc,rgba(255,255,255,.5));margin-top:1px}
-      .rc2-day-lbl{font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.06em;color:rgba(255,255,255,.45);line-height:1.1}
-      .rc2-day-n{font-family:'Orbitron',sans-serif;font-size:.42rem;color:rgba(255,255,255,.25);margin-top:2px}
+      .rc2-day-lbl{font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.06em;color:rgba(255,255,255,.65);line-height:1.1}
+      .rc2-day-n{font-family:'Orbitron',sans-serif;font-size:.42rem;color:rgba(255,255,255,.6);margin-top:2px}
       .rc2-day-check{position:absolute;top:4px;right:4px;width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#fff}
       .rc2-claim{width:100%;padding:14px;border-radius:14px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;color:#000;font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.16em;cursor:pointer;font-weight:900;box-shadow:0 8px 24px rgba(251,191,36,.35);margin:12px 0;transition:.18s}
       .rc2-claim:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(251,191,36,.5)}
@@ -5048,10 +5109,10 @@ video::-webkit-media-controls-play-button {
       .rc2-challenge{border-radius:16px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);padding:14px 16px;margin-bottom:8px;display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center}
       .rc2-ch-ic{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;background:rgba(255,255,255,.06);flex-shrink:0}
       .rc2-ch-name{font-weight:600;font-size:.88rem;color:#fff;margin-bottom:2px}
-      .rc2-ch-desc{font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:6px}
+      .rc2-ch-desc{font-size:.78rem;color:rgba(255,255,255,.62);margin-bottom:6px}
       .rc2-ch-bar-wrap{height:4px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;margin-bottom:4px}
       .rc2-ch-bar{height:100%;border-radius:999px;transition:.4s}
-      .rc2-ch-prog{font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.1em;color:rgba(255,255,255,.3)}
+      .rc2-ch-prog{font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.1em;color:rgba(255,255,255,.6)}
       .rc2-ch-reward{font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.1em;color:var(--chc,#fbbf24);padding:5px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:999px;white-space:nowrap}
     `;
 
@@ -5417,7 +5478,7 @@ video::-webkit-media-controls-play-button {
       <div class="shop-card" onclick="buyItem('${it.id}')">
         <div class="shop-card-img" style="background-image:url('${it.img}')">
           ${it.tag ? `<span class="shop-card-tag ${it.tagClass}">${it.tag}</span>` : ''}
-          <button class="shop-card-fav" onclick="event.stopPropagation();favItem(this)">♡</button>
+          <button class="shop-card-fav" onclick="event.stopPropagation();favItem(this)" aria-label="Add to favorites">♡</button>
         </div>
         <div class="shop-card-body">
           <div class="shop-card-cat">${it.cat}</div>
@@ -5518,7 +5579,7 @@ video::-webkit-media-controls-play-button {
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
           <div style="flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15))"></div>
-          <div style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.2em;color:rgba(255,255,255,.4);white-space:nowrap">CHOOSE YOUR COIN PACK</div>
+          <div style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.2em;color:rgba(255,255,255,.6);white-space:nowrap">CHOOSE YOUR COIN PACK</div>
           <div style="flex:1;height:1px;background:linear-gradient(270deg,transparent,rgba(255,255,255,.15))"></div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px">
@@ -6556,7 +6617,7 @@ video::-webkit-media-controls-play-button {
   // ───────── GAME: SATELLITE (Savings Automation) ─────────
   let _sat=null;
   // phase:'intro' (pre-game splash, never auto-runs) → 'playing' (Start pressed, HUD live) → 'done' (time's up)
-  window.satInit=function(){_sat={score:0,round:1,totalRounds:3,saved:0,goal:300,timer:25,items:[],interval:null,running:false,phase:'intro'};};
+  window.satInit=function(){_sat={score:0,round:1,totalRounds:3,saved:0,goal:300,timer:25,items:[],interval:null,running:false,starting:false,phase:'intro'};};
   window.satStart=function(){ satInit(); _sat.phase='playing'; goTo('satellite_game'); };
   SCREENS.satellite_game=function(){
     if(!_sat) satInit();
@@ -6585,14 +6646,28 @@ video::-webkit-media-controls-play-button {
       .sat-btn{padding:13px 32px;border:none;border-radius:12px;background:linear-gradient(135deg,#14b8a6,#0d9488);color:#fff;font-family:'Orbitron',sans-serif;font-size:.78rem;letter-spacing:.12em;cursor:pointer;box-shadow:0 8px 24px rgba(20,184,166,.35);transition:.2s}
       .sat-btn:hover{transform:translateY(-2px);filter:brightness(1.08)}
     `;
-    if(s.phase==='playing'&&!s.running){
+    // s.starting guards the 300ms window before `running` flips true — without it, a
+    // fast double-tap on the SATELLITE "Start" button (satStart() calls satInit()+goTo()
+    // each time) schedules two independent deferred setups; both then create their own
+    // setInterval pair and only the LATTER pair's ids survive in _sat.interval/_sat.tint
+    // — the earlier pair becomes uncancellable and keeps firing every 800ms/1000ms
+    // forever, including after satExit() nulls `_sat` (same class of bug as
+    // compound_game's fix, confirmed via monkey-patched setInterval/clearInterval
+    // regression testing: interval count grew 0→4→2(leaked) per race, compounding on
+    // repeat). Fix: the `starting` flag makes scheduling idempotent, an identity check
+    // (`_sat!==c`) makes a stale/superseded session's deferred setup and intervals
+    // self-cancelling no-ops instead of orphaned survivors.
+    if(s.phase==='playing'&&!s.running&&!s.starting){
+      s.starting=true;
+      const c=s;
       setTimeout(()=>{
-        if(!_sat||_sat.phase!=='playing') return;
+        if(!_sat||_sat!==c||_sat.phase!=='playing') return;
+        _sat.starting=false;
         _sat.running=true;
         const COINS=['💰','💎','⚡','🪙','💵'];
         const TRAPS=['🛍️','🍕','🎮','👗','🎲'];
         function dropItem(){
-          if(!_sat||!_sat.running) return;
+          if(!_sat||_sat!==c||!_sat.running) return;
           const field=document.getElementById('satField'); if(!field) return;
           const isSave=Math.random()>.35;
           const el=document.createElement('div');
@@ -6619,20 +6694,23 @@ video::-webkit-media-controls-play-button {
           field.appendChild(el);
           setTimeout(()=>el.remove&&el.remove(),7000);
         }
-        _sat.interval=setInterval(dropItem,800);
+        let dropIv,tintIv;
+        dropIv=setInterval(()=>{ if(!_sat||_sat!==c){clearInterval(dropIv);return;} dropItem(); },800);
+        _sat.interval=dropIv;
         let t=_sat.timer;
-        _sat.tint=setInterval(()=>{
-          if(!_sat) return;
-          if(window.state&&state.currentScreen&&state.currentScreen!=='satellite_game'){clearInterval(_sat.interval);clearInterval(_sat.tint);_sat.running=false;return;}
+        tintIv=setInterval(()=>{
+          if(!_sat||_sat!==c){clearInterval(dropIv);clearInterval(tintIv);return;}
+          if(window.state&&state.currentScreen&&state.currentScreen!=='satellite_game'){clearInterval(dropIv);clearInterval(tintIv);_sat.running=false;return;}
           t--; _sat.timer=t; document.getElementById('satTimer')&&(document.getElementById('satTimer').textContent=t+'s');
           if(t<=0){
-            clearInterval(_sat.interval); clearInterval(_sat.tint); _sat.running=false; _sat.phase='done';
+            clearInterval(dropIv); clearInterval(tintIv); _sat.running=false; _sat.phase='done';
             const won=_sat.saved>=_sat.goal;
             if(won&&window.cvAddXP) cvAddXP(30,0);
             if(won&&window.cvSave) cvSave();
             setTimeout(()=>{ goTo('satellite_game'); },500);
           }
         },1000);
+        _sat.tint=tintIv;
       },300);
     }
     const pct=Math.min(100,(_sat.saved/_sat.goal)*100);
@@ -7232,6 +7310,7 @@ video::-webkit-media-controls-play-button {
   // ready the moment real art assets exist, same spirit as the archetype colorway.
   const SKIN_TONES = ['#ffe0bd','#f1c27d','#e0ac69','#c68642','#8d5524','#5a3825'];
   const FACES = ['🙂','😊','😎','🤓','🥳','🧐'];
+  const FACE_LABELS = ['Smile','Grin','Cool','Nerdy','Party','Curious'];
   const HAIR_FREE = ['⬛ BLACK','🟫 BROWN','🟡 BLONDE','⬜ NONE'];
   window.pickSkinTone = function(i){ state.avatarSkinTone=i; if(window.cvSave)cvSave(); goTo('avatar'); };
   window.pickFace = function(i){ state.avatarFace=i; if(window.cvSave)cvSave(); goTo('avatar'); };
@@ -7346,17 +7425,17 @@ video::-webkit-media-controls-play-button {
             <div class="av-panel">
               <div class="av-ph">SKIN TONE</div>
               <p class="av-hint">Every hero looks like the kid playing. Pick the tone that looks like you.</p>
-              <div class="av-swatches">${SKIN_TONES.map((t,i)=>`<button class="av-swatch${(state.avatarSkinTone==null?2:state.avatarSkinTone)===i?' on':''}" style="--s:${t}" onclick="pickSkinTone(${i})" title="Skin tone ${i+1}"></button>`).join('')}</div>
+              <div class="av-swatches">${SKIN_TONES.map((t,i)=>`<button class="av-swatch${(state.avatarSkinTone==null?2:state.avatarSkinTone)===i?' on':''}" style="--s:${t}" onclick="pickSkinTone(${i})" title="Skin tone ${i+1}" aria-label="Skin tone ${i+1}"></button>`).join('')}</div>
             </div>
             <div class="av-panel">
               <div class="av-ph">FACE</div>
               <p class="av-hint">Choose your look.</p>
-              <div class="av-face-grid">${FACES.map((f,i)=>`<button class="av-face-chip${(state.avatarFace==null?0:state.avatarFace)===i?' on':''}" onclick="pickFace(${i})">${f}</button>`).join('')}</div>
+              <div class="av-face-grid">${FACES.map((f,i)=>`<button class="av-face-chip${(state.avatarFace==null?0:state.avatarFace)===i?' on':''}" onclick="pickFace(${i})" aria-label="${FACE_LABELS[i]}">${f}</button>`).join('')}</div>
             </div>
             <div class="av-panel">
               <div class="av-ph">HAIR <span class="av-lock">4 free · rest need Coin Points</span></div>
               <div class="av-face-grid">${HAIR_FREE.map((h,i)=>`<button class="av-face-chip${(state.avatarHair==null?0:state.avatarHair)===i?' on':''}" onclick="pickHair(${i})">${h}</button>`).join('')}
-                ${['🎨','✨','👑'].map(ic=>`<button class="av-face-chip locked" onclick="avPreviewLocked('HAIR')">${ic}<span class="av-unlock-lock">🔒</span></button>`).join('')}</div>
+                ${['🎨','✨','👑'].map(ic=>`<button class="av-face-chip locked" onclick="avPreviewLocked('HAIR')" aria-label="Unlock more hair styles">${ic}<span class="av-unlock-lock">🔒</span></button>`).join('')}</div>
             </div>
             <div class="av-panel">
               <div class="av-ph">SUIT STYLE</div>
@@ -7707,7 +7786,7 @@ video::-webkit-media-controls-play-button {
 
     const daily = (h.daily||[]).map((m,i)=>`<div class="h2mrow">
       <img class="h2mic" src="assets/ui/mis_${token}_${i+1}.png" onerror="this.style.display='none'">
-      <span class="h2mchk" onclick="this.classList.toggle('done')"></span>
+      <span class="h2mchk" role="checkbox" aria-checked="false" aria-label="${m}" onclick="this.classList.toggle('done');this.setAttribute('aria-checked', this.classList.contains('done'))"></span>
       <span class="h2mtxt">${m}</span>
     </div>`).join('');
     const weekly = (h.weekly||[]).map(q=>`<div class="h2qrow"><div class="h2qt">${q[0]}</div><div class="h2qd">${q[1]}</div></div>`).join('');
@@ -7846,9 +7925,9 @@ video::-webkit-media-controls-play-button {
         .h2gbadge.soon{background:rgba(255,255,255,.08);color:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.1)}
         .h2gbody{padding:10px 11px 12px;flex:1;display:flex;flex-direction:column;gap:5px}
         .h2gname{font-family:'Anton',sans-serif;font-size:.88rem;letter-spacing:.01em;line-height:1.2}
-        .h2gdesc{font-size:.68rem;color:rgba(255,255,255,.45);line-height:1.4;flex:1}
+        .h2gdesc{font-size:.68rem;color:rgba(255,255,255,.65);line-height:1.4;flex:1}
         .h2gflow{display:flex;align-items:center;gap:3px;margin:3px 0;font-size:.72rem}
-        .h2garr{color:rgba(255,255,255,.25);font-size:.6rem}
+        .h2garr{color:rgba(255,255,255,.55);font-size:.6rem}
         .h2gplay{width:100%;padding:7px;border:1px solid var(--hc);border-radius:9px;background:color-mix(in srgb,var(--hc) 10%,transparent);color:var(--hc);font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.1em;cursor:pointer;transition:.18s;font-weight:700}
         .h2gplay:hover{background:var(--hc);color:#000}
         .h2gplay.h2glocked{border-color:rgba(255,255,255,.1);color:rgba(255,255,255,.22);background:transparent;cursor:not-allowed}
@@ -7862,7 +7941,7 @@ video::-webkit-media-controls-play-button {
         .h2mchk{width:17px;height:17px;border-radius:5px;border:1.5px solid rgba(255,255,255,.2);cursor:pointer;flex-shrink:0;transition:.18s}
         .h2mchk.done{background:var(--hc);border-color:var(--hc)}
         .h2mtxt{font-size:.8rem;color:rgba(255,255,255,.7);line-height:1.35}
-        .h2mstreak{margin-top:10px;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.14em;color:rgba(255,255,255,.3)}
+        .h2mstreak{margin-top:10px;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.14em;color:rgba(255,255,255,.6)}
         .h2mstreak b{color:var(--hc)}
         .h2qrow{padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)}
         .h2qt{font-family:'Anton',sans-serif;font-size:.9rem;color:var(--hc);margin-bottom:2px}
@@ -7877,7 +7956,7 @@ video::-webkit-media-controls-play-button {
         .h2botbar{padding:14px 20px;background:rgba(2,9,19,.7);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:8px;flex-wrap:wrap;box-shadow:0 -4px 32px rgba(0,0,0,.4)}
         .h2bb{padding:8px 16px;border:1px solid rgba(255,255,255,.1);border-radius:999px;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.1em;cursor:pointer;color:rgba(255,255,255,.5);transition:.18s;background:rgba(255,255,255,.03)}
         .h2bb:hover{border-color:var(--hc);color:var(--hc);background:color-mix(in srgb,var(--hc) 8%,transparent)}
-        .h2master{margin-left:auto;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.18em;color:rgba(255,255,255,.2)}
+        .h2master{margin-left:auto;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.18em;color:rgba(255,255,255,.6)}
       </style>
 
       <div class="h2content">
@@ -7933,7 +8012,7 @@ video::-webkit-media-controls-play-button {
             <div style="font-size:.75rem;color:rgba(255,255,255,.55);margin-top:3px">${st.ready?'UNLOCKED — face the boss and claim your champion badge!':`Master all 7 games with ⭐⭐⭐ to unlock · ${st.done}/${st.total} done`}</div>
             ${st.ready?'':`<div style="height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:7px;max-width:220px"><div style="height:100%;width:${Math.round(st.done/st.total*100)}%;background:${hc};border-radius:3px"></div></div>`}
           </div>
-          <div style="font-family:'Orbitron',sans-serif;font-size:.56rem;letter-spacing:.12em;color:${st.ready?hc:'rgba(255,255,255,.35)'}">${st.ready?'ENTER →':'PRACTICE →'}</div>
+          <div style="font-family:'Orbitron',sans-serif;font-size:.56rem;letter-spacing:.12em;color:${st.ready?hc:'rgba(255,255,255,.6)'}">${st.ready?'ENTER →':'PRACTICE →'}</div>
         </div>`;
       })()}
 
@@ -9194,7 +9273,8 @@ video::-webkit-media-controls-play-button {
     'ss_lifetime','ss_cards','ss_badges','ss_winStreak','ss_bestStreak','ss_boosts','ss_dailyDate','ss_dailyMissions','ss_dailyProgress',
     'bo_collection','bo_ceoWall','bo_totalServed','bo_totalRevenue','bo_opEventsResolved','bo_competitorCountered','bo_crisisResolved',
     'bb_stats','bb_best',
-    'ds_arenaXP','ds_collectionBook','ds_achv','ds_citizensTotal'];
+    'ds_arenaXP','ds_collectionBook','ds_achv','ds_citizensTotal',
+    'fr_upgrades','fr_carKey'];
   // player name is interpolated into HTML templates all over the app — keep it plain text
   function cleanName(n){ return String(n||'').replace(/[<>&"'`]/g,'').trim().slice(0,20); }
   window.cvCleanName = cleanName;
@@ -10036,7 +10116,7 @@ video::-webkit-media-controls-play-button {
       .nf-card:hover .nf-card-play{opacity:1}
       .nf-card-info{padding:8px 10px 10px;background:#1a1a2e}
       .nf-card-title{font-size:.78rem;font-weight:600;color:#fff;margin-bottom:2px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
-      .nf-card-sub{font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.12em;color:rgba(255,255,255,.4)}
+      .nf-card-sub{font-family:'Orbitron',sans-serif;font-size:.45rem;letter-spacing:.12em;color:rgba(255,255,255,.6)}
       .nf-card-hub{display:inline-block;font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.1em;color:var(--cc,#14b8a6);background:rgba(var(--cr,20,184,166),.12);border:1px solid rgba(var(--cr,20,184,166),.25);padding:2px 7px;border-radius:4px;margin-top:4px}
     `;
 
@@ -10315,7 +10395,7 @@ video::-webkit-media-controls-play-button {
       .cn-cd{display:flex;gap:8px;justify-content:center;margin:12px 0 4px}
       .cn-cd-box{width:56px;padding:9px 0;border-radius:12px;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.28);text-align:center}
       .cn-cd-n{font-family:'Anton',sans-serif;font-size:1.4rem;color:#fff;line-height:1}
-      .cn-cd-l{font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.14em;color:rgba(255,255,255,.45);margin-top:3px}
+      .cn-cd-l{font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.14em;color:rgba(255,255,255,.65);margin-top:3px}
       .cn-feat3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;padding:0 13px 13px}
       .cn-feat3 div{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:9px 6px;text-align:center;font-size:.6rem;color:rgba(255,255,255,.7)}
       .cn-earned{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px 13px 13px}
@@ -10364,16 +10444,16 @@ video::-webkit-media-controls-play-button {
           <button class="cn-btn ${done?'':'red'}" style="${done?'':'background:linear-gradient(90deg,#fbbf24,#f59e0b);border:none;color:#1a0d00;font-weight:900'}" onclick="cnRemind('${remindKey}','Season 01 Finale')">${done?'✓ Reminder Set':'🔔 Set Reminder'}</button>
         </div>
         <div class="cn-feat3" style="padding-top:10px">
-          <div>📺<br>Watch Together<br><span style="font-size:.5rem;color:rgba(255,255,255,.4)">Live chat with friends</span></div>
-          <div>🎯<br>Live Trivia<br><span style="font-size:.5rem;color:rgba(255,255,255,.4)">Answer & earn</span></div>
-          <div>🎁<br>Exclusive Rewards<br><span style="font-size:.5rem;color:rgba(255,255,255,.4)">For live viewers</span></div>
+          <div>📺<br>Watch Together<br><span style="font-size:.5rem;color:rgba(255,255,255,.6)">Live chat with friends</span></div>
+          <div>🎯<br>Live Trivia<br><span style="font-size:.5rem;color:rgba(255,255,255,.6)">Answer & earn</span></div>
+          <div>🎁<br>Exclusive Rewards<br><span style="font-size:.5rem;color:rgba(255,255,255,.6)">For live viewers</span></div>
         </div>
         <div style="padding:0 13px 4px;font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.16em;color:rgba(255,255,255,.5)">UPCOMING PREMIERES</div>
         ${[['🦹','Debt Phantom Unleashed',nextPrem(5),'phantom'],['🏙️','Coin City Rises',nextPrem(19),'city']].map(u=>`
           <div style="display:flex;align-items:center;gap:10px;margin:0 13px 9px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)">
             <div style="width:44px;height:32px;border-radius:8px;background:linear-gradient(150deg,#3b2a6d,#171233);display:flex;align-items:center;justify-content:center;font-size:1rem">${u[0]}</div>
             <div style="flex:1;min-width:0"><div style="font-size:.74rem;font-weight:700;color:#fff">${u[1]}</div><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.1em;color:rgba(255,255,255,.4)">${premFmt(u[2]).toUpperCase()}</div></div>
-            <button class="cn-see" onclick="cnRemind('${u[3]}','${u[1]}')">${window._cnRemind[u[3]]?'✓':'🔔'}</button>
+            <button class="cn-see" onclick="cnRemind('${u[3]}','${u[1]}')" aria-label="${window._cnRemind[u[3]]?'Reminder set':'Set reminder'}">${window._cnRemind[u[3]]?'✓':'🔔'}</button>
           </div>`).join('')}
         ${big?'':'<div style="height:6px"></div>'}
       </div>`; };
@@ -10420,10 +10500,10 @@ video::-webkit-media-controls-play-button {
           </div>
           <div class="cn-panel-h" style="padding-top:14px;font-size:.92rem">You Earned!</div>
           <div class="cn-earned">
-            <div><div style="font-size:1.3rem">🪙</div><div style="font-family:'Anton',sans-serif;font-size:.8rem;color:#fbbf24">+${picked?275:250}</div><div style="font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">COINS</div></div>
-            <div style="${picked?'':'opacity:.45'}"><div style="font-size:1.3rem">🦸</div><div style="font-family:'Anton',sans-serif;font-size:.8rem;color:#a78bfa">${picked?'Pluto Cape':'Locked'}</div><div style="font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">NEW ITEM</div></div>
-            <div style="${earnedBadges.length?'':'opacity:.45'}"><div style="font-size:1.3rem">🛡️</div><div style="font-family:'Anton',sans-serif;font-size:.8rem;color:#34d399">${earnedBadges.length?'Saver Badge':'Locked'}</div><div style="font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">XP +100</div></div>
-            <div style="cursor:pointer" onclick="closeVideo&&closeVideo();playDistrictGame&&playDistrictGame('${squad.hub||'guardian'}',0)"><div style="font-size:1.3rem">▶</div><div style="font-family:'Anton',sans-serif;font-size:.8rem;color:#7dd3fc">Unlocks</div><div style="font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">NEW MISSION</div></div>
+            <div><div style="font-size:1.3rem">🪙</div><div style="font-family:'Anton',sans-serif;font-size:.8rem;color:#fbbf24">+${picked?275:250}</div><div style="font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.1em;color:rgba(255,255,255,.6)">COINS</div></div>
+            <div style="${picked?'':'opacity:.45'}"><div style="font-size:1.3rem">🦸</div><div style="font-family:'Anton',sans-serif;font-size:.8rem;color:#a78bfa">${picked?'Pluto Cape':'Locked'}</div><div style="font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.1em;color:rgba(255,255,255,.6)">NEW ITEM</div></div>
+            <div style="${earnedBadges.length?'':'opacity:.45'}"><div style="font-size:1.3rem">🛡️</div><div style="font-family:'Anton',sans-serif;font-size:.8rem;color:#34d399">${earnedBadges.length?'Saver Badge':'Locked'}</div><div style="font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.1em;color:rgba(255,255,255,.6)">XP +100</div></div>
+            <div style="cursor:pointer" onclick="closeVideo&&closeVideo();playDistrictGame&&playDistrictGame('${squad.hub||'guardian'}',0)"><div style="font-size:1.3rem">▶</div><div style="font-family:'Anton',sans-serif;font-size:.8rem;color:#7dd3fc">Unlocks</div><div style="font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.1em;color:rgba(255,255,255,.6)">NEW MISSION</div></div>
           </div>
         </div>
         <!-- RIGHT: premieres -->
@@ -10439,7 +10519,7 @@ video::-webkit-media-controls-play-button {
               ${[['🎬','How the Season Was Made','6:42','Animation','#7c3aed'],['🎙️','Meet the Voice Cast','5:16','Voice Actors','#db2777'],['🐶','Drawing Pluto','3:20','Concept Art','#0891b2'],['📐','Storyboard to Scene','4:11','Storyboards','#d97706']].map(b=>`
                 <div class="cn-bts-card" data-type="${b[3]}" onclick="cineToast('🎬 “${b[1]}” premieres with Season 01 — stay tuned!')">
                   <div style="height:82px;background:linear-gradient(150deg,${b[4]}55,#130e2c);display:flex;align-items:center;justify-content:center;font-size:1.7rem;position:relative">${b[0]}<span style="position:absolute;right:6px;bottom:5px;font-family:'Orbitron',sans-serif;font-size:.42rem;background:rgba(0,0,0,.6);padding:2px 6px;border-radius:5px;color:#fff">${b[2]}</span></div>
-                  <div style="padding:7px 9px"><div style="font-size:.68rem;font-weight:700;color:#fff">${b[1]}</div><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.4);margin-top:2px">${b[3].toUpperCase()}</div></div>
+                  <div style="padding:7px 9px"><div style="font-size:.68rem;font-weight:700;color:#fff">${b[1]}</div><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-top:2px">${b[3].toUpperCase()}</div></div>
                 </div>`).join('')}
             </div>
           </div>
@@ -10465,7 +10545,7 @@ video::-webkit-media-controls-play-button {
                 ${crown?'<div style="position:absolute;top:-8px;right:12px;font-family:Orbitron,sans-serif;font-size:.4rem;letter-spacing:.12em;background:linear-gradient(90deg,#fbbf24,#f59e0b);color:#1a0d00;padding:3px 9px;border-radius:6px;font-weight:900">👑 BEST VALUE</div>':''}
                 <div style="display:flex;align-items:baseline;justify-content:space-between">
                   <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.14em;color:#fff">${pl.n}</div>
-                  <div style="font-family:'Anton',sans-serif;font-size:1.25rem;color:${paid?'#fbbf24':'#fff'}">${pl.p}<span style="font-size:.62rem;color:rgba(255,255,255,.45)"> ${pl.per}</span></div>
+                  <div style="font-family:'Anton',sans-serif;font-size:1.25rem;color:${paid?'#fbbf24':'#fff'}">${pl.p}<span style="font-size:.62rem;color:rgba(255,255,255,.6)"> ${pl.per}</span></div>
                 </div>
                 <div style="margin:7px 0 9px">${pl.f.slice(0,3).map(x=>`<div style="font-size:.7rem;color:rgba(255,255,255,.65);margin:3px 0">✓ ${x}</div>`).join('')}</div>
                 <button class="cn-btn" style="width:100%;${paid?'background:linear-gradient(90deg,#fbbf24,#f59e0b);border:none;color:#1a0d00;font-weight:900':''}" onclick="cineToast('${pl.n==='Free'?'You are on the Free plan 🎬':'Subscriptions handled by a parent — ask them to upgrade! 💛'}')">${pl.n==='Free'?'WATCH FREE':pl.n==='Premium'?'TRY PREMIUM':'GO ANNUAL'}</button>
@@ -10479,7 +10559,7 @@ video::-webkit-media-controls-play-button {
           <div style="display:flex;align-items:center;gap:11px;margin:10px 13px 0;padding:11px;border-radius:13px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)">
             <div style="width:44px;height:44px;border-radius:50%;flex:0 0 auto;background:#241b4d center/cover url('assets/characters/${(window.state&&state.archetype)||'guardian'}_portrait.png');border:2px solid #a78bfa"></div>
             <div style="flex:1;min-width:0"><div style="font-weight:800;color:#fff;font-size:.86rem">${(window.state&&state.playerName)||'Hero'}</div><div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.1em;color:rgba(255,255,255,.4)">AGE ${(window.state&&state.age)||9}</div></div>
-            <div style="text-align:right"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.4)">THIS WEEK</div><div style="font-size:.74rem;color:#7dd3fc;font-weight:800">${(seen*6)>=60?Math.floor(seen*6/60)+'h '+(seen*6%60)+'m':(seen*6)+'m'} · ${seen} eps</div></div>
+            <div style="text-align:right"><div style="font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.6)">THIS WEEK</div><div style="font-size:.74rem;color:#7dd3fc;font-weight:800">${(seen*6)>=60?Math.floor(seen*6/60)+'h '+(seen*6%60)+'m':(seen*6)+'m'} · ${seen} eps</div></div>
           </div>
           <div style="padding:10px 13px 2px;font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.16em;color:rgba(255,255,255,.5)">LEARNING PROGRESS</div>
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px 13px">
@@ -10492,7 +10572,7 @@ video::-webkit-media-controls-play-button {
             if(earnedBadges.length) a.push(['🎖️','Badge: '+earnedBadges[earnedBadges.length-1],'Today']);
             if(chMap['choiceA']) a.push(['⚡','Interactive: Bahati saved the money!','Today']);
             a.push(['⭐','Joined Coinaverse Cinema','This week']);
-            return a.slice(0,4).map(x=>`<div class="cn-act"><span>${x[0]}</span><span style="flex:1">${x[1]}</span><span style="font-size:.58rem;color:rgba(255,255,255,.35)">${x[2]}</span></div>`).join('');})()}
+            return a.slice(0,4).map(x=>`<div class="cn-act"><span>${x[0]}</span><span style="flex:1">${x[1]}</span><span style="font-size:.58rem;color:rgba(255,255,255,.6)">${x[2]}</span></div>`).join('');})()}
           <div style="padding:8px 13px 14px"><button class="cn-btn" style="width:100%;background:rgba(167,139,250,.16);border-color:rgba(167,139,250,.4)" onclick="cineTab('rewards')">View Full Report</button></div>
         </div>
       </div>
@@ -10509,7 +10589,7 @@ video::-webkit-media-controls-play-button {
       body=`<div class="nf-body" style="padding-top:14px">
         <div style="display:flex;align-items:center;gap:12px;padding:0 16px">
           <div class="cn-sect" style="padding:0">🎬 ALL EPISODES · ${CINE.length}</div>
-          <input id="cnSearch" oninput="cnSearch(this.value)" placeholder="🔍 Search episodes…" style="flex:1;max-width:280px;margin-left:auto;padding:9px 14px;border-radius:999px;border:1px solid rgba(167,139,250,.3);background:rgba(255,255,255,.05);color:#fff;font-size:.78rem;outline:none">
+          <input id="cnSearch" oninput="cnSearch(this.value)" placeholder="🔍 Search episodes…" aria-label="Search episodes" style="flex:1;max-width:280px;margin-left:auto;padding:9px 14px;border-radius:999px;border:1px solid rgba(167,139,250,.3);background:rgba(255,255,255,.05);color:#fff;font-size:.78rem">
         </div>
         <div class="cn-grid" style="padding:12px 16px 30px">${CINE.map(e=>nfCard(e,CINE.indexOf(e))).join('')}</div></div>`;
     } else if(tab==='collections'){
@@ -10604,9 +10684,9 @@ video::-webkit-media-controls-play-button {
         <div class="nf-topbar">
           <button class="nf-back" onclick="goTo('home')">← HOME</button>
           <div class="nf-logo" style="color:#fbbf24">🎬 COINAVERSE <span style="color:#a78bfa">CINEMA</span></div>
-          <button class="nf-back" style="padding:7px 11px" onclick="window._cineTab='episodes';goTo('cinema');setTimeout(()=>{const s=document.getElementById('cnSearch');if(s)s.focus();},120)">🔍</button>
+          <button class="nf-back" style="padding:7px 11px" onclick="window._cineTab='episodes';goTo('cinema');setTimeout(()=>{const s=document.getElementById('cnSearch');if(s)s.focus();},120)" aria-label="Search episodes">🔍</button>
           <div class="nf-coins">🪙 ${coins}</div>
-          <div onclick="cineTab('rewards')" style="width:34px;height:34px;border-radius:50%;cursor:pointer;background:#241b4d center/cover url('assets/characters/${(window.state&&state.archetype)||'guardian'}_portrait.png');border:2px solid #fbbf24"></div>
+          <div onclick="cineTab('rewards')" aria-label="Rewards report" style="width:34px;height:34px;border-radius:50%;cursor:pointer;background:#241b4d center/cover url('assets/characters/${(window.state&&state.archetype)||'guardian'}_portrait.png');border:2px solid #fbbf24"></div>
         </div>
         <div class="cn-nav">${TABS.map(([k,l])=>`<button class="cn-tab ${tab===k?'on':''}" onclick="cineTab('${k}')">${l}</button>`).join('')}</div>
       </div>
@@ -11277,59 +11357,59 @@ window.playDistrictGame = function(token, i) {
 
   </script>
   <!-- Real playable games (canvas) — loaded after main script, override the stub SCREENS.game_* -->
-  <script src="assets/games/lessonspecs.js?v=103"></script>
-  <script src="assets/games/lessondeck.js?v=103"></script>
-  <script src="assets/games/moneycatcher.js?v=103"></script>
-  <script src="assets/games/goalquest.js?v=103"></script>
-  <script src="assets/games/stocksurge.js?v=103"></script>
-  <script src="assets/games/bizop.js?v=103"></script>
-  <script src="assets/games/blockbuilder.js?v=103"></script>
-  <script src="assets/games/debtsurv.js?v=103"></script>
-  <script src="assets/games/ficoracer.js?v=103"></script>
-  <script src="assets/games/creditcore.js?v=103"></script>
-  <script src="assets/games/scoretower.js?v=103"></script>
-  <script src="assets/games/borrowingbay.js?v=103"></script>
-  <script src="assets/games/trustexchange.js?v=103"></script>
-  <script src="assets/games/repaymentrunway.js?v=103"></script>
-  <script src="assets/games/creditlimitlab.js?v=103"></script>
-  <script src="assets/games/reportobservatory.js?v=103"></script>
-  <script src="assets/games/inv_academy.js?v=103"></script>
-  <script src="assets/games/inv_assetrealm.js?v=103"></script>
-  <script src="assets/games/inv_dividend.js?v=103"></script>
-  <script src="assets/games/inv_portfolio.js?v=103"></script>
-  <script src="assets/games/inv_research.js?v=103"></script>
-  <script src="assets/games/inv_riskcontrol.js?v=103"></script>
-  <script src="assets/games/inv_stockarena.js?v=103"></script>
-  <script src="assets/games/bud_billgrid.js?v=103"></script>
-  <script src="assets/games/bud_cashflow.js?v=103"></script>
-  <script src="assets/games/bud_efflab.js?v=103"></script>
-  <script src="assets/games/bud_goaltower.js?v=103"></script>
-  <script src="assets/games/bud_needswants.js?v=103"></script>
-  <script src="assets/games/bud_plaza.js?v=103"></script>
-  <script src="assets/games/bud_vault.js?v=103"></script>
-  <script src="assets/games/bsv_aiinnovationlabs.js?v=103"></script>
-  <script src="assets/games/bsv_bitstreammarket.js?v=103"></script>
-  <script src="assets/games/bsv_blockchainblvd.js?v=103"></script>
-  <script src="assets/games/bsv_cryptocrossing.js?v=103"></script>
-  <script src="assets/games/bsv_futuretrendscmd.js?v=103"></script>
-  <script src="assets/games/bsv_nftnexus.js?v=103"></script>
-  <script src="assets/games/bsv_volatilityvortex.js?v=103"></script>
-  <script src="assets/games/ll_branding_district.js?v=103"></script>
-  <script src="assets/games/ll_idea_incubator.js?v=103"></script>
-  <script src="assets/games/ll_investor_pitch.js?v=103"></script>
-  <script src="assets/games/ll_marketing_metropolis.js?v=103"></script>
-  <script src="assets/games/ll_product_dev_lab.js?v=103"></script>
-  <script src="assets/games/ll_scaling_center.js?v=103"></script>
-  <script src="assets/games/ll_startup_street.js?v=103"></script>
-  <script src="assets/games/ddt_discovery.js?v=103"></script>
-  <script src="assets/games/ddt_gym.js?v=103"></script>
-  <script src="assets/games/ddt_habits.js?v=103"></script>
-  <script src="assets/games/ddt_lab.js?v=103"></script>
-  <script src="assets/games/ddt_plaza.js?v=103"></script>
-  <script src="assets/games/ddt_rebuild.js?v=103"></script>
-  <script src="assets/games/ddt_resilience.js?v=103"></script>
-  <script src="assets/games/arccfg.js?v=103"></script>
-  <script src="assets/games/arcade.js?v=103"></script>
-  <script src="assets/games/capstones.js?v=103"></script>
+  <script src="assets/games/lessonspecs.js?v=112"></script>
+  <script src="assets/games/lessondeck.js?v=112"></script>
+  <script src="assets/games/moneycatcher.js?v=112"></script>
+  <script src="assets/games/goalquest.js?v=112"></script>
+  <script src="assets/games/stocksurge.js?v=112"></script>
+  <script src="assets/games/bizop.js?v=112"></script>
+  <script src="assets/games/blockbuilder.js?v=112"></script>
+  <script src="assets/games/debtsurv.js?v=112"></script>
+  <script src="assets/games/ficoracer.js?v=113"></script>
+  <script src="assets/games/creditcore.js?v=112"></script>
+  <script src="assets/games/scoretower.js?v=112"></script>
+  <script src="assets/games/borrowingbay.js?v=112"></script>
+  <script src="assets/games/trustexchange.js?v=112"></script>
+  <script src="assets/games/repaymentrunway.js?v=112"></script>
+  <script src="assets/games/creditlimitlab.js?v=112"></script>
+  <script src="assets/games/reportobservatory.js?v=112"></script>
+  <script src="assets/games/inv_academy.js?v=112"></script>
+  <script src="assets/games/inv_assetrealm.js?v=112"></script>
+  <script src="assets/games/inv_dividend.js?v=112"></script>
+  <script src="assets/games/inv_portfolio.js?v=112"></script>
+  <script src="assets/games/inv_research.js?v=112"></script>
+  <script src="assets/games/inv_riskcontrol.js?v=112"></script>
+  <script src="assets/games/inv_stockarena.js?v=112"></script>
+  <script src="assets/games/bud_billgrid.js?v=112"></script>
+  <script src="assets/games/bud_cashflow.js?v=112"></script>
+  <script src="assets/games/bud_efflab.js?v=112"></script>
+  <script src="assets/games/bud_goaltower.js?v=112"></script>
+  <script src="assets/games/bud_needswants.js?v=112"></script>
+  <script src="assets/games/bud_plaza.js?v=112"></script>
+  <script src="assets/games/bud_vault.js?v=112"></script>
+  <script src="assets/games/bsv_aiinnovationlabs.js?v=112"></script>
+  <script src="assets/games/bsv_bitstreammarket.js?v=112"></script>
+  <script src="assets/games/bsv_blockchainblvd.js?v=112"></script>
+  <script src="assets/games/bsv_cryptocrossing.js?v=112"></script>
+  <script src="assets/games/bsv_futuretrendscmd.js?v=112"></script>
+  <script src="assets/games/bsv_nftnexus.js?v=112"></script>
+  <script src="assets/games/bsv_volatilityvortex.js?v=112"></script>
+  <script src="assets/games/ll_branding_district.js?v=112"></script>
+  <script src="assets/games/ll_idea_incubator.js?v=112"></script>
+  <script src="assets/games/ll_investor_pitch.js?v=112"></script>
+  <script src="assets/games/ll_marketing_metropolis.js?v=112"></script>
+  <script src="assets/games/ll_product_dev_lab.js?v=112"></script>
+  <script src="assets/games/ll_scaling_center.js?v=112"></script>
+  <script src="assets/games/ll_startup_street.js?v=112"></script>
+  <script src="assets/games/ddt_discovery.js?v=112"></script>
+  <script src="assets/games/ddt_gym.js?v=112"></script>
+  <script src="assets/games/ddt_habits.js?v=112"></script>
+  <script src="assets/games/ddt_lab.js?v=112"></script>
+  <script src="assets/games/ddt_plaza.js?v=112"></script>
+  <script src="assets/games/ddt_rebuild.js?v=112"></script>
+  <script src="assets/games/ddt_resilience.js?v=112"></script>
+  <script src="assets/games/arccfg.js?v=112"></script>
+  <script src="assets/games/arcade.js?v=112"></script>
+  <script src="assets/games/capstones.js?v=112"></script>
 </body>
 </html>

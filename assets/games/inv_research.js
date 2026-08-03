@@ -385,7 +385,7 @@
 
   <!-- TOP BAR -->
   <div id="rc_topbar" style="position:relative;z-index:2;display:flex;align-items:center;gap:10px;padding:10px 14px 8px;background:rgba(6,13,22,.85);backdrop-filter:blur(10px);border-bottom:1px solid ${PANEL_BOR};flex-shrink:0;">
-    <button id="rc_back" onclick="window.inv_researchExit()" style="background:none;border:1px solid #1a3a2a;color:${ACCENT};font-size:18px;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:inherit;">←</button>
+    <button id="rc_back" onclick="window.inv_researchExit()" aria-label="Back to hub" style="background:none;border:1px solid #1a3a2a;color:${ACCENT};font-size:18px;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:inherit;">←</button>
     <div style="flex:1;min-width:0;">
       <div style="font-family:'Orbitron','Inter',sans-serif;font-size:11px;color:${ACCENT};letter-spacing:2px;text-transform:uppercase;">Investopia Hub</div>
       <div style="font-family:'Orbitron','Inter',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Research Core</div>
@@ -563,6 +563,15 @@
     return HOLD_COL;
   }
 
+  // Colorblind-safe backup for the Debt tile (metricArrow() semantics are
+  // inverted for debt: low/good debt reads as trending down, high/bad debt
+  // reads as trending up) — so color is never the only signal on this metric.
+  function debtArrow(dir) {
+    if (dir > 0) return '▼';
+    if (dir < 0) return '▲';
+    return '─';
+  }
+
   function renderCard() {
     const main = q('#rc_main');
     if (!main || !G) return;
@@ -579,7 +588,7 @@
     const metrics = [
       { label: 'Revenue', value: co.revenue, color: metricColor(co.revenueDir), arrow: metricArrow(co.revenueDir) },
       { label: 'Earnings', value: co.earnings, color: metricColor(co.earningsDir), arrow: metricArrow(co.earningsDir) },
-      { label: 'Debt', value: co.debt, color: debtColor(co.debtDir), arrow: '' },
+      { label: 'Debt', value: co.debt, color: debtColor(co.debtDir), arrow: debtArrow(co.debtDir) },
       { label: 'Growth', value: co.growth, color: metricColor(co.growthDir), arrow: '' },
     ];
 

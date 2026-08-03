@@ -297,7 +297,7 @@
       <!-- Random-event banner (GDD §6.7) — telegraphed, always counterable -->
       <button id="boEventBtn" onclick="boResolveEvent()" style="position:absolute;left:50%;top:184px;transform:translateX(-50%);z-index:7;display:none;padding:9px 16px;border:2px solid #fbbf24;border-radius:13px;background:rgba(20,12,38,.92);color:#fff;font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.05em;font-weight:900;cursor:pointer;box-shadow:0 0 22px rgba(251,191,36,.6);animation:boEventPop .35s cubic-bezier(.2,1.4,.4,1);max-width:88vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></button>
 
-      <canvas id="boCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none"></canvas>
+      <canvas id="boCanvas" aria-label="Shop counter — tap a waiting customer, or press 1 to 5, to serve them" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none"></canvas>
 
       <!-- Bottom quick-actions bar (GDD §5.4) -->
       <div id="boActions" style="position:absolute;left:0;right:0;bottom:60px;z-index:7;display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;padding:0 12px">
@@ -334,7 +334,7 @@
       <div style="display:flex;justify-content:center;margin-bottom:6px">${ceoAvatarHtml(72,16)}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:10px">${ceoName.toUpperCase()}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:#c084fc;margin-bottom:2px">CHOOSE YOUR BUSINESS</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.16em;color:rgba(255,255,255,.4);margin-bottom:10px">LV ${LV+1}/3 · ${L().theme}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.16em;color:rgba(255,255,255,.5);margin-bottom:10px">LV ${LV+1}/3 · ${L().theme}</div>
       <p style="color:rgba(255,255,255,.6);margin:0 0 16px;font-size:.82rem">Serve every customer before they lose patience. Hit <b style="color:#34d399">$${L().goal}</b> revenue in ${L().round}s!</p>
       <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">${keys.map(card).join('')}</div>
     </div>`;
@@ -380,13 +380,19 @@
     const ts=e=>{ if(e.touches[0]){ hit(e.touches[0].clientX,e.touches[0].clientY); e.preventDefault(); } };
     cv.addEventListener('mousedown',md);
     cv.addEventListener('touchstart',ts,{passive:false});
-    // keyboard: R restock, 1-5 serve nth waiting customer, E resolve event, T team, L launch
+    // keyboard: R restock, 1-5 serve nth waiting customer, E resolve event, T team (toggle open/close),
+    // L launch, Enter/Space dismiss the Knowledge Gate. The gate fully pauses play (phase='gate') and
+    // previously had NO keyboard dismissal at all (mirrors the "GOT IT" tap) — a keyboard-only player
+    // would hit a hard, undocumented wall every ~18s. Team also had no keyboard close (mirrors the
+    // existing CLOSE button) — same trap, just optional/L2+ instead of universal.
     const kd=e=>{
-      if(!G||G.phase!=='play') return;
+      if(!G) return;
+      if(G.phase==='gate'){ if(e.key==='Enter'||e.key===' '||e.key==='Spacebar'){ e.preventDefault(); boGateGo(); } return; }
+      if(G.phase!=='play') return;
       if(e.key==='r'||e.key==='R'){ boDoRestock(); }
       else if(e.key>='1'&&e.key<='5'){ const idx=+e.key-1; const w=G.queue.filter(c=>c.state==='wait'); if(w[idx]) serve(w[idx]); }
       else if(e.key==='e'||e.key==='E'){ if(G.activeEvent && !G.activeEvent.def.auto) boResolveEvent(); }
-      else if(e.key==='t'||e.key==='T'){ if(LV>=1) boOpenTeam(); }
+      else if(e.key==='t'||e.key==='T'){ if(LV>=1){ const tm=document.getElementById('boTeam'); if(tm&&tm.style.display==='flex') boCloseTeam(); else boOpenTeam(); } }
       else if(e.key==='l'||e.key==='L'){ if(LV>=2) boLaunch(); }
     };
     window.addEventListener('keydown',kd);
@@ -616,7 +622,7 @@
 
   function update(dt,W,H){
     G.time-=dt; if(G.time<=0){ G.time=0; return end(); }
-    const tEl=document.getElementById('boTime'); if(tEl){ tEl.textContent=Math.ceil(G.time)+'s'; tEl.style.color=G.time<15?'#f87171':'#fbbf24'; }
+    const tEl=document.getElementById('boTime'); if(tEl){ const urgent=G.time<15; tEl.textContent=(urgent?'⏰':'')+Math.ceil(G.time)+'s'; tEl.style.color=urgent?'#f87171':'#fbbf24'; }
     // KNOWLEDGE GATE every ~18s — pauses everything (customers/patience/timer freeze)
     G.gateT-=dt; if(G.gateT<=0){ return openGate(); }
     const prog=1-(G.time/L().round);
@@ -681,7 +687,7 @@
     setTxt('boRestockCostTxt',L().restockCost);
     const rb=document.getElementById('boRevBar'); if(rb) rb.style.width=Math.min(100,G.revenue/L().goal*100)+'%';
     const hb=document.getElementById('boHappyBar'); if(hb) hb.style.width=G.happy+'%';
-    const sc=document.getElementById('boStock'); if(sc) sc.style.color = G.stock<=2 ? '#f87171' : '#fbbf24';
+    const sc=document.getElementById('boStock'); if(sc){ const low=G.stock<=2; sc.style.color = low ? '#f87171' : '#fbbf24'; sc.textContent = (low?'⚠':'')+G.stock; }
     // restock button glow when low
     const rbtn=document.getElementById('boRestock');
     if(rbtn){ const lit=G.stock<=3||G.restockPulse>0; rbtn.style.boxShadow= lit ? '0 0 26px rgba(251,191,36,.85),0 6px 22px rgba(168,85,247,.5)' : '0 6px 22px rgba(168,85,247,.5)'; rbtn.style.transform= lit?'scale(1.05)':'none'; }
@@ -810,10 +816,14 @@
     ctx.globalAlpha=1;
   }
 
+  // screen-shake amplitude is read live each frame (not cached) so a user toggling their OS setting
+  // mid-match takes effect immediately; dampened rather than removed so the hit still reads as impactful.
+  function prefersReducedMotion(){ try{ return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }catch(e){ return false; } }
   function render(ctx,W,H,now){
     const counterY=QY*H+44;
     _bzBg(ctx,W,H,counterY,now);
-    let ox=0,oy=0; if(G.shake>0){ ox=(Math.random()-.5)*G.shake*20; oy=(Math.random()-.5)*G.shake*20; }
+    const shakeAmp=prefersReducedMotion()?4:20;
+    let ox=0,oy=0; if(G.shake>0){ ox=(Math.random()-.5)*G.shake*shakeAmp; oy=(Math.random()-.5)*G.shake*shakeAmp; }
     ctx.save(); ctx.translate(ox,oy);
     if(G.flash>0){ ctx.fillStyle='rgba(251,191,36,'+(G.flash*0.22)+')'; ctx.fillRect(0,0,W,H); }
 
@@ -985,7 +995,7 @@
       </style>
       <div style="font-size:3rem;margin-bottom:8px${won?';animation:boIconPulse 1.1s ease-in-out infinite':''}">${won?(isFinal?'👑':'🏆'):'💼'}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.2em;color:${won?'#fbbf24':'#c084fc'};margin-bottom:4px">${title}</div>
-      <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.16em;color:rgba(255,255,255,.35);margin-bottom:6px">${L().theme}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.42rem;letter-spacing:.16em;color:rgba(255,255,255,.5);margin-bottom:6px">${L().theme}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:8px">${sub}</div>
       <h1 style="font-family:'Anton',sans-serif;font-size:2.2rem;margin:0 0 6px;color:#fff">$${score}</h1>
       ${achHtml}

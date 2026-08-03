@@ -160,7 +160,7 @@
       <div style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;padding:14px 16px;gap:10px;background:linear-gradient(180deg,rgba(3,4,12,.9) 60%,transparent)">
         <button onclick="creditCoreExit()" style="padding:7px 13px;border:1px solid rgba(56,189,248,.35);border-radius:9px;background:rgba(56,189,248,.1);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;white-space:nowrap">← HUB</button>
         <div id="ccTitle" style="font-family:'Orbitron',sans-serif;font-size:.65rem;letter-spacing:.18em;color:#38bdf8;flex:1;text-align:center;text-shadow:0 0 12px rgba(56,189,248,.5)">💳 CREDIT CORE · LV 1</div>
-        <button onclick="ccShowHelp()" title="How to play" style="padding:7px 10px;border:1px solid rgba(56,189,248,.35);border-radius:9px;background:rgba(56,189,248,.1);color:#7dd3fc;cursor:pointer;font-size:.8rem">❓</button>
+        <button onclick="ccShowHelp()" title="How to play" aria-label="How to play" style="padding:7px 10px;border:1px solid rgba(56,189,248,.35);border-radius:9px;background:rgba(56,189,248,.1);color:#7dd3fc;cursor:pointer;font-size:.8rem">❓</button>
         <div id="ccScoreDisplay" style="font-family:'Orbitron',sans-serif;font-size:.82rem;color:#fbbf24;min-width:70px;text-align:right;text-shadow:0 0 10px rgba(251,191,36,.4)">0</div>
       </div>
 

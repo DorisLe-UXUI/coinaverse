@@ -126,7 +126,7 @@
       <div id="cllBar" style="position:absolute;top:0;left:0;right:0;z-index:5;padding:10px 14px;display:flex;align-items:center;gap:10px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent)">
         <button onclick="cllExit()" style="padding:6px 13px;border:1px solid rgba(56,189,248,.35);border-radius:8px;background:rgba(56,189,248,.08);color:#38bdf8;font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;cursor:pointer;flex-shrink:0">← HUB</button>
         <div id="cllTitle" style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.2em;color:#06b6d4;flex:1;text-align:center;text-shadow:0 0 18px rgba(6,182,212,.6)">CREDIT LIMIT LAB · LV 1/3</div>
-        <button onclick="cllShowHelp()" title="How to play" style="padding:6px 10px;border:1px solid rgba(56,189,248,.35);border-radius:8px;background:rgba(56,189,248,.08);color:#38bdf8;cursor:pointer;font-size:.75rem;flex-shrink:0">❓</button>
+        <button onclick="cllShowHelp()" title="How to play" aria-label="How to play" style="padding:6px 10px;border:1px solid rgba(56,189,248,.35);border-radius:8px;background:rgba(56,189,248,.08);color:#38bdf8;cursor:pointer;font-size:.75rem;flex-shrink:0">❓</button>
         <div id="cllScore" style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:#fbbf24;min-width:60px;text-align:right;font-variant-numeric:tabular-nums">0</div>
         <div id="cllTime" style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:#e2e8f0;min-width:36px;text-align:right;font-variant-numeric:tabular-nums">90s</div>
       </div>

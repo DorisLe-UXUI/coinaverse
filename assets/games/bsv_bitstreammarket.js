@@ -1208,17 +1208,19 @@
   function renderHUD() {
     const profit = G.totalProfit;
     const profitColor = profit >= 0 ? GREEN : RED;
-    setEl('bm-wallet', '$' + fmtNum(Math.round(G.wallet)));
     setEl('bm-trades', String(G.tradesMade));
     const profitEl = document.getElementById('bm-profit');
     if (profitEl) {
-      profitEl.textContent = (profit >= 0 ? '+' : '') + '$' + fmtNum(Math.round(Math.abs(profit)));
+      profitEl.textContent = (profit >= 0 ? '+' : '-') + '$' + fmtNum(Math.round(Math.abs(profit)));
       profitEl.style.color = profitColor;
     }
-    // Wallet color based on health
+    // Wallet color based on health (icon backup alongside color so a low/critical
+    // wallet doesn't rely on color perception alone)
     const walletEl = document.getElementById('bm-wallet');
     if (walletEl) {
       const ratio = G.wallet / G.startWallet;
+      const walletIcon = ratio >= 1 ? '' : ratio > 0.5 ? '⚠ ' : '📉 ';
+      walletEl.textContent = walletIcon + '$' + fmtNum(Math.round(G.wallet));
       walletEl.style.color = ratio >= 1 ? AC : ratio > 0.5 ? GOLD : RED;
     }
   }

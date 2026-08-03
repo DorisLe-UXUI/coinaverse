@@ -173,11 +173,11 @@
           // (gameStars/gameLevels are the shared, game-wide — not per-level — cvAwardGame convention,
           // so they're only used for the lock gate + the single "best rating ever" line above, never per-card.)
           const bestScore=s.bb_best && typeof s.bb_best[i]==='number' ? s.bb_best[i] : null;
-          const scoreFooter = bestScore!=null ? `<div style="margin-top:8px;font-size:.5rem;color:rgba(255,255,255,.45)">PERSONAL BEST ${bestScore} PTS</div>` : '';
+          const scoreFooter = bestScore!=null ? `<div style="margin-top:8px;font-size:.5rem;color:rgba(255,255,255,.55)">PERSONAL BEST ${bestScore} PTS</div>` : '';
           return `<div onclick="${locked?'':'bbStartLevel('+i+')'}" style="width:250px;padding:20px 18px;border-radius:18px;border:1.5px solid ${locked?'rgba(255,255,255,.12)':Lv.col};background:linear-gradient(165deg,rgba(10,16,36,.95),rgba(4,8,20,.98));cursor:${locked?'default':'pointer'};text-align:center;position:relative;transition:transform .2s" ${locked?'':'onmouseover="this.style.transform=\'translateY(-4px)\'" onmouseout="this.style.transform=\'none\'"'}>
             <div style="font-size:2.3rem;margin-bottom:6px;filter:${locked?'grayscale(1) opacity(.4)':'none'}">${Lv.icon}</div>
             <div style="font-family:'Orbitron',sans-serif;font-size:.82rem;letter-spacing:.08em;color:${locked?'rgba(255,255,255,.35)':Lv.col}">${Lv.name}</div>
-            <div style="font-family:'Orbitron',sans-serif;font-size:.44rem;letter-spacing:.13em;color:rgba(255,255,255,.4);margin:5px 0 8px">${Lv.sub}</div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:.44rem;letter-spacing:.13em;color:${locked?'rgba(255,255,255,.4)':'rgba(255,255,255,.7)'};margin:5px 0 8px">${Lv.sub}</div>
             <div style="font-size:.72rem;line-height:1.5;color:rgba(255,255,255,${locked?'.3':'.65'})">${Lv.desc}</div>
             <div style="margin-top:10px;font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.1em;color:#fbbf24">${Lv.lanes} CHAIN${Lv.lanes>1?'S':''} · ${Lv.blocksGoal} BLOCKS TO WIN</div>
             ${locked?`<div style="position:absolute;top:10px;right:12px;font-size:1rem">🔒</div><div style="margin-top:8px;font-size:.55rem;color:rgba(255,255,255,.4)">Win ${LEVELS[i-1].name} to unlock</div>`:scoreFooter}
@@ -186,10 +186,10 @@
       <div style="max-width:640px;width:100%;background:rgba(56,189,248,.06);border:1px solid rgba(56,189,248,.22);border-radius:14px;padding:12px 16px">
         <div style="font-family:'Orbitron',sans-serif;font-size:.46rem;letter-spacing:.16em;color:#7dd3fc;margin-bottom:8px">📖 GUARDIAN LOG · LIFETIME MILESTONES</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
-          ${MS.map(m=>`<div style="flex:1;min-width:150px;font-size:.68rem;color:rgba(255,255,255,.75)">${m[0]} ${m[1]}<br><b style="color:#fff">${m[2]}</b> <span style="color:rgba(255,255,255,.4)">/ ${m[3]}</span></div>`).join('')}
+          ${MS.map(m=>`<div style="flex:1;min-width:150px;font-size:.68rem;color:rgba(255,255,255,.75)">${m[0]} ${m[1]}<br><b style="color:#fff">${m[2]}</b> <span style="color:rgba(255,255,255,.55)">/ ${m[3]}</span></div>`).join('')}
         </div>
       </div>
-      <div style="font-size:.6rem;color:rgba(255,255,255,.35)">🎮 Tap ✅ valid transactions · avoid 🚩 fraud &amp; 👥 duplicates · tap 🐛 bugs twice to patch · grab power-ups!</div>
+      <div style="font-size:.6rem;color:rgba(255,255,255,.55)">🎮 Tap ✅ valid transactions · avoid 🚩 fraud &amp; 👥 duplicates · tap 🐛 bugs twice to patch · grab power-ups!</div>
     </div>`;
   }
 
@@ -208,7 +208,7 @@
     return `<div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 16px;background:linear-gradient(180deg,rgba(2,14,26,.9),transparent)">
         <button onclick="bbExit()" style="pointer-events:auto;padding:6px 13px;border:1px solid ${cfg.col}66;border-radius:9px;background:rgba(56,189,248,.1);color:#7dd3fc;font-family:'Orbitron',sans-serif;font-size:.56rem;letter-spacing:.1em;cursor:pointer">← BITSTREAM</button>
         <div style="font-family:'Orbitron',sans-serif;font-size:clamp(.44rem,2vw,.62rem);letter-spacing:.14em;color:${cfg.col};flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center">${cfg.icon} ${cfg.name} · LV ${LV+1}/3</div>
-        <button onclick="bbMenu()" style="pointer-events:auto;padding:6px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.5rem;cursor:pointer">☰</button>
+        <button onclick="bbMenu()" aria-label="Open network select menu" style="pointer-events:auto;padding:6px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:rgba(255,255,255,.06);color:#fff;font-family:'Orbitron',sans-serif;font-size:.5rem;cursor:pointer">☰</button>
         <div id="bbTime" style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:${cfg.col};min-width:40px;text-align:right">${cfg.round}s</div>
       </div>
       <div style="position:absolute;top:44px;left:0;right:0;z-index:5;display:flex;gap:6px;padding:0 16px;justify-content:center">
@@ -217,7 +217,7 @@
       <div style="position:absolute;top:100px;left:16px;right:16px;z-index:5">
         <div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.44rem;letter-spacing:.12em;color:rgba(255,255,255,.55)"><span>CHAIN INTEGRITY</span><span id="bbIntTxt">100%</span></div>
         <div style="height:8px;border-radius:5px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid rgba(56,189,248,.25)"><div id="bbIntBar" style="height:100%;width:100%;background:linear-gradient(90deg,#38bdf8,#7dd3fc);transition:width .2s"></div></div>
-        ${cfg.hasPower?`<div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.45);margin-top:3px"><span>GRID POWER</span><span id="bbPowTxt">100%</span></div><div style="height:5px;border-radius:4px;background:rgba(255,255,255,.06);overflow:hidden;border:1px solid rgba(251,191,36,.2)"><div id="bbPowBar" style="height:100%;width:100%;background:linear-gradient(90deg,#f59e0b,#fbbf24);transition:width .2s"></div></div>`:''}
+        ${cfg.hasPower?`<div style="display:flex;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:.4rem;letter-spacing:.1em;color:rgba(255,255,255,.55);margin-top:3px"><span>GRID POWER</span><span id="bbPowTxt">100%</span></div><div style="height:5px;border-radius:4px;background:rgba(255,255,255,.06);overflow:hidden;border:1px solid rgba(251,191,36,.2)"><div id="bbPowBar" style="height:100%;width:100%;background:linear-gradient(90deg,#f59e0b,#fbbf24);transition:width .2s"></div></div>`:''}
       </div>
       <div id="bbFact" style="position:absolute;left:50%;top:${CHROME_TOP+2}px;transform:translateX(-50%);z-index:6;max-width:82%;display:none;pointer-events:none"></div>
       <div id="bbGate" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(2,12,22,.86);backdrop-filter:blur(5px);padding:20px;pointer-events:auto"></div>
@@ -225,7 +225,7 @@
       <div id="bbBoss" style="position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(20,2,2,.72);backdrop-filter:blur(4px);padding:20px;pointer-events:auto"></div>
       <div id="bbOver" style="position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:rgba(2,12,22,.84);backdrop-filter:blur(4px);pointer-events:auto"></div>`;
   }
-  function hud(label,id,c){ return `<div style="flex:1;max-width:140px;text-align:center;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.18);border-radius:9px;padding:5px"><div style="font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.1em;color:rgba(255,255,255,.45)">${label}</div><div id="${id}" style="font-family:'Anton',sans-serif;font-size:1.02rem;color:${c}">0</div></div>`; }
+  function hud(label,id,c){ return `<div style="flex:1;max-width:140px;text-align:center;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.18);border-radius:9px;padding:5px"><div style="font-family:'Orbitron',sans-serif;font-size:.38rem;letter-spacing:.1em;color:rgba(255,255,255,.55)">${label}</div><div id="${id}" style="font-family:'Anton',sans-serif;font-size:1.02rem;color:${c}">0</div></div>`; }
 
   /* ══════════════════════════ RESET / STATE ══════════════════════════ */
   function reset(){
@@ -247,6 +247,7 @@
       corruptClock: cfg.corruptEvery, hackerClock: 3+Math.random()*2,
       bossActive:false, bossStep:0, bossTargets:[],
       shake:0, flash:0, flashColor:'#38bdf8',
+      kb:{lane:0,item:0},
       last:0, w:0, h:0
     };
     for(let i=0;i<24;i++){ G.code.push({x:Math.random(),y:Math.random(),sp:.05+Math.random()*.18,ch:rch(),al:.04+Math.random()*.1}); }
@@ -263,7 +264,8 @@
     const ts=e=>{ if(e.touches[0]){ hit(e.touches[0].clientX,e.touches[0].clientY); e.preventDefault(); } };
     cv.addEventListener('mousedown',md);
     cv.addEventListener('touchstart',ts,{passive:false});
-    G._cleanup=()=>{ window.removeEventListener('resize',size); cv.removeEventListener('mousedown',md); cv.removeEventListener('touchstart',ts); };
+    window.addEventListener('keydown',onKeyDown);
+    G._cleanup=()=>{ window.removeEventListener('resize',size); cv.removeEventListener('mousedown',md); cv.removeEventListener('touchstart',ts); window.removeEventListener('keydown',onKeyDown); };
     G.last=performance.now();
     cancelAnimationFrame(raf); raf=requestAnimationFrame(loop);
   }
@@ -300,6 +302,88 @@
   }
   function b0(i,H){ return laneBand(i,L().lanes,H); }
 
+  /* ══════════════════════════ KEYBOARD OPERABILITY (a11y) ══════════════
+     This game was tap/click-only (mousedown + touchstart, no key handling
+     at all). Mirrors tapAt()'s own target priority (puzzle chip > repair
+     zone > hackers > scrolling tiles) as a focus cursor instead of a tap
+     point: ↑/↓ pick a lane, ←/→ cycle the selectable target inside that
+     lane, Space/Enter activates it — calling the exact same hitTile /
+     resolvePuzzle / repairLane / zapHacker functions the mouse path uses.
+     No new mechanic, just a keyboard-reachable equivalent of the existing
+     tap targets, plus a visible focus ring (drawKbFocus, called from
+     render()) so the current selection is actually visible, not just
+     operable. ── */
+  function kbItems(lane){
+    if(!lane) return [];
+    if(lane.puzzle) return [0,1,2].map(i=>({type:'puzzle',i}));
+    const items=[];
+    if(lane.corruptT>0) items.push({type:'corrupt'});
+    G.hackers.forEach(hk=>{ if(!hk.dead && hk.lane===lane.id) items.push({type:'hacker',ref:hk}); });
+    lane.tiles.forEach(it=>{ if(!it.dead) items.push({type:'tile',ref:it}); });
+    return items;
+  }
+  function kbActivate(){
+    if(!G||G.phase!=='play') return;
+    const lane=G.lanes[G.kb.lane]; if(!lane) return;
+    const items=kbItems(lane); if(!items.length) return;
+    const idx=((G.kb.item%items.length)+items.length)%items.length;
+    const it=items[idx];
+    if(it.type==='puzzle') resolvePuzzle(lane,it.i);
+    else if(it.type==='corrupt') repairLane(lane);
+    else if(it.type==='hacker') zapHacker(it.ref);
+    else if(it.type==='tile') hitTile(lane,it.ref);
+  }
+  function onKeyDown(e){
+    if(!G||G.phase!=='play') return;
+    const cfg=L();
+    // don't hijack a deliberately-tabbed-to button (e.g. ← BITSTREAM / ☰) — let
+    // its own native Enter/Space activation fire instead of the game cursor.
+    const tag=(document.activeElement&&document.activeElement.tagName)||'';
+    const onControl=tag==='BUTTON'||tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||tag==='A';
+    if(e.key==='ArrowUp'){ G.kb.lane=(G.kb.lane-1+cfg.lanes)%cfg.lanes; G.kb.item=0; e.preventDefault(); }
+    else if(e.key==='ArrowDown'){ G.kb.lane=(G.kb.lane+1)%cfg.lanes; G.kb.item=0; e.preventDefault(); }
+    else if(e.key==='ArrowLeft'){ const n=kbItems(G.lanes[G.kb.lane]).length; G.kb.item=n?(((G.kb.item-1)%n)+n)%n:0; e.preventDefault(); }
+    else if(e.key==='ArrowRight'){ const n=kbItems(G.lanes[G.kb.lane]).length; G.kb.item=n?(G.kb.item+1)%n:0; e.preventDefault(); }
+    else if((e.key===' '||e.key==='Spacebar'||e.key==='Enter')&&!onControl){ kbActivate(); e.preventDefault(); }
+  }
+  function drawKbFocus(ctx,W,H){
+    if(!G||G.phase!=='play') return;
+    const cfg=L();
+    const li=((G.kb.lane%cfg.lanes)+cfg.lanes)%cfg.lanes;
+    const lane=G.lanes[li]; if(!lane) return;
+    const items=kbItems(lane); if(!items.length) return;
+    const idx=((G.kb.item%items.length)+items.length)%items.length;
+    const it=items[idx];
+    const b=laneBand(li,cfg.lanes,H);
+    const pulse=0.6+0.4*Math.sin(performance.now()*0.006);
+    let rx,ry,rw,rh;
+    if(it.type==='puzzle'){
+      const segW=W/3, cx=segW*it.i+segW/2, cy0=b.y0+b.h*0.55, w=Math.min(segW*0.8,150), h=Math.min(b.h*0.4,CARD_H_MAX);
+      rx=cx-w/2-4; ry=cy0-h/2-4; rw=w+8; rh=h+8;
+    } else if(it.type==='corrupt'){
+      rx=4; ry=b.y0+4; rw=W*0.30-8; rh=b.h-8;
+    } else if(it.type==='hacker'){
+      const hx=it.ref.x*W, hy=b.y0+b.h*0.5, r=b.h*0.28;
+      rx=hx-r; ry=hy-r; rw=r*2; rh=r*2;
+    } else {
+      const x=it.ref.x*W, y=b.y0+b.h*.62, w=Math.min(W*.20,150), h=Math.min(b.h*0.5,CARD_H_MAX);
+      rx=x-w/2-4; ry=y-h/2-4; rw=w+8; rh=h+8;
+    }
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,'+(0.35+0.5*pulse).toFixed(2)+')';
+    ctx.lineWidth=3; ctx.setLineDash([6,4]);
+    rr(ctx,rx,ry,rw,rh,10); ctx.stroke();
+    ctx.restore();
+  }
+
+  /* ── REDUCED MOTION (a11y) — dampens screen-shake / flash / particle-burst
+     intensity when the OS/browser prefers-reduced-motion is on, instead of a
+     whole settings panel (this game had no other reduced-motion-worthy
+     effects besides these three). Read live (not cached) so it reacts if the
+     user flips the OS setting mid-session. ── */
+  function bbReducedMotion(){ return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  function moDamp(v){ return bbReducedMotion()? v*0.35 : v; }
+
   function hitTile(lane,it){
     if(it.kind==='power'){ collectPower(lane,it); it.dead=1; return; }
     if(it.kind==='valid'){
@@ -323,7 +407,7 @@
     // fraud or duplicate — always a mistake to tap
     if(G.shieldT>0){ floatTxt(it.x,it.y,'BLOCKED 🛡️','#7dd3fc'); burst(it.x,it.y,'#7dd3fc',12); it.dead=1; return; }
     G.combo=0; G.mistakes++; lane.mistakesThisBlock=(lane.mistakesThisBlock||0)+1; G.integrity=clamp(G.integrity-16,0,100);
-    G.score=Math.max(0,G.score-24); G.shake=.4; G.flash=.35; G.flashColor='#ef4444';
+    G.score=Math.max(0,G.score-24); G.shake=moDamp(.4); G.flash=moDamp(.35); G.flashColor='#ef4444';
     burst(it.x,it.y,'#ef4444',14); floatTxt(it.x,it.y,(it.kind==='dup'?'DUPLICATE! -24':'INVALID! -24'),'#fca5a5');
     it.dead=1;
   }
@@ -349,11 +433,11 @@
     lane.puzzle=null;
     if(ok){
       if(L().hasConsensus) lane.consensus=clamp(lane.consensus+26,0,100);
-      G.score+=60; G.flash=.35; G.flashColor='#38bdf8';
+      G.score+=60; G.flash=moDamp(.35); G.flashColor='#38bdf8';
       floatTxt(.5,.16+lane.id*0.001,'✅ HASHED & LINKED','#7dd3fc');
     } else {
       if(L().hasConsensus) lane.consensus=clamp(lane.consensus-15,0,100);
-      G.integrity=clamp(G.integrity-8,0,100); G.shake=Math.max(G.shake,.3);
+      G.integrity=clamp(G.integrity-8,0,100); G.shake=Math.max(G.shake,moDamp(.3));
       floatTxt(.5,.2,'⚡ HASH MISMATCH','#f87171');
     }
     mineBlock(lane, ok);
@@ -365,9 +449,10 @@
     lane.mistakesThisBlock=0;
     const bonus=70+G.combo*3;
     G.score+=bonus; G.integrity=clamp(G.integrity+5,0,100);
-    G.shake=Math.max(G.shake,.28); G.flash=.4; G.flashColor='#38bdf8';
+    G.shake=Math.max(G.shake,moDamp(.28)); G.flash=moDamp(.4); G.flashColor='#38bdf8';
     floatTxt(.5,.5,'⛏️ BLOCK MINED +'+bonus,'#7dd3fc');
-    for(let i=0;i<18;i++){ const a=Math.random()*7,s=.2+Math.random()*.55;
+    const partN=bbReducedMotion()?6:18;
+    for(let i=0;i<partN;i++){ const a=Math.random()*7,s=.2+Math.random()*.55;
       G.parts.push({x:.06+lane.id*0.02,y:0.5,vx:Math.cos(a)*s,vy:Math.sin(a)*s-.3,s:2+Math.random()*3,c:i%2?'#38bdf8':'#a5f3fc',life:.6+Math.random()*.3,max:.9}); }
     if(L().hasConsensus && lane.consensus>=100){ lane.consensus=0; lane.towerGlow=1; G.score+=30; floatTxt(.5,.3,'🗳️ CONSENSUS REACHED +30','#c4b5fd'); }
     if(G.blocksMined>=G.blocksGoal-1 && G.blocksMined<G.blocksGoal && !G.bossActive){ triggerBoss(); return; }
@@ -378,7 +463,7 @@
   /* ══════════════════════════ POWER-UPS ══════════════════════════ */
   function collectPower(lane,it){
     G.collected++;
-    burst(it.x,it.y,'#fbbf24',14); floatTxt(it.x,it.y,it.name,'#fde68a'); G.flash=.3; G.flashColor='#fbbf24';
+    burst(it.x,it.y,'#fbbf24',14); floatTxt(it.x,it.y,it.name,'#fde68a'); G.flash=moDamp(.3); G.flashColor='#fbbf24';
     applyPowerup(it.key);
   }
   function applyPowerup(key){
@@ -413,7 +498,7 @@
   }
   function corruptionFail(lane){
     lane.corruptT=0; lane.chainCount=Math.max(0,lane.chainCount-1);
-    G.integrity=clamp(G.integrity-14,0,100); G.shake=Math.max(G.shake,.4); G.flash=.4; G.flashColor='#ef4444';
+    G.integrity=clamp(G.integrity-14,0,100); G.shake=Math.max(G.shake,moDamp(.4)); G.flash=moDamp(.4); G.flashColor='#ef4444';
     floatTxt(.5,.45,'💥 BLOCK COLLAPSED','#fca5a5');
     if(L().spreadOnFail){
       const cfg=L(); const nxt=G.lanes[(lane.id+1)%cfg.lanes];
@@ -728,6 +813,9 @@
     for(const f of G.floats){ ctx.globalAlpha=Math.max(0,f.life/0.9); ctx.fillStyle=f.c; ctx.font='800 '+(f.big?20:14)+"px 'Inter',sans-serif"; ctx.fillText(f.t,f.x*W,f.y*H); }
     ctx.globalAlpha=1;
 
+    // keyboard focus ring (a11y) — shows which target ↑↓←→ + Space/Enter will hit
+    drawKbFocus(ctx,W,H);
+
     // power-up indicators (bottom-left)
     ctx.textAlign='left'; ctx.font="10px 'Orbitron',sans-serif";
     let iy=H-16; const ind=[['shield',G.shieldT,'🛡️'],['validator',G.validatorT,'⚡'],['dupdef',G.dupDefT,'🧯'],['freeze',G.freezeT,'❄️'],['overclock',G.overclockT,'🚀']];
@@ -749,7 +837,7 @@
     ctx.fillStyle=idx%2? 'rgba(255,255,255,.015)':'rgba(255,255,255,.03)'; ctx.fillRect(0,b.y0,W,b.h);
     ctx.strokeStyle='rgba(255,255,255,.06)'; ctx.beginPath(); ctx.moveTo(0,b.y0); ctx.lineTo(W,b.y0); ctx.stroke();
     // lane label
-    ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.font="9px 'Orbitron',sans-serif"; ctx.fillStyle='rgba(255,255,255,.4)';
+    ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.font="9px 'Orbitron',sans-serif"; ctx.fillStyle='rgba(255,255,255,.55)';
     ctx.fillText(lane.label,8,b.y0+10);
 
     // mini chain (pseudo-3D cubes) — far left
@@ -796,7 +884,7 @@
       ctx.lineWidth=1.4; rr(ctx,sx-scw/2,sy-scw/2,scw,scw,4); ctx.fill(); ctx.stroke();
       ctx.restore();
     }
-    ctx.fillStyle='rgba(255,255,255,.4)'; ctx.font="7px 'Orbitron',sans-serif"; ctx.textAlign='center';
+    ctx.fillStyle='rgba(255,255,255,.55)'; ctx.font="7px 'Orbitron',sans-serif"; ctx.textAlign='center';
     ctx.fillText(lane.filled+'/'+slotN, sx0+totalW/2, b.y0+b.h*0.86);
 
     // scrolling tiles
@@ -860,7 +948,7 @@
   // helpers
   function rr(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
   function hexA(hex,a){ const h=hex.replace('#',''); const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h,16); return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')'; }
-  function burst(x,y,c,n){ for(let i=0;i<n;i++){ const a=Math.random()*7,s=.15+Math.random()*.5; G.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-.2,s:2+Math.random()*3,c,life:.5+Math.random()*.3,max:.8}); } }
+  function burst(x,y,c,n){ const cnt=bbReducedMotion()?Math.max(3,Math.ceil(n*0.35)):n; for(let i=0;i<cnt;i++){ const a=Math.random()*7,s=.15+Math.random()*.5; G.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-.2,s:2+Math.random()*3,c,life:.5+Math.random()*.3,max:.8}); } }
   function floatTxt(x,y,t,c){ G.floats.push({x,y,t,c,life:.9,big:/MINED|STREAK|MASTER/.test(t)}); }
   function setTxt(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
   function showFact(txt){ const el=document.getElementById('bbFact'); if(!el||!txt) return;
@@ -888,7 +976,7 @@
   }
   window.bbGateGo=function(){ if(!G) return; G.score+=40; G.integrity=clamp(G.integrity+4,0,100); G.gateT=GATE_EVERY; G.phase='play';
     const o=document.getElementById('bbGate'); if(o){ o.style.display='none'; o.innerHTML=''; }
-    G.flash=.3; G.flashColor='#38bdf8'; floatTxt(.5,.4,'+40 LEARNED','#7dd3fc');
+    G.flash=moDamp(.3); G.flashColor='#38bdf8'; floatTxt(.5,.4,'+40 LEARNED','#7dd3fc');
     if(G.last!=null) G.last=performance.now();
   };
 
@@ -952,7 +1040,7 @@
       <div style="font-family:'Anton',sans-serif;font-size:1.5rem;color:#fca5a5;margin-bottom:6px">${cfg.bossName}</div>
       <p style="font-size:.85rem;color:rgba(255,255,255,.75);margin:0 0 18px">The final block is under attack! Tap the corrupted node <b>3 times in a row</b> before it rewrites the chain.</p>
       <div id="bbBossTargetWrap" style="display:flex;justify-content:center;margin-bottom:14px">
-        <button onclick="bbBossTap()" id="bbBossTarget" style="width:96px;height:96px;border-radius:50%;border:3px solid #ef4444;background:radial-gradient(circle,#7f1d1d,#450a0a);color:#fca5a5;font-size:2rem;cursor:pointer;animation:bbBossPulse .8s ease-in-out infinite">⚠️</button>
+        <button onclick="bbBossTap()" id="bbBossTarget" aria-label="Tap the corrupted node to repair it" style="width:96px;height:96px;border-radius:50%;border:3px solid #ef4444;background:radial-gradient(circle,#7f1d1d,#450a0a);color:#fca5a5;font-size:2rem;cursor:pointer;animation:${bbReducedMotion()?'none':'bbBossPulse .8s ease-in-out infinite'}">⚠️</button>
       </div>
       <style>@keyframes bbBossPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}</style>
       <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.14em;color:#fca5a5">REPAIRS: <span id="bbBossN">0</span> / 3</div>
@@ -961,7 +1049,7 @@
   window.bbBossTap=function(){
     if(!G||G.phase!=='boss') return;
     G.bossStep++;
-    burst(.5,.5,'#34d399',16); G.flash=.3; G.flashColor='#34d399';
+    burst(.5,.5,'#34d399',16); G.flash=moDamp(.3); G.flashColor='#34d399';
     const n=document.getElementById('bbBossN'); if(n) n.textContent=G.bossStep;
     const tgt=document.getElementById('bbBossTarget'); if(tgt) tgt.style.transform='scale(0.85)';
     if(G.bossStep>=3){
@@ -1013,7 +1101,7 @@
         @keyframes bbFadeIn{0%{transform:scale(.94);opacity:0}100%{transform:scale(1);opacity:1}}
         @keyframes bbIconPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
       </style>
-      <div style="font-size:2.8rem;margin-bottom:8px${won?';animation:bbIconPulse 1.1s ease-in-out infinite':''}">${won?(isFinal?'👑':'⛓️'):(survived?'🧊':'💥')}</div>
+      <div style="font-size:2.8rem;margin-bottom:8px${won?(';animation:'+(bbReducedMotion()?'none':'bbIconPulse 1.1s ease-in-out infinite')):''}">${won?(isFinal?'👑':'⛓️'):(survived?'🧊':'💥')}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.2em;color:${won?'#fbbf24':(survived?'#7dd3fc':'#ef4444')};margin-bottom:6px">${title}</div>
       <div style="font-family:'Orbitron',sans-serif;font-size:.48rem;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:8px">${sub}</div>
       <h1 style="font-family:'Anton',sans-serif;font-size:1.9rem;margin:0 0 6px">${score} pts</h1>

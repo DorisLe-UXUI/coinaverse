@@ -173,7 +173,7 @@
   <div id="vvTopBar" style="position:absolute;top:0;left:0;right:0;height:54px;background:rgba(3,4,12,.85);border-bottom:1px solid ${AC}33;display:flex;align-items:center;padding:0 12px;gap:10px;z-index:50;backdrop-filter:blur(6px);">
     <button id="vvBackBtn" style="background:none;border:1px solid ${AC}55;color:${AC};font-family:Orbitron,monospace;font-size:11px;padding:6px 11px;border-radius:7px;cursor:pointer;letter-spacing:.08em;white-space:nowrap;flex-shrink:0;">← HUB</button>
     <div style="font-family:Orbitron,monospace;font-size:12px;font-weight:700;color:${AC};letter-spacing:1.5px;flex:1;text-align:center;text-shadow:0 0 12px ${AC}88;">VOLATILITY VORTEX</div>
-    <button id="vvHelpBtn" title="How to play" style="background:none;border:1px solid ${AC}55;color:${AC};font-size:12px;padding:6px 9px;border-radius:7px;cursor:pointer;flex-shrink:0;">❓</button>
+    <button id="vvHelpBtn" title="How to play" aria-label="How to play" style="background:none;border:1px solid ${AC}55;color:${AC};font-size:12px;padding:6px 9px;border-radius:7px;cursor:pointer;flex-shrink:0;">❓</button>
     <div style="display:flex;align-items:center;gap:14px;flex-shrink:0;">
       <div style="text-align:center;">
         <div style="font-size:8px;color:#aaa;letter-spacing:1px;font-family:Orbitron,monospace;">PORTFOLIO</div>
@@ -831,7 +831,8 @@
     const timerEl = document.getElementById('vvTimer');
     if (portEl) {
       const val = Math.round(G.portValue);
-      portEl.textContent = '$' + val.toLocaleString();
+      const arrow = G.portValue >= G.startValue ? '▲' : '▼';
+      portEl.textContent = arrow + ' $' + val.toLocaleString();
       portEl.style.color = G.portValue >= G.startValue ? AC : DANGER;
     }
     if (timerEl) {

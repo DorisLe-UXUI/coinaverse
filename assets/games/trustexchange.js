@@ -201,7 +201,7 @@
             '← Hub',
           '</button>',
           '<div style="font-size:15px;font-weight:700;color:#e0d6ff;letter-spacing:.5px;">TRUST EXCHANGE <span style="color:#a78bfa;font-size:12px;">· LV '+curLevel+'/3</span></div>',
-          '<button onclick="trxShowHelp()" title="How to play" style="',
+          '<button onclick="trxShowHelp()" title="How to play" aria-label="How to play" style="',
             'background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);',
             'color:#e0d6ff;border-radius:10px;padding:6px 10px;font-size:14px;cursor:pointer;margin-right:6px;">',
             '❓',
@@ -366,6 +366,16 @@
      loop, started in initGame() and torn down in trxExit()/trxRestart(). ── */
   var _cosRaf = null, _cosResize = null;
   function startCosmicCanvas() {
+    // A fast double-tap on the hub's Trust Exchange card fires
+    // global.SCREENS[GAME_ID] twice before the first `setTimeout(initGame, 40)`
+    // resolves, so initGame() (and therefore startCosmicCanvas()) can run twice
+    // in quick succession. Without tearing down any already-running loop first,
+    // the second call's `_cosRaf`/`_cosResize` overwrite the first's, orphaning
+    // the earlier RAF loop + resize listener — uncancellable, running forever,
+    // same double-invocation class as the satellite_game fix. Calling
+    // stopCosmicCanvas() up front makes every call idempotent: whichever
+    // instance is currently live gets cancelled before a new one starts.
+    stopCosmicCanvas();
     var cv = document.getElementById('trx-stars');
     if (!cv) return;
     var ctx = cv.getContext('2d');
@@ -579,7 +589,12 @@
         bar.style.background = 'linear-gradient(90deg,#7c3aed,#a78bfa)';
       }
     }
-    if (pct) pct.textContent = s.trust + '%';
+    // band word rides alongside the bar's color (same >70 / <30 thresholds used
+    // above) so the trust meter never signals high/low trust via color alone
+    if (pct) {
+      var trustLabel = s.trust > 70 ? 'HIGH' : s.trust < 30 ? 'LOW' : 'FAIR';
+      pct.textContent = s.trust + '% · ' + trustLabel;
+    }
   }
 
   /* ── timer ──────────────────────────────────────────────────────── */
@@ -721,6 +736,9 @@
 
   function buildEndHTML(stars, score, trustPc, coins, lesson, canAdvance) {
     var barColor = trustPc > 70 ? '#4ade80' : trustPc < 30 ? '#f87171' : '#a78bfa';
+    // band word rides alongside the color so the end-screen trust meter never
+    // signals high/low trust via color alone (mirrors the live HUD meter fix)
+    var barLabel = trustPc > 70 ? 'HIGH' : trustPc < 30 ? 'LOW' : 'FAIR';
     var cfg = cfgFor(curLevel);
     var isFinalLevel = curLevel >= LEVELS.length;
     var isWin = stars >= 1;
@@ -747,7 +765,7 @@
       '<div style="width:100%;max-width:320px;margin-bottom:6px;">',
         '<div style="display:flex;justify-content:space-between;font-size:12px;',
              'color:rgba(255,255,255,.5);margin-bottom:6px;">',
-          '<span>TRUST METER</span><span>'+trustPc+'%</span>',
+          '<span>TRUST METER</span><span>'+trustPc+'% · '+barLabel+'</span>',
         '</div>',
         '<div style="width:100%;height:14px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden;">',
           '<div id="trx-end-bar-fill" style="',

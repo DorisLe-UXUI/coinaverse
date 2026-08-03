@@ -81,6 +81,8 @@
     /* ── persistent ❓ how-to-play button (DOM overlay, same style/layer as exitBtn) ── */
     const helpBtn = document.createElement('button');
     helpBtn.textContent = '❓';
+    helpBtn.title = 'How to play';
+    helpBtn.setAttribute('aria-label', 'How to play');
     helpBtn.style.cssText = 'position:absolute;top:14px;left:88px;z-index:5;padding:7px 12px;'
       + 'border:1px solid rgba(251,191,36,.45);border-radius:9px;background:rgba(13,13,43,.75);'
       + 'backdrop-filter:blur(6px);color:#fbbf24;font:700 .78rem/1 sans-serif;'
@@ -1007,6 +1009,9 @@
       ctx.fill();
 
       const barColor = fico >= 700 ? COLORS.ficoBar : fico >= 580 ? '#eab308' : COLORS.red;
+      // band word rides alongside the color so the FICO bar never signals its
+      // good/fair/low state via color alone (colorblind-safe, matches ficoracer.js BANDS)
+      const barLabel = fico >= 700 ? 'GOOD' : fico >= 580 ? 'FAIR' : 'LOW';
       ctx.fillStyle  = barColor;
       ctx.shadowColor = barColor;
       ctx.shadowBlur  = 8;
@@ -1018,7 +1023,7 @@
       ctx.font         = `${fz * 0.82}px sans-serif`;
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`FICO ${fico}`, W / 2, barY + barH / 2);
+      ctx.fillText(`FICO ${fico} · ${barLabel}`, W / 2, barY + barH / 2);
 
       ctx.fillStyle    = COLORS.hud;
       ctx.font         = `${fz * 0.72}px sans-serif`;

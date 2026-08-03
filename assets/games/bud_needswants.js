@@ -485,6 +485,13 @@
     dot.style.background = correct ? TEAL : '#ff4444';
     dot.style.borderColor = correct ? TEAL : '#ff4444';
     dot.style.boxShadow = `0 0 6px ${correct ? TEAL : '#ff4444'}`;
+    // Colorblind-safe backup: a tiny glyph rides along with the color so the
+    // progress-dot history never signals right/wrong via color alone.
+    dot.textContent = correct ? '✓' : '✕';
+    dot.style.fontSize = '7px';
+    dot.style.lineHeight = '8px';
+    dot.style.textAlign = 'center';
+    dot.style.color = '#03040c';
   }
 
   /* ── moving holographic carts ────────────────────────────────── */
@@ -1061,6 +1068,7 @@
       font-size:.85rem;padding:2px 6px;
     `;
     dismiss.textContent = '✕';
+    dismiss.setAttribute('aria-label', 'Dismiss impulse buy popup');
     dismiss.onclick = (e) => {
       e.stopPropagation();
       banner.remove();

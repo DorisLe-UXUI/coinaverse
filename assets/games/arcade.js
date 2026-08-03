@@ -116,7 +116,16 @@
     });
     A={ id, hub:hub||null, idx:(idx==null?0:idx), lv, cfg:rcfg, base:cfg };
   };
-  window.arcNextLevel=function(){ if(!A||A.lv>=3) return; const {id,hub,idx,lv}=A; arcInit(id,hub,idx,lv+1); goTo('game_arc'); };
+  // arcNextLevel used to skip teardown before re-entering game_arc: boot() (called again
+  // via SCREENS.game_arc's setTimeout) adds a fresh set of window-level listeners
+  // (resize/mousemove/mouseup/keydown/keyup) every time, and since arcInit() immediately
+  // replaces `A` with a new object, the OLD A._cleanup closure became unreachable —
+  // permanently leaking 5 window listeners on EVERY level-up, compounding across all 42
+  // arcade games (confirmed via monkey-patched addEventListener/removeEventListener
+  // regression testing: window listener count grew unbounded, 45+ per game over a few
+  // level-ups, and never dropped even after a proper arcExit()). Fix: clean up the
+  // current level's listeners before handing off to the next one, same as arcExit does.
+  window.arcNextLevel=function(){ if(!A||A.lv>=3) return; if(A._cleanup)A._cleanup(); const {id,hub,idx,lv}=A; arcInit(id,hub,idx,lv+1); goTo('game_arc'); };
   window.arcDbg = function(){ return (A&&A.g)?{score:Math.round(A.g.score),prog:Math.round(A.g.prog),time:Math.round(A.g.time),phase:A.g.phase,lv:A.lv}:null; };
 
   window.SCREENS.game_arc = function(){
@@ -218,7 +227,7 @@
     const ctx=cv.getContext('2d'), W=cv.clientWidth, H=cv.clientHeight, g=A.g, cfg=A.cfg, mech=MECH[cfg.mech]||{};
     let dt=Math.min(40,now-g.last)/1000; g.last=now;
     if(g.phase==='play'){
-      if(cfg.time){ g.time-=dt; if(g.time<=0){ g.time=0; return end(g.prog>=(cfg.goal||1e9)); } const te=document.getElementById('arcTime'); if(te)te.textContent=Math.ceil(g.time)+'s'; }
+      if(cfg.time){ g.time-=dt; if(g.time<=0){ g.time=0; return end(g.prog>=(cfg.goal||1e9)); } setTxt('arcTime',Math.ceil(g.time)+'s'); }
       // NOT an early return: openGate() only flips phase to 'gate' — the loop must
       // still fall through to render()+raf below, or the animation chain dies here
       // forever (dismissing the gate flips phase back but nothing ever revives it).
@@ -229,9 +238,13 @@
       for(const f of g.floats){ f.y-=dt*0.12; f.life-=dt; } g.floats=g.floats.filter(f=>f.life>0);
       for(const r of g.rings){ r.r+=dt*1.9; r.life-=dt; } g.rings=g.rings.filter(r=>r.life>0);
       if(g.shake>0)g.shake-=dt*1.6; if(g.flash>0)g.flash-=dt;
-      // HUD
+      // HUD — most mechanics only score on discrete events, so the vast majority of
+      // frames have an unchanged score/progress; skip the DOM query+write entirely
+      // (not just the write) when the displayed value hasn't actually moved, instead
+      // of hitting getElementById + textContent/style 4x on every single rAF tick.
       setTxt('arcScore',Math.round(g.score));
-      const f=document.getElementById('arcFill'); if(f)f.style.width=Math.min(100,g.prog/(cfg.goal||100)*100)+'%';
+      const fillPct=Math.min(100,g.prog/(cfg.goal||100)*100);
+      if(g._fillPct!==fillPct){ g._fillPct=fillPct; const f=document.getElementById('arcFill'); if(f)f.style.width=fillPct+'%'; }
       setTxt('arcGoalTxt',Math.round(g.prog)+' / '+(cfg.goal||100));
       if(cfg.goal&&g.prog>=cfg.goal) return end(true);
     }
@@ -281,7 +294,7 @@
     ctx.restore();
   }
 
-  function setTxt(id,v){ const el=document.getElementById(id); if(el)el.textContent=v; }
+  function setTxt(id,v){ const el=document.getElementById(id); if(el&&el.textContent!==String(v))el.textContent=v; }
 
   /* ── knowledge gate ── */
   function openGate(){

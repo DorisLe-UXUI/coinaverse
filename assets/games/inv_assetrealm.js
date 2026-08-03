@@ -135,7 +135,7 @@
       <div id="arBar" style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(3,4,12,.95),transparent)">
         <button id="arBack" style="padding:6px 12px;border:1px solid ${ACCENT}44;border-radius:8px;background:${ACCENT}18;color:${ACCENT};font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.1em;cursor:pointer">← EXIT</button>
         <div style="font-family:Orbitron,sans-serif;font-size:.65rem;letter-spacing:.2em;color:${ACCENT};flex:1;text-align:center">🏙 ASSET REALM</div>
-        <button id="arHelpBtn" title="How to play" style="padding:6px 10px;border:1px solid ${ACCENT}44;border-radius:8px;background:${ACCENT}18;color:${ACCENT};cursor:pointer;font-size:.8rem">❓</button>
+        <button id="arHelpBtn" title="How to play" aria-label="How to play" style="padding:6px 10px;border:1px solid ${ACCENT}44;border-radius:8px;background:${ACCENT}18;color:${ACCENT};cursor:pointer;font-size:.8rem">❓</button>
         <div id="arTimer" style="font-family:Orbitron,sans-serif;font-size:.8rem;color:${GOLD};min-width:40px;text-align:right">60s</div>
       </div>
       <!-- HUD ROW -->

@@ -186,7 +186,7 @@
     <div style="flex:1;min-width:0;text-align:center;overflow:hidden;">
       <span style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;letter-spacing:2px;color:${ACC2};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;max-width:100%;vertical-align:middle;">SCALING CENTER</span>
     </div>
-    <button id="sc_help_btn" title="How to play" style="background:${ACC}25;border:1px solid ${ACC}60;color:${ACC2};padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-family:Inter,sans-serif;">❓</button>
+    <button id="sc_help_btn" title="How to play" aria-label="How to play" style="background:${ACC}25;border:1px solid ${ACC}60;color:${ACC2};padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-family:Inter,sans-serif;">❓</button>
     <div style="display:flex;gap:16px;align-items:center;">
       <div>
         <span style="font-size:10px;color:#888;letter-spacing:1px;">THROUGHPUT</span><br>

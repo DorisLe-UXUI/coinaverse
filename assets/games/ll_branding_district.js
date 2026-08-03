@@ -281,7 +281,7 @@
     </div>
 
     <div style="display:flex;gap:12px;align-items:center;flex-shrink:0">
-      <button onclick="bdShowHelp()" title="How to play" style="padding:6px 10px;border:1px solid rgba(124,58,237,.45);border-radius:8px;background:rgba(124,58,237,.12);color:${LIGHT};cursor:pointer;font-size:.8rem;flex-shrink:0">❓</button>
+      <button onclick="bdShowHelp()" title="How to play" aria-label="How to play" style="padding:6px 10px;border:1px solid rgba(124,58,237,.45);border-radius:8px;background:rgba(124,58,237,.12);color:${LIGHT};cursor:pointer;font-size:.8rem;flex-shrink:0">❓</button>
       <div style="text-align:right">
         <div style="font-family:Orbitron,sans-serif;font-size:.48rem;color:#888;letter-spacing:.1em">SCORE</div>
         <div id="bd_score" style="font-family:Orbitron,sans-serif;font-size:.82rem;color:${GOLD};text-shadow:0 0 8px ${GOLD}88;font-variant-numeric:tabular-nums">0</div>

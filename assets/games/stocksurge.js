@@ -269,6 +269,7 @@
      floor, 13-stock levels needing 7 rows) that silently clipped the price/sparkline/mood rows. */
   .ss-card { border-radius:13px;border:1.5px solid rgba(99,102,241,.22);background:rgba(10,8,32,.7);padding:10px;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .1s;-webkit-tap-highlight-color:transparent;position:relative; }
   .ss-card.selected { border-color:var(--ss-gold);box-shadow:0 0 18px rgba(251,191,36,.45);transform:scale(1.03); }
+  .ss-card:focus-visible { outline:3px solid var(--ss-gold);outline-offset:2px; }
   .ss-card.surge-glow { animation:ssGlowPulse .6s ease-in-out infinite alternate; }
   @keyframes ssGlowPulse { 0%{box-shadow:0 0 12px rgba(251,191,36,.4)} 100%{box-shadow:0 0 28px rgba(251,191,36,.9),0 0 50px rgba(168,85,247,.4)} }
   .ss-card-top { display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px; }
@@ -333,7 +334,7 @@
   <div class="ss-topbar">
     <button class="ss-back-btn" onclick="ssExit()">← HUB</button>
     <div class="ss-title" id="ss-title">📊 STOCK SURGE</div>
-    <button class="ss-help-btn" onclick="ssShowHelp()" title="How to play">❓</button>
+    <button class="ss-help-btn" onclick="ssShowHelp()" title="How to play" aria-label="How to play">❓</button>
     <div class="ss-timer" id="ss-timer">75s</div>
   </div>
   <div class="ss-rank-strip" id="ss-rank-strip"></div>
@@ -369,9 +370,9 @@
   <!-- qty row -->
   <div class="ss-qty-row">
     <div class="ss-qty-label">QTY</div>
-    <button class="ss-qty-btn" onclick="ssQty(-1)">−</button>
+    <button class="ss-qty-btn" onclick="ssQty(-1)" aria-label="Decrease quantity">−</button>
     <div class="ss-qty-val" id="ss-qty">1</div>
-    <button class="ss-qty-btn" onclick="ssQty(1)">+</button>
+    <button class="ss-qty-btn" onclick="ssQty(1)" aria-label="Increase quantity">+</button>
     <div class="ss-cost-info" id="ss-cost-info">Select a stock</div>
   </div>
 
@@ -644,9 +645,10 @@
     // so depth never overwhelms the canvas.
     window._ssBurst = function(x, y, up, streak) {
       var c = up ? '#2dd4bf' : '#fb7185';
-      var depth = Math.max(0, Math.min(5, streak || 0));
-      var count = 10 + depth * 3;              // 10 → 25 particles
-      var speedB = 1 + depth * 0.15;            // subtle extra kick per streak level
+      var reduced = ssReducedMotion();
+      var depth = reduced ? 0 : Math.max(0, Math.min(5, streak || 0));
+      var count = reduced ? 5 : (10 + depth * 3);   // dampened to a light 5 under reduce-motion
+      var speedB = reduced ? 0.6 : (1 + depth * 0.15);
       var W2 = cv.clientWidth, H2 = cv.clientHeight;
       for (var i = 0; i < count; i++) {
         _ssBgParts.push({ x: x*W2, y: y*H2, vx:(Math.random()-.5)*4*speedB, vy:(-Math.random()*3-1)*speedB, r:(Math.random()*2.5+1)*(1+depth*0.08), c:c, life:1, type:'spark' });
@@ -657,7 +659,8 @@
     window._ssConfetti = function () {
       var W2 = cv.clientWidth, H2 = cv.clientHeight;
       var colors = ['#fbbf24','#a855f7','#38bdf8','#2dd4bf','#fb7185'];
-      for (var i = 0; i < 70; i++) {
+      var total = ssReducedMotion() ? 16 : 70;   // still celebrates the win, far less dense motion
+      for (var i = 0; i < total; i++) {
         _ssBgParts.push({
           x: Math.random()*W2, y: -10 - Math.random()*60,
           vx: (Math.random()-.5)*2.4, vy: Math.random()*1.6+1.4,
@@ -678,8 +681,16 @@
     }
   }
 
+  // Accessibility: respect the OS-level "reduce motion" preference for the more
+  // intense juice effects (screen shake, dense particle bursts). Checked live on
+  // each call (not cached) so it reacts if the player changes the OS setting mid-game.
+  function ssReducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
   // Screen shake for Surge Moments (GDD Sec 8.2/20 #05 "Screen shake, neon lightning streaks")
   function ssScreenShake() {
+    if (ssReducedMotion()) return; // Surge state is already conveyed via the overlay/lightning/countdown text
     var root = document.getElementById('ss-root');
     if (!root) return;
     root.classList.remove('ss-shake'); void root.offsetWidth; // restart animation if already mid-shake
@@ -818,8 +829,11 @@
     var el = document.getElementById('ss-timer');
     if (el) {
       var secs = Math.max(0, Math.ceil(S.timeLeft / 1000));
-      el.textContent = secs + 's';
-      el.style.color = secs <= 10 ? '#fb7185' : '#fbbf24';
+      var urgent = secs <= 10;
+      // Redundant text cue (not just color) for time running out, so colorblind
+      // players get the same signal as the gold→red color change.
+      el.textContent = (urgent ? '⚠ ' : '') + secs + 's';
+      el.style.color = urgent ? '#fb7185' : '#fbbf24';
     }
     if (S.timeLeft <= 0) endRound();
   }
@@ -1075,6 +1089,14 @@
     var container = document.getElementById('ss-stocks');
     if (!container || !S) return;
 
+    // Preserve keyboard focus across the innerHTML rebuild below — tickPrices() calls
+    // renderCards() every 2s (plus after every select/buy/sell), which would otherwise
+    // silently yank focus back to <body> out from under a keyboard player mid-Tab even
+    // if they haven't pressed anything, since the focused card DOM node gets destroyed.
+    var _activeEl = document.activeElement;
+    var _focusedTicker = (_activeEl && _activeEl.id && _activeEl.id.indexOf('ss-card-') === 0)
+      ? _activeEl.id.slice('ss-card-'.length) : null;
+
     var glassesOn = S.ssTrendGlassesUntil && Date.now() < S.ssTrendGlassesUntil;
 
     var html = '';
@@ -1092,9 +1114,18 @@
       var change = st.prev > 0 ? ((st.price - st.prev) / st.prev * 100).toFixed(1) : '0.0';
       var changeTxt = (up ? '+' : '') + change + '%';
       var rr = RISK_RANGE[st.risk];
+      // Screen-reader label mirrors the visual card (ticker/name, price + direction —
+      // redundant with the arrow icon + % already shown visually — holdings, selection).
+      var dirWord = flat ? 'unchanged' : up ? 'up' : 'down';
+      var cardLabel = st.icon + ' ' + st.ticker + ' ' + st.name + ', price $' + st.price.toFixed(2) +
+        ', ' + dirWord + ' ' + changeTxt + (st.shares > 0 ? ', you own ' + st.shares + ' shares' : '') +
+        (isSel ? ', selected' : '');
 
       html += '<div class="ss-card' + (isSel ? ' selected' : '') + (isSurge ? ' surge-glow' : '') + '"' +
         ' onclick="ssSelect(\'' + st.ticker + '\')"' +
+        ' onkeydown="ssCardKey(event,\'' + st.ticker + '\')"' +
+        ' role="button" tabindex="0" aria-pressed="' + (isSel ? 'true' : 'false') + '"' +
+        ' aria-label="' + cardLabel + '"' +
         ' id="ss-card-' + st.ticker + '">' +
         '<div class="ss-card-top">' +
           '<div class="ss-ticker">' + st.icon + ' ' + st.ticker + '</div>' +
@@ -1115,6 +1146,10 @@
     });
 
     container.innerHTML = html;
+    if (_focusedTicker) {
+      var _toRefocus = document.getElementById('ss-card-' + _focusedTicker);
+      if (_toRefocus) _toRefocus.focus({ preventScroll: true });
+    }
     // Mobile/narrow layouts wrap this grid to few columns, so long stock lists (13-ticker
     // levels) need more rows than the container is tall — it becomes scrollable. But
     // align-content:center (nice for short lists, GDD's desired look) centers OVERFLOWING
@@ -1177,6 +1212,16 @@
     S.selected = (S.selected === ticker) ? null : ticker;
     renderCards();
     updateCostInfo();
+  };
+
+  // Keyboard equivalent of the card's onclick — Enter/Space activates a focused
+  // stock card exactly like a tap/click does (mirrors the existing mouse mechanic,
+  // no new mechanic invented).
+  window.ssCardKey = function (e, ticker) {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+      ssSelect(ticker);
+    }
   };
 
   window.ssQty = function (delta) {
@@ -1770,8 +1815,11 @@
   }
 
   function summaryRow(label, val, color) {
+    // Label alpha bumped .4->.6 (measured ~3.77:1 against this box's tinted panel
+    // background, below the 4.5:1 body-text minimum at this tiny .38rem size;
+    // .6 measures ~6.9:1 while keeping the label visibly secondary vs. the value below).
     return '<div style="background:rgba(56,189,248,.07);border-radius:7px;padding:6px 8px">' +
-      '<div style="font-size:.38rem;letter-spacing:.08em;color:rgba(255,255,255,.4);font-family:\'Orbitron\',sans-serif">' + label + '</div>' +
+      '<div style="font-size:.38rem;letter-spacing:.08em;color:rgba(255,255,255,.6);font-family:\'Orbitron\',sans-serif">' + label + '</div>' +
       '<div style="font-size:.82rem;font-weight:900;color:' + (color || '#fff') + ';font-family:\'Anton\',sans-serif">' + val + '</div>' +
     '</div>';
   }

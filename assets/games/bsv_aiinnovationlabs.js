@@ -213,7 +213,7 @@
       <div id="ailTop" style="position:absolute;top:0;left:0;right:0;z-index:30;display:flex;align-items:center;gap:8px;padding:10px 12px 8px;background:linear-gradient(180deg,rgba(3,4,12,.95) 60%,transparent)">
         <button id="ailBack" style="padding:5px 11px;border:1px solid rgba(0,255,255,.35);border-radius:7px;background:rgba(0,255,255,.08);color:${ACCENT};font-size:.52rem;letter-spacing:.12em;cursor:pointer;font-family:inherit;white-space:nowrap">← HUB</button>
         <div style="font-size:.54rem;letter-spacing:.2em;color:${ACCENT};flex:1;text-align:center;font-weight:800;text-shadow:0 0 12px ${ACCENT}">AI INNOVATION LABS</div>
-        <button id="ailHelpBtn" onclick="window.ailShowHelp()" title="How to play" style="padding:5px 9px;border:1px solid rgba(0,255,255,.35);border-radius:7px;background:rgba(0,255,255,.08);color:${ACCENT};cursor:pointer;font-size:.62rem;font-family:inherit">❓</button>
+        <button id="ailHelpBtn" onclick="window.ailShowHelp()" title="How to play" aria-label="How to play" style="padding:5px 9px;border:1px solid rgba(0,255,255,.35);border-radius:7px;background:rgba(0,255,255,.08);color:${ACCENT};cursor:pointer;font-size:.62rem;font-family:inherit">❓</button>
         <div style="display:flex;gap:6px;align-items:center">
           <div style="text-align:right">
             <div style="font-size:.34rem;letter-spacing:.1em;color:rgba(255,255,255,.35)">SCORE</div>

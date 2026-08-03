@@ -144,7 +144,7 @@
       <div style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:10px;padding:12px 16px;background:linear-gradient(180deg,rgba(3,4,12,.95) 60%,transparent)">
         <button id="phqBackBtn" style="padding:7px 14px;border:1px solid ${ACCENT}44;border-radius:9px;background:${ACCENT}14;color:${ACCENT};font-family:Orbitron,sans-serif;font-size:.6rem;letter-spacing:.12em;cursor:pointer;white-space:nowrap">← HUB</button>
         <div style="font-family:Orbitron,sans-serif;font-size:.7rem;letter-spacing:.18em;color:${ACCENT};flex:1;text-align:center">PORTFOLIO HQ</div>
-        <button id="phqHelpBtn" title="How to play" style="padding:6px 10px;border:1px solid ${ACCENT}44;border-radius:8px;background:${ACCENT}14;color:${ACCENT};cursor:pointer;font-size:.8rem">❓</button>
+        <button id="phqHelpBtn" title="How to play" aria-label="How to play" style="padding:6px 10px;border:1px solid ${ACCENT}44;border-radius:8px;background:${ACCENT}14;color:${ACCENT};cursor:pointer;font-size:.8rem">❓</button>
         <div style="display:flex;gap:10px;align-items:center">
           <div style="font-family:Orbitron,sans-serif;font-size:.65rem;color:#fbbf24" id="phqScore">0 PTS</div>
           <div style="font-family:Orbitron,sans-serif;font-size:.8rem;color:#fff" id="phqTimer">60s</div>

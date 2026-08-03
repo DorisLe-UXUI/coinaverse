@@ -708,6 +708,7 @@
           color:${RED};cursor:pointer;font-size:.5rem;padding:1px 5px;z-index:5;
         `;
         rmBtn.textContent = '✕';
+        rmBtn.setAttribute('aria-label', 'Remove task from belt');
         rmBtn.onclick = (e) => {
           e.stopPropagation();
           removeFromBelt(i);

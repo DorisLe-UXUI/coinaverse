@@ -458,9 +458,9 @@
   function renderTopBar() {
     return `
       <div id="bb-topbar">
-        <button class="bb-back" onclick="borrowingbayExit()">&#8592;</button>
+        <button class="bb-back" onclick="borrowingbayExit()" title="Back to hub" aria-label="Back to hub">&#8592;</button>
         <div id="bb-title">BORROWING BAY <span id="bb-level-badge" style="color:#38bdf8">· LV ${curLevel}/3</span></div>
-        <button class="bb-help-btn" onclick="bbShowHelp()" title="How to play">?</button>
+        <button class="bb-help-btn" onclick="bbShowHelp()" title="How to play" aria-label="How to play">?</button>
         <div id="bb-hud-right">
           <span id="bb-score-val" class="bb-gold">0 pts</span>
           <span id="bb-session-timer" class="bb-cyan">${Math.floor(SESSION_SECS/60)}:${(SESSION_SECS%60).toString().padStart(2,'0')}</span>
@@ -542,7 +542,7 @@
           <div class="bb-card-row">
             <div class="bb-card-field">
               <div class="bb-field-label">APR</div>
-              <div class="bb-field-val ${highAPR ? 'bb-red' : 'bb-green'}">${loan.apr}%</div>
+              <div class="bb-field-val ${highAPR ? 'bb-red' : 'bb-green'}">${loan.apr}%${highAPR ? ' ⚠' : ''}</div>
             </div>
             <div class="bb-card-field">
               <div class="bb-field-label">Monthly Payment</div>
@@ -759,7 +759,11 @@
     // budget
     const bv = document.getElementById('bb-budget-val');
     if (bv) {
-      bv.textContent = '$' + fmt(gs.budget);
+      // band word rides alongside the color so "Budget Left" never signals
+      // low/fair/good via color alone (colorblind-safe, matches the FICO/
+      // trust meter fix elsewhere in this batch)
+      const budgetBand = gs.budget <= 200 ? 'LOW' : gs.budget <= 600 ? 'FAIR' : 'GOOD';
+      bv.textContent = '$' + fmt(gs.budget) + ' · ' + budgetBand;
       bv.className = 'bb-budget-val ' + (gs.budget <= 200 ? 'bb-red' : gs.budget <= 600 ? 'bb-orange' : 'bb-green');
     }
 
@@ -776,10 +780,13 @@
       const dot = document.getElementById('bb-dot-' + i);
       if (!dot) return;
       dot.className = 'bb-dot';
+      dot.textContent = '';
+      // tiny glyph backs up the fill color so a colorblind player can still
+      // read past-round results from the dot strip (color is never the only cue)
       if (i === gs.cardIndex && gs.phase === 'playing') dot.classList.add('bb-dot-active');
-      else if (gs.results[i] === 'correct')  dot.classList.add('bb-dot-correct');
-      else if (gs.results[i] === 'wrong')    dot.classList.add('bb-dot-wrong');
-      else if (gs.results[i] === 'timeout')  dot.classList.add('bb-dot-timeout');
+      else if (gs.results[i] === 'correct')  { dot.classList.add('bb-dot-correct'); dot.textContent = '✓'; }
+      else if (gs.results[i] === 'wrong')    { dot.classList.add('bb-dot-wrong');   dot.textContent = '✕'; }
+      else if (gs.results[i] === 'timeout')  { dot.classList.add('bb-dot-timeout'); dot.textContent = '!'; }
     });
   }
 
@@ -1374,6 +1381,11 @@
       background: rgba(255,255,255,0.1);
       border: 1px solid rgba(255,255,255,0.15);
       transition: background 0.3s;
+      /* colorblind-safe iconography: a tiny glyph (set in updateHUD) rides
+         alongside the fill color so past-round dots never signal correct/
+         wrong/timeout via color alone */
+      display: flex; align-items: center; justify-content: center;
+      font-size: 7px; font-weight: 900; line-height: 1; color: rgba(0,0,0,.6);
     }
     .bb-dot-active   { background: #38bdf8; border-color: #38bdf8; box-shadow: 0 0 6px #38bdf8; }
     .bb-dot-correct  { background: #34d399; border-color: #34d399; }

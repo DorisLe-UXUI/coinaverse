@@ -50,6 +50,18 @@
 (function(){
   let G=null, raf=null, gateTimer=null, _cleanupFn=null, hudH=190;
 
+  // ── Reduced motion (a11y): dampens screen shake + the Freedom Mode full-screen
+  // pulse for players who prefer less motion. Cached + kept live via the media
+  // query's own change listener rather than re-querying matchMedia every frame.
+  let _reducedMotion=false;
+  if(window.matchMedia){
+    const _rmQuery=window.matchMedia('(prefers-reduced-motion: reduce)');
+    _reducedMotion=_rmQuery.matches;
+    const _onRmChange=e=>{ _reducedMotion=e.matches; };
+    if(_rmQuery.addEventListener) _rmQuery.addEventListener('change',_onRmChange);
+    else if(_rmQuery.addListener) _rmQuery.addListener(_onRmChange);
+  }
+
   window.dsInit=function(){
     clearTimeout(gateTimer);
     if(_cleanupFn){ _cleanupFn(); _cleanupFn=null; }
@@ -447,10 +459,10 @@
             <div style="font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.18em;color:#c4b5fd">⚔ DEBT SURVIVAL · GLADIATOR PIT</div>
             <div id="dsArenaName" style="font-family:'Anton',sans-serif;font-size:.85rem;letter-spacing:.04em;color:#fbbf24"></div>
           </div>
-          <button onclick="dsShowHelp()" style="width:24px;height:24px;border-radius:50%;border:1px solid rgba(249,115,22,0.4);background:rgba(249,115,22,0.12);color:#fb923c;font-size:.65rem;cursor:pointer;flex-shrink:0">❓</button>
+          <button onclick="dsShowHelp()" aria-label="Help / how to play" title="Help / how to play" style="width:24px;height:24px;border-radius:50%;border:1px solid rgba(249,115,22,0.4);background:rgba(249,115,22,0.12);color:#fb923c;font-size:.65rem;cursor:pointer;flex-shrink:0">❓</button>
           <div style="text-align:right">
             <div id="dsTimer" style="font-family:'Orbitron',sans-serif;font-size:1.2rem;font-weight:900;color:#fbbf24;line-height:1">--:--</div>
-            <div style="font-size:.42rem;color:rgba(255,255,255,0.4);letter-spacing:.1em">TIME LEFT</div>
+            <div style="font-size:.42rem;color:rgba(255,255,255,0.5);letter-spacing:.1em">TIME LEFT</div>
           </div>
         </div>
 
@@ -484,7 +496,7 @@
 
       <canvas id="dsCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:none"></canvas>
 
-      <button id="dsFightBtn" style="position:absolute;right:16px;bottom:18px;z-index:12;width:68px;height:68px;border-radius:50%;border:2px solid #fbbf24;background:radial-gradient(circle,#a855f7,#5b21b6);color:#fff;font-size:1.6rem;cursor:pointer;box-shadow:0 4px 22px rgba(168,85,247,0.5)">⚡</button>
+      <button id="dsFightBtn" aria-label="Fight - Blast attack" title="Fight - Blast attack (or press Space)" style="position:absolute;right:16px;bottom:18px;z-index:12;width:68px;height:68px;border-radius:50%;border:2px solid #fbbf24;background:radial-gradient(circle,#a855f7,#5b21b6);color:#fff;font-size:1.6rem;cursor:pointer;box-shadow:0 4px 22px rgba(168,85,247,0.5)">⚡</button>
 
       <div id="dsGate" style="position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.82);backdrop-filter:blur(6px);padding:20px"></div>
       <div id="dsSelect" style="position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);backdrop-filter:blur(4px);padding:20px"></div>
@@ -590,7 +602,7 @@
           <div style="font-size:.52rem;color:rgba(255,255,255,0.5);margin-top:4px;font-family:'Inter',sans-serif">${l.duration/60} min · Boss: ${boss.crown}${boss.e} ${boss.name}</div>
         </button>`;}).join('')}
       </div>
-      <p style="font-size:.52rem;color:rgba(255,255,255,0.3);margin-top:12px">WASD / Arrows · Touch drag to steer · SPACE or ⚡ to Blast · Answer gates correctly for bonuses!</p>
+      <p style="font-size:.52rem;color:rgba(255,255,255,0.5);margin-top:12px">WASD / Arrows · Touch drag to steer · SPACE or ⚡ to Blast · Answer gates correctly for bonuses!</p>
     </div>`;
   }
   window.dsStartLv=function(i){
@@ -1252,7 +1264,7 @@
     const cDisp=document.getElementById('dsComboDisp');
     if(cDisp){
       cDisp.textContent='×'+G.comboMult+' COMBO';
-      cDisp.style.color=G.comboMult>=5?'#fbbf24':G.comboMult>=3?'#fb923c':'rgba(255,255,255,0.45)';
+      cDisp.style.color=G.comboMult>=5?'#fbbf24':G.comboMult>=3?'#fb923c':'rgba(255,255,255,0.5)';
       if(G.comboMult>G._comboShown){ cDisp.style.animation='none'; void cDisp.offsetWidth; cDisp.style.animation='dsComboPop '+(200+G.comboMult*35)+'ms ease-out'; }
       G._comboShown=G.comboMult;
     }
@@ -1353,13 +1365,18 @@
     if(G.phase==='select'||G.phase==='over'||G.phase==='gate'||G.phase==='help') return;
     const g=geo(W,H);
     let ox=0,oy=0;
-    if(G.shake>0){ ox=(Math.random()-.5)*G.shake*18; oy=(Math.random()-.5)*G.shake*18; }
+    // Reduced motion: cut screen-shake displacement instead of removing the cue
+    // entirely (the flash/hit-flash/float-text already carry the same info).
+    const shakeMag=_reducedMotion?4:18;
+    if(G.shake>0){ ox=(Math.random()-.5)*G.shake*shakeMag; oy=(Math.random()-.5)*G.shake*shakeMag; }
     ctx.save(); ctx.translate(ox,oy);
 
     drawArena(ctx,W,H,g,now);
 
     if(G.freedomActive){
-      ctx.fillStyle='rgba(253,224,71,'+(0.10+0.05*Math.sin(now*0.02))+')';
+      // Reduced motion: hold a steady tint instead of a continuous ~3Hz full-screen pulse.
+      const freedomAlpha=_reducedMotion?0.12:(0.10+0.05*Math.sin(now*0.02));
+      ctx.fillStyle='rgba(253,224,71,'+freedomAlpha+')';
       ctx.fillRect(0,0,W,H);
     }
     if(G.flash>0){
@@ -2040,15 +2057,15 @@
         @keyframes dsStarPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
       </style>
       <div style="font-size:1.8rem;letter-spacing:4px;color:#fbbf24;margin-bottom:2px${win?';animation:dsStarPulse 1.1s ease-in-out infinite':''}">${starStr(stars)}</div>
-      <div style="font-size:.48rem;letter-spacing:.2em;color:rgba(255,255,255,0.35);margin-bottom:6px">ARENA RATING</div>
+      <div style="font-size:.48rem;letter-spacing:.2em;color:rgba(255,255,255,0.5);margin-bottom:6px">ARENA RATING</div>
       <div style="font-family:'Anton',sans-serif;font-size:1.1rem;letter-spacing:.05em;color:${win?'#fbbf24':'#fca5a5'};margin-bottom:4px">${win?'ARENA CLEARED!':'FINANCIAL HEALTH DEPLETED'}</div>
-      <div style="font-size:.58rem;color:rgba(255,255,255,0.45);margin-bottom:6px">${G.lv.arenaName} · Survived ${elapsedMin>0?elapsedMin+'m ':''}${elapsedSec}s · ${G.lv.label}</div>
+      <div style="font-size:.58rem;color:rgba(255,255,255,0.5);margin-bottom:6px">${G.lv.arenaName} · Survived ${elapsedMin>0?elapsedMin+'m ':''}${elapsedSec}s · ${G.lv.label}</div>
       ${G.mainbossDefeated?`<div style="font-size:.62rem;color:#fde047;margin-bottom:10px">🏆 Boss Defeated: ${BOSS_DEFS[G.lv.boss].crown}${BOSS_DEFS[G.lv.boss].e} ${BOSS_DEFS[G.lv.boss].name}</div>`:''}
       ${rankUpMsg?`<div style="font-size:.62rem;color:#86efac;margin-bottom:10px;font-weight:800">${rankUpMsg}</div>`:''}
       ${newAchv.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:10px">${newAchv.map(a=>`<div style="font-size:.52rem;padding:4px 8px;border-radius:8px;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.35);color:#fbbf24">${a.icon} ${a.label}</div>`).join('')}</div>`:''}
 
       <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px;margin-bottom:12px;text-align:left">
-        <div style="font-size:.48rem;letter-spacing:.15em;color:rgba(255,255,255,0.45);margin-bottom:8px;text-align:center">MATCH REPORT</div>
+        <div style="font-size:.48rem;letter-spacing:.15em;color:rgba(255,255,255,0.5);margin-bottom:8px;text-align:center">MATCH REPORT</div>
         ${endStatRow('💳 Debt Destroyed',  G.debtBalanceStart, G.debtBalance, G.debtDestroyed,  'debt')}
         ${endStatRow('📈 Credit Improved', G.creditHealthStart, G.creditHealth, null,            'credit')}
         ${endStatRow('💰 Savings Earned',  G.savingsReserveStart, G.savingsReserve, G.savingsEarned, 'savings')}
@@ -2108,7 +2125,7 @@
     const arrow=same?'→':better?'▲':'▼';
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
       <span style="font-size:.6rem;color:rgba(255,255,255,0.6)">${label}</span>
-      <span style="font-size:.6rem;color:rgba(255,255,255,0.35)">${Math.round(before)}${unit} → ${Math.round(after)}${unit}</span>
+      <span style="font-size:.6rem;color:rgba(255,255,255,0.5)">${Math.round(before)}${unit} → ${Math.round(after)}${unit}</span>
       <span style="font-size:.62rem;color:${c};font-weight:700">${arrow} ${dispVal}${unit}</span>
     </div>`;
   }

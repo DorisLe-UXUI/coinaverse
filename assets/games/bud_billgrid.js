@@ -103,7 +103,7 @@
       <div id="bbg_bar" style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:10px;padding:10px 16px 8px;background:linear-gradient(180deg,rgba(3,4,12,.95),rgba(3,4,12,.0));border-bottom:1px solid rgba(74,122,191,.18)">
         <button id="bbg_back" style="padding:6px 13px;border:1px solid rgba(74,122,191,.45);border-radius:8px;background:rgba(26,42,74,.6);color:${ACCENT_GL};font-family:Orbitron,sans-serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;flex-shrink:0">← HUB</button>
         <div style="font-family:'Anton',sans-serif;font-size:.92rem;letter-spacing:.06em;color:${ACCENT_GL};text-shadow:0 0 14px ${ACCENT_GL}aa;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">BILL MANAGEMENT GRID</div>
-        <button onclick="bbgShowHelp()" title="How to play" style="padding:6px 10px;border:1px solid rgba(74,122,191,.45);border-radius:8px;background:rgba(26,42,74,.6);color:${ACCENT_GL};cursor:pointer;flex-shrink:0;font-size:.75rem">❓</button>
+        <button onclick="bbgShowHelp()" title="How to play" aria-label="How to play" style="padding:6px 10px;border:1px solid rgba(74,122,191,.45);border-radius:8px;background:rgba(26,42,74,.6);color:${ACCENT_GL};cursor:pointer;flex-shrink:0;font-size:.75rem">❓</button>
         <div style="display:flex;gap:8px;flex-shrink:0">
           <div style="text-align:center">
             <div style="font-family:Orbitron,sans-serif;font-size:.44rem;letter-spacing:.12em;color:rgba(255,255,255,.45)">HEALTH</div>

@@ -815,7 +815,9 @@
     ctx.font = "900 8px 'Orbitron', monospace";
     ctx.fillStyle = isGreen ? GRN : RED;
     ctx.textAlign = 'center';
-    const netStr = (isGreen?'+':'') + '$' + Math.abs(net);
+    // Colorblind-safe backup: explicit +/− sign so the live net readout is never
+    // ambiguous when only the reactor's green/red pulse would otherwise carry the signal.
+    const netStr = (isGreen?'+':'-') + '$' + Math.abs(net);
     ctx.fillText(netStr, cx2, cy2 + 3);
 
     // Score below reactor
