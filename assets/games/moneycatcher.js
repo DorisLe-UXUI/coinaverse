@@ -335,7 +335,7 @@
   function ensure3D(){
     if(window.THREE && window.THREE.FBXLoader) return Promise.resolve();
     if(_libsP) return _libsP;
-    _libsP=(window.THREE?Promise.resolve():loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'))
+    _libsP=(window.THREE?Promise.resolve():(window.CV3D&&CV3D.ensureThree?CV3D.ensureThree():loadScript('assets/games3d/lib/three.min.js').catch(function(){ return loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'); })))
       .then(()=>window.fflate?null:loadScript('assets/games3d/lib/fflate.min.js'))
       .then(()=>window.THREE.NURBSCurve?null:loadScript('assets/games3d/lib/NURBSUtils.js').then(()=>loadScript('assets/games3d/lib/NURBSCurve.js')).catch(()=>{}))
       .then(()=>window.THREE.FBXLoader?null:loadScript('assets/games3d/lib/FBXLoader.js'))
