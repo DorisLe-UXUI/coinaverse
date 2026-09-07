@@ -4074,7 +4074,41 @@ video::-webkit-media-controls-play-button {
 @media(max-width:700px){.prod-grid{grid-template-columns:1fr}.prod-photo{min-height:240px}}
 
 
-  </style>
+  
+/* ═══ CV3D — real-3D shell layers (assets/cv3d.js) ═══
+   .home-screen.is3d is set only when WebGL is live; without it the 2D map renders untouched. */
+.cv3d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.home-screen .cv3d-home { z-index: 1; touch-action: none; cursor: grab; }
+.home-screen .cv3d-home.dragging { cursor: grabbing; }
+.home-screen.is3d .home-bg-image {
+  background: radial-gradient(ellipse at 50% 40%, #1a0b4a 0%, #0d052e 45%, #06021a 100%) !important;
+}
+.home-screen.is3d .home-bg-image::after { display: none; }
+.home-screen.is3d .home-character-stage, .home-screen.is3d .home-path-road { display: none; }
+.home-screen.is3d .home-hotspots { z-index: 4; }
+.home-screen.is3d .home-hotspot, .home-screen.is3d .home-hotspot.h-credtech {
+  width: auto; height: auto; border-radius: 0; background: none; transition: none;
+  display: block; transform: translate(-50%, -50%);
+}
+.home-screen.is3d .home-hotspot::after, .home-screen.is3d .home-hotspot-portal { display: none; }
+.home-screen.is3d .home-hotspot-label {
+  opacity: 1; transform: none; margin: 0; pointer-events: auto;
+  background: rgba(10, 4, 41, 0.72);
+  transition: box-shadow .25s var(--ease-out), background .25s var(--ease-out), transform .25s var(--ease-out);
+}
+.home-screen.is3d .home-hotspot.hover .home-hotspot-label,
+.home-screen.is3d .home-hotspot:hover .home-hotspot-label {
+  background: color-mix(in srgb, var(--h-c) 24%, rgba(10, 4, 41, 0.92));
+  box-shadow: 0 0 22px var(--h-c); transform: translateY(-2px) scale(1.05);
+}
+.home-screen.is3d .home-hotspot.is-default::before { bottom: calc(100% + 6px); }
+@media (max-width: 768px) {
+  .home-screen.is3d .home-hotspot-label { font-size: 0.52rem; padding: 3px 8px; }
+  .home-screen.is3d .home-hotspot.is-default::before { font-size: 0.5rem; padding: 3px 7px; }
+}
+.h2screen .cv3d-hub { z-index: 0; opacity: 0.9; pointer-events: none; }
+.h2screen.is3d .h2vbg-overlay { background: linear-gradient(160deg, rgba(2,9,19,.78) 0%, rgba(2,9,19,.42) 50%, rgba(2,9,19,.7) 100%) !important; }
+</style>
 </head>
 <body>
   <div id="app"></div>
@@ -11356,16 +11390,19 @@ window.playDistrictGame = function(token, i) {
 };
 
   </script>
+  <!-- CV3D — shared real-3D runtime (three r128, self-hosted): 3D galaxy map on Home, 3D realm backdrop on Hub.
+       Loaded before the games so FICO Racer / Money Catcher reuse the same three.js instance. -->
+  <script src="assets/cv3d.js?v=1"></script>
   <!-- Real playable games (canvas) — loaded after main script, override the stub SCREENS.game_* -->
   <script src="assets/games/lessonspecs.js?v=112"></script>
   <script src="assets/games/lessondeck.js?v=112"></script>
-  <script src="assets/games/moneycatcher.js?v=112"></script>
+  <script src="assets/games/moneycatcher.js?v=114"></script>
   <script src="assets/games/goalquest.js?v=112"></script>
   <script src="assets/games/stocksurge.js?v=112"></script>
   <script src="assets/games/bizop.js?v=112"></script>
   <script src="assets/games/blockbuilder.js?v=112"></script>
   <script src="assets/games/debtsurv.js?v=112"></script>
-  <script src="assets/games/ficoracer.js?v=113"></script>
+  <script src="assets/games/ficoracer.js?v=114"></script>
   <script src="assets/games/creditcore.js?v=112"></script>
   <script src="assets/games/scoretower.js?v=112"></script>
   <script src="assets/games/borrowingbay.js?v=112"></script>
