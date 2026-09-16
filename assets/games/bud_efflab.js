@@ -627,6 +627,15 @@
         font-size:.6rem;display:flex;align-items:center;gap:4px;
         animation: ef_task_in .2s ease both;
       }
+      /* Phones: the 5 fixed-width slots totalled 495px inside a ~366px row, so
+         slot #5 sat off-screen behind a horizontal scroll. You cannot scroll a
+         drop target into view while already dragging a tile onto it, which made
+         the last slot unreachable by touch. Let the slots share the row instead. */
+      @media (max-width: 560px) {
+        #ef_belt { overflow-x: visible; }
+        .ef-belt-slot { width: auto; flex: 1 1 0; min-width: 56px; }
+        .ef-belt-slot .slot-number { font-size: .34rem; top: 2px; left: 3px; }
+      }
     `;
     document.head.appendChild(s);
   }

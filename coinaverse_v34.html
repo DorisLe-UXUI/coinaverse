@@ -3773,14 +3773,21 @@ video::-webkit-media-controls-play-button {
    and the PLAY NOW cluster are both bottom-anchored and collide once the screen
    narrows enough that they can no longer sit side-by-side) */
 @media (max-width: 768px) {
-  .home-topbar { padding: 12px 16px; gap: 10px; }
+  .home-topbar { padding: 10px 14px 8px; gap: 8px; flex-wrap: wrap; row-gap: 8px; }
   .home-brand-text { font-size: 1.15rem; letter-spacing: 0.12em; }
-  .home-hud { min-width: 0; flex-shrink: 1; gap: 6px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+  .home-brand { flex: 1 1 auto; min-width: 0; }
+  .home-actions { flex: 0 0 auto; }
+  /* Stats get their OWN full-width row on phones. Letting them share row 1 with
+     the wordmark and the 3 icon buttons left only ~55px for a 298px-wide pill
+     strip, so LVL / DAY / CRED were scrolled out of sight with no affordance
+     saying they were there at all. */
+  .home-hud { order: 3; flex: 1 0 100%; min-width: 0; gap: 6px; justify-content: center;
+              overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
   .home-hud::-webkit-scrollbar { display: none; }
-  .home-pill { flex-shrink: 0; padding: 6px 10px 6px 6px; }
+  .home-pill { flex-shrink: 0; padding: 5px 10px 5px 6px; }
   .home-pill .l { display: none; }
-  .home-pill img { width: 18px; height: 18px; }
-  .home-actions { flex-shrink: 0; }
+  .home-pill .n { font-size: 0.92rem; }
+  .home-pill img { width: 17px; height: 17px; }
   .home-hubcard, .home-misscard { display: none; }
   .home-action-row { flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 94vw; }
   .home-action-btn { padding: 8px 16px; font-size: 0.64rem; gap: 6px; }
@@ -6123,7 +6130,7 @@ video::-webkit-media-controls-play-button {
     .vlt-lesson-points{display:flex;flex-direction:column;gap:9px;max-width:540px;width:100%;text-align:left}
     .vlt-lesson-points div{background:linear-gradient(160deg,rgba(13,42,52,.6),rgba(4,18,26,.5));backdrop-filter:blur(10px);border:1px solid rgba(94,234,212,.16);padding:11px 15px;border-radius:14px;font-size:.94rem;color:#dbf3ed}
     .vlt-lesson-circuit{position:absolute;right:3%;left:auto;bottom:10%;width:84px;animation:circFloat 3s ease-in-out infinite;filter:drop-shadow(0 6px 18px rgba(20,184,166,.5))}
-    @media(max-width:720px){.vlt-stage{flex-direction:column;justify-content:flex-start;gap:22px;padding:22px 5% 34px;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}.vlt-vault{width:152px;height:212px}.vlt-vault-num{font-size:2rem}.vlt-playcol{max-width:none}.vlt-lesson-circuit{display:none}.vlt-claim-glow{width:300px;height:300px}.vlt-goal h1,.vlt-claim h1{font-size:1.7rem}}
+    @media(max-width:720px){.vlt-stage{flex-direction:column;flex-wrap:nowrap;align-items:stretch;justify-content:flex-start;gap:22px;padding:22px 5% 34px;overflow-x:hidden;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}.vlt-vaultcol{align-self:center}.vlt-vault{width:152px;height:212px}.vlt-vault-num{font-size:2rem}.vlt-playcol{max-width:none;min-width:0;width:100%;align-items:stretch}.vlt-hud{font-size:.66rem}.vlt-lesson-circuit{display:none}.vlt-claim-glow{width:300px;height:300px}.vlt-goal h1,.vlt-claim h1{font-size:1.7rem}}
    `;
 
   // ───────── SaveScape intro (Guardian AI) flag ─────────
@@ -9641,13 +9648,18 @@ video::-webkit-media-controls-play-button {
    {id:'ac1',name:'Coinaverse Accessories',type:'Accessories',ages:'All Ages',price:0,cat:'Accessories',status:'soon',blurb:'Backpacks, water bottles & everyday gear — coming soon.'},
    {id:'cl1',name:'Coinaverse Collectibles',type:'Collectibles',ages:'All Ages',price:0,cat:'Collectibles',status:'soon',blurb:'Character figures and collectible cards from every world — coming soon.'},
   ];
+  // These 5 catalog rows are placeholders for ranges with no product photo shot
+  // yet, so assets/shop/<id>.jpg genuinely does not exist and every render fired
+  // a 404. Skip the image entirely rather than leaning on the onerror fallback.
+  const MERCH_NO_ART = { eb1:1, ap1:1, jn1:1, ac1:1, cl1:1 };
+  const merchArt = id => MERCH_NO_ART[id] ? '' : ('assets/shop/' + id + '.jpg');
   const MERCH_BY=id=>MERCH.find(m=>m.id===id);
   // category cover theme (Coincept palette: forest green / gold)
   const COVER_COL={'Flash Cards':['#0e7a3a','#1B5E20'],'Activity Books':['#16794d','#0e5c38'],'Downloadable E-Books':['#1e6f7a','#123f47'],'Apparel':['#7a3a6f','#3f1247'],'Journals & Notebooks':['#7a5a1e','#472f12'],'Accessories':['#3a5a7a','#12293f'],'Collectibles':['#7a1e3a','#470f1f'],'Coming Soon':['#3a3358','#241f3e']};
   function coverHTML(m){
     const [c1,c2]=COVER_COL[m.cat]||['#1a1340','#0e0a26'];
     return `<div class="mc-cover mc-photo" style="position:relative;background:linear-gradient(150deg,${c1},${c2})">
-      <img src="assets/shop/${m.id}.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center" onerror="this.style.display='none'" loading="lazy">
+      ${merchArt(m.id)?`<img src="${merchArt(m.id)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center" onerror="this.style.display='none'" loading="lazy">`:''}
       <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.55) 0%,transparent 50%)"></div>
       <div class="mc-cv-foot" style="position:relative;z-index:1"><span class="mc-cv-type">${m.type}</span><span class="mc-cv-age">AGES ${m.ages}</span></div>
       ${m.status==='soon'?'<div class="mc-cv-soon" style="position:relative;z-index:1">COMING&nbsp;SOON</div>':''}</div>`; }
@@ -9677,7 +9689,7 @@ video::-webkit-media-controls-play-button {
       <div class="cv-cart-list">${rows}</div>
       <div class="cv-drawer-foot"><div class="cv-sub"><span>Subtotal</span><b>${money(cartTotal())}</b></div>
       <button class="cv-checkout-btn" ${ids.length?'':'disabled'} onclick="cvCheckout()">CHECKOUT →</button></div>`; }
-  function coverMini(m){ return `<div class="cv-cart-cover" style="background-image:url('assets/shop/${m.id}.jpg')"></div>`; }
+  function coverMini(m){ const a=merchArt(m.id); return `<div class="cv-cart-cover"${a?` style="background-image:url('${a}')"`:''}></div>`; }
 
   /* ─────────── CHECKOUT (facade) ─────────── */
   window.cvCheckout=function(){ closeCart(); const c=cart(); if(!Object.keys(c).length){cvToast('Cart is empty');return;}
@@ -9747,9 +9759,9 @@ video::-webkit-media-controls-play-button {
     `;
     const card=m=>`<div class="shop2-card" onclick="openProduct('${m.id}')">
       <div class="shop2-cover">
-        <img src="assets/shop/${m.id}.jpg" onerror="this.style.display='none'" loading="lazy">
+        ${merchArt(m.id)?`<img src="${merchArt(m.id)}" onerror="this.style.display='none'" loading="lazy">`:''}
         <div style="position:absolute;inset:0;background:linear-gradient(150deg,${m.cat==='Flash Cards'?'#0e7a3a':'#16794d'},${m.cat==='Coming Soon'?'#3a3358':'#0e5c38'})"></div>
-        <img src="assets/shop/${m.id}.jpg" onerror="this.remove()" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+        ${merchArt(m.id)?`<img src="${merchArt(m.id)}" onerror="this.remove()" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`:''}
         <div class="shop2-cover-grad"></div>
         <div class="shop2-cover-badges"><span class="shop2-cover-type">${m.type}</span><span class="shop2-cover-age">AGES ${m.ages}</span></div>
         ${m.status==='soon'?'<div class="shop2-soon">COMING SOON</div>':''}
@@ -9799,7 +9811,7 @@ video::-webkit-media-controls-play-button {
     o=document.createElement('div'); o.id='cvProd'; o.className='cv-modal-ov';
     o.innerHTML=`<div class="cvm-card prod-card"><button class="cvm-x" onclick="closeProduct()">✕</button>
       <div class="prod-grid">
-        <div class="prod-photo" style="background-image:url('assets/shop/${id}.jpg')">${m.status==='soon'?'<div class="mc-cv-soon">COMING&nbsp;SOON</div>':''}</div>
+        <div class="prod-photo"${merchArt(id)?` style="background-image:url('${merchArt(id)}')"`:''}>${m.status==='soon'?'<div class="mc-cv-soon">COMING&nbsp;SOON</div>':''}</div>
         <div class="prod-info">
           <div class="prod-badges"><span class="mc-cv-type">${m.type}</span><span class="prod-age">AGES ${m.ages}</span></div>
           <h2 class="prod-name">${m.name}</h2><div class="prod-price">${money(m.price)}</div>
@@ -11357,59 +11369,59 @@ window.playDistrictGame = function(token, i) {
 
   </script>
   <!-- Real playable games (canvas) — loaded after main script, override the stub SCREENS.game_* -->
-  <script src="assets/games/lessonspecs.js?v=112"></script>
-  <script src="assets/games/lessondeck.js?v=112"></script>
-  <script src="assets/games/moneycatcher.js?v=112"></script>
-  <script src="assets/games/goalquest.js?v=112"></script>
-  <script src="assets/games/stocksurge.js?v=112"></script>
-  <script src="assets/games/bizop.js?v=112"></script>
-  <script src="assets/games/blockbuilder.js?v=112"></script>
-  <script src="assets/games/debtsurv.js?v=112"></script>
-  <script src="assets/games/ficoracer.js?v=113"></script>
-  <script src="assets/games/creditcore.js?v=112"></script>
-  <script src="assets/games/scoretower.js?v=112"></script>
-  <script src="assets/games/borrowingbay.js?v=112"></script>
-  <script src="assets/games/trustexchange.js?v=112"></script>
-  <script src="assets/games/repaymentrunway.js?v=112"></script>
-  <script src="assets/games/creditlimitlab.js?v=112"></script>
-  <script src="assets/games/reportobservatory.js?v=112"></script>
-  <script src="assets/games/inv_academy.js?v=112"></script>
-  <script src="assets/games/inv_assetrealm.js?v=112"></script>
-  <script src="assets/games/inv_dividend.js?v=112"></script>
-  <script src="assets/games/inv_portfolio.js?v=112"></script>
-  <script src="assets/games/inv_research.js?v=112"></script>
-  <script src="assets/games/inv_riskcontrol.js?v=112"></script>
-  <script src="assets/games/inv_stockarena.js?v=112"></script>
-  <script src="assets/games/bud_billgrid.js?v=112"></script>
-  <script src="assets/games/bud_cashflow.js?v=112"></script>
-  <script src="assets/games/bud_efflab.js?v=112"></script>
-  <script src="assets/games/bud_goaltower.js?v=112"></script>
-  <script src="assets/games/bud_needswants.js?v=112"></script>
-  <script src="assets/games/bud_plaza.js?v=112"></script>
-  <script src="assets/games/bud_vault.js?v=112"></script>
-  <script src="assets/games/bsv_aiinnovationlabs.js?v=112"></script>
-  <script src="assets/games/bsv_bitstreammarket.js?v=112"></script>
-  <script src="assets/games/bsv_blockchainblvd.js?v=112"></script>
-  <script src="assets/games/bsv_cryptocrossing.js?v=112"></script>
-  <script src="assets/games/bsv_futuretrendscmd.js?v=112"></script>
-  <script src="assets/games/bsv_nftnexus.js?v=112"></script>
-  <script src="assets/games/bsv_volatilityvortex.js?v=112"></script>
-  <script src="assets/games/ll_branding_district.js?v=112"></script>
-  <script src="assets/games/ll_idea_incubator.js?v=112"></script>
-  <script src="assets/games/ll_investor_pitch.js?v=112"></script>
-  <script src="assets/games/ll_marketing_metropolis.js?v=112"></script>
-  <script src="assets/games/ll_product_dev_lab.js?v=112"></script>
-  <script src="assets/games/ll_scaling_center.js?v=112"></script>
-  <script src="assets/games/ll_startup_street.js?v=112"></script>
-  <script src="assets/games/ddt_discovery.js?v=112"></script>
-  <script src="assets/games/ddt_gym.js?v=112"></script>
-  <script src="assets/games/ddt_habits.js?v=112"></script>
-  <script src="assets/games/ddt_lab.js?v=112"></script>
-  <script src="assets/games/ddt_plaza.js?v=112"></script>
-  <script src="assets/games/ddt_rebuild.js?v=112"></script>
-  <script src="assets/games/ddt_resilience.js?v=112"></script>
-  <script src="assets/games/arccfg.js?v=112"></script>
-  <script src="assets/games/arcade.js?v=112"></script>
-  <script src="assets/games/capstones.js?v=112"></script>
+  <script src="assets/games/lessonspecs.js?v=114"></script>
+  <script src="assets/games/lessondeck.js?v=114"></script>
+  <script src="assets/games/moneycatcher.js?v=114"></script>
+  <script src="assets/games/goalquest.js?v=114"></script>
+  <script src="assets/games/stocksurge.js?v=114"></script>
+  <script src="assets/games/bizop.js?v=114"></script>
+  <script src="assets/games/blockbuilder.js?v=114"></script>
+  <script src="assets/games/debtsurv.js?v=114"></script>
+  <script src="assets/games/ficoracer.js?v=114"></script>
+  <script src="assets/games/creditcore.js?v=114"></script>
+  <script src="assets/games/scoretower.js?v=114"></script>
+  <script src="assets/games/borrowingbay.js?v=114"></script>
+  <script src="assets/games/trustexchange.js?v=114"></script>
+  <script src="assets/games/repaymentrunway.js?v=114"></script>
+  <script src="assets/games/creditlimitlab.js?v=114"></script>
+  <script src="assets/games/reportobservatory.js?v=114"></script>
+  <script src="assets/games/inv_academy.js?v=114"></script>
+  <script src="assets/games/inv_assetrealm.js?v=114"></script>
+  <script src="assets/games/inv_dividend.js?v=114"></script>
+  <script src="assets/games/inv_portfolio.js?v=114"></script>
+  <script src="assets/games/inv_research.js?v=114"></script>
+  <script src="assets/games/inv_riskcontrol.js?v=114"></script>
+  <script src="assets/games/inv_stockarena.js?v=114"></script>
+  <script src="assets/games/bud_billgrid.js?v=114"></script>
+  <script src="assets/games/bud_cashflow.js?v=114"></script>
+  <script src="assets/games/bud_efflab.js?v=114"></script>
+  <script src="assets/games/bud_goaltower.js?v=114"></script>
+  <script src="assets/games/bud_needswants.js?v=114"></script>
+  <script src="assets/games/bud_plaza.js?v=114"></script>
+  <script src="assets/games/bud_vault.js?v=114"></script>
+  <script src="assets/games/bsv_aiinnovationlabs.js?v=114"></script>
+  <script src="assets/games/bsv_bitstreammarket.js?v=114"></script>
+  <script src="assets/games/bsv_blockchainblvd.js?v=114"></script>
+  <script src="assets/games/bsv_cryptocrossing.js?v=114"></script>
+  <script src="assets/games/bsv_futuretrendscmd.js?v=114"></script>
+  <script src="assets/games/bsv_nftnexus.js?v=114"></script>
+  <script src="assets/games/bsv_volatilityvortex.js?v=114"></script>
+  <script src="assets/games/ll_branding_district.js?v=114"></script>
+  <script src="assets/games/ll_idea_incubator.js?v=114"></script>
+  <script src="assets/games/ll_investor_pitch.js?v=114"></script>
+  <script src="assets/games/ll_marketing_metropolis.js?v=114"></script>
+  <script src="assets/games/ll_product_dev_lab.js?v=114"></script>
+  <script src="assets/games/ll_scaling_center.js?v=114"></script>
+  <script src="assets/games/ll_startup_street.js?v=114"></script>
+  <script src="assets/games/ddt_discovery.js?v=114"></script>
+  <script src="assets/games/ddt_gym.js?v=114"></script>
+  <script src="assets/games/ddt_habits.js?v=114"></script>
+  <script src="assets/games/ddt_lab.js?v=114"></script>
+  <script src="assets/games/ddt_plaza.js?v=114"></script>
+  <script src="assets/games/ddt_rebuild.js?v=114"></script>
+  <script src="assets/games/ddt_resilience.js?v=114"></script>
+  <script src="assets/games/arccfg.js?v=114"></script>
+  <script src="assets/games/arcade.js?v=114"></script>
+  <script src="assets/games/capstones.js?v=114"></script>
 </body>
 </html>

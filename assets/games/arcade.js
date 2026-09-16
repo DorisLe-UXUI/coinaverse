@@ -166,6 +166,7 @@
     grow:   '🌱 Make smart picks each round to GROW your total before time runs out.',
   };
   function howToBody(mode){   // mode: 'start' (first entry) | 'resume' (❓ button mid-play)
+    if(!A||!A.cfg) return '';
     const cfg=A.cfg, resume=mode==='resume';
     return `<div class="arc-card" style="max-width:460px">
       <div style="font:700 .5rem/1 'Orbitron',sans-serif;letter-spacing:.2em;color:var(--ac);margin-bottom:10px">HOW TO PLAY</div>
@@ -195,6 +196,10 @@
 
   function boot(){
     const cv=document.getElementById('arcCv'); if(!cv){ return; }
+    // game_arc can be entered without arcInit() (a stale saved screen id, a
+    // back/forward restore, or any goTo('game_arc') that skips playDistrictGame).
+    // reset() then dereferenced a null A and threw, leaving a dead black screen.
+    if(!A||!A.cfg){ if(window.goTo) goTo('hub'); return; }
     const ctx=cv.getContext('2d');
     function size(){ cv.width=cv.clientWidth*devicePixelRatio; cv.height=cv.clientHeight*devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); }
     size(); window.addEventListener('resize',size);
