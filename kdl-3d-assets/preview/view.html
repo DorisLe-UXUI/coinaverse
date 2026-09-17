@@ -1,0 +1,92 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;background:#EAF2F6;overflow:hidden}canvas{display:block}
+</style>
+<script type="importmap">{"imports":{
+"three":"/node_modules/three/build/three.module.js",
+"three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+
+const P = new URLSearchParams(location.search);
+const W = +(P.get('w')||900), H = +(P.get('h')||620);
+const files = (P.get('files')||'').split(',').filter(Boolean);
+const gap   = +(P.get('gap')||1.4);
+const clip  = P.get('clip')||'';
+const at    = +(P.get('t')||0);
+const yaw   = +(P.get('yaw')||0.6);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(W,H); renderer.setPixelRatio(2);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#EAF2F6');
+
+// lighting rig: warm key + cool fill + sky bounce. Flat-shaded low-poly
+// lives or dies on this -- one flat light and every facet reads the same.
+const key = new THREE.DirectionalLight(0xfff3d9, 2.5);
+key.position.set(4,6,7); key.castShadow = true;
+key.shadow.mapSize.set(2048,2048);
+const d=8; Object.assign(key.shadow.camera,{left:-d,right:d,top:d,bottom:-d,near:0.1,far:40});
+key.shadow.bias = -0.0012;
+scene.add(key);
+scene.add(new THREE.DirectionalLight(0xbfe0ff, 0.65).translateX(-5).translateZ(-4).translateY(3));
+scene.add(new THREE.HemisphereLight(0xdff0ff, 0xd8c39a, 1.0));
+
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(40,48),
+  new THREE.MeshStandardMaterial({color:0xDFE9D8, roughness:1}));
+ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+
+const camera = new THREE.PerspectiveCamera(32, W/H, 0.1, 200);
+const loader = new GLTFLoader();
+const mixers = [];
+const box = new THREE.Box3();
+const loaded = [];
+
+function place(gltf, i){
+  const o = gltf.scene;
+  // assets already export Y-up per glTF convention -- no rotation here.
+  // If a model needs turning at this point, the exporter is wrong, not the viewer.
+  o.traverse(n=>{ if(n.isMesh){ n.castShadow=true; n.receiveShadow=true;
+                                n.material.flatShading=true; n.material.needsUpdate=true; }});
+  const wrap = new THREE.Group();
+  wrap.add(o); wrap.position.x = (i - (files.length-1)/2) * gap;
+  scene.add(wrap);
+  wrap.updateMatrixWorld(true);   // Box3 reads matrixWorld; without this the
+                                  // frame is computed from a stale identity
+  if(gltf.animations.length){
+    const m = new THREE.AnimationMixer(o);
+    const c = clip ? gltf.animations.find(a=>a.name===clip) : gltf.animations[0];
+    if(c){ m.clipAction(c).play(); mixers.push(m); }
+  }
+  loaded.push(wrap);
+}
+
+Promise.all(files.map((f,i)=>new Promise((res,rej)=>
+  loader.load(f, g=>{place(g,i); res();}, undefined, rej))))
+.then(()=>{
+  // pose first, THEN measure -- a raised arm changes the framing
+  mixers.forEach(m=>{ m.setTime(at); });
+  loaded.forEach(w=>{ w.updateMatrixWorld(true); box.expandByObject(w); });
+  const c = box.getCenter(new THREE.Vector3());
+  const s = box.getSize(new THREE.Vector3());
+  // frame by the dominant dimension, then pad 12% -- the old formula added a
+  // fixed 1.2m which pushed small assets into the distance
+  const radius = Math.max(s.x/camera.aspect, s.y, s.z/camera.aspect) * 0.5 || 1;
+  const dist = radius / Math.tan(THREE.MathUtils.degToRad(16)) * 1.20;
+  // near chest height, gentle downward tilt. A high camera foreshortens the
+  // legs and crops the feet on a standing figure.
+  camera.position.set(c.x + Math.sin(yaw)*dist, c.y + s.y*0.16,
+                      c.z + Math.cos(yaw)*dist);
+  camera.lookAt(c.x, c.y - s.y*0.02, c.z);
+  key.target.position.copy(c); scene.add(key.target);
+  renderer.render(scene, camera);
+  window.__ready = true;
+}).catch(e=>{ window.__err = String(e); window.__ready = true; });
+</script></body></html>
