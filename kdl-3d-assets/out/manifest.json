@@ -1,0 +1,245 @@
+{
+  "characters": [
+    {
+      "name": "hero_boy",
+      "file": "hero_boy.glb",
+      "tris": 1112,
+      "bytes": 46668,
+      "height_m": 1.15,
+      "clips": [
+        "Idle",
+        "Walk",
+        "Wave"
+      ]
+    },
+    {
+      "name": "hero_girl",
+      "file": "hero_girl.glb",
+      "tris": 1156,
+      "bytes": 48860,
+      "height_m": 1.12,
+      "clips": [
+        "Idle",
+        "Walk",
+        "Wave"
+      ]
+    },
+    {
+      "name": "friend_boy",
+      "file": "friend_boy.glb",
+      "tris": 1112,
+      "bytes": 46432,
+      "height_m": 1.08,
+      "clips": [
+        "Idle",
+        "Walk",
+        "Wave"
+      ]
+    },
+    {
+      "name": "friend_girl",
+      "file": "friend_girl.glb",
+      "tris": 1156,
+      "bytes": 48788,
+      "height_m": 1.1,
+      "clips": [
+        "Idle",
+        "Walk",
+        "Wave"
+      ]
+    },
+    {
+      "name": "villager_man",
+      "file": "villager_man.glb",
+      "tris": 1288,
+      "bytes": 54824,
+      "height_m": 1.68,
+      "clips": [
+        "Idle",
+        "Walk",
+        "Wave"
+      ]
+    },
+    {
+      "name": "villager_woman",
+      "file": "villager_woman.glb",
+      "tris": 1288,
+      "bytes": 55200,
+      "height_m": 1.58,
+      "clips": [
+        "Idle",
+        "Walk",
+        "Wave"
+      ]
+    },
+    {
+      "name": "elder",
+      "file": "elder.glb",
+      "tris": 1288,
+      "bytes": 54956,
+      "height_m": 1.6,
+      "clips": [
+        "Idle",
+        "Walk",
+        "Wave"
+      ]
+    },
+    {
+      "name": "shepherd",
+      "file": "shepherd.glb",
+      "tris": 1288,
+      "bytes": 54936,
+      "height_m": 1.66,
+      "clips": [
+        "Idle",
+        "Walk",
+        "Wave"
+      ]
+    }
+  ],
+  "props": [
+    {
+      "name": "tree_a",
+      "file": "tree_a.glb",
+      "tris": 444,
+      "bytes": 21876
+    },
+    {
+      "name": "tree_b",
+      "file": "tree_b.glb",
+      "tris": 444,
+      "bytes": 21756
+    },
+    {
+      "name": "tree_c",
+      "file": "tree_c.glb",
+      "tris": 584,
+      "bytes": 27404
+    },
+    {
+      "name": "palm_a",
+      "file": "palm_a.glb",
+      "tris": 606,
+      "bytes": 31460
+    },
+    {
+      "name": "palm_b",
+      "file": "palm_b.glb",
+      "tris": 598,
+      "bytes": 31044
+    },
+    {
+      "name": "bush_a",
+      "file": "bush_a.glb",
+      "tris": 176,
+      "bytes": 10456
+    },
+    {
+      "name": "bush_b",
+      "file": "bush_b.glb",
+      "tris": 166,
+      "bytes": 10812
+    },
+    {
+      "name": "rock_a",
+      "file": "rock_a.glb",
+      "tris": 150,
+      "bytes": 10000
+    },
+    {
+      "name": "rock_b",
+      "file": "rock_b.glb",
+      "tris": 112,
+      "bytes": 7480
+    },
+    {
+      "name": "rock_c",
+      "file": "rock_c.glb",
+      "tris": 98,
+      "bytes": 6812
+    },
+    {
+      "name": "house_a",
+      "file": "house_a.glb",
+      "tris": 352,
+      "bytes": 18880
+    },
+    {
+      "name": "house_b",
+      "file": "house_b.glb",
+      "tris": 308,
+      "bytes": 16760
+    },
+    {
+      "name": "house_c",
+      "file": "house_c.glb",
+      "tris": 308,
+      "bytes": 16588
+    },
+    {
+      "name": "well",
+      "file": "well.glb",
+      "tris": 212,
+      "bytes": 10644
+    },
+    {
+      "name": "jar_a",
+      "file": "jar_a.glb",
+      "tris": 204,
+      "bytes": 11964
+    },
+    {
+      "name": "jar_b",
+      "file": "jar_b.glb",
+      "tris": 204,
+      "bytes": 11932
+    },
+    {
+      "name": "basket",
+      "file": "basket.glb",
+      "tris": 64,
+      "bytes": 4712
+    },
+    {
+      "name": "fence",
+      "file": "fence.glb",
+      "tris": 264,
+      "bytes": 6556
+    },
+    {
+      "name": "campfire",
+      "file": "campfire.glb",
+      "tris": 300,
+      "bytes": 17168
+    },
+    {
+      "name": "scroll",
+      "file": "scroll.glb",
+      "tris": 96,
+      "bytes": 4976
+    },
+    {
+      "name": "church",
+      "file": "church.glb",
+      "tris": 916,
+      "bytes": 32400
+    },
+    {
+      "name": "synagogue",
+      "file": "synagogue.glb",
+      "tris": 1228,
+      "bytes": 34416
+    },
+    {
+      "name": "temple",
+      "file": "temple.glb",
+      "tris": 1272,
+      "bytes": 37668
+    }
+  ],
+  "totals": {
+    "assets": 31,
+    "bytes": 814428,
+    "tris": 18794
+  }
+}

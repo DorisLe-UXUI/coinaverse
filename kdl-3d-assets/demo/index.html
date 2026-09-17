@@ -1,0 +1,217 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KDL Asset Viewer</title>
+<style>
+  :root{--bg:#EAF2F6;--panel:#ffffffdd;--ink:#22303a;--line:#c9d8e0;--accent:#4A8FD4}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+  #ui{position:fixed;top:12px;left:12px;width:250px;max-height:calc(100% - 24px);
+    overflow:auto;background:var(--panel);backdrop-filter:blur(8px);
+    border:1px solid var(--line);border-radius:12px;padding:12px 12px 14px}
+  h1{font-size:13px;margin:0 0 2px;letter-spacing:.02em}
+  .sub{font-size:11px;opacity:.6;margin:0 0 10px}
+  .grp{font-size:10px;text-transform:uppercase;letter-spacing:.09em;opacity:.55;
+    margin:12px 0 5px;font-weight:600}
+  button{display:block;width:100%;text-align:left;margin:0 0 3px;padding:5px 8px;
+    font:inherit;font-size:12px;background:#fff;border:1px solid var(--line);
+    border-radius:7px;cursor:pointer;color:inherit}
+  button:hover{border-color:var(--accent)}
+  button[data-on="1"]{background:var(--accent);border-color:var(--accent);color:#fff}
+  #clips{display:flex;gap:4px;flex-wrap:wrap}
+  #clips button{width:auto;flex:1 1 auto;text-align:center}
+  #meta{margin-top:10px;font-size:11px;opacity:.7;border-top:1px solid var(--line);padding-top:8px}
+  #hint{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);font-size:11px;
+    opacity:.5}
+</style></head><body>
+<div id="app"></div>
+<div id="ui">
+  <h1>KingdomLand — 3D asset set</h1>
+  <p class="sub">Click an asset. Drag to orbit, scroll to zoom.</p>
+  <div id="clips"></div>
+  <div id="list"></div>
+  <div id="meta"></div>
+</div>
+<div id="hint">village scene = every asset placed together</div>
+
+<script type="importmap">{"imports":{
+"three":"./vendor/three.module.min.js",
+"three/addons/":"./vendor/addons/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#EAF2F6');
+scene.fog = new THREE.Fog('#EAF2F6', 26, 70);
+
+const key = new THREE.DirectionalLight(0xfff3d9, 2.5);
+key.position.set(6,9,7); key.castShadow = true;
+key.shadow.mapSize.set(2048,2048);
+Object.assign(key.shadow.camera,{left:-16,right:16,top:16,bottom:-16,near:.1,far:60});
+key.shadow.bias = -0.0012; scene.add(key, key.target);
+const fill = new THREE.DirectionalLight(0xbfe0ff, 0.6); fill.position.set(-6,4,-5);
+scene.add(fill, new THREE.HemisphereLight(0xdff0ff, 0xd8c39a, 1.0));
+
+const ground = new THREE.Mesh(new THREE.CircleGeometry(60,64),
+  new THREE.MeshStandardMaterial({color:0xDFE9D8, roughness:1}));
+ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+
+const camera = new THREE.PerspectiveCamera(34, innerWidth/innerHeight, 0.1, 300);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.495;
+controls.target.set(0,0.6,0);
+
+const loader = new GLTFLoader();
+const clock = new THREE.Clock();
+let current = null, mixers = [], clipNames = [], activeClip = 'Idle';
+
+function prep(o){
+  o.traverse(n=>{ if(n.isMesh){ n.castShadow=true; n.receiveShadow=true;
+    n.material.flatShading=true; n.material.needsUpdate=true; }});
+  return o;
+}
+function clear(){
+  if(current){ scene.remove(current); current.traverse(n=>{
+    if(n.isMesh){ n.geometry.dispose(); n.material.dispose(); }}); }
+  current=null; mixers=[];
+}
+function frame(obj, pad=1.25){
+  const b=new THREE.Box3().setFromObject(obj), c=b.getCenter(new THREE.Vector3()),
+        s=b.getSize(new THREE.Vector3());
+  const r=Math.max(s.x/camera.aspect,s.y,s.z/camera.aspect)*0.5||1;
+  const d=r/Math.tan(THREE.MathUtils.degToRad(17))*pad;
+  camera.position.set(c.x+d*0.62, c.y+s.y*0.30+r*0.25, c.z+d*0.78);
+  controls.target.set(c.x, c.y, c.z);
+  key.target.position.copy(c);
+  controls.update();
+}
+
+async function show(file, label){
+  clear();
+  const g = await loader.loadAsync('../out/'+file);
+  const o = prep(g.scene); current = o; scene.add(o);
+  clipNames = g.animations.map(a=>a.name);
+  if(g.animations.length){
+    const m = new THREE.AnimationMixer(o);
+    const c = g.animations.find(a=>a.name===activeClip) || g.animations[0];
+    m.clipAction(c).play(); mixers=[m]; current.userData.gltf=g; current.userData.mixer=m;
+  }
+  frame(o);
+  renderClips();
+  document.getElementById('meta').textContent =
+    `${label} · ${clipNames.length? clipNames.join(', ') : 'static prop'}`;
+}
+
+async function village(){
+  clear();
+  const grp = new THREE.Group(); current = grp; scene.add(grp);
+  const layout = [
+    ['church',  -1.0, 0,-11.5,  0.0],
+    ['house_a', -8.5, 0, -5.5,  0.4], ['house_b',  5.2, 0,-10.0, -0.2],
+    ['house_c',  7.5, 0, -5.0,  0.9], ['well',     0.4, 0, -1.2,  0],
+    ['tree_a',  -9.5, 0,  1.5,  0],   ['tree_c',   9.0, 0, -0.5,  0],
+    ['palm_a',   4.5, 0,  3.6,  0],   ['palm_b',   6.6, 0,  2.2,  0],
+    ['bush_a',  -6.0, 0,  2.6,  0],   ['bush_b',  -4.2, 0,  3.4,  0],
+    ['rock_a',   2.2, 0,  4.6,  0],   ['rock_b',  -8.6, 0, -1.6,  0],
+    ['rock_c',   8.2, 0,  4.0,  0],   ['fence',   -3.0, 0,  5.2,  0],
+    ['campfire',-1.6, 0,  1.8,  0],   ['jar_a',    1.9, 0, -0.4,  0],
+    ['jar_b',    2.5, 0,  0.2,  0],   ['basket',  -0.4, 0,  0.9,  0],
+    ['scroll',   1.2, 0,  1.6,  0],
+    ['hero_boy',   -1.2, 0, 2.9, 0.3], ['hero_girl',  -0.2, 0, 3.2, -0.4],
+    ['friend_boy',  0.9, 0, 3.0, 0.1], ['friend_girl', 1.9, 0, 2.6, -0.8],
+    ['villager_man',-3.4, 0, 0.2, 1.4],['villager_woman',-2.6, 0,-0.9, 2.2],
+    ['elder',       3.6, 0,-2.2, -1.1],['shepherd',     5.4, 0, 0.8, -2.0],
+  ];
+  for(const [name,x,y,z,ry] of layout){
+    const g = await loader.loadAsync('../out/'+name+'.glb');
+    const o = prep(g.scene); o.position.set(x,y,z); o.rotation.y = ry;
+    grp.add(o);
+    if(g.animations.length){
+      const m = new THREE.AnimationMixer(o);
+      const c = g.animations.find(a=>a.name===activeClip) || g.animations[0];
+      const act = m.clipAction(c); act.time = Math.random()*c.duration; act.play();
+      mixers.push(m);
+    }
+  }
+  clipNames = ['Idle','Walk','Wave'];
+  camera.position.set(11,7.5,14); controls.target.set(0,1,0);
+  key.target.position.set(0,0,0); controls.update();
+  renderClips();
+  document.getElementById('meta').textContent = `village scene · ${layout.length} instances`;
+}
+
+function renderClips(){
+  const el = document.getElementById('clips');
+  el.innerHTML = '';
+  if(!clipNames.length) return;
+  for(const n of clipNames){
+    const b=document.createElement('button');
+    b.textContent=n; b.dataset.on = (n===activeClip)?'1':'0';
+    b.onclick=()=>{ activeClip=n; reapply(); renderClips(); };
+    el.appendChild(b);
+  }
+}
+function reapply(){
+  for(const m of mixers){
+    m.stopAllAction();
+    const root = m.getRoot();
+    const g = root.userData.gltf;
+    const clips = g ? g.animations : null;
+    if(clips){ const c = clips.find(a=>a.name===activeClip)||clips[0];
+               if(c) m.clipAction(c).play(); }
+  }
+  if(mixers.length && !current.userData.gltf) rebuildVillage();
+}
+let rebuilding=false;
+async function rebuildVillage(){ if(rebuilding)return; rebuilding=true; await village(); rebuilding=false; }
+
+fetch('../out/manifest.json').then(r=>r.json()).then(man=>{
+  const list = document.getElementById('list');
+  const add = (title, items) => {
+    const h=document.createElement('div'); h.className='grp'; h.textContent=title;
+    list.appendChild(h);
+    for(const a of items){
+      const b=document.createElement('button');
+      b.textContent = `${a.name}  ·  ${a.tris} tris`;
+      b.onclick=()=>{ [...list.querySelectorAll('button')].forEach(x=>x.dataset.on='0');
+                      b.dataset.on='1'; show(a.file, a.name); };
+      list.appendChild(b);
+    }
+  };
+  const vb=document.createElement('button');
+  vb.textContent='▶  Village scene (all assets)'; vb.dataset.on='1';
+  vb.onclick=()=>{ [...list.querySelectorAll('button')].forEach(x=>x.dataset.on='0');
+                   vb.dataset.on='1'; village(); };
+  list.appendChild(vb);
+  add('Characters', man.characters);
+  add('Props & environment', man.props);
+  const t=man.totals;
+  document.getElementById('meta').textContent =
+    `${t.assets} assets · ${t.tris.toLocaleString()} tris · ${(t.bytes/1024).toFixed(0)} KB`;
+  village();
+});
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+renderer.setAnimationLoop(()=>{
+  const d=clock.getDelta();
+  for(const m of mixers) m.update(d);
+  controls.update();
+  renderer.render(scene,camera);
+});
+</script></body></html>
