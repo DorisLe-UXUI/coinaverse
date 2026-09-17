@@ -205,3 +205,165 @@ def scroll(length=0.5, seed=0):
         root.add(core.at(core.cyl(L * 0.09, L * 0.10, 8, "wood"), rot=(0, 90, 0)),
                  offset=(sx * L * 0.50, 0, L * 0.16))
     return root
+
+
+# ---------------- places of worship ----------------
+
+def church(width=4.2, seed=0, wall="cloth_cream", roof_c="roof",
+           door_c="wood", accent="cloth_blue", style="church"):
+    """
+    Place of worship, in three historical flavours from one generator.
+
+      style="church"    nave + pitched roof + bell tower + cross.
+                        Reads instantly to a modern child.
+      style="synagogue" flat-roofed stone hall with a columned porch.
+                        Period-correct for a Near-Eastern village.
+      style="temple"    larger, raised on a stepped platform, full colonnade.
+
+    Sized to dominate the village: a house here is ~2.8 m wide, this is
+    ~4.2 m wide and 3-4x taller. A place of worship that does not read as
+    the biggest thing in the settlement has failed at its one job.
+    """
+    r = _rng(seed)
+    W = float(width)
+    D = W * 1.75                      # long hall, not a square box
+    root = Part("root", (0, 0, 0))
+
+    # ---- plinth: lifts the building and reads as 'approach' from any angle
+    plinth_h = W * (0.16 if style == "temple" else 0.07)
+    steps = 3 if style == "temple" else 2
+    base = root.child("base", (0, 0, 0))
+    for i in range(steps):
+        k = 1.0 - i * 0.055
+        base.add(core.chamfer_box((W * 1.20 * k, D * 1.12 * k,
+                                   plinth_h / steps), 0.08, "stone"),
+                 offset=(0, 0, plinth_h * (i + 0.5) / steps))
+
+    z0 = plinth_h
+    body = root.child("body", (0, 0, z0))
+
+    if style == "church":
+        wall_h = W * 0.86
+        body.add(core.chamfer_box((W, D, wall_h), 0.04, wall),
+                 offset=(0, 0, wall_h / 2))
+        # pitched roof: a prism laid along the hall
+        roof_h = W * 0.46
+        body.add(core.at(core.wedge((D * 1.05, W * 1.06, roof_h), roof_c),
+                         rot=(0, 0, 90)),
+                 offset=(0, 0, wall_h + roof_h / 2))
+
+        # bell tower at the front, taller than the ridge
+        tw = W * 0.40
+        tower_h = wall_h * 1.62
+        tower = body.child("tower", (0, D * 0.44, 0))
+        tower.add(core.chamfer_box((tw, tw, tower_h), 0.05, wall),
+                  offset=(0, 0, tower_h / 2))
+        # belfry openings
+        for sx, sy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            tower.add(core.chamfer_box((tw * (0.30 if sx else 0.50), 
+                                        tw * (0.50 if sx else 0.30),
+                                        tower_h * 0.13), 0.14, "hair_dark"),
+                      offset=(sx * tw * 0.49, sy * tw * 0.49, tower_h * 0.86))
+        # spire + cross
+        spire_h = tw * 1.45
+        tower.add(core.cone(tw * 0.76, spire_h, 4, roof_c),
+                  offset=(0, 0, tower_h + spire_h * 0.5))
+        cz = tower_h + spire_h
+        tower.add(core.chamfer_box((tw * 0.075, tw * 0.075, tw * 0.46), 0.26,
+                                   "glow_gold"),
+                  offset=(0, 0, cz + tw * 0.23))
+        tower.add(core.chamfer_box((tw * 0.30, tw * 0.075, tw * 0.075), 0.26,
+                                   "glow_gold"),
+                  offset=(0, 0, cz + tw * 0.30))
+
+        # arched door on the tower face
+        dw, dh = tw * 0.52, wall_h * 0.52
+        tower.add(core.chamfer_box((dw, tw * 0.07, dh), 0.10, door_c),
+                  offset=(0, tw * 0.50, dh / 2))
+        tower.add(core.at(core.cyl(dw * 0.50, tw * 0.07, 8, door_c),
+                          rot=(90, 0, 0)),
+                  offset=(0, tw * 0.50, dh))
+
+        # stained glass down both flanks -- the one place colour is loud
+        glass = ["cloth_red", "cloth_blue", "glow_gold", "cloth_plum",
+                 "leaf_mid", "water"]
+        for i in range(4):
+            y = D * (-0.30 + i * 0.20)
+            for sx in (1, -1):
+                c = glass[int(r.integers(0, len(glass)))]
+                body.add(core.chamfer_box((W * 0.05, D * 0.085, wall_h * 0.34),
+                                          0.14, c),
+                         offset=(sx * W * 0.49, y, wall_h * 0.52))
+        # rose window over the door
+        body.add(core.at(core.cyl(W * 0.13, W * 0.05, 8, "glow_gold"),
+                         rot=(90, 0, 0)),
+                 offset=(0, D * 0.50, wall_h * 0.70))
+
+    else:
+        # synagogue / temple: flat roof, stone, colonnade at the entrance
+        stone = "sand" if style == "synagogue" else "stone"
+        wall_h = W * (0.92 if style == "synagogue" else 1.15)
+        body.add(core.chamfer_box((W, D, wall_h), 0.03, stone),
+                 offset=(0, 0, wall_h / 2))
+        body.add(core.chamfer_box((W * 1.07, D * 1.05, wall_h * 0.09), 0.16,
+                                  "sand_deep"),
+                 offset=(0, 0, wall_h * 1.02))
+        if style == "temple":
+            # clerestory lantern -- the silhouette cue that separates a
+            # temple from a synagogue at a glance
+            lh = wall_h * 0.30
+            body.add(core.chamfer_box((W * 0.62, D * 0.52, lh), 0.06, stone),
+                     offset=(0, -D * 0.06, wall_h * 1.06 + lh / 2))
+            body.add(core.chamfer_box((W * 0.70, D * 0.58, wall_h * 0.07),
+                                      0.18, "sand_deep"),
+                     offset=(0, -D * 0.06, wall_h * 1.06 + lh))
+            for sx in (1, -1):
+                body.add(core.chamfer_box((W * 0.03, D * 0.30, lh * 0.52),
+                                          0.14, "glow_warm"),
+                         offset=(sx * W * 0.31, -D * 0.06,
+                                 wall_h * 1.06 + lh * 0.52))
+
+        # Columns need air between them or the porch reads as a solid wall.
+        # Keep capital width well under the gap: 4 columns across the full
+        # facade, spaced ~0.36W, capitals 0.11W.
+        n_col = 4
+        porch_d = W * 0.42
+        col_h = wall_h * 0.92
+        span = W * 1.08
+        for i in range(n_col):
+            x = -span / 2 + span * i / (n_col - 1)
+            col = body.child(f"col_{i}", (x, D * 0.50 + porch_d * 0.5, 0))
+            col.add(core.cyl(W * 0.042, col_h, 8, stone),
+                    offset=(0, 0, col_h / 2))
+            for zz, w in ((0.025, 0.105), (0.975, 0.115)):
+                col.add(core.chamfer_box((W * w, W * w, col_h * 0.045),
+                                         0.22, stone),
+                        offset=(0, 0, col_h * zz))
+        # porch lintel
+        body.add(core.chamfer_box((span * 1.10, porch_d, wall_h * 0.10), 0.14,
+                                  "sand_deep"),
+                 offset=(0, D * 0.50 + porch_d * 0.5, col_h * 1.025))
+
+        dw, dh = W * 0.38, wall_h * 0.62
+        body.add(core.chamfer_box((dw, W * 0.05, dh), 0.08, door_c),
+                 offset=(0, D * 0.505, dh / 2))
+        body.add(core.chamfer_box((dw * 1.16, W * 0.06, wall_h * 0.06), 0.18,
+                                  "sand_deep"),
+                 offset=(0, D * 0.505, dh + wall_h * 0.03))
+        if style == "synagogue":
+            # menorah-ish emblem above the door, kept abstract
+            body.add(core.chamfer_box((W * 0.20, W * 0.04, W * 0.035), 0.24,
+                                      "glow_gold"),
+                     offset=(0, D * 0.505, dh + W * 0.22))
+            for k in (-1, 0, 1):
+                body.add(core.chamfer_box((W * 0.03, W * 0.04, W * 0.14), 0.24,
+                                          "glow_gold"),
+                         offset=(k * W * 0.08, D * 0.505, dh + W * 0.30))
+        for i in range(3):
+            y = D * (-0.28 + i * 0.26)
+            for sx in (1, -1):
+                body.add(core.chamfer_box((W * 0.045, D * 0.07, wall_h * 0.26),
+                                          0.12, "sky_soft"),
+                         offset=(sx * W * 0.49, y, wall_h * 0.62))
+
+    return root

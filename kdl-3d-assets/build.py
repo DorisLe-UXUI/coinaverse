@@ -53,6 +53,9 @@ PROPS = [
     ("fence",     props.fence,    dict(length=2.0)),
     ("campfire",  props.campfire, dict(size=0.5)),
     ("scroll",    props.scroll,   dict(length=0.5)),
+    ("church",    props.church,   dict(width=4.2, seed=3, style="church")),
+    ("synagogue", props.church,   dict(width=4.2, seed=3, style="synagogue")),
+    ("temple",    props.church,   dict(width=5.0, seed=3, style="temple")),
 ]
 
 CLIPS = [("Idle", characters.clip_idle), ("Walk", characters.clip_walk),

@@ -217,11 +217,29 @@
       "file": "scroll.glb",
       "tris": 96,
       "bytes": 4976
+    },
+    {
+      "name": "church",
+      "file": "church.glb",
+      "tris": 916,
+      "bytes": 32400
+    },
+    {
+      "name": "synagogue",
+      "file": "synagogue.glb",
+      "tris": 1228,
+      "bytes": 34416
+    },
+    {
+      "name": "temple",
+      "file": "temple.glb",
+      "tris": 1272,
+      "bytes": 37668
     }
   ],
   "totals": {
-    "assets": 28,
-    "bytes": 709944,
-    "tris": 15378
+    "assets": 31,
+    "bytes": 814428,
+    "tris": 18794
   }
 }

@@ -3,7 +3,7 @@
 28 game-ready `.glb` assets for a small open-world adventure, built for
 three.js on the web. Low-poly stylised, flat-shaded, no textures.
 
-**Total: ~15,400 triangles, ~693 KB for the entire set.**
+**Total: ~18,800 triangles, ~795 KB for the entire set.**
 
 ---
 
@@ -52,6 +52,8 @@ geometry is authored for it.
 | villager_man, villager_woman | 1.68 / 1.58 m | ~1,290 |
 | elder, shepherd | 1.60 / 1.66 m | ~1,290 |
 
+31 assets in total.
+
 Children and adults use **different proportions**, not different scales —
 a child is ~3.3 heads tall, an adult ~5. Scaling a child up produces a
 giant toddler, which is why `kid()` and `adult()` are separate presets.
@@ -60,6 +62,25 @@ giant toddler, which is why `kid()` and `adult()` are separate presets.
 
 Trees (3), palms (2), bushes (2), rocks (3), houses (3), well, jars (2),
 basket, fence, campfire, scroll.
+
+## Places of worship
+
+One generator, `props.church(style=…)`, produces three:
+
+| style | What it is | Use when |
+|---|---|---|
+| `church` | Nave, pitched roof, bell tower, spire, cross, stained glass | The story is set in the present day — a child recognises it instantly |
+| `synagogue` | Flat-roofed stone hall, columned porch, menorah emblem | The story is set in the Biblical period — this is the period-correct building |
+| `temple` | Larger, stepped platform, full colonnade, roof lantern | The Temple as a landmark or destination |
+
+A church with a bell tower is Christian architecture from centuries after
+the Biblical period. Dropping one into a Near-Eastern village of flat-roofed
+houses, palms and clay jars breaks the setting. If the game is set in that
+world, use `synagogue`. If it is set today, use `church`. Both are built,
+so the choice is a config line, not a rebuild.
+
+All three are sized to dominate: a house is ~2.8 m wide, these are 4.2-5.0 m
+wide and 3-4x taller.
 
 ## Rebuilding
 
